@@ -562,8 +562,12 @@ const RSVP_ENDPOINT = "https://formspree.io/f/YOUR_FORM_ID"; // TODO: замен
       } else if (event.key === 'ArrowRight') {
         renderSlide(currentIndex + 1);
       } else if (event.key === 'Tab') {
-        /* Простая ловушка фокуса внутри диалога */
-        var focusables = [lightboxClose, lightboxPrev, lightboxNext];
+        /* Ловушка фокуса внутри диалога: фокусируемые узлы собираем
+           динамически, чтобы не зависеть от их количества */
+        var focusables = Array.prototype.slice
+          .call(lightbox.querySelectorAll('button, [href], [tabindex]:not([tabindex="-1"])'))
+          .filter(function (node) { return node.offsetParent !== null; });
+        if (!focusables.length) return;
         var idx = focusables.indexOf(document.activeElement);
         event.preventDefault();
         if (event.shiftKey) {
