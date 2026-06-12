@@ -1192,6 +1192,20 @@ img.img-failed {
   filter: blur(0);
 }
 
+/* Чередование направлений reveal (НЕ для [data-parallax]-узлов) */
+.reveal--left {
+  transform: translateX(-40px) rotate(var(--tilt, 0deg));
+}
+
+.reveal--right {
+  transform: translateX(40px) rotate(var(--tilt, 0deg));
+}
+
+.reveal--left.is-visible,
+.reveal--right.is-visible {
+  transform: translate(0, 0) rotate(var(--tilt, 0deg));
+}
+
 /* ============================================================
    Адаптив
    ============================================================ */
@@ -1786,5 +1800,191 @@ img.img-failed {
 
   .lightbox__img {
     max-height: 66vh;
+  }
+}
+
+/* ============================================================
+   18. Лаконичные анимации: имена hero, разделители, шторки
+       фото + Ken Burns, прогресс прокрутки, hover-полировка,
+       пульс CTA
+   ============================================================ */
+
+/* --- Имена в Hero: пословное проявление после прелоадера/интро --- */
+.hero__names--split .name-word {
+  display: inline-block;
+  opacity: 0;
+}
+
+.hero__names--play .name-word {
+  animation: name-rise .9s var(--fast) both;
+  animation-delay: var(--name-delay, 0s);
+}
+
+@keyframes name-rise {
+  from {
+    opacity: 0;
+    transform: translateY(.4em);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* --- Разделители «прорисовываются» при появлении --- */
+.gold-rule.anim-draw {
+  transform: scaleX(0);
+  transform-origin: center;
+  transition: transform 1.1s var(--fast);
+}
+
+.gold-rule.anim-draw.is-visible {
+  transform: scaleX(1);
+}
+
+.divider.anim-draw .divider__svg path {
+  stroke-dasharray: 240;
+  stroke-dashoffset: 240;
+  transition: stroke-dashoffset 1.7s var(--fast);
+}
+
+.divider.anim-draw.is-visible .divider__svg path {
+  stroke-dashoffset: 0;
+}
+
+.divider.anim-draw .divider__svg circle {
+  opacity: 0;
+  transition: opacity .7s var(--fast) .9s;
+}
+
+.divider.anim-draw.is-visible .divider__svg circle {
+  opacity: 1;
+}
+
+/* --- Фото: шторка снизу-вверх + деликатный Ken Burns.
+       Обёртка .photo-mask НЕ является [data-parallax]-узлом,
+       поэтому transform/clip-path не конфликтуют с parallax --- */
+.photo-mask {
+  overflow: hidden;
+  clip-path: inset(0 0 100% 0);
+  transition: clip-path .9s var(--fast);
+  transition-delay: var(--reveal-delay, 0s);
+}
+
+.is-visible .photo-mask {
+  clip-path: inset(0 0 0 0);
+}
+
+.photo-mask img {
+  transform: scale(1.08);
+  transition: transform 6s ease-out, filter .6s var(--fast);
+}
+
+.is-visible .photo-mask img {
+  transform: scale(1);
+}
+
+/* --- Прогресс прокрутки: тонкая золотая полоса --- */
+.scroll-progress {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  z-index: 95; /* выше навигации (90), ниже интро (100) и прелоадера (120) */
+  pointer-events: none;
+}
+
+.scroll-progress__bar {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, var(--gold), var(--gold-bright));
+  transform: scaleX(0);
+  transform-origin: left;
+}
+
+/* --- Полировка hover --- */
+.nav__link:focus-visible::after {
+  right: 0;
+}
+
+.btn--ghost:hover,
+.btn--ghost-light:hover {
+  box-shadow: 0 14px 34px rgba(42, 0, 3, .18);
+}
+
+.card:hover,
+.place:hover {
+  box-shadow: 0 36px 100px rgba(58, 42, 29, .22);
+}
+
+/* --- Акцент на CTA в Hero: дышащее золотое свечение --- */
+.btn--cta {
+  animation: cta-glow 2.6s ease-in-out infinite;
+}
+
+.btn--cta:hover,
+.btn--cta:focus-visible {
+  animation: none;
+}
+
+@keyframes cta-glow {
+  0%, 100% {
+    box-shadow: 0 18px 44px rgba(74, 0, 8, .28), 0 0 0 0 rgba(201, 162, 83, 0);
+  }
+  50% {
+    box-shadow: 0 18px 44px rgba(74, 0, 8, .28), 0 0 26px 5px rgba(201, 162, 83, .35);
+  }
+}
+
+/* ============================================================
+   19. Reduced motion для новых анимаций (в конце файла,
+       чтобы каскад гарантированно перекрывал правила выше)
+   ============================================================ */
+@media (prefers-reduced-motion: reduce) {
+  .reveal--left,
+  .reveal--right {
+    transform: translate(0, 0) rotate(var(--tilt, 0deg));
+    transition: none;
+  }
+
+  .hero__names--split .name-word {
+    opacity: 1;
+    transform: none;
+    animation: none;
+  }
+
+  .gold-rule.anim-draw {
+    transform: scaleX(1);
+    transition: none;
+  }
+
+  .divider.anim-draw .divider__svg path {
+    stroke-dasharray: none;
+    stroke-dashoffset: 0;
+    transition: none;
+  }
+
+  .divider.anim-draw .divider__svg circle {
+    opacity: 1;
+    transition: none;
+  }
+
+  .photo-mask {
+    clip-path: none;
+    transition: none;
+  }
+
+  .photo-mask img {
+    transform: none;
+    transition: none;
+  }
+
+  .scroll-progress__bar {
+    transition: none;
+  }
+
+  .btn--cta {
+    animation: none;
   }
 }

@@ -11,6 +11,67 @@ const RSVP_ENDPOINT = "https://formspree.io/f/YOUR_FORM_ID"; // TODO: замен
   var reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   /* ----------------------------------------------------------
+     0a. Имена в Hero: разбивка на слова (амперсанд — отдельный
+         span) + стаггер-проявление. Запуск — после закрытия
+         интро (или скрытия прелоадера, если интро нет).
+     ---------------------------------------------------------- */
+  var heroNames = document.querySelector('.hero__names');
+  var heroNamesPlayed = false;
+
+  function playHeroNames() {
+    if (!heroNames || heroNamesPlayed) return;
+    heroNamesPlayed = true;
+    heroNames.classList.add('hero__names--play');
+  }
+
+  if (heroNames && !reduceMotion) {
+    /* Доступность: полный текст остаётся в aria-label заголовка */
+    heroNames.setAttribute('aria-label', heroNames.textContent.replace(/\s+/g, ' ').trim());
+
+    var heroFrag = document.createDocumentFragment();
+    var heroWordIndex = 0;
+
+    var makeHeroWord = function (content) {
+      var word = document.createElement('span');
+      word.className = 'name-word';
+      word.setAttribute('aria-hidden', 'true');
+      word.style.setProperty('--name-delay', (heroWordIndex * 0.07).toFixed(2) + 's');
+      heroWordIndex += 1;
+      if (typeof content === 'string') {
+        word.textContent = content;
+      } else {
+        word.appendChild(content);
+      }
+      return word;
+    };
+
+    Array.prototype.slice.call(heroNames.childNodes).forEach(function (node) {
+      if (node.nodeType === 3) {
+        node.textContent.split(/(\s+)/).forEach(function (part) {
+          if (!part) return;
+          if (/^\s+$/.test(part)) {
+            heroFrag.appendChild(document.createTextNode(' '));
+          } else {
+            heroFrag.appendChild(makeHeroWord(part));
+          }
+        });
+      } else if (node.nodeType === 1) {
+        /* Элементы (амперсанд) — отдельный span с сохранением стилей */
+        heroFrag.appendChild(makeHeroWord(node));
+      }
+    });
+
+    heroNames.textContent = '';
+    heroNames.appendChild(heroFrag);
+    heroNames.classList.add('hero__names--split');
+  }
+
+  /* Если на странице нет ни прелоадера, ни интро — играем сразу */
+  if (!document.getElementById('preloader') && !document.getElementById('intro')) {
+    playHeroNames();
+  }
+
+  /* ----------------------------------------------------------
      0. Прелоадер: показывается первым, исчезает по load,
         затем гостя встречает интро-видео
      ---------------------------------------------------------- */
@@ -23,6 +84,10 @@ const RSVP_ENDPOINT = "https://formspree.io/f/YOUR_FORM_ID"; // TODO: замен
       if (preloaderHidden) return;
       preloaderHidden = true;
       preloader.classList.add('preloader--hidden');
+      /* Если интро-оверлея нет, hero уже виден — запускаем имена */
+      if (!document.getElementById('intro')) {
+        playHeroNames();
+      }
       window.setTimeout(function () {
         if (preloader.parentNode) {
           preloader.parentNode.removeChild(preloader);
@@ -66,6 +131,8 @@ const RSVP_ENDPOINT = "https://formspree.io/f/YOUR_FORM_ID"; // TODO: замен
       } catch (e) { /* noop */ }
     }
     unlockScroll();
+    /* Hero открылся — запускаем проявление имён */
+    playHeroNames();
     /* Полностью убрать оверлей после fade-out */
     window.setTimeout(function () {
       if (intro && intro.parentNode) {
@@ -127,12 +194,22 @@ const RSVP_ENDPOINT = "https://formspree.io/f/YOUR_FORM_ID"; // TODO: замен
   var navMenu = document.getElementById('navMenu');
   var navLinks = navMenu ? Array.prototype.slice.call(navMenu.querySelectorAll('.nav__link')) : [];
 
+  var progressBar = document.querySelector('.scroll-progress__bar');
+
   function onNavScroll() {
-    if (!nav) return;
-    nav.classList.toggle('nav--scrolled', window.scrollY > 24);
+    if (nav) {
+      nav.classList.toggle('nav--scrolled', window.scrollY > 24);
+    }
+    /* Прогресс прокрутки: scaleX 0..1 */
+    if (progressBar) {
+      var scrollMax = document.documentElement.scrollHeight - window.innerHeight;
+      var progress = scrollMax > 0 ? Math.min(1, Math.max(0, window.scrollY / scrollMax)) : 0;
+      progressBar.style.transform = 'scaleX(' + progress.toFixed(4) + ')';
+    }
   }
 
   window.addEventListener('scroll', onNavScroll, { passive: true });
+  window.addEventListener('resize', onNavScroll, { passive: true });
   onNavScroll();
 
   function closeMenu() {
@@ -192,9 +269,10 @@ const RSVP_ENDPOINT = "https://formspree.io/f/YOUR_FORM_ID"; // TODO: замен
      3. Scroll-reveal через IntersectionObserver
      ---------------------------------------------------------- */
   var revealEls = Array.prototype.slice.call(document.querySelectorAll('.reveal'));
+  var drawEls = Array.prototype.slice.call(document.querySelectorAll('.anim-draw'));
 
   if (reduceMotion || !('IntersectionObserver' in window)) {
-    revealEls.forEach(function (el) { el.classList.add('is-visible'); });
+    revealEls.concat(drawEls).forEach(function (el) { el.classList.add('is-visible'); });
   } else {
     var revealObserver = new IntersectionObserver(function (entries, observer) {
       entries.forEach(function (entry) {
@@ -207,6 +285,13 @@ const RSVP_ENDPOINT = "https://formspree.io/f/YOUR_FORM_ID"; // TODO: замен
     revealEls.forEach(function (el, index) {
       el.style.setProperty('--reveal-delay', (index % 4) * 0.08 + 's');
       revealObserver.observe(el);
+    });
+
+    /* «Прорисовка» разделителей — тем же обсервером */
+    drawEls.forEach(function (el) {
+      if (!el.classList.contains('reveal')) {
+        revealObserver.observe(el);
+      }
     });
   }
 
@@ -274,23 +359,83 @@ const RSVP_ENDPOINT = "https://formspree.io/f/YOUR_FORM_ID"; // TODO: замен
     }, 150);
   }
 
-  function updateCountdown() {
+  function getRemaining() {
     var diff = Math.max(0, target.getTime() - Date.now());
     var totalSeconds = Math.floor(diff / 1000);
-    var days = Math.floor(totalSeconds / 86400);
-    var hours = Math.floor((totalSeconds % 86400) / 3600);
-    var minutes = Math.floor((totalSeconds % 3600) / 60);
-    var seconds = totalSeconds % 60;
+    return {
+      days: Math.floor(totalSeconds / 86400),
+      hours: Math.floor((totalSeconds % 86400) / 3600),
+      minutes: Math.floor((totalSeconds % 3600) / 60),
+      seconds: totalSeconds % 60
+    };
+  }
 
-    setDigit(cd.days, pad(days, 3));
-    setDigit(cd.hours, pad(hours, 2));
-    setDigit(cd.minutes, pad(minutes, 2));
-    setDigit(cd.seconds, pad(seconds, 2));
+  function updateCountdown() {
+    var remaining = getRemaining();
+    setDigit(cd.days, pad(remaining.days, 3));
+    setDigit(cd.hours, pad(remaining.hours, 2));
+    setDigit(cd.minutes, pad(remaining.minutes, 2));
+    setDigit(cd.seconds, pad(remaining.seconds, 2));
   }
 
   if (cd.days && cd.hours && cd.minutes && cd.seconds) {
-    updateCountdown();
-    window.setInterval(updateCountdown, 1000);
+    var countdownStarted = false;
+
+    /* Штатный тик; гейт гарантирует ровно один интервал */
+    var startCountdownTicker = function () {
+      if (countdownStarted) return;
+      countdownStarted = true;
+      updateCountdown();
+      window.setInterval(updateCountdown, 1000);
+    };
+
+    var countdownSection = document.getElementById('countdown');
+
+    if (reduceMotion || !('IntersectionObserver' in window) || !countdownSection) {
+      /* Фолбэк / reduced motion: прежнее поведение */
+      startCountdownTicker();
+    } else {
+      var countUpStarted = false;
+
+      /* Count-up: цифры «докручиваются» от 0 за ~1с с ease-out,
+         затем стартует штатный интервал */
+      var runCountUp = function () {
+        if (countUpStarted || countdownStarted) return;
+        countUpStarted = true;
+
+        var finals = getRemaining();
+        var duration = 1000;
+        var startTime = null;
+
+        var step = function (now) {
+          if (countdownStarted) return;
+          if (startTime === null) startTime = now;
+          var t = Math.min(1, (now - startTime) / duration);
+          var eased = 1 - Math.pow(1 - t, 3); /* ease-out cubic */
+          cd.days.textContent = pad(Math.round(finals.days * eased), 3);
+          cd.hours.textContent = pad(Math.round(finals.hours * eased), 2);
+          cd.minutes.textContent = pad(Math.round(finals.minutes * eased), 2);
+          cd.seconds.textContent = pad(Math.round(finals.seconds * eased), 2);
+          if (t < 1) {
+            window.requestAnimationFrame(step);
+          } else {
+            startCountdownTicker();
+          }
+        };
+
+        window.requestAnimationFrame(step);
+      };
+
+      var countdownObserver = new IntersectionObserver(function (entries, observer) {
+        entries.forEach(function (entry) {
+          if (!entry.isIntersecting) return;
+          observer.unobserve(entry.target);
+          runCountUp();
+        });
+      }, { threshold: 0.25 });
+
+      countdownObserver.observe(countdownSection);
+    }
   }
 
   /* ----------------------------------------------------------

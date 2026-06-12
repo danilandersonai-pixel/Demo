@@ -32,6 +32,9 @@
 </head>
 <body>
 
+  <!-- ПРОГРЕСС ПРОКРУТКИ: тонкая золотая полоса вверху -->
+  <div class="scroll-progress" aria-hidden="true"><span class="scroll-progress__bar"></span></div>
+
   <!-- ПРЕЛОАДЕР: показывается первым, поверх интро-видео -->
   <div class="preloader" id="preloader" aria-hidden="true">
     <p class="preloader__monogram">Е&nbsp;<span class="preloader__amp">&amp;</span>&nbsp;Д</p>
@@ -104,10 +107,10 @@
       <div class="container hero__content reveal">
         <p class="kicker">Приглашение на свадьбу</p>
         <h1 class="hero__names">Егор <span class="hero__amp">&amp;</span> Диана</h1>
-        <div class="gold-rule" aria-hidden="true"></div>
+        <div class="gold-rule anim-draw" aria-hidden="true"></div>
         <p class="hero__date">26 . 08 . 2026 &nbsp;·&nbsp; Санкт-Петербург</p>
         <p class="hero__sub">Приглашаем разделить наш день</p>
-        <a class="btn btn--wine" href="#rsvp">Подтвердить присутствие</a>
+        <a class="btn btn--wine btn--cta" href="#rsvp">Подтвердить присутствие</a>
       </div>
       <div class="hero__scrollhint" aria-hidden="true">
         <span></span>
@@ -157,7 +160,7 @@
     </section>
 
     <!-- ФЛОРАЛЬ-РАЗДЕЛИТЕЛЬ -->
-    <div class="divider" aria-hidden="true">
+    <div class="divider anim-draw" aria-hidden="true">
       <svg class="divider__svg" viewBox="0 0 220 24" fill="none" xmlns="http://www.w3.org/2000/svg">
         <path d="M2 12h74M144 12h74" stroke="currentColor" stroke-width="1"/>
         <path d="M110 5l5 7-5 7-5-7z" stroke="currentColor" stroke-width="1"/>
@@ -173,39 +176,47 @@
         <header class="section__head reveal">
           <p class="kicker">Наша история</p>
           <h2 class="section__title">Четыре кадра о&nbsp;нас</h2>
-          <div class="gold-rule" aria-hidden="true"></div>
+          <div class="gold-rule anim-draw" aria-hidden="true"></div>
         </header>
         <div class="gallery__grid">
           <figure class="gallery__card reveal" style="--r:-1.6deg" data-parallax="0.035">
-            <img
-              src="https://yegor.diana.yarover.ru/wp-content/themes/egor-diana-wedding/assets/photo-01.jpg"
-              alt="Кадр первый: начало истории"
-              loading="lazy"
-              onerror="this.classList.add('img-failed')">
+            <div class="photo-mask">
+              <img
+                src="https://yegor.diana.yarover.ru/wp-content/themes/egor-diana-wedding/assets/photo-01.jpg"
+                alt="Кадр первый: начало истории"
+                loading="lazy"
+                onerror="this.classList.add('img-failed')">
+            </div>
             <figcaption><span>I</span> Начало</figcaption>
           </figure>
           <figure class="gallery__card reveal" style="--r:1.4deg" data-parallax="-0.03">
-            <img
-              src="https://yegor.diana.yarover.ru/wp-content/themes/egor-diana-wedding/assets/photo-02.jpg"
-              alt="Кадр второй: вдвоём"
-              loading="lazy"
-              onerror="this.classList.add('img-failed')">
+            <div class="photo-mask">
+              <img
+                src="https://yegor.diana.yarover.ru/wp-content/themes/egor-diana-wedding/assets/photo-02.jpg"
+                alt="Кадр второй: вдвоём"
+                loading="lazy"
+                onerror="this.classList.add('img-failed')">
+            </div>
             <figcaption><span>II</span> Вдвоём</figcaption>
           </figure>
           <figure class="gallery__card reveal" style="--r:-1.2deg" data-parallax="0.045">
-            <img
-              src="https://yegor.diana.yarover.ru/wp-content/themes/egor-diana-wedding/assets/photo-03.jpg"
-              alt="Кадр третий: обещание"
-              loading="lazy"
-              onerror="this.classList.add('img-failed')">
+            <div class="photo-mask">
+              <img
+                src="https://yegor.diana.yarover.ru/wp-content/themes/egor-diana-wedding/assets/photo-03.jpg"
+                alt="Кадр третий: обещание"
+                loading="lazy"
+                onerror="this.classList.add('img-failed')">
+            </div>
             <figcaption><span>III</span> Обещание</figcaption>
           </figure>
           <figure class="gallery__card reveal" style="--r:1.8deg" data-parallax="-0.04">
-            <img
-              src="https://yegor.diana.yarover.ru/wp-content/themes/egor-diana-wedding/assets/photo-04.jpg"
-              alt="Кадр четвёртый: навсегда"
-              loading="lazy"
-              onerror="this.classList.add('img-failed')">
+            <div class="photo-mask">
+              <img
+                src="https://yegor.diana.yarover.ru/wp-content/themes/egor-diana-wedding/assets/photo-04.jpg"
+                alt="Кадр четвёртый: навсегда"
+                loading="lazy"
+                onerror="this.classList.add('img-failed')">
+            </div>
             <figcaption><span>IV</span> Навсегда</figcaption>
           </figure>
         </div>
@@ -213,7 +224,7 @@
     </section>
 
     <!-- ФЛОРАЛЬ-РАЗДЕЛИТЕЛЬ -->
-    <div class="divider" aria-hidden="true">
+    <div class="divider anim-draw" aria-hidden="true">
       <svg class="divider__svg" viewBox="0 0 220 24" fill="none" xmlns="http://www.w3.org/2000/svg">
         <path d="M2 12h74M144 12h74" stroke="currentColor" stroke-width="1"/>
         <path d="M110 5l5 7-5 7-5-7z" stroke="currentColor" stroke-width="1"/>
@@ -229,18 +240,20 @@
         <header class="section__head reveal">
           <p class="kicker">Love Story</p>
           <h2 class="section__title">Как мы&nbsp;познакомились</h2>
-          <div class="gold-rule" aria-hidden="true"></div>
+          <div class="gold-rule anim-draw" aria-hidden="true"></div>
         </header>
 
         <!-- TODO: заменить на реальную историю и даты -->
         <ol class="story__list">
-          <li class="story__item reveal">
+          <li class="story__item reveal reveal--left">
             <figure class="story__photo" style="--r:-1.8deg" data-parallax="0.03">
-              <img
-                src="https://yegor.diana.yarover.ru/wp-content/themes/egor-diana-wedding/assets/photo-01.jpg"
-                alt="2021 год: первая встреча Егора и Дианы"
-                loading="lazy"
-                onerror="this.classList.add('img-failed')">
+              <div class="photo-mask">
+                <img
+                  src="https://yegor.diana.yarover.ru/wp-content/themes/egor-diana-wedding/assets/photo-01.jpg"
+                  alt="2021 год: первая встреча Егора и Дианы"
+                  loading="lazy"
+                  onerror="this.classList.add('img-failed')">
+              </div>
             </figure>
             <div class="story__body">
               <p class="story__year">2021</p>
@@ -248,13 +261,15 @@
               <p>Случайный вечер, общие друзья и&nbsp;разговор, который не&nbsp;хотелось заканчивать. Так начинаются лучшие истории.</p>
             </div>
           </li>
-          <li class="story__item reveal">
+          <li class="story__item reveal reveal--right">
             <figure class="story__photo" style="--r:1.5deg" data-parallax="-0.028">
-              <img
-                src="https://yegor.diana.yarover.ru/wp-content/themes/egor-diana-wedding/assets/photo-02.jpg"
-                alt="2022 год: первое свидание"
-                loading="lazy"
-                onerror="this.classList.add('img-failed')">
+              <div class="photo-mask">
+                <img
+                  src="https://yegor.diana.yarover.ru/wp-content/themes/egor-diana-wedding/assets/photo-02.jpg"
+                  alt="2022 год: первое свидание"
+                  loading="lazy"
+                  onerror="this.classList.add('img-failed')">
+              </div>
             </figure>
             <div class="story__body">
               <p class="story__year">2022</p>
@@ -262,13 +277,15 @@
               <p>Прогулка по&nbsp;набережным до&nbsp;самого рассвета — и&nbsp;понимание, что Петербург теперь наш город на&nbsp;двоих.</p>
             </div>
           </li>
-          <li class="story__item reveal">
+          <li class="story__item reveal reveal--left">
             <figure class="story__photo" style="--r:-1.3deg" data-parallax="0.032">
-              <img
-                src="https://yegor.diana.yarover.ru/wp-content/themes/egor-diana-wedding/assets/photo-03.jpg"
-                alt="2023 год: первое совместное путешествие"
-                loading="lazy"
-                onerror="this.classList.add('img-failed')">
+              <div class="photo-mask">
+                <img
+                  src="https://yegor.diana.yarover.ru/wp-content/themes/egor-diana-wedding/assets/photo-03.jpg"
+                  alt="2023 год: первое совместное путешествие"
+                  loading="lazy"
+                  onerror="this.classList.add('img-failed')">
+              </div>
             </figure>
             <div class="story__body">
               <p class="story__year">2023</p>
@@ -276,13 +293,15 @@
               <p>Чемодан на&nbsp;двоих, дорога и&nbsp;сотни фотографий. С&nbsp;тех пор мы&nbsp;путешествуем только вместе.</p>
             </div>
           </li>
-          <li class="story__item reveal">
+          <li class="story__item reveal reveal--right">
             <figure class="story__photo" style="--r:1.7deg" data-parallax="-0.03">
-              <img
-                src="https://yegor.diana.yarover.ru/wp-content/themes/egor-diana-wedding/assets/photo-04.jpg"
-                alt="2025 год: предложение руки и сердца"
-                loading="lazy"
-                onerror="this.classList.add('img-failed')">
+              <div class="photo-mask">
+                <img
+                  src="https://yegor.diana.yarover.ru/wp-content/themes/egor-diana-wedding/assets/photo-04.jpg"
+                  alt="2025 год: предложение руки и сердца"
+                  loading="lazy"
+                  onerror="this.classList.add('img-failed')">
+              </div>
             </figure>
             <div class="story__body">
               <p class="story__year">2025</p>
@@ -300,7 +319,7 @@
         <header class="section__head reveal">
           <p class="kicker">26 августа 2026</p>
           <h2 class="section__title">Программа дня</h2>
-          <div class="gold-rule" aria-hidden="true"></div>
+          <div class="gold-rule anim-draw" aria-hidden="true"></div>
         </header>
         <ol class="timeline">
           <li class="timeline__item reveal">
@@ -345,11 +364,11 @@
         <header class="section__head reveal">
           <p class="kicker">Адреса дня</p>
           <h2 class="section__title">Как добраться</h2>
-          <div class="gold-rule" aria-hidden="true"></div>
+          <div class="gold-rule anim-draw" aria-hidden="true"></div>
         </header>
 
         <div class="location__grid">
-          <article class="place reveal">
+          <article class="place reveal reveal--left">
             <p class="place__time">10:00 · Церемония</p>
             <h3 class="place__title">ЗАГС Петроградского района</h3>
             <p class="place__addr">Санкт-Петербург, Большая Монетная улица, 17-19</p>
@@ -374,7 +393,7 @@
             </div>
           </article>
 
-          <article class="place reveal">
+          <article class="place reveal reveal--right">
             <p class="place__time">17:00 · Праздничный вечер</p>
             <h3 class="place__title">Дворец Кваренги</h3>
             <p class="place__addr">Санкт-Петербург, Казанская улица, 7а</p>
@@ -403,7 +422,7 @@
     </section>
 
     <!-- ФЛОРАЛЬ-РАЗДЕЛИТЕЛЬ -->
-    <div class="divider" aria-hidden="true">
+    <div class="divider anim-draw" aria-hidden="true">
       <svg class="divider__svg" viewBox="0 0 220 24" fill="none" xmlns="http://www.w3.org/2000/svg">
         <path d="M2 12h74M144 12h74" stroke="currentColor" stroke-width="1"/>
         <path d="M110 5l5 7-5 7-5-7z" stroke="currentColor" stroke-width="1"/>
@@ -419,12 +438,12 @@
         <header class="section__head reveal">
           <p class="kicker">Важное</p>
           <h2 class="section__title">Детали</h2>
-          <div class="gold-rule" aria-hidden="true"></div>
+          <div class="gold-rule anim-draw" aria-hidden="true"></div>
         </header>
 
         <div class="details__grid">
           <!-- Дресс-код -->
-          <article class="card card--dress reveal">
+          <article class="card card--dress reveal reveal--left">
             <div class="card__media">
               <img
                 src="https://yegor.diana.yarover.ru/wp-content/themes/egor-diana-wedding/assets/dress-code.jpeg"
@@ -447,7 +466,7 @@
           </article>
 
           <!-- Подарки -->
-          <article class="card reveal">
+          <article class="card reveal reveal--right">
             <div class="card__body">
               <h3 class="card__title">Подарки</h3>
               <p>Вместо традиционных букетов мы&nbsp;будем рады подписке на&nbsp;цветы — так праздник продлится не&nbsp;один вечер, а&nbsp;целые месяцы.</p>
@@ -456,7 +475,7 @@
           </article>
 
           <!-- Фото и видео -->
-          <article class="card card--hashtag reveal">
+          <article class="card card--hashtag reveal reveal--left">
             <div class="card__body">
               <h3 class="card__title">Фото и&nbsp;видео</h3>
               <p>Делитесь кадрами вечера в&nbsp;нашем Telegram-канале — соберём общий альбом дня.</p>
@@ -466,7 +485,7 @@
           </article>
 
           <!-- Фотозона -->
-          <article class="card card--booth reveal">
+          <article class="card card--booth reveal reveal--right">
             <div class="card__media card__media--duo">
               <img
                 src="https://yegor.diana.yarover.ru/wp-content/themes/egor-diana-wedding/assets/booth-01.jpg"
@@ -494,7 +513,7 @@
         <header class="section__head reveal">
           <p class="kicker kicker--gold">Опрос гостей</p>
           <h2 class="section__title">Подтвердите присутствие</h2>
-          <div class="gold-rule" aria-hidden="true"></div>
+          <div class="gold-rule anim-draw" aria-hidden="true"></div>
           <p class="section__lead">Пожалуйста, ответьте до&nbsp;1&nbsp;августа — нам важно подготовить всё именно для&nbsp;вас.</p>
         </header>
 
@@ -599,15 +618,15 @@
     <!-- ЦВЕТЫ -->
     <section class="flowers section section--paper" id="flowers">
       <div class="container flowers__inner">
-        <div class="flowers__text reveal">
+        <div class="flowers__text reveal reveal--left">
           <p class="kicker">Вместо букетов</p>
           <h2 class="section__title">Нужно ли&nbsp;дарить цветы?</h2>
-          <div class="gold-rule gold-rule--left" aria-hidden="true"></div>
+          <div class="gold-rule gold-rule--left anim-draw" aria-hidden="true"></div>
           <p>Один вечер — и&nbsp;десятки букетов остаются без&nbsp;ваз. Мы&nbsp;придумали лучше: подарите нам подписку на&nbsp;цветы, и&nbsp;свежие композиции будут приезжать к&nbsp;нам домой ещё долго после свадьбы — как продолжение праздника.</p>
           <p class="flowers__hint">Наведите камеру на&nbsp;QR-код или нажмите кнопку ниже.</p>
           <a class="btn btn--wine" href="https://plombirflowers.ru/egordiana" target="_blank" rel="noopener">Оформить подписку</a>
         </div>
-        <figure class="flowers__qr reveal" style="--r:1.5deg">
+        <figure class="flowers__qr reveal reveal--right" style="--r:1.5deg">
           <img
             src="https://yegor.diana.yarover.ru/wp-content/themes/egor-diana-wedding/assets/qr.jpeg"
             alt="QR-код подписки на цветы"
@@ -624,7 +643,7 @@
   <footer class="footer">
     <div class="container footer__inner">
       <p class="footer__names">Егор <span class="footer__amp">&amp;</span> Диана</p>
-      <div class="gold-rule" aria-hidden="true"></div>
+      <div class="gold-rule anim-draw" aria-hidden="true"></div>
       <p class="footer__date">26 . 08 . 2026 · Санкт-Петербург</p>
       <p class="footer__hashtag">#EgDiDa</p>
     </div>
