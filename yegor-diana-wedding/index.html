@@ -1,0 +1,670 @@
+<!DOCTYPE html>
+<html lang="ru-RU">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Егор &amp; Диана — Приглашение на свадьбу · 26.08.2026</title>
+  <meta name="description" content="Приглашение на свадьбу Егора и Дианы, 26 августа 2026 года, Санкт-Петербург.">
+  <meta name="theme-color" content="#4a0008">
+
+  <!-- Open Graph: карточка при шаринге в Telegram / WhatsApp -->
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Егор &amp; Диана — приглашение на свадьбу">
+  <meta property="og:description" content="26 августа 2026, Санкт-Петербург. Будем рады разделить наш день">
+  <meta property="og:image" content="https://yegor.diana.yarover.ru/wp-content/themes/egor-diana-wedding/assets/photo-01.jpg">
+  <meta property="og:locale" content="ru_RU">
+  <meta property="og:url" content="https://danilandersonai-pixel.github.io/Demo/">
+
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Егор &amp; Диана — приглашение на свадьбу">
+  <meta name="twitter:description" content="26 августа 2026, Санкт-Петербург. Будем рады разделить наш день">
+  <meta name="twitter:image" content="https://yegor.diana.yarover.ru/wp-content/themes/egor-diana-wedding/assets/photo-01.jpg">
+
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="apple-touch-icon" href="https://yegor.diana.yarover.ru/wp-content/themes/egor-diana-wedding/assets/photo-01.jpg">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="assets/css/styles.css">
+</head>
+<body>
+
+  <!-- ПРОГРЕСС ПРОКРУТКИ: тонкая золотая полоса вверху -->
+  <div class="scroll-progress" aria-hidden="true"><span class="scroll-progress__bar"></span></div>
+
+  <!-- ПРЕЛОАДЕР: показывается первым, поверх интро-видео -->
+  <div class="preloader" id="preloader" aria-hidden="true">
+    <p class="preloader__monogram">Е&nbsp;<span class="preloader__amp">&amp;</span>&nbsp;Д</p>
+    <span class="preloader__line"></span>
+    <p class="preloader__date">26 . 08 . 2026</p>
+  </div>
+
+  <!-- ИНТРО-ВИДЕО -->
+  <div class="intro" id="intro" aria-label="Вступительное видео">
+    <video
+      class="intro__video"
+      id="introVideo"
+      autoplay
+      muted
+      playsinline
+      preload="auto"
+      poster="https://yegor.diana.yarover.ru/wp-content/themes/egor-diana-wedding/assets/intro-poster.png">
+      <source src="https://yegor.diana.yarover.ru/wp-content/themes/egor-diana-wedding/assets/intro.mp4" type="video/mp4">
+      <source src="https://yegor.diana.yarover.ru/wp-content/themes/egor-diana-wedding/assets/intro.m4v" type="video/x-m4v">
+    </video>
+    <div class="intro__veil" aria-hidden="true"></div>
+    <div class="intro__ui">
+      <p class="intro__kicker">Егор &amp; Диана · 26 августа 2026</p>
+      <div class="intro__actions">
+        <button class="btn btn--gold" id="introPlay" type="button">Смотреть</button>
+        <button class="btn btn--ghost-light" id="introSkip" type="button">Пропустить</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- НАВИГАЦИЯ -->
+  <header class="nav" id="siteNav">
+    <div class="container nav__inner">
+      <a class="nav__brand" href="#hero" aria-label="К началу страницы">Е&nbsp;<span class="nav__amp">&amp;</span>&nbsp;Д</a>
+      <button class="nav__toggle" id="navToggle" type="button" aria-label="Открыть меню" aria-expanded="false">
+        <span aria-hidden="true"></span>
+        <span aria-hidden="true"></span>
+      </button>
+      <nav class="nav__menu" id="navMenu" aria-label="Основная навигация">
+        <a class="nav__link" href="#story">История</a>
+        <a class="nav__link" href="#program">Программа</a>
+        <a class="nav__link" href="#location">Как добраться</a>
+        <a class="nav__link" href="#details">Детали</a>
+        <a class="nav__link" href="#rsvp">RSVP</a>
+        <a class="nav__link" href="#flowers">Цветы</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+
+    <!-- HERO -->
+    <section class="hero" id="hero">
+      <div class="hero__bg" aria-hidden="true">
+        <figure class="hero__photo hero__photo--left" data-parallax="0.06">
+          <img
+            src="https://yegor.diana.yarover.ru/wp-content/themes/egor-diana-wedding/assets/photo-01.jpg"
+            alt="Егор и Диана"
+            loading="eager"
+            onerror="this.classList.add('img-failed')">
+        </figure>
+        <figure class="hero__photo hero__photo--right" data-parallax="-0.05">
+          <img
+            src="https://yegor.diana.yarover.ru/wp-content/themes/egor-diana-wedding/assets/photo-02.jpg"
+            alt="Егор и Диана вдвоём"
+            loading="eager"
+            onerror="this.classList.add('img-failed')">
+        </figure>
+      </div>
+      <div class="container hero__content reveal">
+        <p class="kicker">Приглашение на свадьбу</p>
+        <h1 class="hero__names">Егор <span class="hero__amp">&amp;</span> Диана</h1>
+        <div class="gold-rule anim-draw" aria-hidden="true"></div>
+        <p class="hero__date">26 . 08 . 2026 &nbsp;·&nbsp; Санкт-Петербург</p>
+        <p class="hero__sub">Приглашаем разделить наш день</p>
+        <a class="btn btn--wine btn--cta" href="#rsvp">Подтвердить присутствие</a>
+      </div>
+      <div class="hero__scrollhint" aria-hidden="true">
+        <span></span>
+      </div>
+    </section>
+
+    <!-- COUNTDOWN -->
+    <section class="countdown section section--dark" id="countdown">
+      <div class="container reveal">
+        <p class="kicker kicker--gold">До встречи остаётся</p>
+        <div class="countdown__grid" role="timer" aria-label="Обратный отсчёт до свадьбы">
+          <div class="countdown__cell">
+            <span class="countdown__num" id="cdDays">000</span>
+            <span class="countdown__label">дней</span>
+          </div>
+          <span class="countdown__sep" aria-hidden="true">:</span>
+          <div class="countdown__cell">
+            <span class="countdown__num" id="cdHours">00</span>
+            <span class="countdown__label">часов</span>
+          </div>
+          <span class="countdown__sep" aria-hidden="true">:</span>
+          <div class="countdown__cell">
+            <span class="countdown__num" id="cdMinutes">00</span>
+            <span class="countdown__label">минут</span>
+          </div>
+          <span class="countdown__sep" aria-hidden="true">:</span>
+          <div class="countdown__cell">
+            <span class="countdown__num" id="cdSeconds">00</span>
+            <span class="countdown__label">секунд</span>
+          </div>
+        </div>
+        <p class="countdown__date">26 августа 2026 · 10:00</p>
+        <div class="calendar-actions" aria-label="Добавить событие в календарь">
+          <button class="btn btn--gold-line" id="icsDownload" type="button" aria-label="Скачать событие для Apple Calendar и Outlook (файл .ics)">
+            Добавить в календарь (.ics)
+          </button>
+          <a
+            class="btn btn--gold-line"
+            href="https://calendar.google.com/calendar/render?action=TEMPLATE&amp;text=%D0%A1%D0%B2%D0%B0%D0%B4%D1%8C%D0%B1%D0%B0%20%D0%95%D0%B3%D0%BE%D1%80%D0%B0%20%D0%B8%20%D0%94%D0%B8%D0%B0%D0%BD%D1%8B&amp;dates=20260826T070000Z/20260826T200000Z&amp;details=%D0%9F%D1%80%D0%B8%D0%B3%D0%BB%D0%B0%D1%88%D0%B5%D0%BD%D0%B8%D0%B5%20%D0%BD%D0%B0%20%D1%81%D0%B2%D0%B0%D0%B4%D1%8C%D0%B1%D1%83%20%D0%95%D0%B3%D0%BE%D1%80%D0%B0%20%D0%B8%20%D0%94%D0%B8%D0%B0%D0%BD%D1%8B.%20%D0%A1%D0%B1%D0%BE%D1%80%20%D0%B3%D0%BE%D1%81%D1%82%D0%B5%D0%B9%20%D0%B2%D0%BE%20%D0%B4%D0%B2%D0%BE%D1%80%D1%86%D0%B5%20%D0%9A%D0%B2%D0%B0%D1%80%D0%B5%D0%BD%D0%B3%D0%B8%20%D0%B2%2017%3A00%20(%D0%9A%D0%B0%D0%B7%D0%B0%D0%BD%D1%81%D0%BA%D0%B0%D1%8F%20%D1%83%D0%BB.%2C%207%D0%B0).%20%D0%A5%D1%8D%D1%88%D1%82%D0%B5%D0%B3%20%23EgDiDa&amp;location=%D0%A1%D0%B0%D0%BD%D0%BA%D1%82-%D0%9F%D0%B5%D1%82%D0%B5%D1%80%D0%B1%D1%83%D1%80%D0%B3%2C%20%D0%91%D0%BE%D0%BB%D1%8C%D1%88%D0%B0%D1%8F%20%D0%9C%D0%BE%D0%BD%D0%B5%D1%82%D0%BD%D0%B0%D1%8F%20%D1%83%D0%BB%D0%B8%D1%86%D0%B0%2C%2017-19"
+            target="_blank"
+            rel="noopener"
+            aria-label="Добавить событие в Google Календарь">
+            Google Calendar
+          </a>
+        </div>
+      </div>
+    </section>
+
+    <!-- ФЛОРАЛЬ-РАЗДЕЛИТЕЛЬ -->
+    <div class="divider anim-draw" aria-hidden="true">
+      <svg class="divider__svg" viewBox="0 0 220 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M2 12h74M144 12h74" stroke="currentColor" stroke-width="1"/>
+        <path d="M110 5l5 7-5 7-5-7z" stroke="currentColor" stroke-width="1"/>
+        <path d="M80 12c6-6 12-6 16 0M96 12c-3-4-3-8 0-10M140 12c-6-6-12-6-16 0M124 12c3-4 3-8 0-10" stroke="currentColor" stroke-width="1" stroke-linecap="round"/>
+        <circle cx="96" cy="2" r="1.4" fill="currentColor"/>
+        <circle cx="124" cy="2" r="1.4" fill="currentColor"/>
+      </svg>
+    </div>
+
+    <!-- ГАЛЕРЕЯ -->
+    <section class="gallery section" id="gallery">
+      <div class="container">
+        <header class="section__head reveal">
+          <p class="kicker">Наша история</p>
+          <h2 class="section__title">Четыре кадра о&nbsp;нас</h2>
+          <div class="gold-rule anim-draw" aria-hidden="true"></div>
+        </header>
+        <div class="gallery__grid">
+          <figure class="gallery__card reveal" style="--r:-1.6deg" data-parallax="0.035">
+            <div class="photo-mask">
+              <img
+                src="https://yegor.diana.yarover.ru/wp-content/themes/egor-diana-wedding/assets/photo-01.jpg"
+                alt="Кадр первый: начало истории"
+                loading="lazy"
+                onerror="this.classList.add('img-failed')">
+            </div>
+            <figcaption><span>I</span> Начало</figcaption>
+          </figure>
+          <figure class="gallery__card reveal" style="--r:1.4deg" data-parallax="-0.03">
+            <div class="photo-mask">
+              <img
+                src="https://yegor.diana.yarover.ru/wp-content/themes/egor-diana-wedding/assets/photo-02.jpg"
+                alt="Кадр второй: вдвоём"
+                loading="lazy"
+                onerror="this.classList.add('img-failed')">
+            </div>
+            <figcaption><span>II</span> Вдвоём</figcaption>
+          </figure>
+          <figure class="gallery__card reveal" style="--r:-1.2deg" data-parallax="0.045">
+            <div class="photo-mask">
+              <img
+                src="https://yegor.diana.yarover.ru/wp-content/themes/egor-diana-wedding/assets/photo-03.jpg"
+                alt="Кадр третий: обещание"
+                loading="lazy"
+                onerror="this.classList.add('img-failed')">
+            </div>
+            <figcaption><span>III</span> Обещание</figcaption>
+          </figure>
+          <figure class="gallery__card reveal" style="--r:1.8deg" data-parallax="-0.04">
+            <div class="photo-mask">
+              <img
+                src="https://yegor.diana.yarover.ru/wp-content/themes/egor-diana-wedding/assets/photo-04.jpg"
+                alt="Кадр четвёртый: навсегда"
+                loading="lazy"
+                onerror="this.classList.add('img-failed')">
+            </div>
+            <figcaption><span>IV</span> Навсегда</figcaption>
+          </figure>
+        </div>
+      </div>
+    </section>
+
+    <!-- ФЛОРАЛЬ-РАЗДЕЛИТЕЛЬ -->
+    <div class="divider anim-draw" aria-hidden="true">
+      <svg class="divider__svg" viewBox="0 0 220 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M2 12h74M144 12h74" stroke="currentColor" stroke-width="1"/>
+        <path d="M110 5l5 7-5 7-5-7z" stroke="currentColor" stroke-width="1"/>
+        <path d="M80 12c6-6 12-6 16 0M96 12c-3-4-3-8 0-10M140 12c-6-6-12-6-16 0M124 12c3-4 3-8 0-10" stroke="currentColor" stroke-width="1" stroke-linecap="round"/>
+        <circle cx="96" cy="2" r="1.4" fill="currentColor"/>
+        <circle cx="124" cy="2" r="1.4" fill="currentColor"/>
+      </svg>
+    </div>
+
+    <!-- ИСТОРИЯ ПАРЫ (LOVE STORY) -->
+    <section class="story section" id="story">
+      <div class="container">
+        <header class="section__head reveal">
+          <p class="kicker">Love Story</p>
+          <h2 class="section__title">Как мы&nbsp;познакомились</h2>
+          <div class="gold-rule anim-draw" aria-hidden="true"></div>
+        </header>
+
+        <ol class="story__list">
+          <li class="story__item reveal reveal--left">
+            <figure class="story__photo" style="--r:-1.8deg" data-parallax="0.03">
+              <div class="photo-mask">
+                <img
+                  src="https://yegor.diana.yarover.ru/wp-content/themes/egor-diana-wedding/assets/photo-01.jpg"
+                  alt="2021 год: первая встреча Егора и Дианы"
+                  loading="lazy"
+                  onerror="this.classList.add('img-failed')">
+              </div>
+            </figure>
+            <div class="story__body">
+              <p class="story__year">2021</p>
+              <h3 class="story__title">Первая встреча</h3>
+              <p>Случайный вечер, общие друзья и&nbsp;разговор, который не&nbsp;хотелось заканчивать. Так начинаются лучшие истории.</p>
+            </div>
+          </li>
+          <li class="story__item reveal reveal--right">
+            <figure class="story__photo" style="--r:1.5deg" data-parallax="-0.028">
+              <div class="photo-mask">
+                <img
+                  src="https://yegor.diana.yarover.ru/wp-content/themes/egor-diana-wedding/assets/photo-02.jpg"
+                  alt="2022 год: первое свидание"
+                  loading="lazy"
+                  onerror="this.classList.add('img-failed')">
+              </div>
+            </figure>
+            <div class="story__body">
+              <p class="story__year">2022</p>
+              <h3 class="story__title">Первое свидание</h3>
+              <p>Прогулка по&nbsp;набережным до&nbsp;самого рассвета — и&nbsp;понимание, что Петербург теперь наш город на&nbsp;двоих.</p>
+            </div>
+          </li>
+          <li class="story__item reveal reveal--left">
+            <figure class="story__photo" style="--r:-1.3deg" data-parallax="0.032">
+              <div class="photo-mask">
+                <img
+                  src="https://yegor.diana.yarover.ru/wp-content/themes/egor-diana-wedding/assets/photo-03.jpg"
+                  alt="2023 год: первое совместное путешествие"
+                  loading="lazy"
+                  onerror="this.classList.add('img-failed')">
+              </div>
+            </figure>
+            <div class="story__body">
+              <p class="story__year">2023</p>
+              <h3 class="story__title">Первое путешествие</h3>
+              <p>Чемодан на&nbsp;двоих, дорога и&nbsp;сотни фотографий. С&nbsp;тех пор мы&nbsp;путешествуем только вместе.</p>
+            </div>
+          </li>
+          <li class="story__item reveal reveal--right">
+            <figure class="story__photo" style="--r:1.7deg" data-parallax="-0.03">
+              <div class="photo-mask">
+                <img
+                  src="https://yegor.diana.yarover.ru/wp-content/themes/egor-diana-wedding/assets/photo-04.jpg"
+                  alt="2025 год: предложение руки и сердца"
+                  loading="lazy"
+                  onerror="this.classList.add('img-failed')">
+              </div>
+            </figure>
+            <div class="story__body">
+              <p class="story__year">2025</p>
+              <h3 class="story__title">Предложение</h3>
+              <p>Одно колено, одно кольцо и&nbsp;одно самое короткое «да» в&nbsp;нашей жизни. Дальше — 26 августа 2026 года.</p>
+            </div>
+          </li>
+        </ol>
+      </div>
+    </section>
+
+    <!-- ПРОГРАММА ДНЯ -->
+    <section class="program section section--paper" id="program">
+      <div class="container">
+        <header class="section__head reveal">
+          <p class="kicker">26 августа 2026</p>
+          <h2 class="section__title">Программа дня</h2>
+          <div class="gold-rule anim-draw" aria-hidden="true"></div>
+        </header>
+        <ol class="timeline">
+          <li class="timeline__item reveal">
+            <span class="timeline__dot" aria-hidden="true"></span>
+            <time class="timeline__time" datetime="2026-08-26T10:00">10:00</time>
+            <div class="timeline__body">
+              <h3>Регистрация в&nbsp;ЗАГСе</h3>
+              <p>Петроградский район, ул. Большая Монетная, 17-19, Санкт-Петербург</p>
+            </div>
+          </li>
+          <li class="timeline__item reveal">
+            <span class="timeline__dot" aria-hidden="true"></span>
+            <time class="timeline__time" datetime="2026-08-26T17:00">17:00</time>
+            <div class="timeline__body">
+              <h3>Сбор гостей во&nbsp;дворце</h3>
+              <p>Дворец Кваренги, Казанская ул., 7а лит. А, Санкт-Петербург</p>
+            </div>
+          </li>
+          <li class="timeline__item reveal">
+            <span class="timeline__dot" aria-hidden="true"></span>
+            <time class="timeline__time" datetime="2026-08-26T17:30">17:30</time>
+            <div class="timeline__body">
+              <h3>Торжественная часть</h3>
+              <p>Главные слова, аплодисменты и&nbsp;первый тост вечера.</p>
+            </div>
+          </li>
+          <li class="timeline__item reveal">
+            <span class="timeline__dot" aria-hidden="true"></span>
+            <time class="timeline__time" datetime="2026-08-26T23:00">23:00</time>
+            <div class="timeline__body">
+              <h3>Завершение вечера</h3>
+              <p>Прощаемся до&nbsp;новых встреч — уже семьёй.</p>
+            </div>
+          </li>
+        </ol>
+      </div>
+    </section>
+
+    <!-- КАК ДОБРАТЬСЯ -->
+    <section class="location section" id="location">
+      <div class="container">
+        <header class="section__head reveal">
+          <p class="kicker">Адреса дня</p>
+          <h2 class="section__title">Как добраться</h2>
+          <div class="gold-rule anim-draw" aria-hidden="true"></div>
+        </header>
+
+        <div class="location__grid">
+          <article class="place reveal reveal--left">
+            <p class="place__time">10:00 · Церемония</p>
+            <h3 class="place__title">ЗАГС Петроградского района</h3>
+            <p class="place__addr">Санкт-Петербург, Большая Монетная улица, 17-19</p>
+            <div class="place__map">
+              <iframe
+                src="https://yandex.ru/map-widget/v1/?text=%D0%A1%D0%B0%D0%BD%D0%BA%D1%82-%D0%9F%D0%B5%D1%82%D0%B5%D1%80%D0%B1%D1%83%D1%80%D0%B3%2C%20%D0%91%D0%BE%D0%BB%D1%8C%D1%88%D0%B0%D1%8F%20%D0%9C%D0%BE%D0%BD%D0%B5%D1%82%D0%BD%D0%B0%D1%8F%20%D1%83%D0%BB%D0%B8%D1%86%D0%B0%2C%2017-19&amp;z=16"
+                title="Карта: ЗАГС, Большая Монетная улица, 17-19"
+                loading="lazy"
+                allowfullscreen></iframe>
+            </div>
+            <div class="place__actions">
+              <a
+                class="btn btn--gold-line"
+                href="https://yandex.ru/maps/?text=%D0%A1%D0%B0%D0%BD%D0%BA%D1%82-%D0%9F%D0%B5%D1%82%D0%B5%D1%80%D0%B1%D1%83%D1%80%D0%B3%2C%20%D0%91%D0%BE%D0%BB%D1%8C%D1%88%D0%B0%D1%8F%20%D0%9C%D0%BE%D0%BD%D0%B5%D1%82%D0%BD%D0%B0%D1%8F%20%D1%83%D0%BB%D0%B8%D1%86%D0%B0%2C%2017-19"
+                target="_blank" rel="noopener"
+                aria-label="Построить маршрут до ЗАГСа в Яндекс Картах">Маршрут в&nbsp;Яндекс</a>
+              <a
+                class="btn btn--gold-line"
+                href="https://www.google.com/maps/search/?api=1&amp;query=%D0%A1%D0%B0%D0%BD%D0%BA%D1%82-%D0%9F%D0%B5%D1%82%D0%B5%D1%80%D0%B1%D1%83%D1%80%D0%B3%2C%20%D0%91%D0%BE%D0%BB%D1%8C%D1%88%D0%B0%D1%8F%20%D0%9C%D0%BE%D0%BD%D0%B5%D1%82%D0%BD%D0%B0%D1%8F%20%D1%83%D0%BB%D0%B8%D1%86%D0%B0%2C%2017-19"
+                target="_blank" rel="noopener"
+                aria-label="Открыть ЗАГС в Google Maps">Google Maps</a>
+            </div>
+          </article>
+
+          <article class="place reveal reveal--right">
+            <p class="place__time">17:00 · Праздничный вечер</p>
+            <h3 class="place__title">Дворец Кваренги</h3>
+            <p class="place__addr">Санкт-Петербург, Казанская улица, 7а</p>
+            <div class="place__map">
+              <iframe
+                src="https://yandex.ru/map-widget/v1/?text=%D0%A1%D0%B0%D0%BD%D0%BA%D1%82-%D0%9F%D0%B5%D1%82%D0%B5%D1%80%D0%B1%D1%83%D1%80%D0%B3%2C%20%D0%9A%D0%B0%D0%B7%D0%B0%D0%BD%D1%81%D0%BA%D0%B0%D1%8F%20%D1%83%D0%BB%D0%B8%D1%86%D0%B0%2C%207%D0%B0&amp;z=16"
+                title="Карта: Дворец Кваренги, Казанская улица, 7а"
+                loading="lazy"
+                allowfullscreen></iframe>
+            </div>
+            <div class="place__actions">
+              <a
+                class="btn btn--gold-line"
+                href="https://yandex.ru/maps/?text=%D0%A1%D0%B0%D0%BD%D0%BA%D1%82-%D0%9F%D0%B5%D1%82%D0%B5%D1%80%D0%B1%D1%83%D1%80%D0%B3%2C%20%D0%9A%D0%B0%D0%B7%D0%B0%D0%BD%D1%81%D0%BA%D0%B0%D1%8F%20%D1%83%D0%BB%D0%B8%D1%86%D0%B0%2C%207%D0%B0"
+                target="_blank" rel="noopener"
+                aria-label="Построить маршрут до дворца Кваренги в Яндекс Картах">Маршрут в&nbsp;Яндекс</a>
+              <a
+                class="btn btn--gold-line"
+                href="https://www.google.com/maps/search/?api=1&amp;query=%D0%A1%D0%B0%D0%BD%D0%BA%D1%82-%D0%9F%D0%B5%D1%82%D0%B5%D1%80%D0%B1%D1%83%D1%80%D0%B3%2C%20%D0%9A%D0%B0%D0%B7%D0%B0%D0%BD%D1%81%D0%BA%D0%B0%D1%8F%20%D1%83%D0%BB%D0%B8%D1%86%D0%B0%2C%207%D0%B0"
+                target="_blank" rel="noopener"
+                aria-label="Открыть дворец Кваренги в Google Maps">Google Maps</a>
+            </div>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- ФЛОРАЛЬ-РАЗДЕЛИТЕЛЬ -->
+    <div class="divider anim-draw" aria-hidden="true">
+      <svg class="divider__svg" viewBox="0 0 220 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M2 12h74M144 12h74" stroke="currentColor" stroke-width="1"/>
+        <path d="M110 5l5 7-5 7-5-7z" stroke="currentColor" stroke-width="1"/>
+        <path d="M80 12c6-6 12-6 16 0M96 12c-3-4-3-8 0-10M140 12c-6-6-12-6-16 0M124 12c3-4 3-8 0-10" stroke="currentColor" stroke-width="1" stroke-linecap="round"/>
+        <circle cx="96" cy="2" r="1.4" fill="currentColor"/>
+        <circle cx="124" cy="2" r="1.4" fill="currentColor"/>
+      </svg>
+    </div>
+
+    <!-- ДЕТАЛИ -->
+    <section class="details section" id="details">
+      <div class="container">
+        <header class="section__head reveal">
+          <p class="kicker">Важное</p>
+          <h2 class="section__title">Детали</h2>
+          <div class="gold-rule anim-draw" aria-hidden="true"></div>
+        </header>
+
+        <div class="details__grid">
+          <!-- Дресс-код -->
+          <article class="card card--dress reveal reveal--left">
+            <div class="card__media">
+              <img
+                src="https://yegor.diana.yarover.ru/wp-content/themes/egor-diana-wedding/assets/dress-code.jpeg"
+                alt="Палитра дресс-кода"
+                loading="lazy"
+                onerror="this.classList.add('img-failed')">
+            </div>
+            <div class="card__body">
+              <h3 class="card__title">Дресс-код</h3>
+              <p>Для дам — пастельные тона, для мужчин — костюмы. Пусть вечер сложится в&nbsp;единую палитру.</p>
+              <ul class="swatches" aria-label="Палитра пастельных оттенков">
+                <li class="swatch" style="--c:#e9c8c5" title="Пудра"><span class="sr-only">Пудра</span></li>
+                <li class="swatch" style="--c:#aebfa8" title="Шалфей"><span class="sr-only">Шалфей</span></li>
+                <li class="swatch" style="--c:#c5bedd" title="Лаванда"><span class="sr-only">Лаванда</span></li>
+                <li class="swatch" style="--c:#f1e6d4" title="Крем"><span class="sr-only">Крем</span></li>
+                <li class="swatch" style="--c:#cf9e9c" title="Пыльная роза"><span class="sr-only">Пыльная роза</span></li>
+                <li class="swatch" style="--c:#aecbe0" title="Небесно-голубой"><span class="sr-only">Небесно-голубой</span></li>
+              </ul>
+            </div>
+          </article>
+
+          <!-- Подарки -->
+          <article class="card reveal reveal--right">
+            <div class="card__body">
+              <h3 class="card__title">Подарки</h3>
+              <p>Вместо традиционных букетов мы&nbsp;будем рады подписке на&nbsp;цветы — так праздник продлится не&nbsp;один вечер, а&nbsp;целые месяцы.</p>
+              <a class="card__link" href="#flowers">Подробнее в&nbsp;разделе «Цветы» →</a>
+            </div>
+          </article>
+
+          <!-- Фото и видео -->
+          <article class="card card--hashtag reveal reveal--left">
+            <div class="card__body">
+              <h3 class="card__title">Фото и&nbsp;видео</h3>
+              <p>Делитесь кадрами вечера в&nbsp;нашем Telegram-канале — соберём общий альбом дня.</p>
+              <a class="btn btn--ghost" href="https://t.me/+EnMLrlHYcA1kZDIy" target="_blank" rel="noopener">Telegram-канал</a>
+              <p class="hashtag">#EgDiDa</p>
+            </div>
+          </article>
+
+          <!-- Фотозона -->
+          <article class="card card--booth reveal reveal--right">
+            <div class="card__media card__media--duo">
+              <img
+                src="https://yegor.diana.yarover.ru/wp-content/themes/egor-diana-wedding/assets/booth-01.jpg"
+                alt="Фотозона, вид первый"
+                loading="lazy"
+                onerror="this.classList.add('img-failed')">
+              <img
+                src="https://yegor.diana.yarover.ru/wp-content/themes/egor-diana-wedding/assets/booth-02.jpg"
+                alt="Фотозона, вид второй"
+                loading="lazy"
+                onerror="this.classList.add('img-failed')">
+            </div>
+            <div class="card__body">
+              <h3 class="card__title">Фотозона</h3>
+              <p>Во&nbsp;дворце будет работать фотозона — оставьте себе кадр на&nbsp;память.</p>
+            </div>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- RSVP -->
+    <section class="rsvp section section--dark" id="rsvp">
+      <div class="container rsvp__inner">
+        <header class="section__head reveal">
+          <p class="kicker kicker--gold">Опрос гостей</p>
+          <h2 class="section__title">Подтвердите присутствие</h2>
+          <div class="gold-rule anim-draw" aria-hidden="true"></div>
+          <p class="section__lead">Пожалуйста, ответьте до&nbsp;1&nbsp;августа — нам важно подготовить всё именно для&nbsp;вас.</p>
+        </header>
+
+        <form class="form reveal" id="guestForm" novalidate>
+          <div class="form__row">
+            <label class="form__label" for="guestName">ФИО <span class="form__req" aria-hidden="true">*</span></label>
+            <input class="form__input" type="text" id="guestName" name="guestName" autocomplete="name" placeholder="Иванов Иван Иванович" required>
+            <p class="form__error" data-error-for="guestName">Пожалуйста, укажите ваше имя</p>
+          </div>
+
+          <fieldset class="form__fieldset">
+            <legend class="form__label">Подтверждение присутствия <span class="form__req" aria-hidden="true">*</span></legend>
+            <div class="choices">
+              <label class="choice">
+                <input type="radio" name="attendance" value="yes" required>
+                <span>Буду</span>
+              </label>
+              <label class="choice">
+                <input type="radio" name="attendance" value="no">
+                <span>К сожалению, не&nbsp;смогу</span>
+              </label>
+            </div>
+            <p class="form__error" data-error-for="attendance">Выберите один из вариантов</p>
+          </fieldset>
+
+          <fieldset class="form__fieldset">
+            <legend class="form__label">Гость +1</legend>
+            <div class="choices">
+              <label class="choice">
+                <input type="radio" name="plusOne" value="yes">
+                <span>Приду с&nbsp;парой</span>
+              </label>
+              <label class="choice">
+                <input type="radio" name="plusOne" value="no" checked>
+                <span>Приду один / одна</span>
+              </label>
+            </div>
+            <input class="form__input form__input--plusone" type="text" id="plusOneName" name="plusOneName" placeholder="Имя вашего гостя" aria-label="Имя гостя плюс один">
+          </fieldset>
+
+          <fieldset class="form__fieldset">
+            <legend class="form__label">Выбор блюда</legend>
+            <div class="choices">
+              <label class="choice">
+                <input type="radio" name="meal" value="fish">
+                <span>Рыба</span>
+              </label>
+              <label class="choice">
+                <input type="radio" name="meal" value="meat">
+                <span>Мясо</span>
+              </label>
+              <label class="choice">
+                <input type="radio" name="meal" value="poultry">
+                <span>Птица</span>
+              </label>
+            </div>
+          </fieldset>
+
+          <fieldset class="form__fieldset">
+            <legend class="form__label">Алкоголь</legend>
+            <div class="choices">
+              <label class="choice">
+                <input type="checkbox" name="alcohol" value="wine">
+                <span>Вино</span>
+              </label>
+              <label class="choice">
+                <input type="checkbox" name="alcohol" value="champagne">
+                <span>Шампанское</span>
+              </label>
+              <label class="choice">
+                <input type="checkbox" name="alcohol" value="strong">
+                <span>Крепкое</span>
+              </label>
+              <label class="choice">
+                <input type="checkbox" name="alcohol" value="none">
+                <span>Не пью</span>
+              </label>
+            </div>
+          </fieldset>
+
+          <div class="form__row">
+            <label class="form__label" for="comment">Комментарий</label>
+            <textarea class="form__input form__textarea" id="comment" name="comment" rows="4" placeholder="Аллергии, пожелания, тёплые слова…"></textarea>
+          </div>
+
+          <!-- honeypot -->
+          <div class="form__hp" aria-hidden="true">
+            <label for="website">Не заполняйте это поле</label>
+            <input type="text" id="website" name="website" tabindex="-1" autocomplete="off">
+          </div>
+
+          <button class="btn btn--gold form__submit" type="submit">Отправить ответ</button>
+
+          <div class="form__result" id="result" role="status" aria-live="polite" hidden>
+            <p class="form__result-title">Спасибо! Ваш ответ сохранён</p>
+            <p class="form__result-sub">Ждём вас 26 августа — будет красиво.</p>
+          </div>
+        </form>
+      </div>
+    </section>
+
+    <!-- ЦВЕТЫ -->
+    <section class="flowers section section--paper" id="flowers">
+      <div class="container flowers__inner">
+        <div class="flowers__text reveal reveal--left">
+          <p class="kicker">Вместо букетов</p>
+          <h2 class="section__title">Нужно ли&nbsp;дарить цветы?</h2>
+          <div class="gold-rule gold-rule--left anim-draw" aria-hidden="true"></div>
+          <p>Один вечер — и&nbsp;десятки букетов остаются без&nbsp;ваз. Мы&nbsp;придумали лучше: подарите нам подписку на&nbsp;цветы, и&nbsp;свежие композиции будут приезжать к&nbsp;нам домой ещё долго после свадьбы — как продолжение праздника.</p>
+          <p class="flowers__hint">Наведите камеру на&nbsp;QR-код или нажмите кнопку ниже.</p>
+          <a class="btn btn--wine" href="https://plombirflowers.ru/egordiana" target="_blank" rel="noopener">Оформить подписку</a>
+        </div>
+        <figure class="flowers__qr reveal reveal--right" style="--r:1.5deg">
+          <img
+            src="https://yegor.diana.yarover.ru/wp-content/themes/egor-diana-wedding/assets/qr.jpeg"
+            alt="QR-код подписки на цветы"
+            loading="lazy"
+            onerror="this.classList.add('img-failed')">
+          <figcaption>plombirflowers.ru/egordiana</figcaption>
+        </figure>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ФУТЕР -->
+  <footer class="footer">
+    <div class="container footer__inner">
+      <p class="footer__names">Егор <span class="footer__amp">&amp;</span> Диана</p>
+      <div class="gold-rule anim-draw" aria-hidden="true"></div>
+      <p class="footer__date">26 . 08 . 2026 · Санкт-Петербург</p>
+      <p class="footer__hashtag">#EgDiDa</p>
+    </div>
+  </footer>
+
+  <!-- ЛАЙТБОКС ГАЛЕРЕИ -->
+  <div class="lightbox" id="lightbox" role="dialog" aria-modal="true" aria-label="Просмотр фотографии" hidden>
+    <button class="lightbox__close" id="lightboxClose" type="button" aria-label="Закрыть просмотр">
+      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 5l14 14M19 5L5 19" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+    </button>
+    <button class="lightbox__arrow lightbox__arrow--prev" id="lightboxPrev" type="button" aria-label="Предыдущее фото">
+      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M15 4l-8 8 8 8" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+    <figure class="lightbox__figure">
+      <img class="lightbox__img" id="lightboxImg" src="" alt="">
+      <figcaption class="lightbox__caption" id="lightboxCaption"></figcaption>
+    </figure>
+    <button class="lightbox__arrow lightbox__arrow--next" id="lightboxNext" type="button" aria-label="Следующее фото">
+      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 4l8 8-8 8" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+  </div>
+
+  <script src="assets/js/main.js" defer></script>
+</body>
+</html>
