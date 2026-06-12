@@ -24,6 +24,9 @@
   --container: 1180px;
   --pad: clamp(20px, 5vw, 48px);
   --section-y: clamp(88px, 14vh, 168px);
+
+  /* Деликатная бумажная текстура (SVG feTurbulence, очень низкая opacity) */
+  --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.05'/%3E%3C/svg%3E");
 }
 
 /* ---------- База ---------- */
@@ -45,7 +48,9 @@ body {
   font-size: clamp(1rem, .96rem + .2vw, 1.0625rem);
   line-height: 1.75;
   color: var(--ink);
-  background: var(--cream);
+  background-color: var(--cream);
+  background-image: var(--grain);
+  background-repeat: repeat;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
@@ -110,7 +115,9 @@ a:hover {
 }
 
 .section--paper {
-  background: var(--paper);
+  background-color: var(--paper);
+  background-image: var(--grain);
+  background-repeat: repeat;
   border-top: 1px solid var(--line);
   border-bottom: 1px solid var(--line);
 }
@@ -1173,7 +1180,8 @@ img.img-failed {
 .reveal {
   opacity: 0;
   transform: translateY(34px) rotate(var(--tilt, 0deg));
-  transition: opacity 1s var(--fast), transform 1s var(--fast);
+  filter: blur(5px);
+  transition: opacity 1s var(--fast), transform 1s var(--fast), filter .9s var(--fast);
   transition-delay: var(--reveal-delay, 0s);
   will-change: opacity, transform;
 }
@@ -1181,6 +1189,7 @@ img.img-failed {
 .reveal.is-visible {
   opacity: 1;
   transform: translateY(0) rotate(var(--tilt, 0deg));
+  filter: blur(0);
 }
 
 /* ============================================================
@@ -1224,7 +1233,7 @@ img.img-failed {
   }
 
   .nav--open .nav__menu {
-    max-height: 320px;
+    max-height: 440px;
     opacity: 1;
   }
 
@@ -1312,7 +1321,12 @@ img.img-failed {
   .reveal {
     opacity: 1;
     transform: translateY(0) rotate(var(--tilt, 0deg));
+    filter: none;
     transition: none;
+  }
+
+  .preloader {
+    display: none;
   }
 
   .hero__scrollhint span {
@@ -1325,5 +1339,452 @@ img.img-failed {
     transition-duration: .01ms !important;
     animation-duration: .01ms !important;
     animation-iteration-count: 1 !important;
+  }
+}
+
+/* ============================================================
+   11. Прелоадер (показывается до интро-видео)
+   ============================================================ */
+.preloader {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 18px;
+  text-align: center;
+  background:
+    radial-gradient(120% 140% at 50% -20%, var(--wine-soft) 0%, var(--wine) 42%, var(--wine-deep) 100%);
+  transition: opacity .9s var(--fast), visibility 0s linear .9s;
+}
+
+.preloader--hidden {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.preloader__monogram {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: clamp(2.4rem, 1.8rem + 3vw, 4rem);
+  letter-spacing: .12em;
+  color: var(--cream);
+  margin: 0;
+}
+
+.preloader__amp {
+  font-style: italic;
+  color: var(--gold);
+}
+
+.preloader__line {
+  display: block;
+  width: 140px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--gold) 18%, var(--gold) 82%, transparent);
+  transform-origin: center;
+  animation: preloader-line 1.6s var(--fast) infinite;
+}
+
+@keyframes preloader-line {
+  0% { transform: scaleX(0); opacity: 0; }
+  45% { transform: scaleX(1); opacity: 1; }
+  100% { transform: scaleX(1); opacity: 0; }
+}
+
+.preloader__date {
+  font-size: .72rem;
+  font-weight: 600;
+  letter-spacing: .5em;
+  text-transform: uppercase;
+  color: var(--gold-bright);
+  margin: 0;
+}
+
+/* ============================================================
+   12. Флораль-разделители между секциями
+   ============================================================ */
+.divider {
+  display: flex;
+  justify-content: center;
+  padding-block: clamp(30px, 5vh, 52px);
+  color: var(--gold);
+  opacity: .9;
+}
+
+.divider__svg {
+  width: clamp(170px, 26vw, 220px);
+  height: 24px;
+}
+
+/* ============================================================
+   13. Кнопки «Добавить в календарь»
+   ============================================================ */
+.calendar-actions {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-top: clamp(26px, 4vh, 40px);
+}
+
+.btn--gold-line {
+  background: transparent;
+  color: var(--wine);
+  border-color: var(--gold);
+}
+
+.btn--gold-line:hover {
+  background: linear-gradient(135deg, var(--gold-bright), var(--gold));
+  border-color: transparent;
+  color: var(--wine-deep);
+  box-shadow: 0 18px 44px rgba(201, 162, 83, .3);
+}
+
+.section--dark .btn--gold-line {
+  color: var(--gold-bright);
+}
+
+.section--dark .btn--gold-line:hover {
+  color: var(--wine-deep);
+}
+
+/* ============================================================
+   14. История пары (Love Story)
+   ============================================================ */
+.story__list {
+  list-style: none;
+  margin: 0 auto;
+  padding: 0;
+  max-width: 980px;
+  display: grid;
+  gap: clamp(56px, 9vh, 110px);
+  counter-reset: story;
+}
+
+.story__item {
+  display: grid;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
+  gap: clamp(28px, 5vw, 72px);
+  align-items: center;
+}
+
+/* Чередование: чётные вехи — фото справа */
+.story__item:nth-child(even) .story__photo {
+  order: 2;
+}
+
+.story__item:nth-child(even) .story__body {
+  order: 1;
+  text-align: right;
+  justify-items: end;
+}
+
+.story__item:nth-child(even) .story__body p {
+  margin-left: auto;
+}
+
+.story__photo {
+  --tilt: var(--r, 0deg);
+  margin: 0;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  padding: 12px;
+  box-shadow: var(--shadow);
+  transform: rotate(var(--tilt));
+  transition: box-shadow .6s var(--fast);
+  will-change: transform;
+}
+
+.story__photo:hover {
+  box-shadow: 0 42px 110px rgba(58, 42, 29, .26);
+}
+
+.story__photo img {
+  width: 100%;
+  aspect-ratio: 4 / 5;
+  object-fit: cover;
+  filter: saturate(.94);
+  transition: filter .6s var(--fast);
+}
+
+.story__photo:hover img {
+  filter: saturate(1.05);
+}
+
+.story__year {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: clamp(2rem, 1.4rem + 2.6vw, 3.2rem);
+  line-height: 1;
+  color: var(--gold);
+  margin: 0 0 .25em;
+}
+
+.story__title {
+  font-size: clamp(1.5rem, 1.2rem + 1.4vw, 2.1rem);
+  color: var(--wine-deep);
+  margin-bottom: .45em;
+}
+
+.story__body p:last-child {
+  color: var(--muted);
+  max-width: 42ch;
+  margin-bottom: 0;
+}
+
+/* ============================================================
+   15. Как добраться — карты
+   ============================================================ */
+.location__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: clamp(24px, 4vw, 48px);
+  align-items: stretch;
+}
+
+.place {
+  display: flex;
+  flex-direction: column;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  padding: clamp(24px, 3.5vw, 40px);
+  transition: transform .55s var(--fast), box-shadow .55s var(--fast);
+}
+
+.place:hover {
+  transform: translateY(-6px);
+  box-shadow: var(--shadow);
+}
+
+.place__time {
+  font-size: .72rem;
+  font-weight: 600;
+  letter-spacing: .32em;
+  text-transform: uppercase;
+  color: var(--gold);
+  margin-bottom: .9em;
+}
+
+.place__title {
+  font-size: clamp(1.5rem, 1.2rem + 1.2vw, 2rem);
+  color: var(--wine-deep);
+  margin-bottom: .3em;
+}
+
+.place__addr {
+  color: var(--muted);
+  margin-bottom: 1.4em;
+}
+
+.place__map {
+  position: relative;
+  aspect-ratio: 4 / 3;
+  border: 1px solid var(--gold);
+  box-shadow:
+    0 0 0 5px var(--paper),
+    0 0 0 6px rgba(201, 162, 83, .35),
+    var(--shadow);
+  overflow: hidden;
+  background:
+    linear-gradient(150deg, var(--cream) 0%, var(--paper) 45%, var(--gold-bright) 130%);
+}
+
+.place__map iframe {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+
+.place__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: clamp(20px, 3vh, 30px);
+}
+
+.place__actions .btn {
+  padding-inline: 1.6em;
+}
+
+/* ============================================================
+   16. Лайтбокс
+   ============================================================ */
+.is-zoomable {
+  cursor: zoom-in;
+}
+
+.is-zoomable:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 3px;
+}
+
+.lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 130;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: clamp(16px, 5vw, 64px);
+  background: rgba(26, 0, 2, .93);
+  animation: lightbox-in .45s var(--fast) both;
+}
+
+.lightbox[hidden] {
+  display: none;
+}
+
+@keyframes lightbox-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.lightbox__figure {
+  margin: 0;
+  max-width: min(1080px, 100%);
+  text-align: center;
+}
+
+.lightbox__img {
+  max-width: 100%;
+  max-height: 76vh;
+  width: auto;
+  height: auto;
+  margin-inline: auto;
+  background: var(--paper);
+  border: 1px solid rgba(232, 207, 149, .45);
+  box-shadow: 0 50px 140px rgba(0, 0, 0, .55);
+}
+
+.lightbox__caption {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: 1.1rem;
+  color: var(--gold-bright);
+  padding-top: 16px;
+}
+
+.lightbox__close,
+.lightbox__arrow {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  padding: 0;
+  background: rgba(42, 0, 3, .4);
+  border: 1px solid rgba(232, 207, 149, .5);
+  border-radius: 50%;
+  color: var(--cream);
+  cursor: pointer;
+  transition:
+    border-color .35s var(--fast),
+    color .35s var(--fast),
+    background-color .35s var(--fast);
+}
+
+.lightbox__close svg,
+.lightbox__arrow svg {
+  width: 22px;
+  height: 22px;
+}
+
+.lightbox__close:hover,
+.lightbox__arrow:hover {
+  border-color: var(--gold-bright);
+  color: var(--gold-bright);
+}
+
+.lightbox__close:focus-visible,
+.lightbox__arrow:focus-visible {
+  outline: 2px solid var(--gold-bright);
+  outline-offset: 3px;
+}
+
+.lightbox__close {
+  top: 22px;
+  right: 22px;
+}
+
+.lightbox__arrow--prev {
+  left: 22px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.lightbox__arrow--next {
+  right: 22px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+/* ============================================================
+   17. Адаптив новых блоков
+   ============================================================ */
+@media (max-width: 960px) {
+  .location__grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 760px) {
+  .story__item,
+  .story__item:nth-child(even) {
+    grid-template-columns: 1fr;
+    gap: 22px;
+  }
+
+  .story__item:nth-child(even) .story__photo {
+    order: 0;
+  }
+
+  .story__item:nth-child(even) .story__body {
+    order: 0;
+    text-align: left;
+    justify-items: start;
+  }
+
+  .story__item:nth-child(even) .story__body p {
+    margin-left: 0;
+  }
+
+  .story__photo {
+    max-width: 420px;
+  }
+
+  .place__map {
+    aspect-ratio: 1 / 1;
+  }
+
+  .calendar-actions .btn {
+    width: 100%;
+    text-align: center;
+  }
+
+  .lightbox {
+    padding: 16px;
+  }
+
+  .lightbox__close,
+  .lightbox__arrow {
+    width: 44px;
+    height: 44px;
+  }
+
+  .lightbox__close {
+    top: 14px;
+    right: 14px;
+  }
+
+  .lightbox__arrow--prev { left: 10px; }
+  .lightbox__arrow--next { right: 10px; }
+
+  .lightbox__img {
+    max-height: 66vh;
   }
 }

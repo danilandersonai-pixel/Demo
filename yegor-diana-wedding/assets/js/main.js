@@ -1,11 +1,45 @@
 /* ============================================================
    Егор & Диана — свадебное приглашение
-   Ванильный JS: интро, таймер, reveal, parallax, навигация, форма
+   Ванильный JS: прелоадер, интро, таймер, reveal, parallax,
+   навигация, календарь (.ics), лайтбокс, форма RSVP
    ============================================================ */
+const RSVP_ENDPOINT = "https://formspree.io/f/YOUR_FORM_ID"; // TODO: заменить на свой Formspree endpoint
+
 (function () {
   'use strict';
 
   var reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  /* ----------------------------------------------------------
+     0. Прелоадер: показывается первым, исчезает по load,
+        затем гостя встречает интро-видео
+     ---------------------------------------------------------- */
+  var preloader = document.getElementById('preloader');
+
+  if (preloader) {
+    var preloaderHidden = false;
+
+    var hidePreloader = function () {
+      if (preloaderHidden) return;
+      preloaderHidden = true;
+      preloader.classList.add('preloader--hidden');
+      window.setTimeout(function () {
+        if (preloader.parentNode) {
+          preloader.parentNode.removeChild(preloader);
+        }
+      }, reduceMotion ? 0 : 1000);
+    };
+
+    if (reduceMotion || document.readyState === 'complete') {
+      hidePreloader();
+    } else {
+      window.addEventListener('load', function () {
+        window.setTimeout(hidePreloader, 350);
+      });
+      /* Страховка: не держим гостя дольше 4,5 секунд */
+      window.setTimeout(hidePreloader, 4500);
+    }
+  }
 
   /* ----------------------------------------------------------
      1. Интро-видео: Play / Skip / ended → fade overlay
@@ -260,7 +294,146 @@
   }
 
   /* ----------------------------------------------------------
-     6. Форма RSVP: только визуал, без отправки на сервер
+     6. «Добавить в календарь»: генерация .ics через Blob
+        (10:00–23:00 МСК = 07:00–20:00 UTC)
+     ---------------------------------------------------------- */
+  var icsButton = document.getElementById('icsDownload');
+
+  if (icsButton) {
+    icsButton.addEventListener('click', function () {
+      var dtstamp = new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+      var ics = [
+        'BEGIN:VCALENDAR',
+        'VERSION:2.0',
+        'PRODID:-//Egor & Diana Wedding//Invitation//RU',
+        'CALSCALE:GREGORIAN',
+        'METHOD:PUBLISH',
+        'BEGIN:VEVENT',
+        'UID:wedding-20260826@egdida',
+        'DTSTAMP:' + dtstamp,
+        'DTSTART:20260826T070000Z',
+        'DTEND:20260826T200000Z',
+        'SUMMARY:Свадьба Егора и Дианы',
+        'LOCATION:Санкт-Петербург\\, Большая Монетная улица\\, 17-19',
+        'DESCRIPTION:Приглашение на свадьбу Егора и Дианы. 10:00 — регистрация в ЗАГСе\\, 17:00 — сбор гостей во дворце Кваренги (Казанская ул.\\, 7а). Хэштег #EgDiDa',
+        'END:VEVENT',
+        'END:VCALENDAR'
+      ].join('\r\n');
+
+      var blob = new Blob([ics], { type: 'text/calendar;charset=utf-8' });
+      var url = URL.createObjectURL(blob);
+      var anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = 'svadba-egora-i-diany.ics';
+      document.body.appendChild(anchor);
+      anchor.click();
+      document.body.removeChild(anchor);
+      window.setTimeout(function () {
+        URL.revokeObjectURL(url);
+      }, 1000);
+    });
+  }
+
+  /* ----------------------------------------------------------
+     7. Лайтбокс: галерея + Love Story
+     ---------------------------------------------------------- */
+  var lightbox = document.getElementById('lightbox');
+  var lightboxImg = document.getElementById('lightboxImg');
+  var lightboxCaption = document.getElementById('lightboxCaption');
+  var lightboxClose = document.getElementById('lightboxClose');
+  var lightboxPrev = document.getElementById('lightboxPrev');
+  var lightboxNext = document.getElementById('lightboxNext');
+
+  if (lightbox && lightboxImg && lightboxClose && lightboxPrev && lightboxNext) {
+    var zoomables = Array.prototype.slice.call(
+      document.querySelectorAll('.gallery__card img, .story__photo img')
+    );
+    var currentIndex = -1;
+    var lastFocused = null;
+
+    var renderSlide = function (index) {
+      var total = zoomables.length;
+      currentIndex = ((index % total) + total) % total;
+      var img = zoomables[currentIndex];
+      lightboxImg.src = img.currentSrc || img.src;
+      lightboxImg.alt = img.alt || '';
+      if (lightboxCaption) {
+        lightboxCaption.textContent =
+          (img.alt || '') + ' · ' + (currentIndex + 1) + ' / ' + total;
+      }
+    };
+
+    var openLightbox = function (index) {
+      lastFocused = document.activeElement;
+      renderSlide(index);
+      lightbox.hidden = false;
+      lockScroll();
+      lightboxClose.focus();
+    };
+
+    var closeLightbox = function () {
+      lightbox.hidden = true;
+      lightboxImg.src = '';
+      unlockScroll();
+      if (lastFocused && typeof lastFocused.focus === 'function') {
+        lastFocused.focus();
+      }
+    };
+
+    zoomables.forEach(function (img, index) {
+      img.classList.add('is-zoomable');
+      img.setAttribute('tabindex', '0');
+      img.setAttribute('role', 'button');
+      img.setAttribute('aria-label', 'Открыть фото: ' + (img.alt || 'фотография'));
+
+      img.addEventListener('click', function () {
+        if (img.classList.contains('img-failed')) return;
+        openLightbox(index);
+      });
+
+      img.addEventListener('keydown', function (event) {
+        if (event.key !== 'Enter' && event.key !== ' ') return;
+        event.preventDefault();
+        if (img.classList.contains('img-failed')) return;
+        openLightbox(index);
+      });
+    });
+
+    lightboxClose.addEventListener('click', closeLightbox);
+    lightboxPrev.addEventListener('click', function () { renderSlide(currentIndex - 1); });
+    lightboxNext.addEventListener('click', function () { renderSlide(currentIndex + 1); });
+
+    /* Клик по затемнённому фону закрывает просмотр */
+    lightbox.addEventListener('click', function (event) {
+      if (event.target === lightbox) closeLightbox();
+    });
+
+    document.addEventListener('keydown', function (event) {
+      if (lightbox.hidden) return;
+      if (event.key === 'Escape') {
+        closeLightbox();
+      } else if (event.key === 'ArrowLeft') {
+        renderSlide(currentIndex - 1);
+      } else if (event.key === 'ArrowRight') {
+        renderSlide(currentIndex + 1);
+      } else if (event.key === 'Tab') {
+        /* Простая ловушка фокуса внутри диалога */
+        var focusables = [lightboxClose, lightboxPrev, lightboxNext];
+        var idx = focusables.indexOf(document.activeElement);
+        event.preventDefault();
+        if (event.shiftKey) {
+          idx = idx <= 0 ? focusables.length - 1 : idx - 1;
+        } else {
+          idx = idx === focusables.length - 1 ? 0 : idx + 1;
+        }
+        focusables[idx].focus();
+      }
+    });
+  }
+
+  /* ----------------------------------------------------------
+     8. Форма RSVP: Formspree (или демо-режим, пока endpoint
+        не настроен) + клиентская валидация + honeypot
      ---------------------------------------------------------- */
   var form = document.getElementById('guestForm');
   var result = document.getElementById('result');
@@ -314,6 +487,29 @@
       if (wrapper) clearFieldError(wrapper);
     });
 
+    var submitBtn = form.querySelector('.form__submit');
+    var resultTitle = result ? result.querySelector('.form__result-title') : null;
+    var resultSub = result ? result.querySelector('.form__result-sub') : null;
+
+    function showResult(title, sub) {
+      if (!result) return;
+      if (resultTitle) resultTitle.textContent = title;
+      if (resultSub) resultSub.textContent = sub;
+      result.hidden = false;
+      result.scrollIntoView({
+        behavior: reduceMotion ? 'auto' : 'smooth',
+        block: 'center'
+      });
+    }
+
+    function finishSubmit(label) {
+      if (!submitBtn) return;
+      submitBtn.disabled = true;
+      submitBtn.textContent = label;
+      submitBtn.style.opacity = '.55';
+      submitBtn.style.cursor = 'default';
+    }
+
     form.addEventListener('submit', function (event) {
       event.preventDefault();
 
@@ -332,21 +528,45 @@
         return;
       }
 
-      if (result) {
-        result.hidden = false;
-        result.scrollIntoView({
-          behavior: reduceMotion ? 'auto' : 'smooth',
-          block: 'center'
-        });
+      /* Endpoint не настроен — демо-режим, как раньше */
+      if (RSVP_ENDPOINT.indexOf('YOUR_FORM_ID') !== -1) {
+        showResult(
+          'Спасибо! (демо-режим, отправка не настроена)',
+          'Ждём вас 26 августа — будет красиво.'
+        );
+        finishSubmit('Ответ отправлен');
+        return;
       }
 
-      var submitBtn = form.querySelector('.form__submit');
+      /* Реальная отправка на Formspree */
       if (submitBtn) {
         submitBtn.disabled = true;
-        submitBtn.textContent = 'Ответ отправлен';
-        submitBtn.style.opacity = '.55';
-        submitBtn.style.cursor = 'default';
+        submitBtn.textContent = 'Отправляем…';
       }
+
+      fetch(RSVP_ENDPOINT, {
+        method: 'POST',
+        headers: { 'Accept': 'application/json' },
+        body: new FormData(form)
+      })
+        .then(function (response) {
+          if (!response.ok) throw new Error('HTTP ' + response.status);
+          showResult(
+            'Спасибо! Ваш ответ получен',
+            'Ждём вас 26 августа — будет красиво.'
+          );
+          finishSubmit('Ответ отправлен');
+        })
+        .catch(function () {
+          showResult(
+            'Не удалось отправить, попробуйте позже',
+            'Проверьте соединение и отправьте форму ещё раз.'
+          );
+          if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Отправить ответ';
+          }
+        });
     });
   }
 })();
