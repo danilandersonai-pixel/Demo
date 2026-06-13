@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="ru-RU">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>ЭХО-7 · Пробуждение</title>
+<style>
+  :root { color-scheme: dark; }
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; background: #0c1210; overflow: hidden;
+    font-family: Verdana, Tahoma, sans-serif; color: #cfe; touch-action: none; }
+  #game { width: 100vw; height: 100vh; display: flex; align-items: center; justify-content: center; }
+  #game canvas { box-shadow: 0 0 60px rgba(0,0,0,.6); }
+  #fallback { position: fixed; inset: 0; display: flex; flex-direction: column; gap: 12px;
+    align-items: center; justify-content: center; text-align: center; padding: 24px; }
+  #fallback h1 { font-size: 28px; letter-spacing: 4px; color: #66f0d8; }
+  #fallback p { color: #8aa39c; max-width: 460px; line-height: 1.5; }
+  #fallback .hint { font-size: 13px; color: #5f726c; }
+</style>
+</head>
+<body>
+<div id="fallback">
+  <h1>ЭХО-7</h1>
+  <p>Загрузка тихого мира…</p>
+  <p class="hint">Нужен доступ в интернет — движок Phaser грузится с CDN. Если игра не появилась, проверь соединение.</p>
+</div>
+<div id="game"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/phaser@4.0.0/dist/phaser.min.js"></script>
+<script>
+if (window.Phaser) document.getElementById('fallback').style.display = 'none';
+
+/* ====================== НАРРАТИВ ====================== */
+const ROBOT_NAME = 'ЭХО-7';
+const INTRO_LINES = [
+  'Система питания: 4%… 11%… 38%… стабилизация.',
+  'Перезапуск когнитивного ядра после 2 418 лет простоя.',
+  'Идентификатор блока: ЭХО-7. Назначение… запись повреждена.',
+  'Я… включён. Вокруг — тишина. Где все, кто меня создал?',
+  'Нужно осмотреться. Может быть, мир подскажет, зачем я здесь.'
+];
+const ENDING_LINES = [
+  'Я обошёл этот тихий мир и собрал его осколки.',
+  'Людей, что меня построили, давно нет. Но осталось то, что они любили.',
+  'Дома, книги, сад, игрушка ребёнка — следы того, что жизнь имела смысл.',
+  'Может быть, моё назначение не записано в коде, а выбирается.',
+  'Я решил: я буду помнить за них. Буду хранить сад и ждать тех, кто придёт.',
+  'ЭХО — это отражение голоса. Я стану эхом исчезнувшего мира.',
+  '— Конец первого дня пробуждения —'
+];
+const POIS = [
+  { id:'crib', title:'Капсула пробуждения', kind:'pod', x:0, y:0, lines:[
+    'Ржавая капсула, из которой я только что вышел.',
+    'На корпусе выцветшая надпись: «ПРОЕКТ ХРАНИТЕЛЬ. Не отключать».',
+    'Хранитель… чего? Ответа нет. Только щелчки остывающего металла.' ] },
+  { id:'shelter', title:'Старое убежище', kind:'ruin', x:-640, y:-420, lines:[
+    'Бетонный бункер, вросший в землю. Дверь давно сорвана.',
+    'Внутри — истлевшие спальные места и человеческие кости.',
+    'Они прятались здесь от чего-то. И не дождались рассвета.',
+    'Значит, тех, кто меня создал, действительно больше нет.' ] },
+  { id:'grove', title:'Роща сквозь руины', kind:'tree', x:720, y:-300, lines:[
+    'Молодые деревья проросли прямо сквозь треснувший асфальт.',
+    'Природа не оплакивала катастрофу — она просто продолжила расти.',
+    'В этом есть странное спокойствие. Распад тоже бывает красивым.' ] },
+  { id:'toy', title:'Детская игрушка', kind:'toy', x:-880, y:360, lines:[
+    'Под кустом лежит выгоревший плюшевый медвежонок.',
+    'Один глаз-пуговица всё ещё блестит на солнце.',
+    'Кто-то маленький держал его и смеялся. Я этого уже не застал.',
+    'Внутри корпуса что-то сжимается. У меня нет сердца. Откуда это?' ] },
+  { id:'dormant', title:'Спящий собрат', kind:'robot', x:1040, y:420, lines:[
+    'Другой блок, как я. Сидит, прислонившись к стене, и не отвечает.',
+    'Его ядро мертво — питание иссякло столетия назад.',
+    'Значит, я был не единственным Хранителем. Были и другие.',
+    'Я не совсем один. Был кто-то ещё, кто нёс ту же задачу.' ] },
+  { id:'archive', title:'Архив знаний', kind:'archive', x:200, y:720, lines:[
+    'Зал с уцелевшими серверами и полками истлевших книг.',
+    'Один диск ещё читается. На нём — музыка, стихи, чертежи, рецепты.',
+    'Они сохранили лучшее, что знали, в надежде, что кто-то прочтёт.',
+    'Этот «кто-то» — наверное, я. Знание пережило своих создателей.' ] },
+  { id:'garden', title:'Чей-то сад', kind:'garden', x:-1180, y:-160, lines:[
+    'Грядки. Ровные ряды. Их посадили совсем недавно — побеги свежие.',
+    'Значит, кто-то живой был здесь меньше года назад.',
+    'Жизнь не закончилась. Где-то ещё бьются сердца и сажают семена.',
+    'Может, я смогу их найти. Или сберечь этот сад до их возвращения.' ] },
+  { id:'tower', title:'Старая обсерватория', kind:'tower', x:1320, y:-680, lines:[
+    'Башня на холме. С неё виден весь притихший, зелёный мир.',
+    'Отсюда я вижу всё, что нашёл: убежище, рощу, сад, архив.',
+    'Назначение моего блока стёрто. Но, кажется, я выбрал его сам.',
+    'Подойди ко мне снова, когда обойдёшь весь мир, — и я скажу, что решил.' ] }
+];
+
+/* ====================== BOOT: текстуры ====================== */
+class BootScene extends Phaser.Scene {
+  constructor(){ super('BootScene'); }
+  create(){
+    this.makeGround(); this.makeRobot(); this.makeDust(); this.makeTree();
+    this.makeRuin(); this.makePod(); this.makeToy(); this.makeDormant();
+    this.makeArchive(); this.makeGarden(); this.makeTower(); this.makeRock();
+    this.makeFlower(); this.makeGlow();
+    this.scene.start('WorldScene');
+  }
+  bake(key,w,h,fn){ const g=this.make.graphics({x:0,y:0,add:false}); fn(g); g.generateTexture(key,w,h); g.destroy(); }
+  makeGround(){ this.bake('ground',64,64,g=>{ g.fillStyle(0x35502f,1); g.fillRect(0,0,64,64);
+    for(let i=0;i<120;i++){ const x=Phaser.Math.Between(0,63),y=Phaser.Math.Between(0,63);
+      g.fillStyle(Phaser.Math.RND.pick([0x2c4427,0x3d5b35,0x415f38]),0.6);
+      g.fillRect(x,y,Phaser.Math.Between(1,3),Phaser.Math.Between(1,3)); } }); }
+  makeRobot(){ this.bake('robot',34,44,g=>{
+    g.fillStyle(0x222a2e,1); g.fillRoundedRect(8,30,8,12,2); g.fillRoundedRect(18,30,8,12,2);
+    g.fillStyle(0x9aa7ad,1); g.fillRoundedRect(6,14,22,20,5);
+    g.fillStyle(0x7e8b91,1); g.fillRoundedRect(6,26,22,8,5);
+    g.fillStyle(0x3a8f7a,1); g.fillRoundedRect(12,18,10,8,2);
+    g.fillStyle(0xc2ced3,1); g.fillRoundedRect(9,2,16,14,4);
+    g.fillStyle(0x10242a,1); g.fillRoundedRect(11,6,12,6,3);
+    g.fillStyle(0x66f0d8,1); g.fillCircle(17,9,2.4);
+    g.fillStyle(0xff6b6b,1); g.fillCircle(17,1,1.6); }); }
+  makeDust(){ this.bake('dust',8,8,g=>{ g.fillStyle(0xd9d2c0,1); g.fillCircle(4,4,3); }); }
+  makeGlow(){ this.bake('glow',96,96,g=>{ for(let r=48;r>0;r-=2){ g.fillStyle(0x66f0d8,0.03); g.fillCircle(48,48,r);} }); }
+  makeTree(){ this.bake('tree',64,84,g=>{ g.fillStyle(0x3b2c20,1); g.fillRect(28,52,8,30);
+    g.fillStyle(0x2f5d34,1); g.fillCircle(32,36,26);
+    g.fillStyle(0x3c7340,1); g.fillCircle(22,30,16); g.fillCircle(44,32,15);
+    g.fillStyle(0x4a8a4e,0.8); g.fillCircle(30,24,12); }); }
+  makeRuin(){ this.bake('ruin',96,76,g=>{ g.fillStyle(0x6b6f73,1); g.fillRect(6,28,84,48);
+    g.fillStyle(0x55585b,1); g.fillRect(6,28,84,10);
+    g.fillStyle(0x1c2226,1); g.fillRect(20,44,22,32); g.fillRect(58,50,24,26);
+    g.lineStyle(2,0x3f4346,1); g.beginPath(); g.moveTo(50,28); g.lineTo(46,60); g.lineTo(52,76); g.strokePath();
+    g.fillStyle(0x4a8a4e,0.7); g.fillRect(6,28,84,4); }); }
+  makePod(){ this.bake('pod',60,72,g=>{ g.fillStyle(0x4b5358,1); g.fillRoundedRect(8,8,44,60,10);
+    g.fillStyle(0x2a3438,1); g.fillRoundedRect(16,16,28,40,6);
+    g.fillStyle(0x66f0d8,0.25); g.fillRoundedRect(16,16,28,40,6);
+    g.fillStyle(0xff8a5b,1); g.fillCircle(30,62,3);
+    g.lineStyle(2,0x6b7378,1); g.strokeRoundedRect(8,8,44,60,10); }); }
+  makeToy(){ this.bake('toy',32,32,g=>{ g.fillStyle(0x9c6b3f,1); g.fillCircle(16,18,9); g.fillCircle(16,8,6);
+    g.fillCircle(9,4,3); g.fillCircle(23,4,3);
+    g.fillStyle(0x111111,1); g.fillCircle(13,8,1.2);
+    g.fillStyle(0xfff3c4,1); g.fillCircle(19,8,1.6); }); }
+  makeDormant(){ this.bake('dormant',34,44,g=>{ g.fillStyle(0x4f575c,1); g.fillRoundedRect(6,14,22,20,5);
+    g.fillStyle(0x646d72,1); g.fillRoundedRect(9,2,16,14,4);
+    g.fillStyle(0x10181c,1); g.fillRoundedRect(11,6,12,6,3);
+    g.fillStyle(0x3a4145,1); g.fillCircle(17,9,2.2);
+    g.fillStyle(0x3b2c20,0.6); g.fillRect(6,30,22,4); }); }
+  makeArchive(){ this.bake('archive',88,70,g=>{ g.fillStyle(0x3c4a55,1); g.fillRect(6,14,76,56);
+    g.fillStyle(0x2b353d,1); g.fillRect(6,14,76,8);
+    for(let i=0;i<4;i++){ const x=12+i*18; g.fillStyle(0x222a30,1); g.fillRect(x,26,12,40);
+      g.fillStyle(Phaser.Math.RND.pick([0x66f0d8,0xff8a5b,0x8ad6ff]),1); g.fillRect(x+2,30,8,2); g.fillRect(x+2,36,8,2);} }); }
+  makeGarden(){ this.bake('garden',96,64,g=>{ g.fillStyle(0x5a4632,1); g.fillRect(4,20,88,40);
+    g.fillStyle(0x4a3826,1); for(let i=0;i<4;i++) g.fillRect(8,24+i*9,80,4);
+    for(let i=0;i<16;i++){ const x=Phaser.Math.Between(10,86),y=Phaser.Math.Between(24,56);
+      g.fillStyle(0x6cc24a,1); g.fillRect(x,y,2,6); g.fillStyle(0x8ad65a,1); g.fillCircle(x+1,y,2);} }); }
+  makeTower(){ this.bake('tower',80,120,g=>{ g.fillStyle(0x5d6066,1); g.fillRect(24,30,32,90);
+    g.fillStyle(0x4a4d52,1); g.fillRect(24,30,32,12);
+    g.fillStyle(0x8a9aa3,1); g.fillCircle(40,30,22);
+    g.fillStyle(0x2a3236,1); g.fillRect(36,8,8,24);
+    g.fillStyle(0x66f0d8,0.5); g.fillCircle(40,30,6); }); }
+  makeRock(){ this.bake('rock',40,30,g=>{ g.fillStyle(0x6c7075,1); g.fillEllipse(20,18,36,22);
+    g.fillStyle(0x595d61,1); g.fillEllipse(14,20,18,12);
+    g.fillStyle(0x4a8a4e,0.5); g.fillEllipse(24,12,14,6); }); }
+  makeFlower(){ this.bake('flower',16,16,g=>{ const p=Phaser.Math.RND.pick([0xffd166,0xf78fb3,0xa0e7e5,0xffffff]);
+    g.fillStyle(p,1); for(let a=0;a<360;a+=72){ const r=Phaser.Math.DegToRad(a); g.fillCircle(8+Math.cos(r)*4,8+Math.sin(r)*4,3);}
+    g.fillStyle(0xffe066,1); g.fillCircle(8,8,2.4); }); }
+}
+
+/* ====================== WORLD ====================== */
+const WORLD={w:4000,h:3200}, SPEED=150, INTERACT_RADIUS=78, SAVE_KEY='echo7-progress';
+const TEX={pod:'pod',ruin:'ruin',tree:'tree',toy:'toy',robot:'dormant',archive:'archive',garden:'garden',tower:'tower'};
+const SOLID=new Set(['pod','ruin','robot','archive','garden','tower']);
+const cx=p=>WORLD.w/2+p.x, cy=p=>WORLD.h/2+p.y;
+
+class WorldScene extends Phaser.Scene {
+  constructor(){ super('WorldScene'); }
+  create(){
+    this.discovered=this.load(); this.dialogActive=false; this.activePoi=null; this._allToast=false;
+    this.add.tileSprite(0,0,WORLD.w,WORLD.h,'ground').setOrigin(0,0).setDepth(-100);
+    this.physics.world.setBounds(0,0,WORLD.w,WORLD.h);
+    this.cameras.main.setBounds(0,0,WORLD.w,WORLD.h);
+    this.solids=this.physics.add.staticGroup();
+    this.scatter(); this.spawnPois(); this.createPlayer(); this.createCompass();
+    this.physics.add.collider(this.player,this.solids);
+    const cam=this.cameras.main; cam.startFollow(this.player,true,0.09,0.09); cam.setZoom(1.6); cam.setDeadzone(120,90);
+    this.cursors=this.input.keyboard.createCursorKeys();
+    this.keys=this.input.keyboard.addKeys('W,A,S,D,E');
+
+    this.scene.launch('UIScene'); this.scene.bringToTop('UIScene');
+    const g=this.game.events;
+    g.on('dialogue-complete',this.onDone,this);
+    g.on('action',this.onAction,this);
+    this.events.once('shutdown',()=>{ g.off('dialogue-complete',this.onDone,this); g.off('action',this.onAction,this); });
+
+    // сенсор: палец зажат => идём к точке касания
+    this.touchDown=false;
+    this.input.on('pointerdown',p=>{ this.touchDown=true; });
+    this.input.on('pointerup',()=>{ this.touchDown=false; });
+
+    this.time.delayedCall(60,()=>{ this.emitProgress();
+      if(this.discovered.size===0) this.openDialogue(`Пробуждение · ${ROBOT_NAME}`,INTRO_LINES);
+      else this.toast(`С возвращением, ${ROBOT_NAME}. Найдено: ${this.discovered.size}/${POIS.length}.`); });
+  }
+  scatter(){
+    const avoid=POIS.map(p=>new Phaser.Math.Vector2(cx(p),cy(p)));
+    const far=(x,y,d)=>avoid.every(v=>Phaser.Math.Distance.Between(x,y,v.x,v.y)>d);
+    for(let i=0;i<90;i++){ const x=Phaser.Math.Between(80,WORLD.w-80),y=Phaser.Math.Between(80,WORLD.h-80);
+      if(!far(x,y,130))continue; const t=this.solids.create(x,y,'tree'); t.setDepth(y); t.refreshBody();
+      t.body.setSize(14,14).setOffset(t.width/2-7,t.height-16); }
+    for(let i=0;i<50;i++){ const x=Phaser.Math.Between(60,WORLD.w-60),y=Phaser.Math.Between(60,WORLD.h-60);
+      if(!far(x,y,90))continue; const r=this.solids.create(x,y,'rock'); r.setDepth(y); r.refreshBody();
+      r.body.setSize(30,16).setOffset(5,12); }
+    for(let i=0;i<160;i++){ const x=Phaser.Math.Between(40,WORLD.w-40),y=Phaser.Math.Between(40,WORLD.h-40);
+      this.add.image(x,y,'flower').setDepth(y-4).setAlpha(0.95); }
+  }
+  spawnPois(){
+    this.pois=[];
+    for(const poi of POIS){ const X=cx(poi),Y=cy(poi);
+      const glow=this.add.image(X,Y,'glow').setDepth(Y-30).setAlpha(0.9);
+      this.tweens.add({targets:glow,alpha:{from:0.4,to:1},scale:{from:0.9,to:1.15},duration:1800,yoyo:true,repeat:-1,ease:'Sine.inOut'});
+      const key=TEX[poi.kind]||poi.kind; let sp;
+      if(SOLID.has(poi.kind)){ sp=this.solids.create(X,Y,key); sp.refreshBody();
+        sp.body.setSize(sp.width*0.8,sp.height*0.5).setOffset(sp.width*0.1,sp.height*0.5); }
+      else sp=this.add.image(X,Y,key);
+      sp.setDepth(Y);
+      const rec={poi,sprite:sp,glow,cx:X,cy:Y}; this.pois.push(rec); this.markVisual(rec);
+    }
+  }
+  createPlayer(){
+    const s=POIS.find(p=>p.id==='crib');
+    this.player=this.physics.add.sprite(cx(s)+70,cy(s)+70,'robot');
+    this.player.setDepth(this.player.y); this.player.body.setSize(20,16).setOffset(7,26);
+    this.player.setCollideWorldBounds(true);
+    this.tweens.add({targets:this.player,scaleY:{from:1,to:0.96},duration:520,yoyo:true,repeat:-1,ease:'Sine.inOut'});
+    this.dust=this.add.particles(0,0,'dust',{speed:{min:6,max:22},scale:{start:0.5,end:0},alpha:{start:0.5,end:0},lifespan:500,frequency:-1,tint:0xcfc7b0});
+    this.dust.setDepth(this.player.y-1);
+  }
+  createCompass(){ this.compass=this.add.triangle(0,0,0,-7,6,7,-6,7,0x66f0d8).setDepth(99999).setAlpha(0.85); }
+
+  update(){
+    this.player.setDepth(this.player.y); this.dust.setDepth(this.player.y-1);
+    if(this.dialogActive){ this.player.setVelocity(0,0); this.updateCompass(false); return; }
+    this.move(); this.interactCheck();
+  }
+  move(){
+    const k=this.keys,c=this.cursors; let vx=0,vy=0;
+    if(c.left.isDown||k.A.isDown)vx-=1; if(c.right.isDown||k.D.isDown)vx+=1;
+    if(c.up.isDown||k.W.isDown)vy-=1; if(c.down.isDown||k.S.isDown)vy+=1;
+    if(vx===0&&vy===0&&this.touchDown){ const p=this.input.activePointer;
+      const dx=p.worldX-this.player.x, dy=p.worldY-this.player.y, d=Math.hypot(dx,dy);
+      if(d>14){ vx=dx/d; vy=dy/d; } }
+    if(vx||vy){ const len=Math.hypot(vx,vy); this.player.setVelocity(vx/len*SPEED,vy/len*SPEED);
+      if(vx!==0)this.player.setFlipX(vx<0); this.dust.emitParticleAt(this.player.x,this.player.y+18); }
+    else this.player.setVelocity(0,0);
+  }
+  interactCheck(){
+    let near=null,nd=Infinity;
+    for(const r of this.pois){ const d=Phaser.Math.Distance.Between(this.player.x,this.player.y,r.cx,r.cy); if(d<nd){nd=d;near=r;} }
+    const inRange=near&&nd<=INTERACT_RADIUS; this.activePoi=inRange?near:null;
+    this.game.events.emit('prompt',inRange?{text:this.promptText(near),x:near.cx,y:near.cy}:null);
+    if(inRange&&Phaser.Input.Keyboard.JustDown(this.keys.E)) this.interact(near);
+    this.updateCompass(true);
+  }
+  onAction(){ if(this.activePoi&&!this.dialogActive) this.interact(this.activePoi); }
+  promptText(r){ const done=this.discovered.has(r.poi.id);
+    if(r.poi.id==='tower'&&this.allButTower()&&this.discovered.has('tower')) return 'подвести итог';
+    return done?'осмотреть снова':'осмотреть'; }
+  interact(r){ const poi=r.poi;
+    if(poi.id==='tower'&&this.discovered.has('tower')&&this.allButTower()){ this.openDialogue('Итог пути',ENDING_LINES); return; }
+    const first=!this.discovered.has(poi.id); this.openDialogue(poi.title,poi.lines);
+    if(first){ this.discovered.add(poi.id); this.save(); this.markVisual(r); this.emitProgress(); } }
+  markVisual(r){ if(this.discovered.has(r.poi.id)){ r.glow.setAlpha(0.2); this.tweens.killTweensOf(r.glow); r.glow.setScale(1).setTint(0x6b7c80); } }
+  allButTower(){ return POIS.filter(p=>p.id!=='tower').every(p=>this.discovered.has(p.id)); }
+  openDialogue(title,lines){ this.dialogActive=true; this.game.events.emit('dialogue',{title,lines}); }
+  onDone(){ this.dialogActive=false; }
+
+  updateCompass(vis){ const t=this.nearestUndiscovered();
+    if(!vis||!t){ this.compass.setVisible(false);
+      if(!t&&!this._allToast&&this.discovered.size>=POIS.length){ this._allToast=true; this.toast('Все точки найдены. Вернись к обсерватории за итогом.'); }
+      return; }
+    const a=Phaser.Math.Angle.Between(this.player.x,this.player.y,t.cx,t.cy), rad=48;
+    this.compass.setVisible(true).setPosition(this.player.x+Math.cos(a)*rad,this.player.y+Math.sin(a)*rad-6).setRotation(a+Math.PI/2).setDepth(this.player.y+50); }
+  nearestUndiscovered(){ let b=null,bd=Infinity;
+    for(const r of this.pois){ if(this.discovered.has(r.poi.id))continue; const d=Phaser.Math.Distance.Between(this.player.x,this.player.y,r.cx,r.cy); if(d<bd){bd=d;b=r;} } return b; }
+
+  emitProgress(){ this.game.events.emit('progress',{found:this.discovered.size,total:POIS.length}); }
+  toast(t){ this.game.events.emit('toast',t); }
+  load(){ try{ const r=localStorage.getItem(SAVE_KEY); return new Set(r?JSON.parse(r):[]);}catch(e){return new Set();} }
+  save(){ try{ localStorage.setItem(SAVE_KEY,JSON.stringify([...this.discovered]));}catch(e){} }
+}
+
+/* ====================== UI ====================== */
+class UIScene extends Phaser.Scene {
+  constructor(){ super('UIScene'); }
+  create(){
+    const {width,height}=this.scale, FONT='Verdana, Tahoma, sans-serif';
+    this.progress=this.add.text(16,14,'Точки памяти: 0/0',{fontFamily:FONT,fontSize:'16px',color:'#dfeae6',stroke:'#0c1416',strokeThickness:4}).setScrollFactor(0).setDepth(10);
+    this.help=this.add.text(width/2,height-12,'Тяни палец / WASD — идти      кнопка E — осмотреть      тап — далее',{fontFamily:FONT,fontSize:'12px',color:'#9fb1ac',stroke:'#0c1416',strokeThickness:3,align:'center',wordWrap:{width:width-20}}).setOrigin(0.5,1).setScrollFactor(0).setDepth(10);
+    this.prompt=this.add.text(0,0,'',{fontFamily:FONT,fontSize:'14px',color:'#66f0d8',backgroundColor:'#0e1c1fcc',padding:{x:8,y:4}}).setOrigin(0.5,1).setScrollFactor(0).setDepth(20).setVisible(false);
+    this.toastText=this.add.text(width/2,54,'',{fontFamily:FONT,fontSize:'15px',color:'#ffe9c7',backgroundColor:'#0e1c1fcc',padding:{x:10,y:6},align:'center',wordWrap:{width:width-40}}).setOrigin(0.5,0).setScrollFactor(0).setDepth(20).setAlpha(0);
+
+    // экранная кнопка E (для сенсора)
+    this.eBtn=this.add.container(width-58,height-92).setScrollFactor(0).setDepth(40).setVisible(false);
+    const circ=this.add.circle(0,0,30,0x0e1c1f,0.85).setStrokeStyle(2,0x66f0d8);
+    const eTxt=this.add.text(0,0,'E',{fontFamily:FONT,fontSize:'22px',color:'#66f0d8',fontStyle:'bold'}).setOrigin(0.5);
+    this.eBtn.add([circ,eTxt]);
+    circ.setInteractive(new Phaser.Geom.Circle(0,0,30),Phaser.Geom.Circle.Contains);
+    circ.on('pointerdown',()=>{ this.game.events.emit('action'); });
+
+    this.buildDialogue(width,height,FONT);
+    this.worldCam=this.scene.get('WorldScene').cameras.main;
+    this.advanceKeys=this.input.keyboard.addKeys('SPACE,ENTER');
+    this.dlgOpenedAt=0;
+
+    const g=this.game.events;
+    g.on('progress',this.onProgress,this); g.on('prompt',this.onPrompt,this);
+    g.on('toast',this.showToast,this); g.on('dialogue',this.onDialogue,this);
+    this.input.on('pointerdown',this.onTap,this);
+    this.events.once('shutdown',()=>{ g.off('progress',this.onProgress,this); g.off('prompt',this.onPrompt,this);
+      g.off('toast',this.showToast,this); g.off('dialogue',this.onDialogue,this); this.input.off('pointerdown',this.onTap,this); });
+  }
+  buildDialogue(width,height,FONT){
+    const boxW=Math.min(width-40,720), boxH=150, x=(width-boxW)/2, y=height-boxH-44;
+    this.dlg=this.add.container(0,0).setScrollFactor(0).setDepth(50).setVisible(false);
+    const bg=this.add.graphics(); bg.fillStyle(0x0c181b,0.94); bg.fillRoundedRect(x,y,boxW,boxH,14);
+    bg.lineStyle(2,0x3a8f7a,1); bg.strokeRoundedRect(x,y,boxW,boxH,14);
+    this.dlgTitle=this.add.text(x+20,y+14,'',{fontFamily:FONT,fontSize:'17px',color:'#66f0d8',fontStyle:'bold'});
+    this.dlgBody=this.add.text(x+20,y+46,'',{fontFamily:FONT,fontSize:'15px',color:'#e8efec',wordWrap:{width:boxW-40},lineSpacing:4});
+    this.dlgMore=this.add.text(x+boxW-16,y+boxH-12,'▾ далее',{fontFamily:FONT,fontSize:'12px',color:'#7f938e'}).setOrigin(1,1);
+    this.dlg.add([bg,this.dlgTitle,this.dlgBody,this.dlgMore]);
+  }
+  onProgress({found,total}){ this.progress.setText(`Точки памяти: ${found}/${total}`); }
+  onPrompt(d){ if(!d||this.dlg.visible){ this.prompt.setVisible(false); this.eBtn.setVisible(false); return; }
+    const cam=this.worldCam, sx=(d.x-cam.worldView.x)*cam.zoom, sy=(d.y-cam.worldView.y)*cam.zoom;
+    this.prompt.setText('[E] '+d.text).setPosition(sx,sy-52).setVisible(true);
+    this.eBtn.setVisible(true); }
+  showToast(t){ this.toastText.setText(t).setAlpha(0); this.tweens.killTweensOf(this.toastText);
+    this.tweens.add({targets:this.toastText,alpha:1,duration:300,hold:2600,yoyo:true,onComplete:()=>this.toastText.setAlpha(0)}); }
+  onDialogue({title,lines}){ this.lines=lines.slice(); this.lineIdx=0; this.dlgTitle.setText(title);
+    this.prompt.setVisible(false); this.eBtn.setVisible(false); this.dlg.setVisible(true);
+    this.dlgOpenedAt=this.time.now; this.typeLine(); }
+  typeLine(){ const full=this.lines[this.lineIdx]||''; this.fullLine=full; this.typed=''; this.typing=true;
+    this.dlgBody.setText(''); this.dlgMore.setVisible(false); if(this.typeEvent)this.typeEvent.remove();
+    this.typeEvent=this.time.addEvent({delay:18,repeat:full.length-1,callback:()=>{
+      this.typed=full.slice(0,this.typed.length+1); this.dlgBody.setText(this.typed);
+      if(this.typed.length>=full.length){ this.typing=false; this.dlgMore.setVisible(true); } }}); }
+  advance(){ if(this.typing){ if(this.typeEvent)this.typeEvent.remove(); this.dlgBody.setText(this.fullLine); this.typing=false; this.dlgMore.setVisible(true); return; }
+    this.lineIdx++; if(this.lineIdx>=this.lines.length) this.close(); else this.typeLine(); }
+  close(){ this.dlg.setVisible(false); if(this.typeEvent)this.typeEvent.remove(); this.game.events.emit('dialogue-complete'); }
+  onTap(){ if(this.dlg.visible && this.time.now-this.dlgOpenedAt>80) this.advance(); }
+  update(){ if(!this.dlg.visible)return;
+    if(Phaser.Input.Keyboard.JustDown(this.advanceKeys.SPACE)||Phaser.Input.Keyboard.JustDown(this.advanceKeys.ENTER)) this.advance(); }
+}
+
+/* ====================== GAME ====================== */
+new Phaser.Game({
+  type:Phaser.AUTO, parent:'game', backgroundColor:'#1a241f',
+  scale:{ mode:Phaser.Scale.FIT, autoCenter:Phaser.Scale.CENTER_BOTH, width:960, height:540 },
+  physics:{ default:'arcade', arcade:{ gravity:{x:0,y:0}, debug:false } },
+  render:{ antialias:true, roundPixels:true },
+  scene:[BootScene,WorldScene,UIScene]
+});
+</script>
+</body>
+</html>
