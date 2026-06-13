@@ -802,7 +802,7 @@ img.img-failed {
 .card--dress { grid-column: span 7; }
 .card--hashtag { grid-column: span 5; }
 .card--booth { grid-column: span 7; }
-.card:not([class*="--"]) { grid-column: span 5; }
+.card--gift { grid-column: span 5; }
 
 .card__media {
   overflow: hidden;
@@ -1229,7 +1229,7 @@ img.img-failed {
   .card--dress,
   .card--hashtag,
   .card--booth,
-  .card:not([class*="--"]) {
+  .card--gift {
     grid-column: span 12;
   }
 }
