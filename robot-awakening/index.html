@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="ru-RU">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>ЭХО-7 · Пробуждение</title>
+    <meta name="description" content="Тихая 2D-игра-исследование: робот ЭХО-7 просыпается через века после катастрофы и ищет смысл своего существования." />
+    <style>
+        :root { color-scheme: dark; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body {
+            height: 100%;
+            background: #0c1210;
+            color: #cfe;
+            font-family: Verdana, Tahoma, sans-serif;
+            overflow: hidden;
+        }
+        #game {
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        #game canvas {
+            box-shadow: 0 0 60px rgba(0, 0, 0, 0.6);
+        }
+        /* экран-заставка, пока грузится Phaser */
+        #fallback {
+            position: fixed;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 24px;
+        }
+        #fallback h1 { font-size: 28px; letter-spacing: 4px; color: #66f0d8; }
+        #fallback p { color: #8aa39c; max-width: 460px; line-height: 1.5; }
+        #fallback .hint { font-size: 13px; color: #5f726c; }
+    </style>
+</head>
+<body>
+    <div id="fallback">
+        <h1>ЭХО-7</h1>
+        <p>Загрузка тихого мира…</p>
+        <p class="hint">Если игра не появилась — нужен доступ в интернет для загрузки движка Phaser, либо откройте страницу через локальный сервер.</p>
+    </div>
+    <div id="game"></div>
+
+    <!-- Движок Phaser 4 (CDN). Сначала глобал, затем наши ES-модули. -->
+    <script src="https://cdn.jsdelivr.net/npm/phaser@4.0.0/dist/phaser.min.js"></script>
+    <script>
+        // Прячем заставку, как только движок доступен.
+        if (window.Phaser) {
+            document.getElementById('fallback').style.display = 'none';
+        }
+    </script>
+    <script type="module" src="./src/main.js"></script>
+</body>
+</html>
