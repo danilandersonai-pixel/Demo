@@ -330,6 +330,227 @@ const RSVP_ENDPOINT = "https://formspree.io/f/YOUR_FORM_ID"; // TODO: замен
   }
 
   /* ----------------------------------------------------------
+     4b. Атмосферный фон Hero: золотое боке (сырой WebGL, без
+         библиотек). Декоративный слой за именами; параллакс
+         поля — через uniform, НЕ через [data-parallax].
+     ---------------------------------------------------------- */
+  (function heroFx() {
+    var canvas = document.querySelector('.hero__fx');
+    var hero = document.querySelector('.hero');
+    if (!canvas || !hero) return;
+
+    var gl = null;
+    var glOpts = { alpha: true, premultipliedAlpha: true, antialias: true };
+    try {
+      gl = canvas.getContext('webgl', glOpts) ||
+           canvas.getContext('experimental-webgl', glOpts);
+    } catch (e) { gl = null; }
+    if (!gl) return; /* нет WebGL — Hero остаётся как прежде */
+
+    /* Золото дизайн-системы: --gold, --gold-bright, тёплый акцент */
+    var GOLD = [
+      [0.843, 0.682, 0.388],
+      [0.961, 0.851, 0.576],
+      [0.725, 0.537, 0.314]
+    ];
+    var DPR = Math.min(window.devicePixelRatio || 1, 1.5);
+
+    function particleCount() {
+      var w = window.innerWidth;
+      if (w < 620) return 34;
+      if (w < 1100) return 50;
+      return 68;
+    }
+
+    var vsSource = [
+      'precision mediump float;',
+      'attribute vec2 aSeed;',
+      'attribute vec3 aParam;',   /* depth, speed, phase */
+      'attribute vec3 aColor;',
+      'uniform float uTime;',
+      'uniform vec2 uPointer;',
+      'uniform float uDpr;',
+      'varying float vDepth;',
+      'varying vec3 vColor;',
+      'void main() {',
+      '  float depth = aParam.x;',
+      '  float speed = aParam.y;',
+      '  float phase = aParam.z;',
+      '  float t = uTime * 0.00009;',
+      '  float y = fract(aSeed.y + t * speed);',
+      '  float sway = sin((phase + t) * 6.2831) * 0.04 * depth;',
+      '  float x = fract(aSeed.x + sway + t * speed * 0.18);',
+      '  x += uPointer.x * 0.03 * depth;',
+      '  y += uPointer.y * 0.03 * depth;',
+      '  vec2 clip = vec2(x * 2.0 - 1.0, (1.0 - y) * 2.0 - 1.0);',
+      '  gl_Position = vec4(clip, 0.0, 1.0);',
+      '  gl_PointSize = (depth * 26.0 + 4.0) * uDpr;',
+      '  vDepth = depth;',
+      '  vColor = aColor;',
+      '}'
+    ].join('\n');
+
+    var fsSource = [
+      'precision mediump float;',
+      'varying float vDepth;',
+      'varying vec3 vColor;',
+      'void main() {',
+      '  vec2 c = gl_PointCoord - vec2(0.5);',
+      '  float d = length(c);',
+      '  if (d > 0.5) discard;',
+      '  float core = smoothstep(0.5, 0.0, d);',
+      '  float soft = pow(core, mix(2.4, 1.2, vDepth));',
+      '  float alpha = soft * mix(0.10, 0.40, vDepth);',
+      '  gl_FragColor = vec4(vColor * alpha, alpha);', /* premultiplied */
+      '}'
+    ].join('\n');
+
+    function compile(type, src) {
+      var sh = gl.createShader(type);
+      gl.shaderSource(sh, src);
+      gl.compileShader(sh);
+      if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) { gl.deleteShader(sh); return null; }
+      return sh;
+    }
+
+    var vs = compile(gl.VERTEX_SHADER, vsSource);
+    var fs = compile(gl.FRAGMENT_SHADER, fsSource);
+    if (!vs || !fs) return;
+    var prog = gl.createProgram();
+    gl.attachShader(prog, vs);
+    gl.attachShader(prog, fs);
+    gl.linkProgram(prog);
+    if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) return;
+    gl.useProgram(prog);
+
+    var aSeed = gl.getAttribLocation(prog, 'aSeed');
+    var aParam = gl.getAttribLocation(prog, 'aParam');
+    var aColor = gl.getAttribLocation(prog, 'aColor');
+    var uTime = gl.getUniformLocation(prog, 'uTime');
+    var uPointer = gl.getUniformLocation(prog, 'uPointer');
+    var uDpr = gl.getUniformLocation(prog, 'uDpr');
+
+    var N = particleCount();
+    var seed = new Float32Array(N * 2);
+    var param = new Float32Array(N * 3);
+    var color = new Float32Array(N * 3);
+
+    function rand(a, b) { return a + Math.random() * (b - a); }
+    for (var i = 0; i < N; i++) {
+      seed[i * 2] = Math.random();
+      seed[i * 2 + 1] = Math.random();
+      var depth = Math.pow(Math.random(), 1.5); /* больше дальних, мелких */
+      param[i * 3] = depth;
+      param[i * 3 + 1] = rand(0.08, 0.26);
+      param[i * 3 + 2] = Math.random();
+      var g = GOLD[(Math.random() * GOLD.length) | 0];
+      var k = rand(0.85, 1.1);
+      color[i * 3] = Math.min(1, g[0] * k);
+      color[i * 3 + 1] = Math.min(1, g[1] * k);
+      color[i * 3 + 2] = Math.min(1, g[2] * k);
+    }
+
+    function makeBuffer(data, loc, size) {
+      var b = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, b);
+      gl.bufferData(gl.ARRAY_BUFFER, data, gl.STATIC_DRAW);
+      gl.enableVertexAttribArray(loc);
+      gl.vertexAttribPointer(loc, size, gl.FLOAT, false, 0, 0);
+    }
+    makeBuffer(seed, aSeed, 2);
+    makeBuffer(param, aParam, 3);
+    makeBuffer(color, aColor, 3);
+
+    gl.clearColor(0, 0, 0, 0);
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA); /* premultiplied «over» */
+    gl.uniform1f(uDpr, DPR);
+
+    function resize() {
+      var w = hero.clientWidth;
+      var h = hero.clientHeight;
+      canvas.width = Math.max(1, Math.round(w * DPR));
+      canvas.height = Math.max(1, Math.round(h * DPR));
+      canvas.style.width = w + 'px';
+      canvas.style.height = h + 'px';
+      gl.viewport(0, 0, canvas.width, canvas.height);
+    }
+
+    /* Сглаженный параллакс поля по указателю / гироскопу */
+    var tpx = 0, tpy = 0, px = 0, py = 0;
+    function onPointer(e) {
+      tpx = (e.clientX / window.innerWidth) * 2 - 1;
+      tpy = (e.clientY / window.innerHeight) * 2 - 1;
+    }
+    function onOrient(e) {
+      if (e.gamma == null || e.beta == null) return;
+      tpx = Math.max(-1, Math.min(1, e.gamma / 30));
+      tpy = Math.max(-1, Math.min(1, e.beta / 45));
+    }
+
+    function draw(t) {
+      px += (tpx - px) * 0.05;
+      py += (tpy - py) * 0.05;
+      gl.uniform1f(uTime, t);
+      gl.uniform2f(uPointer, px, py);
+      gl.clear(gl.COLOR_BUFFER_BIT);
+      gl.drawArrays(gl.POINTS, 0, N);
+    }
+
+    var rafId = null;
+    var running = false;
+    var heroVisible = true;
+    function frame(t) {
+      draw(t);
+      rafId = window.requestAnimationFrame(frame);
+    }
+    function start() {
+      if (running || reduceMotion) return;
+      running = true;
+      rafId = window.requestAnimationFrame(frame);
+    }
+    function stop() {
+      running = false;
+      if (rafId) { window.cancelAnimationFrame(rafId); rafId = null; }
+    }
+
+    resize();
+
+    if (reduceMotion) {
+      draw(0); /* один статичный кадр — без движения */
+    } else {
+      window.addEventListener('pointermove', onPointer, { passive: true });
+      if (window.DeviceOrientationEvent) {
+        window.addEventListener('deviceorientation', onOrient, { passive: true });
+      }
+      if ('IntersectionObserver' in window) {
+        var io = new IntersectionObserver(function (entries) {
+          entries.forEach(function (en) {
+            heroVisible = en.isIntersecting;
+            if (heroVisible) start(); else stop();
+          });
+        }, { threshold: 0 });
+        io.observe(hero);
+      } else {
+        start();
+      }
+      document.addEventListener('visibilitychange', function () {
+        if (document.hidden) stop();
+        else if (heroVisible) start();
+      });
+    }
+
+    var rt = null;
+    window.addEventListener('resize', function () {
+      if (rt) window.clearTimeout(rt);
+      rt = window.setTimeout(function () {
+        resize();
+        if (reduceMotion) draw(0);
+      }, 150);
+    }, { passive: true });
+  })();
+
+  /* ----------------------------------------------------------
      5. Обратный отсчёт до 26.08.2026, 10:00 (локальное время)
      ---------------------------------------------------------- */
   var target = new Date(2026, 7, 26, 10, 0, 0); // месяцы с нуля: 7 = август
