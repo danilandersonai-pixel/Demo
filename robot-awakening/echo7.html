@@ -168,7 +168,7 @@ const cx=p=>WORLD.w/2+p.x, cy=p=>WORLD.h/2+p.y;
 class WorldScene extends Phaser.Scene {
   constructor(){ super('WorldScene'); }
   create(){
-    this.discovered=this.load(); this.dialogActive=false; this.activePoi=null; this._allToast=false;
+    this.discovered=this.loadProgress(); this.dialogActive=false; this.activePoi=null; this._allToast=false;
     this.add.tileSprite(0,0,WORLD.w,WORLD.h,'ground').setOrigin(0,0).setDepth(-100);
     this.physics.world.setBounds(0,0,WORLD.w,WORLD.h);
     this.cameras.main.setBounds(0,0,WORLD.w,WORLD.h);
@@ -261,7 +261,7 @@ class WorldScene extends Phaser.Scene {
   interact(r){ const poi=r.poi;
     if(poi.id==='tower'&&this.discovered.has('tower')&&this.allButTower()){ this.openDialogue('Итог пути',ENDING_LINES); return; }
     const first=!this.discovered.has(poi.id); this.openDialogue(poi.title,poi.lines);
-    if(first){ this.discovered.add(poi.id); this.save(); this.markVisual(r); this.emitProgress(); } }
+    if(first){ this.discovered.add(poi.id); this.saveProgress(); this.markVisual(r); this.emitProgress(); } }
   markVisual(r){ if(this.discovered.has(r.poi.id)){ r.glow.setAlpha(0.2); this.tweens.killTweensOf(r.glow); r.glow.setScale(1).setTint(0x6b7c80); } }
   allButTower(){ return POIS.filter(p=>p.id!=='tower').every(p=>this.discovered.has(p.id)); }
   openDialogue(title,lines){ this.dialogActive=true; this.game.events.emit('dialogue',{title,lines}); }
@@ -278,8 +278,8 @@ class WorldScene extends Phaser.Scene {
 
   emitProgress(){ this.game.events.emit('progress',{found:this.discovered.size,total:POIS.length}); }
   toast(t){ this.game.events.emit('toast',t); }
-  load(){ try{ const r=localStorage.getItem(SAVE_KEY); return new Set(r?JSON.parse(r):[]);}catch(e){return new Set();} }
-  save(){ try{ localStorage.setItem(SAVE_KEY,JSON.stringify([...this.discovered]));}catch(e){} }
+  loadProgress(){ try{ const r=localStorage.getItem(SAVE_KEY); return new Set(r?JSON.parse(r):[]);}catch(e){return new Set();} }
+  saveProgress(){ try{ localStorage.setItem(SAVE_KEY,JSON.stringify([...this.discovered]));}catch(e){} }
 }
 
 /* ====================== UI ====================== */
