@@ -52,6 +52,8 @@ node --check yegor-diana-wedding/assets/js/main.js
 
 **`index.html`** — единственная страница. Порядок оверлеев по `z-index`:
 прелоадер (120) → интро-видео (100) → scroll-progress (95) → навигация (90).
+Внутри Hero свой слой: фон-фото → канвас `.hero__fx` (z 1) → контент
+`.hero__content` (z 2, имена/CTA всегда поверх и чёткие).
 Секции с якорями: `#hero`, `#countdown`, `#story`, `#program`, `#location`,
 `#details`, `#rsvp`, `#flowers`.
 
@@ -60,8 +62,8 @@ node --check yegor-diana-wedding/assets/js/main.js
 и `const reduceMotion` (флаг `prefers-reduced-motion`, на него опираются все
 анимационные ветки). Отвечает за: прелоадер, интро-видео (Play/Skip), таймер
 обратного отсчёта + count-up, scroll-reveal (IntersectionObserver), parallax
-(rAF), навигацию + scroll-progress, генерацию `.ics`, лайтбокс, отправку RSVP,
-разбивку имён Hero на span'ы.
+(rAF), навигацию + scroll-progress, WebGL-фон Hero (золотое боке, секция «4b»),
+генерацию `.ics`, лайтбокс, отправку RSVP, разбивку имён Hero на span'ы.
 
 **`assets/css/styles.css`** — пронумерованные секции `1…19` (см. баннеры
 `/* ===== N. … ===== */`). Дизайн-система — CSS-переменные в `:root` (палитра
@@ -85,6 +87,12 @@ node --check yegor-diana-wedding/assets/js/main.js
   `scale` на внутреннем `img`.
 - **count-up таймера** — гейтируется флагом `countdownStarted`; ровно один
   `setInterval`. Расчёт остатка — общий `getRemaining()`, не дублировать.
+- **Hero WebGL-фон (`.hero__fx`)** — сырой WebGL (БЕЗ библиотек), модуль-IIFE
+  «4b» в `main.js`: золотое боке-поле `gl.POINTS` (palette `--gold`), premultiplied
+  «over»-блендинг под светлый фон. Параллакс поля — через uniform `uPointer`, НЕ
+  через `[data-parallax]`. Кап DPR (≤1.5) и числа частиц; пауза rAF, когда Hero
+  вне вьюпорта (IntersectionObserver) или вкладка скрыта (`visibilitychange`);
+  нет WebGL → тихий фолбэк; `reduceMotion` → один статичный кадр без цикла.
 - **`--fast`** — единый easing для всех переходов/анимаций.
 
 ## Соглашения и ограничения
@@ -93,7 +101,12 @@ node --check yegor-diana-wedding/assets/js/main.js
   `@media (prefers-reduced-motion: reduce)` (CSS — секция 19; JS — ветки по
   флагу `reduceMotion`). Это требование, а не пожелание.
 - Никаких внешних JS-библиотек и шагов сборки. CSS → `styles.css`,
-  JS → `main.js`, разметка → `index.html`.
+  JS → `main.js`, разметка → `index.html`. (Сырой WebGL без библиотек —
+  допустим: так сделан `.hero__fx`.)
+- Ширину карточек в сетках задавать ЯВНЫМИ классами-модификаторами
+  (`card--dress/--gift/--hashtag/--booth`). ⚠️ Не опираться на
+  `:not([class*="--"])`: модификаторы reveal (`reveal--left/--right`) содержат
+  `--` и ломают такой селектор (карточка теряет `grid-column`).
 - Цвета и easing — только из CSS-переменных дизайн-системы; не вводить хардкод
   вне палитры.
 - Язык контента — русский, `lang="ru-RU"`, кодировка UTF-8. Сохранять
