@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="ru-RU">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Егор &amp; Диана — Приглашение на свадьбу · 26.08.2026</title>
+  <meta name="description" content="Приглашение на свадьбу Егора и Дианы, 26 августа 2026 года, Санкт-Петербург.">
+  <meta name="theme-color" content="#4a0008">
+
+  <!-- Правьте вручную под новый сайт: og/twitter и og:url. Соцсети не исполняют JS. -->
+  <!-- Open Graph: карточка при шаринге в Telegram / WhatsApp -->
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Егор &amp; Диана — приглашение на свадьбу">
+  <meta property="og:description" content="26 августа 2026, Санкт-Петербург. Будем рады разделить наш день">
+  <meta property="og:image" content="https://danilandersonai-pixel.github.io/Demo/assets/img/photo-01.jpg">
+  <meta property="og:locale" content="ru_RU">
+  <meta property="og:url" content="https://danilandersonai-pixel.github.io/Demo/">
+
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Егор &amp; Диана — приглашение на свадьбу">
+  <meta name="twitter:description" content="26 августа 2026, Санкт-Петербург. Будем рады разделить наш день">
+  <meta name="twitter:image" content="https://danilandersonai-pixel.github.io/Demo/assets/img/photo-01.jpg">
+
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="apple-touch-icon" href="assets/img/photo-01.jpg">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="assets/css/styles.css?v=5">
+</head>
+<body>
+
+  <!-- ПРОГРЕСС ПРОКРУТКИ: тонкая золотая полоса вверху -->
+  <div class="scroll-progress" aria-hidden="true"><span class="scroll-progress__bar"></span></div>
+
+  <!-- ПРЕЛОАДЕР: показывается первым, поверх интро-видео -->
+  <div class="preloader" id="preloader" aria-hidden="true">
+    <p class="preloader__monogram">Е&nbsp;<span class="preloader__amp">&amp;</span>&nbsp;Д</p>
+    <span class="preloader__line"></span>
+    <p class="preloader__date" data-bind="_derived.dateDotted">26 . 08 . 2026</p>
+  </div>
+
+  <!-- ИНТРО-ВИДЕО -->
+  <div class="intro" id="intro" aria-label="Вступительное видео">
+    <video
+      class="intro__video"
+      id="introVideo"
+      autoplay
+      muted
+      playsinline
+      preload="auto"
+      poster="assets/img/intro-poster.png">
+      <source src="assets/video/intro.mp4" type="video/mp4">
+    </video>
+    <div class="intro__veil" aria-hidden="true"></div>
+    <div class="intro__ui">
+      <p class="intro__kicker" data-bind="_derived.introKicker">Егор &amp; Диана · 26 августа 2026</p>
+      <div class="intro__actions">
+        <button class="btn btn--gold" id="introPlay" type="button">Смотреть</button>
+        <button class="btn btn--ghost-light" id="introSkip" type="button">Пропустить</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- НАВИГАЦИЯ -->
+  <header class="nav" id="siteNav">
+    <div class="container nav__inner">
+      <a class="nav__brand" href="#hero" aria-label="К началу страницы">Е&nbsp;<span class="nav__amp">&amp;</span>&nbsp;Д</a>
+      <button class="nav__toggle" id="navToggle" type="button" aria-label="Открыть меню" aria-expanded="false">
+        <span aria-hidden="true"></span>
+        <span aria-hidden="true"></span>
+      </button>
+      <nav class="nav__menu" id="navMenu" aria-label="Основная навигация">
+        <a class="nav__link" href="#story">История</a>
+        <a class="nav__link" href="#program">Программа</a>
+        <a class="nav__link" href="#location">Как добраться</a>
+        <a class="nav__link" href="#details">Детали</a>
+        <a class="nav__link" href="#rsvp">RSVP</a>
+        <a class="nav__link" href="#flowers">Цветы</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+
+    <!-- HERO -->
+    <section class="hero" id="hero">
+      <div class="hero__bg" aria-hidden="true">
+        <figure class="hero__photo hero__photo--left" data-parallax="0.06">
+          <img
+            data-bind="hero.photo1"
+            src="assets/img/photo-01.jpg"
+            alt="Егор и Диана"
+            loading="eager"
+            onerror="this.classList.add('img-failed')">
+        </figure>
+        <figure class="hero__photo hero__photo--right" data-parallax="-0.05">
+          <img
+            data-bind="hero.photo2"
+            src="assets/img/photo-02.jpg"
+            alt="Егор и Диана вдвоём"
+            loading="eager"
+            onerror="this.classList.add('img-failed')">
+        </figure>
+      </div>
+      <canvas class="hero__fx" aria-hidden="true"></canvas>
+      <div class="container hero__content reveal">
+        <p class="kicker" data-bind="hero.kicker">Приглашение на свадьбу</p>
+        <h1 class="hero__names">Егор <span class="hero__amp">&amp;</span> Диана</h1>
+        <div class="gold-rule anim-draw" aria-hidden="true"></div>
+        <p class="hero__date" data-bind="_derived.dateDottedCityHero">26 . 08 . 2026 &nbsp;·&nbsp; Санкт-Петербург</p>
+        <p class="hero__sub" data-bind="hero.sub">Приглашаем разделить наш день</p>
+        <a class="btn btn--wine btn--cta" href="#rsvp" data-bind="hero.ctaText">Подтвердить присутствие</a>
+      </div>
+      <div class="hero__scrollhint" aria-hidden="true">
+        <span></span>
+      </div>
+    </section>
+
+    <!-- COUNTDOWN -->
+    <section class="countdown section section--dark" id="countdown">
+      <div class="container reveal">
+        <p class="kicker kicker--gold" data-bind="countdown.kicker">До встречи остаётся</p>
+        <div class="countdown__grid" role="timer" aria-label="Обратный отсчёт до свадьбы">
+          <div class="countdown__cell">
+            <span class="countdown__num" id="cdDays">000</span>
+            <span class="countdown__label">дней</span>
+          </div>
+          <span class="countdown__sep" aria-hidden="true">:</span>
+          <div class="countdown__cell">
+            <span class="countdown__num" id="cdHours">00</span>
+            <span class="countdown__label">часов</span>
+          </div>
+          <span class="countdown__sep" aria-hidden="true">:</span>
+          <div class="countdown__cell">
+            <span class="countdown__num" id="cdMinutes">00</span>
+            <span class="countdown__label">минут</span>
+          </div>
+          <span class="countdown__sep" aria-hidden="true">:</span>
+          <div class="countdown__cell">
+            <span class="countdown__num" id="cdSeconds">00</span>
+            <span class="countdown__label">секунд</span>
+          </div>
+        </div>
+        <p class="countdown__date" data-bind="_derived.dateLongTime">26 августа 2026 · 10:00</p>
+        <div class="calendar-actions" aria-label="Добавить событие в календарь">
+          <button class="btn btn--gold-line" id="icsDownload" type="button" aria-label="Скачать событие для Apple Calendar и Outlook (файл .ics)">
+            Добавить в календарь (.ics)
+          </button>
+          <a
+            class="btn btn--gold-line"
+            id="gcalLink"
+            href="#"
+            target="_blank"
+            rel="noopener"
+            aria-label="Добавить событие в Google Календарь">
+            Google Calendar
+          </a>
+        </div>
+      </div>
+    </section>
+
+    <!-- ФЛОРАЛЬ-РАЗДЕЛИТЕЛЬ -->
+    <div class="divider anim-draw" aria-hidden="true">
+      <svg class="divider__svg" viewBox="0 0 220 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M2 12h74M144 12h74" stroke="currentColor" stroke-width="1"/>
+        <path d="M110 5l5 7-5 7-5-7z" stroke="currentColor" stroke-width="1"/>
+        <path d="M80 12c6-6 12-6 16 0M96 12c-3-4-3-8 0-10M140 12c-6-6-12-6-16 0M124 12c3-4 3-8 0-10" stroke="currentColor" stroke-width="1" stroke-linecap="round"/>
+        <circle cx="96" cy="2" r="1.4" fill="currentColor"/>
+        <circle cx="124" cy="2" r="1.4" fill="currentColor"/>
+      </svg>
+    </div>
+
+    <!-- ГАЛЕРЕЯ -->
+    <section class="gallery section" id="gallery">
+      <div class="container">
+        <header class="section__head reveal">
+          <p class="kicker">Наша история</p>
+          <h2 class="section__title">Четыре кадра о&nbsp;нас</h2>
+          <div class="gold-rule anim-draw" aria-hidden="true"></div>
+        </header>
+        <div class="gallery__grid" data-list="gallery"></div>
+        <template data-tpl="gallery">
+          <figure class="gallery__card reveal">
+            <div class="photo-mask">
+              <img data-bind="image" src="" alt="" loading="lazy" onerror="this.classList.add('img-failed')">
+            </div>
+            <figcaption><span data-bind="roman">I</span> <span data-bind="caption">Начало</span></figcaption>
+          </figure>
+        </template>
+      </div>
+    </section>
+
+    <!-- ФЛОРАЛЬ-РАЗДЕЛИТЕЛЬ -->
+    <div class="divider anim-draw" aria-hidden="true">
+      <svg class="divider__svg" viewBox="0 0 220 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M2 12h74M144 12h74" stroke="currentColor" stroke-width="1"/>
+        <path d="M110 5l5 7-5 7-5-7z" stroke="currentColor" stroke-width="1"/>
+        <path d="M80 12c6-6 12-6 16 0M96 12c-3-4-3-8 0-10M140 12c-6-6-12-6-16 0M124 12c3-4 3-8 0-10" stroke="currentColor" stroke-width="1" stroke-linecap="round"/>
+        <circle cx="96" cy="2" r="1.4" fill="currentColor"/>
+        <circle cx="124" cy="2" r="1.4" fill="currentColor"/>
+      </svg>
+    </div>
+
+    <!-- ИСТОРИЯ ПАРЫ (LOVE STORY) -->
+    <section class="story section" id="story">
+      <div class="container">
+        <header class="section__head reveal">
+          <p class="kicker">Love Story</p>
+          <h2 class="section__title">Как мы&nbsp;познакомились</h2>
+          <div class="gold-rule anim-draw" aria-hidden="true"></div>
+        </header>
+
+        <ol class="story__list" data-list="story"></ol>
+        <template data-tpl="story">
+          <li class="story__item reveal" data-alt-reveal>
+            <figure class="story__photo">
+              <div class="photo-mask">
+                <img data-bind="image" src="" alt="" loading="lazy" onerror="this.classList.add('img-failed')">
+              </div>
+            </figure>
+            <div class="story__body">
+              <p class="story__year" data-bind="year">2021</p>
+              <h3 class="story__title" data-bind="title">Первая встреча</h3>
+              <p data-bind="text">История пары.</p>
+            </div>
+          </li>
+        </template>
+      </div>
+    </section>
+
+    <!-- ПРОГРАММА ДНЯ -->
+    <section class="program section section--paper" id="program">
+      <div class="container">
+        <header class="section__head reveal">
+          <p class="kicker" data-bind="_derived.dateLong">26 августа 2026</p>
+          <h2 class="section__title">Программа дня</h2>
+          <div class="gold-rule anim-draw" aria-hidden="true"></div>
+        </header>
+        <ol class="timeline" data-list="program"></ol>
+        <template data-tpl="program">
+          <li class="timeline__item reveal">
+            <span class="timeline__dot" aria-hidden="true"></span>
+            <time class="timeline__time" data-bind-attr="datetime:datetime" data-bind="time">10:00</time>
+            <div class="timeline__body">
+              <h3 data-bind="title">Регистрация</h3>
+              <p data-bind="description">Адрес</p>
+            </div>
+          </li>
+        </template>
+      </div>
+    </section>
+
+    <!-- КАК ДОБРАТЬСЯ -->
+    <section class="location section" id="location">
+      <div class="container">
+        <header class="section__head reveal">
+          <p class="kicker">Адреса дня</p>
+          <h2 class="section__title">Как добраться</h2>
+          <div class="gold-rule anim-draw" aria-hidden="true"></div>
+        </header>
+
+        <div class="location__grid" data-list="locations"></div>
+        <template data-tpl="locations">
+          <article class="place reveal">
+            <p class="place__time" data-loc="time">10:00 · Церемония</p>
+            <h3 class="place__title" data-loc="title">Место</h3>
+            <p class="place__addr" data-loc="address">Адрес</p>
+            <div class="place__map">
+              <iframe
+                data-loc="map"
+                src=""
+                title="Карта"
+                loading="lazy"
+                allowfullscreen></iframe>
+            </div>
+            <div class="place__actions">
+              <a class="btn btn--gold-line" data-loc="yandex" href="#" target="_blank" rel="noopener">Маршрут в&nbsp;Яндекс</a>
+              <a class="btn btn--gold-line" data-loc="google" href="#" target="_blank" rel="noopener">Google Maps</a>
+            </div>
+          </article>
+        </template>
+      </div>
+    </section>
+
+    <!-- ФЛОРАЛЬ-РАЗДЕЛИТЕЛЬ -->
+    <div class="divider anim-draw" aria-hidden="true">
+      <svg class="divider__svg" viewBox="0 0 220 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M2 12h74M144 12h74" stroke="currentColor" stroke-width="1"/>
+        <path d="M110 5l5 7-5 7-5-7z" stroke="currentColor" stroke-width="1"/>
+        <path d="M80 12c6-6 12-6 16 0M96 12c-3-4-3-8 0-10M140 12c-6-6-12-6-16 0M124 12c3-4 3-8 0-10" stroke="currentColor" stroke-width="1" stroke-linecap="round"/>
+        <circle cx="96" cy="2" r="1.4" fill="currentColor"/>
+        <circle cx="124" cy="2" r="1.4" fill="currentColor"/>
+      </svg>
+    </div>
+
+    <!-- ДЕТАЛИ -->
+    <section class="details section" id="details">
+      <div class="container">
+        <header class="section__head reveal">
+          <p class="kicker">Важное</p>
+          <h2 class="section__title">Детали</h2>
+          <div class="gold-rule anim-draw" aria-hidden="true"></div>
+        </header>
+
+        <div class="details__grid">
+          <!-- Дресс-код -->
+          <article class="card card--dress reveal reveal--left">
+            <div class="card__media">
+              <img
+                data-bind="details.dress.image"
+                src="assets/img/dress-code.jpeg"
+                alt="Палитра дресс-кода"
+                loading="lazy"
+                onerror="this.classList.add('img-failed')">
+            </div>
+            <div class="card__body">
+              <h3 class="card__title" data-bind="details.dress.title">Дресс-код</h3>
+              <p data-bind="details.dress.text">Для дам — пастельные тона.</p>
+              <ul class="swatches" data-list="swatches" aria-label="Палитра пастельных оттенков"></ul>
+            </div>
+          </article>
+
+          <!-- Подарки -->
+          <article class="card card--gift reveal reveal--right">
+            <div class="card__body">
+              <h3 class="card__title" data-bind="details.gift.title">Подарки</h3>
+              <p data-bind="details.gift.text">Вместо букетов — подписка на цветы.</p>
+              <a class="card__link" href="#flowers" data-bind="details.gift.linkText">Подробнее в&nbsp;разделе «Цветы» →</a>
+            </div>
+          </article>
+
+          <!-- Фото и видео -->
+          <article class="card card--hashtag reveal reveal--left">
+            <div class="card__body">
+              <h3 class="card__title" data-bind="details.photo.title">Фото и&nbsp;видео</h3>
+              <p data-bind="details.photo.text">Делитесь кадрами в Telegram.</p>
+              <a class="btn btn--ghost" data-bind="details.photo.telegram" href="#" target="_blank" rel="noopener"><span data-bind="details.photo.btnText">Telegram-канал</span></a>
+              <p class="hashtag" data-bind="details.photo.hashtag">#EgDiDa</p>
+            </div>
+          </article>
+
+          <!-- Фотозона -->
+          <article class="card card--booth reveal reveal--right">
+            <div class="card__media card__media--duo" data-booth-media></div>
+            <div class="card__body">
+              <h3 class="card__title" data-bind="details.booth.title">Фотозона</h3>
+              <p data-bind="details.booth.text">Во дворце будет работать фотозона.</p>
+            </div>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- RSVP -->
+    <section class="rsvp section section--dark" id="rsvp">
+      <div class="container rsvp__inner">
+        <header class="section__head reveal">
+          <p class="kicker kicker--gold" data-bind="rsvp.kicker">Опрос гостей</p>
+          <h2 class="section__title" data-bind="rsvp.title">Подтвердите присутствие</h2>
+          <div class="gold-rule anim-draw" aria-hidden="true"></div>
+          <p class="section__lead" data-bind="rsvp.lead">Пожалуйста, ответьте до&nbsp;1&nbsp;августа — нам важно подготовить всё именно для&nbsp;вас.</p>
+        </header>
+
+        <form class="form reveal" id="guestForm" novalidate>
+          <div class="form__row">
+            <label class="form__label" for="guestName"><span data-bind="rsvp.labels.name">ФИО</span> <span class="form__req" aria-hidden="true">*</span></label>
+            <input class="form__input" type="text" id="guestName" name="guestName" autocomplete="name" placeholder="Иванов Иван Иванович" data-bind-attr="placeholder:rsvp.labels.namePlaceholder" required>
+            <p class="form__error" data-error-for="guestName">Пожалуйста, укажите ваше имя</p>
+          </div>
+
+          <fieldset class="form__fieldset">
+            <legend class="form__label"><span data-bind="rsvp.labels.attendanceLegend">Подтверждение присутствия</span> <span class="form__req" aria-hidden="true">*</span></legend>
+            <div class="choices">
+              <label class="choice">
+                <input type="radio" name="attendance" value="yes" required>
+                <span data-bind="rsvp.labels.attendanceYes">Буду</span>
+              </label>
+              <label class="choice">
+                <input type="radio" name="attendance" value="no">
+                <span data-bind="rsvp.labels.attendanceNo">К сожалению, не&nbsp;смогу</span>
+              </label>
+            </div>
+            <p class="form__error" data-error-for="attendance">Выберите один из вариантов</p>
+          </fieldset>
+
+          <fieldset class="form__fieldset">
+            <legend class="form__label" data-bind="rsvp.labels.plusOneLegend">Гость +1</legend>
+            <div class="choices">
+              <label class="choice">
+                <input type="radio" name="plusOne" value="yes">
+                <span data-bind="rsvp.labels.plusOneYes">Приду с&nbsp;парой</span>
+              </label>
+              <label class="choice">
+                <input type="radio" name="plusOne" value="no" checked>
+                <span data-bind="rsvp.labels.plusOneNo">Приду один / одна</span>
+              </label>
+            </div>
+            <input class="form__input form__input--plusone" type="text" id="plusOneName" name="plusOneName" placeholder="Имя вашего гостя" data-bind-attr="placeholder:rsvp.labels.plusOnePlaceholder" aria-label="Имя гостя плюс один">
+          </fieldset>
+
+          <fieldset class="form__fieldset">
+            <legend class="form__label" data-bind="rsvp.labels.mealLegend">Выбор блюда</legend>
+            <div class="choices">
+              <label class="choice">
+                <input type="radio" name="meal" value="fish">
+                <span data-bind="rsvp.labels.mealFish">Рыба</span>
+              </label>
+              <label class="choice">
+                <input type="radio" name="meal" value="meat">
+                <span data-bind="rsvp.labels.mealMeat">Мясо</span>
+              </label>
+              <label class="choice">
+                <input type="radio" name="meal" value="poultry">
+                <span data-bind="rsvp.labels.mealPoultry">Птица</span>
+              </label>
+            </div>
+          </fieldset>
+
+          <fieldset class="form__fieldset">
+            <legend class="form__label" data-bind="rsvp.labels.alcoholLegend">Алкоголь</legend>
+            <div class="choices">
+              <label class="choice">
+                <input type="checkbox" name="alcohol" value="wine">
+                <span data-bind="rsvp.labels.alcoholWine">Вино</span>
+              </label>
+              <label class="choice">
+                <input type="checkbox" name="alcohol" value="champagne">
+                <span data-bind="rsvp.labels.alcoholChampagne">Шампанское</span>
+              </label>
+              <label class="choice">
+                <input type="checkbox" name="alcohol" value="strong">
+                <span data-bind="rsvp.labels.alcoholStrong">Крепкое</span>
+              </label>
+              <label class="choice">
+                <input type="checkbox" name="alcohol" value="none">
+                <span data-bind="rsvp.labels.alcoholNone">Не пью</span>
+              </label>
+            </div>
+          </fieldset>
+
+          <div class="form__row">
+            <label class="form__label" for="comment" data-bind="rsvp.labels.commentLabel">Комментарий</label>
+            <textarea class="form__input form__textarea" id="comment" name="comment" rows="4" placeholder="Аллергии, пожелания, тёплые слова…" data-bind-attr="placeholder:rsvp.labels.commentPlaceholder"></textarea>
+          </div>
+
+          <!-- honeypot -->
+          <div class="form__hp" aria-hidden="true">
+            <label for="website">Не заполняйте это поле</label>
+            <input type="text" id="website" name="website" tabindex="-1" autocomplete="off">
+          </div>
+
+          <button class="btn btn--gold form__submit" type="submit" data-bind="rsvp.labels.submit">Отправить ответ</button>
+
+          <div class="form__result" id="result" role="status" aria-live="polite" hidden>
+            <p class="form__result-title" data-bind="rsvp.success.title">Спасибо! Ваш ответ сохранён</p>
+            <p class="form__result-sub" data-bind="rsvp.success.sub">Ждём вас 26 августа — будет красиво.</p>
+          </div>
+        </form>
+      </div>
+    </section>
+
+    <!-- ЦВЕТЫ -->
+    <section class="flowers section section--paper" id="flowers">
+      <div class="container flowers__inner">
+        <div class="flowers__text reveal reveal--left">
+          <p class="kicker" data-bind="flowers.kicker">Вместо букетов</p>
+          <h2 class="section__title" data-bind="flowers.title">Нужно ли&nbsp;дарить цветы?</h2>
+          <div class="gold-rule gold-rule--left anim-draw" aria-hidden="true"></div>
+          <p data-bind="flowers.text">Подарите нам подписку на цветы.</p>
+          <p class="flowers__hint" data-bind="flowers.hint">Наведите камеру на&nbsp;QR-код или нажмите кнопку ниже.</p>
+          <a class="btn btn--wine" data-bind="flowers.url" href="#" target="_blank" rel="noopener"><span data-bind="flowers.cta">Оформить подписку</span></a>
+        </div>
+        <figure class="flowers__qr reveal reveal--right" data-flowers-qr>
+          <img
+            data-bind="flowers.qr"
+            src="assets/img/qr.jpeg"
+            alt="QR-код подписки на цветы"
+            loading="lazy"
+            onerror="this.classList.add('img-failed')">
+          <figcaption data-bind="flowers.caption">plombirflowers.ru/egordiana</figcaption>
+        </figure>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ФУТЕР -->
+  <footer class="footer">
+    <div class="container footer__inner">
+      <p class="footer__names">Егор <span class="footer__amp">&amp;</span> Диана</p>
+      <div class="gold-rule anim-draw" aria-hidden="true"></div>
+      <p class="footer__date" data-bind="_derived.dateDottedCity">26 . 08 . 2026 · Санкт-Петербург</p>
+      <p class="footer__hashtag" data-bind="couple.hashtag">#EgDiDa</p>
+    </div>
+  </footer>
+
+  <!-- ЛАЙТБОКС ГАЛЕРЕИ -->
+  <div class="lightbox" id="lightbox" role="dialog" aria-modal="true" aria-label="Просмотр фотографии" hidden>
+    <button class="lightbox__close" id="lightboxClose" type="button" aria-label="Закрыть просмотр">
+      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 5l14 14M19 5L5 19" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+    </button>
+    <button class="lightbox__arrow lightbox__arrow--prev" id="lightboxPrev" type="button" aria-label="Предыдущее фото">
+      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M15 4l-8 8 8 8" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+    <figure class="lightbox__figure">
+      <img class="lightbox__img" id="lightboxImg" src="" alt="">
+      <figcaption class="lightbox__caption" id="lightboxCaption"></figcaption>
+    </figure>
+    <button class="lightbox__arrow lightbox__arrow--next" id="lightboxNext" type="button" aria-label="Следующее фото">
+      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 4l8 8-8 8" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+  </div>
+
+  <script src="config.js?v=1" defer></script>
+  <script src="assets/js/render.js?v=1" defer></script>
+  <script src="assets/js/main.js?v=5" defer></script>
+</body>
+</html>
