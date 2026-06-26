@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import os
 
 from telegram import BotCommand, Update
 from telegram.ext import (
@@ -62,7 +63,16 @@ def build_application() -> Application:
     cfg = Config.from_env()
     db = Database(cfg.db_path)
 
-    app = ApplicationBuilder().token(cfg.token).post_init(_post_init).build()
+    builder = ApplicationBuilder().token(cfg.token).post_init(_post_init)
+
+    # В средах с обязательным egress-прокси (HTTPS_PROXY) PTB его сам не использует
+    # из-за кастомного transport — передаём явно. На обычном сервере переменной нет.
+    proxy = os.environ.get("HTTPS_PROXY") or os.environ.get("https_proxy")
+    if proxy:
+        builder = builder.proxy(proxy).get_updates_proxy(proxy)
+        logger.info("HTTP-клиент бота использует прокси из окружения")
+
+    app = builder.build()
     app.bot_data["config"] = cfg
     app.bot_data["db"] = db
     app.bot_data["ai"] = AIClient(

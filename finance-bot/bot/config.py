@@ -72,7 +72,7 @@ class Config:
         or_key = os.getenv("OPENROUTER_API_KEY", "").strip()
         or_model = (
             os.getenv("OPENROUTER_MODEL", "").strip()
-            or "google/gemini-2.0-flash-001"
+            or "google/gemini-2.5-flash"
         )
         or_vision = os.getenv("OPENROUTER_VISION_MODEL", "").strip() or or_model
 
