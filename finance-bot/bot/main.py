@@ -18,7 +18,8 @@ from telegram.ext import (
 
 from .config import Config
 from .database import Database
-from .handlers import add_tx, ai_entry, budget, menu, receipt, stats
+from .handlers import add_tx, agent_chat, budget, menu, receipt, stats
+from .services.agent import FinanceAgent
 from .services.ai import AIClient
 
 logging.basicConfig(
@@ -31,6 +32,7 @@ BOT_COMMANDS = [
     BotCommand("start", "Главное меню"),
     BotCommand("menu", "Показать меню"),
     BotCommand("help", "Справка"),
+    BotCommand("reset", "Очистить контекст разговора"),
     BotCommand("cancel", "Отменить текущее действие"),
 ]
 
@@ -75,9 +77,11 @@ def build_application() -> Application:
     app = builder.build()
     app.bot_data["config"] = cfg
     app.bot_data["db"] = db
-    app.bot_data["ai"] = AIClient(
+    ai = AIClient(
         cfg.openrouter_api_key, cfg.openrouter_model, cfg.openrouter_vision_model
     )
+    app.bot_data["ai"] = ai
+    app.bot_data["agent"] = FinanceAgent(ai, db, cfg.currency, cfg.timezone)
 
     # --- Команды ---
     app.add_handler(CommandHandler("start", menu.cmd_start))
@@ -109,14 +113,12 @@ def build_application() -> Application:
     # --- Бюджеты (меню; set/del обрабатывает ConversationHandler выше) ---
     app.add_handler(CallbackQueryHandler(budget.open_menu, pattern=r"^budget:menu$"))
 
-    # --- AI: подтверждение операции, распознанной из текста ---
-    ai_entry.register(app)
-
-    # --- Глобальная отмена вне диалога ---
+    # --- Глобальная отмена вне диалога + сброс контекста разговора ---
     app.add_handler(CommandHandler("cancel", menu.cmd_menu))
+    app.add_handler(CommandHandler("reset", agent_chat.reset_chat))
 
-    # --- Свободный текст → разбор через LLM (последним, чтобы не мешать диалогам) ---
-    app.add_handler(ai_entry.text_handler())
+    # --- Свободный текст → разговорный LLM-агент (последним, чтобы не мешать диалогам) ---
+    app.add_handler(agent_chat.text_handler())
 
     app.add_error_handler(_on_error)
     return app

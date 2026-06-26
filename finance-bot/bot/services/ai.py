@@ -61,6 +61,23 @@ class AIClient:
     def enabled(self) -> bool:
         return bool(self.api_key)
 
+    async def _post(self, payload: dict) -> Optional[dict]:
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "X-Title": "Finance Bot",
+            "HTTP-Referer": "https://t.me/",
+        }
+        try:
+            async with httpx.AsyncClient(timeout=self.timeout) as client:
+                resp = await client.post(OPENROUTER_URL, headers=headers, json=payload)
+            if resp.status_code != 200:
+                logger.warning("OpenRouter %s: %s", resp.status_code, resp.text[:300])
+                return None
+            return resp.json()
+        except Exception as exc:  # pragma: no cover
+            logger.warning("OpenRouter запрос не удался: %s", exc)
+            return None
+
     async def _chat(
         self,
         messages: list,
@@ -69,11 +86,6 @@ class AIClient:
         json_mode: bool = True,
         max_tokens: int = 700,
     ) -> Optional[str]:
-        headers = {
-            "Authorization": f"Bearer {self.api_key}",
-            "X-Title": "Finance Bot",
-            "HTTP-Referer": "https://t.me/",
-        }
         payload = {
             "model": model or self.model,
             "messages": messages,
@@ -82,16 +94,42 @@ class AIClient:
         }
         if json_mode:
             payload["response_format"] = {"type": "json_object"}
+        data = await self._post(payload)
+        if not data:
+            return None
         try:
-            async with httpx.AsyncClient(timeout=self.timeout) as client:
-                resp = await client.post(OPENROUTER_URL, headers=headers, json=payload)
-            if resp.status_code != 200:
-                logger.warning("OpenRouter %s: %s", resp.status_code, resp.text[:300])
-                return None
-            data = resp.json()
             return data["choices"][0]["message"]["content"]
-        except Exception as exc:  # pragma: no cover
-            logger.warning("OpenRouter запрос не удался: %s", exc)
+        except (KeyError, IndexError):
+            return None
+
+    async def complete(
+        self,
+        messages: list,
+        *,
+        tools: Optional[list] = None,
+        model: Optional[str] = None,
+        max_tokens: int = 800,
+        temperature: float = 0.3,
+    ) -> Optional[dict]:
+        """Универсальный вызов чата с поддержкой tool-calling.
+
+        Возвращает объект message ассистента (с полями content и/или tool_calls).
+        """
+        payload = {
+            "model": model or self.model,
+            "messages": messages,
+            "max_tokens": max_tokens,
+            "temperature": temperature,
+        }
+        if tools:
+            payload["tools"] = tools
+            payload["tool_choice"] = "auto"
+        data = await self._post(payload)
+        if not data:
+            return None
+        try:
+            return data["choices"][0]["message"]
+        except (KeyError, IndexError):
             return None
 
     @staticmethod
