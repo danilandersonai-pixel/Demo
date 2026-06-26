@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import functools
+import logging
 import re
 from typing import Optional
 
@@ -12,6 +13,8 @@ from telegram.ext import ContextTypes
 from ..config import Config
 from ..database import Database
 from ..utils import fmt_dt, fmt_money, month_bounds, now_local
+
+logger = logging.getLogger("finance-bot")
 
 _AMOUNT_RE = re.compile(r"-?\d[\d\s.,]*")
 
@@ -32,6 +35,12 @@ def restricted(func):
         cfg = get_config(context)
         user = update.effective_user
         if user is None or user.id not in cfg.allowed_user_ids:
+            logger.warning(
+                "Отказано в доступе: id=%s name=%r username=%s",
+                getattr(user, "id", None),
+                getattr(user, "full_name", None),
+                getattr(user, "username", None),
+            )
             if update.callback_query:
                 await update.callback_query.answer("Доступ запрещён", show_alert=True)
             elif update.effective_message:
