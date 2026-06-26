@@ -111,3 +111,32 @@ async def build_advice(db: Database, tz: ZoneInfo, currency: str) -> str:
 
 async def _expense_map(db: Database, start: str, end: str) -> list[tuple[str, float]]:
     return await db.by_category("expense", start, end)
+
+
+async def build_stats_summary(db: Database, tz: ZoneInfo, currency: str) -> str:
+    """Компактная фактическая сводка трат для передачи в LLM."""
+    cur_start, cur_end = month_bounds(tz, 0)
+    prev_start, prev_end = month_bounds(tz, -1)
+
+    income, expense = await db.totals(cur_start, cur_end)
+    cur = await db.by_category("expense", cur_start, cur_end)
+    prev = dict(await db.by_category("expense", prev_start, prev_end))
+    counts = {c: n for c, n, _ in await db.count_by_category("expense", cur_start, cur_end)}
+    budgets = dict(await db.budgets())
+
+    lines = [
+        "Сводка за текущий месяц (валюта: " + currency + "):",
+        f"Доходы: {income:.0f}; Расходы: {expense:.0f}; Баланс: {income - expense:.0f}",
+        "Расходы по категориям (этот месяц | прошлый месяц | число операций):",
+    ]
+    for cat, val in cur:
+        was = prev.get(cat, 0.0)
+        n = counts.get(cat, 0)
+        lines.append(f"- {cat}: {val:.0f} | {was:.0f} | {n} оп.")
+    if budgets:
+        lines.append("Лимиты (категория: лимит):")
+        for cat, lim in budgets.items():
+            lines.append(f"- {cat}: {lim:.0f}")
+    if not cur:
+        lines.append("(расходов пока нет)")
+    return "\n".join(lines)

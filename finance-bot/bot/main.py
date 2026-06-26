@@ -17,7 +17,8 @@ from telegram.ext import (
 
 from .config import Config
 from .database import Database
-from .handlers import add_tx, budget, menu, receipt, stats
+from .handlers import add_tx, ai_entry, budget, menu, receipt, stats
+from .services.ai import AIClient
 
 logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
@@ -37,7 +38,13 @@ async def _post_init(app: Application) -> None:
     db: Database = app.bot_data["db"]
     await db.init()
     await app.bot.set_my_commands(BOT_COMMANDS)
-    logger.info("Бот запущен. Разрешённые ID: %s", app.bot_data["config"].allowed_user_ids)
+    cfg = app.bot_data["config"]
+    ai_status = f"вкл ({cfg.openrouter_model})" if cfg.ai_enabled else "выкл"
+    logger.info(
+        "Бот запущен. Разрешённые ID: %s | AI: %s",
+        cfg.allowed_user_ids,
+        ai_status,
+    )
 
 
 async def _on_error(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -58,6 +65,9 @@ def build_application() -> Application:
     app = ApplicationBuilder().token(cfg.token).post_init(_post_init).build()
     app.bot_data["config"] = cfg
     app.bot_data["db"] = db
+    app.bot_data["ai"] = AIClient(
+        cfg.openrouter_api_key, cfg.openrouter_model, cfg.openrouter_vision_model
+    )
 
     # --- Команды ---
     app.add_handler(CommandHandler("start", menu.cmd_start))
@@ -89,8 +99,14 @@ def build_application() -> Application:
     # --- Бюджеты (меню; set/del обрабатывает ConversationHandler выше) ---
     app.add_handler(CallbackQueryHandler(budget.open_menu, pattern=r"^budget:menu$"))
 
+    # --- AI: подтверждение операции, распознанной из текста ---
+    ai_entry.register(app)
+
     # --- Глобальная отмена вне диалога ---
     app.add_handler(CommandHandler("cancel", menu.cmd_menu))
+
+    # --- Свободный текст → разбор через LLM (последним, чтобы не мешать диалогам) ---
+    app.add_handler(ai_entry.text_handler())
 
     app.add_error_handler(_on_error)
     return app

@@ -1,10 +1,14 @@
-"""Диалог обработки фото чека: OCR суммы → выбор категории → сохранение расхода."""
+"""Диалог обработки фото чека.
+
+Если подключён OpenRouter — сумму, магазин и категорию распознаёт vision-модель;
+иначе откат на Tesseract OCR. В обоих случаях пользователь подтверждает результат.
+"""
 
 from __future__ import annotations
 
 import asyncio
 
-from telegram import Update
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import (
     CallbackQueryHandler,
     CommandHandler,
@@ -14,7 +18,7 @@ from telegram.ext import (
     filters,
 )
 
-from ..categories import categories_for
+from ..categories import EXPENSE_CATEGORIES, categories_for
 from ..keyboards import main_menu, receipt_keyboard
 from ..services.ocr import recognize
 from ..utils import fmt_money
@@ -24,14 +28,25 @@ from .common import get_config, parse_amount, restricted, save_transaction_and_r
 RECEIPT_CATEGORY, RECEIPT_AMOUNT = range(10, 12)
 
 
+def _keyboard_with_suggestion(suggested: str | None) -> InlineKeyboardMarkup:
+    """Клавиатура категорий чека; если есть предложенная — кнопка быстрого выбора."""
+    base = receipt_keyboard("expense")
+    if not suggested or suggested not in EXPENSE_CATEGORIES:
+        return base
+    idx = EXPENSE_CATEGORIES.index(suggested)
+    confirm = [InlineKeyboardButton(f"✅ {suggested}", callback_data=f"rcat:{idx}")]
+    return InlineKeyboardMarkup([confirm] + list(base.inline_keyboard))
+
+
 @restricted
 async def on_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     cfg = get_config(context)
+    ai = context.bot_data.get("ai")
     msg = update.effective_message
     context.user_data.clear()
     context.user_data["kind"] = "expense"
 
-    notice = await msg.reply_text("🧾 Получил чек, распознаю сумму…")
+    notice = await msg.reply_text("🧾 Получил чек, распознаю…")
 
     # Скачиваем фото максимального качества.
     photo = msg.photo[-1]
@@ -40,30 +55,49 @@ async def on_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await tg_file.download_to_drive(str(path))
     context.user_data["receipt_path"] = str(path)
 
-    # OCR в отдельном потоке, чтобы не блокировать event loop.
-    result = await asyncio.to_thread(recognize, str(path), cfg.ocr_lang)
-    context.user_data["amount"] = result.amount
+    amount = None
+    suggested = None
+    note = None
 
-    if result.error:
-        body = (
-            f"⚠️ {result.error}\n\n"
-            "Введите сумму чека вручную числом:"
-        )
-        await notice.edit_text(body)
-        return RECEIPT_AMOUNT
+    # 1) Пытаемся распознать vision-моделью (точнее и сразу с категорией).
+    if ai and ai.enabled:
+        try:
+            with open(path, "rb") as fh:
+                img_bytes = fh.read()
+            data = await ai.read_receipt(img_bytes, EXPENSE_CATEGORIES)
+        except Exception:
+            data = None
+        if data:
+            amount = data.amount
+            suggested = data.category
+            parts = [p for p in (data.merchant, data.note) if p]
+            note = " · ".join(parts) if parts else None
 
-    if result.amount is None:
+    # 2) Фолбэк на Tesseract, если AI недоступен/не справился с суммой.
+    if amount is None:
+        result = await asyncio.to_thread(recognize, str(path), cfg.ocr_lang)
+        if result.amount is not None:
+            amount = result.amount
+
+    context.user_data["amount"] = amount
+    context.user_data["category"] = suggested
+    context.user_data["note"] = note
+
+    if amount is None:
         await notice.edit_text(
-            "Не удалось распознать сумму на чеке 🤔\n"
-            "Введите её вручную числом:"
+            "Не удалось распознать сумму на чеке 🤔\nВведите её вручную числом:"
         )
         return RECEIPT_AMOUNT
 
+    head = "🧾 "
+    if note:
+        head += f"<i>{note}</i>\n"
+    body = (
+        f"{head}Сумма: <b>{fmt_money(amount, cfg.currency)}</b>\n\n"
+        "Подтвердите категорию (или исправьте сумму):"
+    )
     await notice.edit_text(
-        f"🧾 Распознанная сумма: <b>{fmt_money(result.amount, cfg.currency)}</b>\n\n"
-        "Выберите категорию расхода (или исправьте сумму):",
-        parse_mode="HTML",
-        reply_markup=receipt_keyboard("expense"),
+        body, parse_mode="HTML", reply_markup=_keyboard_with_suggestion(suggested)
     )
     return RECEIPT_CATEGORY
 
@@ -87,7 +121,6 @@ async def receipt_amount(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return RECEIPT_AMOUNT
     context.user_data["amount"] = amount
 
-    # Если категория уже выбрана — сохраняем; иначе предлагаем выбрать.
     if context.user_data.get("category"):
         return await _save(update, context)
 
@@ -125,7 +158,7 @@ async def _save(update: Update, context: ContextTypes.DEFAULT_TYPE):
         kind="expense",
         amount=data["amount"],
         category=data["category"],
-        note=None,
+        note=data.get("note"),
         receipt_path=data.get("receipt_path"),
     )
     target = update.callback_query.message if update.callback_query else update.effective_message

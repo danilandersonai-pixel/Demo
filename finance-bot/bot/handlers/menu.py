@@ -6,7 +6,7 @@ from telegram import Update
 from telegram.ext import ContextTypes
 
 from ..keyboards import back_to_menu, main_menu
-from ..services.advice import build_advice
+from ..services.advice import build_advice, build_stats_summary
 from ..utils import fmt_money
 from .common import get_config, get_db, restricted
 
@@ -124,5 +124,18 @@ async def show_advice(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await q.answer("Анализирую траты…")
     cfg = get_config(context)
     db = get_db(context)
+    ai = context.bot_data.get("ai")
+
+    # С подключённым AI — живые персональные советы; иначе правила.
+    if ai and ai.enabled:
+        summary = await build_stats_summary(db, cfg.timezone, cfg.currency)
+        text = await ai.advice(summary)
+        if text:
+            # Текст модели показываем как обычный (без HTML), чтобы не ломать разметку.
+            await q.edit_message_text(
+                "💡 Советы по экономии\n\n" + text, reply_markup=back_to_menu()
+            )
+            return
+
     text = await build_advice(db, cfg.timezone, cfg.currency)
     await q.edit_message_text(text, parse_mode="HTML", reply_markup=back_to_menu())
