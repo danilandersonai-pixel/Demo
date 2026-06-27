@@ -9,3 +9,9 @@ services:
       RECEIPTS_DIR: /app/data/receipts
     volumes:
       - ./data:/app/data
+    # Ротация логов, чтобы при работе 24/7 не забить диск.
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
