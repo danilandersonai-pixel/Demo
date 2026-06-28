@@ -33,6 +33,7 @@ BOT_COMMANDS = [
     BotCommand("start", "Главное меню"),
     BotCommand("menu", "Показать меню"),
     BotCommand("help", "Справка"),
+    BotCommand("balance", "Показать баланс"),
     BotCommand("export", "Экспорт операций в CSV"),
     BotCommand("settings", "Настройки уведомлений"),
     BotCommand("reset", "Очистить контекст разговора"),
@@ -91,6 +92,7 @@ def build_application() -> Application:
     app.add_handler(CommandHandler("start", menu.cmd_start))
     app.add_handler(CommandHandler("help", menu.cmd_help))
     app.add_handler(CommandHandler("menu", menu.cmd_menu))
+    app.add_handler(CommandHandler("balance", menu.cmd_balance))
     app.add_handler(CommandHandler("settings", extra.cmd_settings))
     app.add_handler(CommandHandler("export", extra.cmd_export))
     app.add_handler(MessageHandler(filters.Regex(r"^/del_\d+$"), menu.delete_tx))

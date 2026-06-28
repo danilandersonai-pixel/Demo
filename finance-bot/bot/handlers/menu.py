@@ -58,6 +58,9 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.effective_message.reply_text(
         WELCOME, parse_mode="HTML", reply_markup=main_menu()
     )
+    # Создаём/обновляем закреплённое сообщение с балансом.
+    from ..balance import refresh_pin
+    await refresh_pin(context.bot, db, cfg)
 
 
 @restricted
@@ -127,6 +130,21 @@ async def delete_tx(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"🗑 Удалено: {fmt_money(removed.amount, cfg.currency)} · {removed.category}",
         reply_markup=main_menu(),
     )
+    from ..balance import refresh_pin
+    await refresh_pin(context.bot, db, cfg)
+
+
+@restricted
+async def cmd_balance(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    cfg = get_config(context)
+    db = get_db(context)
+    from ..balance import balance_text, current_balance, refresh_pin
+
+    income, expense, _ = await current_balance(db, cfg.timezone)
+    await update.effective_message.reply_text(
+        balance_text(income, expense, cfg.currency), parse_mode="HTML"
+    )
+    await refresh_pin(context.bot, db, cfg)
 
 
 @restricted

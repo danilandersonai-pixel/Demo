@@ -120,6 +120,10 @@ async def save_transaction_and_report(
     if receipt_path:
         lines.append("🧾 Чек прикреплён")
 
+    # Обновляем закреплённый баланс.
+    from ..balance import refresh_pin
+    await refresh_pin(context.bot, db, cfg)
+
     # Проверка лимита для расходов.
     if kind == "expense":
         limit = await db.budget_for(category)

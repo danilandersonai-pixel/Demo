@@ -263,3 +263,5 @@ async def on_voice(update: Update, context: ContextTypes.DEFAULT_TYPE):
     result = await agent.run(text, history, user_id=user.id, user_name=user.full_name)
     context.user_data["agent_history"] = result.history
     await msg.reply_text(result.text)
+    from ..balance import refresh_pin
+    await refresh_pin(context.bot, context.bot_data["db"], context.bot_data["config"])

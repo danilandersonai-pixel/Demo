@@ -94,6 +94,8 @@ async def recurring_job(context: ContextTypes.DEFAULT_TYPE) -> None:
         await db.mark_recurring_applied(r["id"], ym)
         applied.append(r)
     if applied:
+        from .balance import refresh_pin
+        await refresh_pin(context.bot, db, cfg)
         lines = ["🔁 Применены регулярные операции:"]
         for r in applied:
             sign = "➕" if r["kind"] == "income" else "➖"

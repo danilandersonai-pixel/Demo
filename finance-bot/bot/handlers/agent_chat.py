@@ -36,6 +36,10 @@ async def on_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["agent_history"] = result.history
     await msg.reply_text(result.text)
 
+    # Баланс мог измениться (агент мог добавить/удалить операцию) — обновим.
+    from ..balance import refresh_pin
+    await refresh_pin(context.bot, context.bot_data["db"], context.bot_data["config"])
+
 
 @restricted
 async def reset_chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
