@@ -262,6 +262,24 @@ class AIClient:
             note = str(note).strip() or None
         return ReceiptData(amount=amount, category=category, merchant=merchant, note=note)
 
+    async def transcribe(self, audio_b64: str, fmt: str = "mp3") -> str:
+        """Расшифровка голосового сообщения через мультимодальную модель."""
+        content = [
+            {
+                "type": "text",
+                "text": "Точно расшифруй это голосовое сообщение на русском. "
+                "Верни ТОЛЬКО текст сказанного, без комментариев и кавычек.",
+            },
+            {"type": "input_audio", "input_audio": {"data": audio_b64, "format": fmt}},
+        ]
+        raw = await self._chat(
+            [{"role": "user", "content": content}],
+            model=self.vision_model,
+            json_mode=False,
+            max_tokens=300,
+        )
+        return (raw or "").strip()
+
     async def advice(self, stats_summary: str) -> str:
         system = (
             "Ты — дружелюбный финансовый помощник для семейного бюджета на двоих. "

@@ -144,6 +144,105 @@ def _tools_spec() -> list[dict]:
                 "parameters": {"type": "object", "properties": {}},
             },
         },
+        {
+            "type": "function",
+            "function": {
+                "name": "get_by_person",
+                "description": "Разбивка трат по людям за период и расчёт «кто кому должен» по общим расходам.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {"period": {"type": "string", "enum": PERIOD_ENUM}},
+                },
+            },
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "add_recurring",
+                "description": "Добавить регулярную (ежемесячную) операцию: зарплата, аренда, подписка. Применяется автоматически в указанный день месяца.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "kind": {"type": "string", "enum": ["income", "expense"]},
+                        "amount": {"type": "number"},
+                        "category": {"type": "string"},
+                        "note": {"type": "string"},
+                        "day": {"type": "integer", "description": "День месяца 1-28"},
+                    },
+                    "required": ["kind", "amount", "category", "day"],
+                },
+            },
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "list_recurring",
+                "description": "Показать все регулярные операции.",
+                "parameters": {"type": "object", "properties": {}},
+            },
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "delete_recurring",
+                "description": "Удалить регулярную операцию по id.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {"id": {"type": "integer"}},
+                    "required": ["id"],
+                },
+            },
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "add_goal",
+                "description": "Создать цель накопления (например «отпуск», 100000).",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "name": {"type": "string"},
+                        "target": {"type": "number"},
+                    },
+                    "required": ["name", "target"],
+                },
+            },
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "contribute_goal",
+                "description": "Отложить сумму в цель накопления (по названию цели).",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "name": {"type": "string"},
+                        "amount": {"type": "number"},
+                    },
+                    "required": ["name", "amount"],
+                },
+            },
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "list_goals",
+                "description": "Показать цели накопления и прогресс по ним.",
+                "parameters": {"type": "object", "properties": {}},
+            },
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "delete_goal",
+                "description": "Удалить цель накопления по id.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {"id": {"type": "integer"}},
+                    "required": ["id"],
+                },
+            },
+        },
     ]
 
 
@@ -179,6 +278,11 @@ class FinanceAgent:
             "сообщений в новые операции.\n\n"
             f"Категории расходов: {EXPENSE_CATEGORIES}\n"
             f"Категории доходов: {INCOME_CATEGORIES}\n\n"
+            "Ты также умеешь: разбивку по людям и «кто кому должен» "
+            "(get_by_person); регулярные ежемесячные операции — зарплата/аренда/"
+            "подписки (add_recurring/list_recurring/delete_recurring); цели "
+            "накопления (add_goal/contribute_goal/list_goals/delete_goal). "
+            "Используй эти инструменты, когда пользователь о них просит.\n\n"
             "После выполнения действия коротко подтверди результат живым языком "
             "с эмодзи. Если просят совет по экономии — сначала возьми данные "
             "через get_summary, потом дай 2-4 конкретных совета.\n"
@@ -211,6 +315,22 @@ class FinanceAgent:
                 return await self._t_set_budget(args)
             if name == "list_budgets":
                 return await self._t_list_budgets()
+            if name == "get_by_person":
+                return await self._t_by_person(args)
+            if name == "add_recurring":
+                return await self._t_add_recurring(args, user_id)
+            if name == "list_recurring":
+                return await self._t_list_recurring()
+            if name == "delete_recurring":
+                return await self._t_delete_recurring(args)
+            if name == "add_goal":
+                return await self._t_add_goal(args)
+            if name == "contribute_goal":
+                return await self._t_contribute_goal(args)
+            if name == "list_goals":
+                return await self._t_list_goals()
+            if name == "delete_goal":
+                return await self._t_delete_goal(args)
         except Exception as exc:  # pragma: no cover
             logger.warning("Ошибка инструмента %s: %s", name, exc)
             return {"error": f"Не удалось выполнить {name}: {exc}"}
@@ -336,6 +456,125 @@ class FinanceAgent:
                 "spent": round(spent, 2),
             })
         return {"budgets": out}
+
+    async def _t_by_person(self, args: dict) -> dict:
+        period = args.get("period") if args.get("period") in PERIOD_ENUM else "month"
+        start, end = period_bounds(period, self.tz)
+        rows = await self.db.totals_by_user(start, end)
+        names = await self.db.all_user_names()
+        people = [
+            {
+                "name": names.get(uid, str(uid)),
+                "user_id": uid,
+                "income": round(inc, 2),
+                "expense": round(exp, 2),
+            }
+            for uid, inc, exp in rows
+        ]
+        total_expense = sum(p["expense"] for p in people)
+        settlement = None
+        # Расчёт «кто кому должен»: общие расходы делим поровну.
+        payers = [p for p in people if p["expense"] > 0]
+        if len(payers) == 2 and total_expense > 0:
+            fair = total_expense / 2
+            a, b = payers[0], payers[1]
+            diff = round(a["expense"] - fair, 2)
+            if abs(diff) >= 0.01:
+                if diff > 0:
+                    settlement = f"{b['name']} должен(на) {a['name']}: {abs(diff):.2f}"
+                else:
+                    settlement = f"{a['name']} должен(на) {b['name']}: {abs(diff):.2f}"
+            else:
+                settlement = "Расходы поделены поровну, никто никому не должен"
+        return {
+            "period": period, "people": people,
+            "total_expense": round(total_expense, 2), "settlement": settlement,
+        }
+
+    async def _t_add_recurring(self, args: dict, user_id: int) -> dict:
+        kind = "income" if args.get("kind") == "income" else "expense"
+        try:
+            amount = round(float(args.get("amount")), 2)
+        except (TypeError, ValueError):
+            return {"error": "Некорректная сумма"}
+        if amount <= 0:
+            return {"error": "Сумма должна быть положительной"}
+        category = self._match_category(kind, str(args.get("category", "")))
+        note = (str(args.get("note")).strip() or None) if args.get("note") else None
+        try:
+            day = int(args.get("day"))
+        except (TypeError, ValueError):
+            return {"error": "Нужен день месяца (1-28)"}
+        day = max(1, min(day, 28))
+        rec_id = await self.db.add_recurring(
+            kind=kind, amount=amount, category=category, note=note,
+            day=day, user_id=user_id, created_at=now_local(self.tz).strftime(DT_FMT),
+        )
+        return {"ok": True, "id": rec_id, "kind": kind, "amount": amount,
+                "category": category, "day": day}
+
+    async def _t_list_recurring(self) -> dict:
+        recs = await self.db.list_recurring()
+        return {"recurring": [
+            {"id": r["id"], "kind": r["kind"], "amount": round(r["amount"], 2),
+             "category": r["category"], "note": r["note"], "day": r["day"]}
+            for r in recs
+        ]}
+
+    async def _t_delete_recurring(self, args: dict) -> dict:
+        try:
+            rid = int(args.get("id"))
+        except (TypeError, ValueError):
+            return {"error": "Нужен числовой id"}
+        ok = await self.db.delete_recurring(rid)
+        return {"ok": ok}
+
+    async def _t_add_goal(self, args: dict) -> dict:
+        name = str(args.get("name", "")).strip()
+        if not name:
+            return {"error": "Нужно название цели"}
+        try:
+            target = round(float(args.get("target")), 2)
+        except (TypeError, ValueError):
+            return {"error": "Некорректная сумма цели"}
+        if target <= 0:
+            return {"error": "Сумма цели должна быть положительной"}
+        gid = await self.db.add_goal(name, target, now_local(self.tz).strftime(DT_FMT))
+        return {"ok": True, "id": gid, "name": name, "target": target}
+
+    async def _t_contribute_goal(self, args: dict) -> dict:
+        name = str(args.get("name", "")).strip().lower()
+        try:
+            amount = round(float(args.get("amount")), 2)
+        except (TypeError, ValueError):
+            return {"error": "Некорректная сумма"}
+        goals = await self.db.list_goals()
+        match = next((g for g in goals if g["name"].lower() == name), None)
+        if not match:
+            match = next((g for g in goals if name and name in g["name"].lower()), None)
+        if not match:
+            return {"error": f"Цель «{args.get('name')}» не найдена", "available": [g["name"] for g in goals]}
+        updated = await self.db.contribute_goal(match["id"], amount)
+        return {"ok": True, "name": updated["name"], "saved": round(updated["saved"], 2),
+                "target": round(updated["target"], 2),
+                "done": updated["saved"] >= updated["target"]}
+
+    async def _t_list_goals(self) -> dict:
+        goals = await self.db.list_goals()
+        return {"goals": [
+            {"id": g["id"], "name": g["name"], "target": round(g["target"], 2),
+             "saved": round(g["saved"], 2),
+             "percent": round(g["saved"] / g["target"] * 100, 1) if g["target"] else 0}
+            for g in goals
+        ]}
+
+    async def _t_delete_goal(self, args: dict) -> dict:
+        try:
+            gid = int(args.get("id"))
+        except (TypeError, ValueError):
+            return {"error": "Нужен числовой id"}
+        ok = await self.db.delete_goal(gid)
+        return {"ok": ok}
 
     # ---------- основной цикл ----------
 

@@ -16,9 +16,10 @@ from telegram.ext import (
     filters,
 )
 
+from . import jobs
 from .config import Config
 from .database import Database
-from .handlers import add_tx, agent_chat, budget, menu, receipt, stats
+from .handlers import add_tx, agent_chat, budget, extra, menu, receipt, stats
 from .services.agent import FinanceAgent
 from .services.ai import AIClient
 
@@ -32,6 +33,8 @@ BOT_COMMANDS = [
     BotCommand("start", "Главное меню"),
     BotCommand("menu", "Показать меню"),
     BotCommand("help", "Справка"),
+    BotCommand("export", "Экспорт операций в CSV"),
+    BotCommand("settings", "Настройки уведомлений"),
     BotCommand("reset", "Очистить контекст разговора"),
     BotCommand("cancel", "Отменить текущее действие"),
 ]
@@ -41,6 +44,7 @@ async def _post_init(app: Application) -> None:
     db: Database = app.bot_data["db"]
     await db.init()
     await app.bot.set_my_commands(BOT_COMMANDS)
+    jobs.setup(app)
     cfg = app.bot_data["config"]
     ai_status = f"вкл ({cfg.openrouter_model})" if cfg.ai_enabled else "выкл"
     logger.info(
@@ -87,6 +91,8 @@ def build_application() -> Application:
     app.add_handler(CommandHandler("start", menu.cmd_start))
     app.add_handler(CommandHandler("help", menu.cmd_help))
     app.add_handler(CommandHandler("menu", menu.cmd_menu))
+    app.add_handler(CommandHandler("settings", extra.cmd_settings))
+    app.add_handler(CommandHandler("export", extra.cmd_export))
     app.add_handler(MessageHandler(filters.Regex(r"^/del_\d+$"), menu.delete_tx))
 
     # --- Диалоги (должны идти раньше общих обработчиков) ---
@@ -112,6 +118,13 @@ def build_application() -> Application:
 
     # --- Бюджеты (меню; set/del обрабатывает ConversationHandler выше) ---
     app.add_handler(CallbackQueryHandler(budget.open_menu, pattern=r"^budget:menu$"))
+
+    # --- Настройки и экспорт ---
+    app.add_handler(CallbackQueryHandler(extra.toggle_setting, pattern=r"^set:notify_"))
+    app.add_handler(CallbackQueryHandler(extra.do_export, pattern=r"^export:"))
+
+    # --- Голосовые сообщения → расшифровка → агент ---
+    app.add_handler(MessageHandler(filters.VOICE | filters.AUDIO, extra.on_voice))
 
     # --- Глобальная отмена вне диалога + сброс контекста разговора ---
     app.add_handler(CommandHandler("cancel", menu.cmd_menu))

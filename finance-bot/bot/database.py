@@ -39,6 +39,31 @@ CREATE TABLE IF NOT EXISTS budgets (
     category      TEXT PRIMARY KEY,
     monthly_limit REAL NOT NULL CHECK (monthly_limit > 0)
 );
+
+CREATE TABLE IF NOT EXISTS settings (
+    key   TEXT PRIMARY KEY,
+    value TEXT
+);
+
+CREATE TABLE IF NOT EXISTS recurring (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    kind         TEXT NOT NULL CHECK (kind IN ('income', 'expense')),
+    amount       REAL NOT NULL CHECK (amount > 0),
+    category     TEXT NOT NULL,
+    note         TEXT,
+    day          INTEGER NOT NULL,
+    last_applied TEXT,
+    user_id      INTEGER,
+    created_at   TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS goals (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    name       TEXT NOT NULL,
+    target     REAL NOT NULL CHECK (target > 0),
+    saved      REAL NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL
+);
 """
 
 
@@ -235,6 +260,160 @@ class Database:
             ) as cur:
                 row = await cur.fetchone()
         return float(row[0]) if row else None
+
+    # ---- разбивка по людям ----
+
+    async def totals_by_user(self, start: str, end: str) -> list[tuple[int, float, float]]:
+        """(user_id, доход, расход) за период по каждому пользователю."""
+        async with aiosqlite.connect(self._path) as db:
+            async with db.execute(
+                """
+                SELECT user_id, kind, COALESCE(SUM(amount), 0)
+                FROM transactions
+                WHERE created_at >= ? AND created_at < ?
+                GROUP BY user_id, kind
+                """,
+                (start, end),
+            ) as cur:
+                rows = await cur.fetchall()
+        agg: dict[int, list[float]] = {}
+        for uid, kind, total in rows:
+            agg.setdefault(uid, [0.0, 0.0])
+            agg[uid][0 if kind == "income" else 1] = float(total)
+        return [(uid, v[0], v[1]) for uid, v in agg.items()]
+
+    async def all_user_names(self) -> dict[int, str]:
+        async with aiosqlite.connect(self._path) as db:
+            async with db.execute("SELECT id, name FROM users") as cur:
+                rows = await cur.fetchall()
+        return {int(i): (n or str(i)) for i, n in rows}
+
+    # ---- настройки ----
+
+    async def get_setting(self, key: str, default: str = "") -> str:
+        async with aiosqlite.connect(self._path) as db:
+            async with db.execute(
+                "SELECT value FROM settings WHERE key = ?", (key,)
+            ) as cur:
+                row = await cur.fetchone()
+        return row[0] if row else default
+
+    async def set_setting(self, key: str, value: str) -> None:
+        async with aiosqlite.connect(self._path) as db:
+            await db.execute(
+                """
+                INSERT INTO settings (key, value) VALUES (?, ?)
+                ON CONFLICT(key) DO UPDATE SET value = excluded.value
+                """,
+                (key, value),
+            )
+            await db.commit()
+
+    # ---- регулярные операции ----
+
+    async def add_recurring(
+        self, *, kind: str, amount: float, category: str, note: Optional[str],
+        day: int, user_id: int, created_at: str,
+    ) -> int:
+        async with aiosqlite.connect(self._path) as db:
+            cur = await db.execute(
+                """
+                INSERT INTO recurring
+                    (kind, amount, category, note, day, last_applied, user_id, created_at)
+                VALUES (?, ?, ?, ?, ?, NULL, ?, ?)
+                """,
+                (kind, amount, category, note, day, user_id, created_at),
+            )
+            await db.commit()
+            return cur.lastrowid
+
+    async def list_recurring(self) -> list[dict]:
+        async with aiosqlite.connect(self._path) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute(
+                "SELECT * FROM recurring ORDER BY day"
+            ) as cur:
+                rows = await cur.fetchall()
+        return [dict(r) for r in rows]
+
+    async def delete_recurring(self, rec_id: int) -> bool:
+        async with aiosqlite.connect(self._path) as db:
+            cur = await db.execute("DELETE FROM recurring WHERE id = ?", (rec_id,))
+            await db.commit()
+            return cur.rowcount > 0
+
+    async def due_recurring(self, day: int, ym: str) -> list[dict]:
+        """Регулярные операции, которые пора применить: их day <= текущего дня
+        и ещё не применялись в этом месяце (last_applied != YYYY-MM)."""
+        async with aiosqlite.connect(self._path) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute(
+                """
+                SELECT * FROM recurring
+                WHERE day <= ? AND (last_applied IS NULL OR last_applied != ?)
+                """,
+                (day, ym),
+            ) as cur:
+                rows = await cur.fetchall()
+        return [dict(r) for r in rows]
+
+    async def mark_recurring_applied(self, rec_id: int, ym: str) -> None:
+        async with aiosqlite.connect(self._path) as db:
+            await db.execute(
+                "UPDATE recurring SET last_applied = ? WHERE id = ?", (ym, rec_id)
+            )
+            await db.commit()
+
+    # ---- цели накопления ----
+
+    async def add_goal(self, name: str, target: float, created_at: str) -> int:
+        async with aiosqlite.connect(self._path) as db:
+            cur = await db.execute(
+                "INSERT INTO goals (name, target, saved, created_at) VALUES (?, ?, 0, ?)",
+                (name, target, created_at),
+            )
+            await db.commit()
+            return cur.lastrowid
+
+    async def contribute_goal(self, goal_id: int, amount: float) -> Optional[dict]:
+        async with aiosqlite.connect(self._path) as db:
+            db.row_factory = aiosqlite.Row
+            await db.execute(
+                "UPDATE goals SET saved = saved + ? WHERE id = ?", (amount, goal_id)
+            )
+            await db.commit()
+            async with db.execute("SELECT * FROM goals WHERE id = ?", (goal_id,)) as cur:
+                row = await cur.fetchone()
+        return dict(row) if row else None
+
+    async def list_goals(self) -> list[dict]:
+        async with aiosqlite.connect(self._path) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute("SELECT * FROM goals ORDER BY id") as cur:
+                rows = await cur.fetchall()
+        return [dict(r) for r in rows]
+
+    async def delete_goal(self, goal_id: int) -> bool:
+        async with aiosqlite.connect(self._path) as db:
+            cur = await db.execute("DELETE FROM goals WHERE id = ?", (goal_id,))
+            await db.commit()
+            return cur.rowcount > 0
+
+    # ---- экспорт ----
+
+    async def all_transactions(self, start: str, end: str) -> list[Transaction]:
+        async with aiosqlite.connect(self._path) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute(
+                """
+                SELECT * FROM transactions
+                WHERE created_at >= ? AND created_at < ?
+                ORDER BY created_at
+                """,
+                (start, end),
+            ) as cur:
+                rows = await cur.fetchall()
+        return [_row_to_tx(r) for r in rows]
 
 
 def _row_to_tx(row: aiosqlite.Row) -> Transaction:
