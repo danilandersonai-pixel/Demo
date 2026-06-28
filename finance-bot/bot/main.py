@@ -119,6 +119,11 @@ def build_application() -> Application:
     # --- Бюджеты (меню; set/del обрабатывает ConversationHandler выше) ---
     app.add_handler(CallbackQueryHandler(budget.open_menu, pattern=r"^budget:menu$"))
 
+    # --- Цели, регулярные, разбивка по людям ---
+    app.add_handler(CallbackQueryHandler(extra.show_goals, pattern=r"^goals:show$"))
+    app.add_handler(CallbackQueryHandler(extra.show_recurring, pattern=r"^recurring:show$"))
+    app.add_handler(CallbackQueryHandler(extra.show_settlement, pattern=r"^people:show$"))
+
     # --- Настройки и экспорт ---
     app.add_handler(CallbackQueryHandler(extra.toggle_setting, pattern=r"^set:notify_"))
     app.add_handler(CallbackQueryHandler(extra.do_export, pattern=r"^export:"))

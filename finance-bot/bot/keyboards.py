@@ -14,12 +14,19 @@ def main_menu() -> InlineKeyboardMarkup:
             InlineKeyboardButton("➕ Доход", callback_data="add:income"),
             InlineKeyboardButton("➖ Расход", callback_data="add:expense"),
         ],
-        [InlineKeyboardButton("📊 Статистика", callback_data="stats:menu")],
+        [
+            InlineKeyboardButton("📊 Статистика", callback_data="stats:menu"),
+            InlineKeyboardButton("🧾 Последние", callback_data="recent:show"),
+        ],
+        [
+            InlineKeyboardButton("🐷 Цели", callback_data="goals:show"),
+            InlineKeyboardButton("🔁 Регулярные", callback_data="recurring:show"),
+        ],
+        [InlineKeyboardButton("👥 Кто кому должен", callback_data="people:show")],
         [
             InlineKeyboardButton("🎯 Бюджеты", callback_data="budget:menu"),
             InlineKeyboardButton("💡 Советы", callback_data="advice:show"),
         ],
-        [InlineKeyboardButton("🧾 Последние операции", callback_data="recent:show")],
     ]
     return InlineKeyboardMarkup(rows)
 

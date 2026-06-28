@@ -14,8 +14,112 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.constants import ChatAction
 from telegram.ext import ContextTypes
 
-from ..utils import PERIOD_LABELS, fmt_money, period_bounds
+from ..keyboards import back_to_menu
+from ..utils import PERIOD_LABELS, fmt_money, month_bounds, period_bounds
 from .common import get_config, get_db, restricted
+
+
+def _bar(pct: float, width: int = 10) -> str:
+    filled = min(width, int(round(pct / 100 * width)))
+    return "█" * filled + "░" * (width - filled)
+
+
+# ---------- цели ----------
+
+@restricted
+async def show_goals(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    q = update.callback_query
+    await q.answer()
+    cfg, db = get_config(context), get_db(context)
+    goals = await db.list_goals()
+    lines = ["🐷 <b>Цели накопления</b>\n"]
+    if goals:
+        for g in goals:
+            pct = g["saved"] / g["target"] * 100 if g["target"] else 0
+            done = "✅ " if g["saved"] >= g["target"] else ""
+            lines.append(
+                f"{done}<b>{g['name']}</b>\n"
+                f"{_bar(pct)} {pct:.0f}%\n"
+                f"{fmt_money(g['saved'], cfg.currency)} из {fmt_money(g['target'], cfg.currency)}"
+            )
+    else:
+        lines.append("<i>Целей пока нет.</i>")
+    lines.append(
+        "\n💬 Создать/пополнить — словами:\n"
+        "«создай цель отпуск 100000», «отложи 5000 в отпуск»"
+    )
+    await q.edit_message_text(
+        "\n".join(lines), parse_mode="HTML", reply_markup=back_to_menu()
+    )
+
+
+# ---------- регулярные ----------
+
+@restricted
+async def show_recurring(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    q = update.callback_query
+    await q.answer()
+    cfg, db = get_config(context), get_db(context)
+    recs = await db.list_recurring()
+    lines = ["🔁 <b>Регулярные операции</b>\n"]
+    if recs:
+        for r in recs:
+            sign = "➕" if r["kind"] == "income" else "➖"
+            note = f" — {r['note']}" if r["note"] else ""
+            lines.append(
+                f"{sign} {fmt_money(r['amount'], cfg.currency)} · {r['category']}{note}\n"
+                f"   📅 каждое {r['day']}-е число"
+            )
+    else:
+        lines.append("<i>Регулярных операций пока нет.</i>")
+    lines.append(
+        "\n💬 Добавить — словами:\n"
+        "«добавь регулярную зарплату 60000 пятого числа»"
+    )
+    await q.edit_message_text(
+        "\n".join(lines), parse_mode="HTML", reply_markup=back_to_menu()
+    )
+
+
+# ---------- кто кому должен ----------
+
+@restricted
+async def show_settlement(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    q = update.callback_query
+    await q.answer()
+    cfg, db = get_config(context), get_db(context)
+    start, end = month_bounds(cfg.timezone, 0)
+    rows = await db.totals_by_user(start, end)
+    names = await db.all_user_names()
+
+    lines = ["👥 <b>Разбивка за месяц</b>\n"]
+    payers = []
+    for uid, inc, exp in rows:
+        name = names.get(uid, str(uid))
+        lines.append(f"<b>{name}</b>: расход {fmt_money(exp, cfg.currency)}")
+        if exp > 0:
+            payers.append((name, exp))
+
+    total = sum(e for _, e in payers)
+    if len(payers) == 2 and total > 0:
+        fair = total / 2
+        (na, ea), (nb, eb) = payers
+        diff = round(ea - fair, 2)
+        lines.append("")
+        if abs(diff) < 0.01:
+            lines.append("🤝 Расходы поделены поровну — никто никому не должен.")
+        elif diff > 0:
+            lines.append(f"➡️ <b>{nb}</b> должен(на) <b>{na}</b>: {fmt_money(abs(diff), cfg.currency)}")
+        else:
+            lines.append(f"➡️ <b>{na}</b> должен(на) <b>{nb}</b>: {fmt_money(abs(diff), cfg.currency)}")
+    elif total > 0:
+        lines.append("\n<i>Расчёт долга считается, когда расходы есть у обоих.</i>")
+    else:
+        lines.append("\n<i>За этот месяц расходов пока нет.</i>")
+
+    await q.edit_message_text(
+        "\n".join(lines), parse_mode="HTML", reply_markup=back_to_menu()
+    )
 
 # ---------- настройки уведомлений ----------
 
