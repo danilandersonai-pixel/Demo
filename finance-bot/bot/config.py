@@ -62,7 +62,20 @@ class Config:
         try:
             tz = ZoneInfo(tz_name)
         except Exception:
-            tz = ZoneInfo("UTC")
+            # config грузится до настройки логгера — пишем в stderr.
+            import sys
+            from datetime import timezone
+
+            print(
+                f"[config] ВНИМАНИЕ: не удалось загрузить часовой пояс {tz_name!r} "
+                "(нет пакета tzdata?), откат на UTC.",
+                file=sys.stderr,
+            )
+            try:
+                tz = ZoneInfo("UTC")
+            except Exception:
+                # Без tzdata даже UTC недоступен — берём stdlib-таймзону.
+                tz = timezone.utc
 
         db_path = Path(os.getenv("DB_PATH", "data/finance.db")).expanduser()
         receipts_dir = Path(os.getenv("RECEIPTS_DIR", "data/receipts")).expanduser()
