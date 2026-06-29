@@ -1,4 +1,4 @@
-name: Deploy site + voxel game to GitHub Pages
+name: Deploy wedding site to GitHub Pages
 
 on:
   push:
@@ -24,12 +24,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Assemble site (wedding at root, game under /voxel-game/)
-        run: |
-          mkdir -p _site/voxel-game
-          cp -r yegor-diana-wedding/. _site/
-          cp -r voxel-game/. _site/voxel-game/
-
       - name: Configure Pages
         uses: actions/configure-pages@v5
         with:
@@ -38,7 +32,8 @@ jobs:
       - name: Upload site artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: ./_site
+          # Serve the wedding site folder at the Pages root
+          path: ./yegor-diana-wedding
 
       - name: Deploy to GitHub Pages
         id: deployment
