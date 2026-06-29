@@ -19,6 +19,19 @@
   <!-- Hotbar -->
   <div id="hotbar" role="toolbar" aria-label="Инвентарь"></div>
 
+  <!-- Touch controls (shown only on touch devices while playing) -->
+  <div id="touch" aria-hidden="true">
+    <div id="joy"><div id="joyKnob"></div></div>
+    <div id="btns">
+      <button class="tbtn" id="btnBreak" aria-label="Сломать">⛏</button>
+      <button class="tbtn" id="btnPlace" aria-label="Поставить">▦</button>
+      <button class="tbtn" id="btnJump" aria-label="Прыжок / вверх">⤒</button>
+      <button class="tbtn" id="btnDown" aria-label="Вниз / присесть">⤓</button>
+      <button class="tbtn" id="btnFly" aria-label="Режим полёта">✈</button>
+    </div>
+    <button class="tbtn" id="btnPause" aria-label="Пауза">⏸</button>
+  </div>
+
   <!-- Start / pause overlay -->
   <div id="overlay">
     <div class="panel">
@@ -36,19 +49,14 @@
         <div><kbd>[</kbd> <kbd>]</kbd> — дальность прорисовки</div>
         <div><kbd>Esc</kbd> — пауза</div>
       </div>
+      <p class="touch-hint">📱 На телефоне: левый джойстик — ходьба, правая часть экрана — обзор, кнопки справа — действия.</p>
       <button id="play">Играть</button>
-      <p class="hint">Нажми, чтобы захватить мышь.</p>
+      <p class="hint">Нажми, чтобы начать.</p>
     </div>
   </div>
 
   <div id="error" role="alert"></div>
 
   <script type="module" src="js/main.js"></script>
-  <script>
-    // Forward the Play button to the canvas-click pointer-lock handler.
-    document.getElementById('play').addEventListener('click', () => {
-      document.getElementById('game').click();
-    });
-  </script>
 </body>
 </html>
