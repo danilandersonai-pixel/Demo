@@ -15,14 +15,17 @@ function prng(seed) {
 function clamp8(v) { return v < 0 ? 0 : v > 255 ? 255 : v | 0; }
 
 // Returns the {u0,v0,u1,v1} rect for a tile index (no Y flip on upload).
+// Inset by half a texel so sampling never bleeds into a neighbouring atlas tile.
 export function tileUV(tile) {
   const col = tile % ATLAS_COLS;
   const row = Math.floor(tile / ATLAS_COLS);
+  const ix = 0.5 / (ATLAS_COLS * TILE);
+  const iy = 0.5 / (ATLAS_ROWS * TILE);
   return {
-    u0: col / ATLAS_COLS,
-    v0: row / ATLAS_ROWS,
-    u1: (col + 1) / ATLAS_COLS,
-    v1: (row + 1) / ATLAS_ROWS,
+    u0: col / ATLAS_COLS + ix,
+    v0: row / ATLAS_ROWS + iy,
+    u1: (col + 1) / ATLAS_COLS - ix,
+    v1: (row + 1) / ATLAS_ROWS - iy,
   };
 }
 

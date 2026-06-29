@@ -55,20 +55,29 @@ export class Player {
   _moveAxis(axis, delta) {
     if (delta === 0) return;
     const p = this.pos;
-    p[axis] += delta;
-    if (!this._collides()) return;
+    // Sub-step so a fast move cannot skip over (or sink into) a solid cell:
+    // each step is < 1 block, so _collides() always catches the contact frame.
+    const MAXSTEP = 0.45;
+    let remaining = delta;
+    while (remaining !== 0) {
+      const s = Math.max(-MAXSTEP, Math.min(MAXSTEP, remaining));
+      remaining -= s;
+      p[axis] += s;
+      if (!this._collides()) continue;
 
-    if (axis === 1) {
-      if (delta < 0) { p[1] = Math.floor(p[1]) + 1; this.onGround = true; }
-      else { p[1] = Math.floor(p[1] + HEIGHT) - HEIGHT; }
-    } else if (axis === 0) {
-      if (delta > 0) p[0] = Math.floor(p[0] + HALF) - HALF - EPS;
-      else p[0] = Math.floor(p[0] - HALF) + 1 + HALF + EPS;
-    } else {
-      if (delta > 0) p[2] = Math.floor(p[2] + HALF) - HALF - EPS;
-      else p[2] = Math.floor(p[2] - HALF) + 1 + HALF + EPS;
+      if (axis === 1) {
+        if (s < 0) { p[1] = Math.floor(p[1]) + 1; this.onGround = true; }
+        else { p[1] = Math.floor(p[1] + HEIGHT) - HEIGHT - EPS; }
+      } else if (axis === 0) {
+        if (s > 0) p[0] = Math.floor(p[0] + HALF) - HALF - EPS;
+        else p[0] = Math.floor(p[0] - HALF) + 1 + HALF + EPS;
+      } else {
+        if (s > 0) p[2] = Math.floor(p[2] + HALF) - HALF - EPS;
+        else p[2] = Math.floor(p[2] - HALF) + 1 + HALF + EPS;
+      }
+      this.vel[axis] = 0;
+      return;
     }
-    this.vel[axis] = 0;
   }
 
   update(dt) {
@@ -124,9 +133,13 @@ export class Player {
     let normal = [0, 0, 0];
     let t = 0;
     while (t <= maxDist) {
-      const b = this.world.getBlock(x, y, z);
-      if (isSolid(b)) {
-        return { hit: [x, y, z], place: [x + normal[0], y + normal[1], z + normal[2]], normal };
+      // Skip the eye's own cell (normal still zero): never target the block you
+      // are inside, and never emit a degenerate place == hit.
+      if (normal[0] || normal[1] || normal[2]) {
+        const b = this.world.getBlock(x, y, z);
+        if (isSolid(b)) {
+          return { hit: [x, y, z], place: [x + normal[0], y + normal[1], z + normal[2]], normal };
+        }
       }
       if (tMax[0] < tMax[1]) {
         if (tMax[0] < tMax[2]) { x += step[0]; t = tMax[0]; tMax[0] += tDelta[0]; normal = [-step[0], 0, 0]; }

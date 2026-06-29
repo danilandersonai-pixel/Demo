@@ -66,13 +66,17 @@ const view = create();
 const viewProj = create();
 
 // --- chunk streaming -----------------------------------------------------------
+const NEIGHBOR_OFFSETS = [
+  [1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1],
+];
 function neighborsReady(c) {
-  return (
-    !!world.getChunk(c.cx + 1, c.cz)?.generated &&
-    !!world.getChunk(c.cx - 1, c.cz)?.generated &&
-    !!world.getChunk(c.cx, c.cz + 1)?.generated &&
-    !!world.getChunk(c.cx, c.cz - 1)?.generated
-  );
+  // All 8 neighbours (incl. diagonals) so chunk-corner ambient occlusion is
+  // computed once with full context and never leaves a seam.
+  for (const [dx, dz] of NEIGHBOR_OFFSETS) {
+    const n = world.getChunk(c.cx + dx, c.cz + dz);
+    if (!n || !n.generated) return false;
+  }
+  return true;
 }
 
 function updateChunks() {
@@ -139,6 +143,7 @@ const MOVE_CODES = new Set([
 ]);
 
 window.addEventListener('keydown', (e) => {
+  if (!locked) return; // ignore gameplay keys while paused (pointer not locked)
   if (e.code >= 'Digit1' && e.code <= 'Digit9') {
     const i = +e.code.slice(5) - 1;
     if (i < HOTBAR.length) { selected = i; refreshHotbar(); }

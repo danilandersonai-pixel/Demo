@@ -86,8 +86,9 @@ export class World {
     c.generated = true;
     c.dirty = true;
 
-    // Existing neighbours must remesh so shared borders are seamless.
-    for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+    // Existing neighbours (incl. diagonals, for corner ambient occlusion) must
+    // remesh so shared borders/corners are seamless.
+    for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]]) {
       const n = this.getChunk(cx + dx, cz + dz);
       if (n && n.generated) n.dirty = true;
     }
@@ -156,11 +157,16 @@ export class World {
     if (c.blocks[i] === id) return false;
     c.blocks[i] = id;
     c.dirty = true;
-    // Remesh neighbour chunks if the edit sits on a shared border.
+    // Remesh neighbour chunks if the edit sits on a shared border (edges + corners
+    // so corner ambient occlusion across chunk boundaries stays correct).
     if (lx === 0) this._touch(cx - 1, cz);
     if (lx === CHUNK_SX - 1) this._touch(cx + 1, cz);
     if (lz === 0) this._touch(cx, cz - 1);
     if (lz === CHUNK_SZ - 1) this._touch(cx, cz + 1);
+    if (lx === 0 && lz === 0) this._touch(cx - 1, cz - 1);
+    if (lx === 0 && lz === CHUNK_SZ - 1) this._touch(cx - 1, cz + 1);
+    if (lx === CHUNK_SX - 1 && lz === 0) this._touch(cx + 1, cz - 1);
+    if (lx === CHUNK_SX - 1 && lz === CHUNK_SZ - 1) this._touch(cx + 1, cz + 1);
     return true;
   }
 
