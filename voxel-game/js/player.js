@@ -25,6 +25,7 @@ export class Player {
     this.onGround = false;
     this.fly = false;
     this.keys = Object.create(null);
+    this.move = { x: 0, z: 0 }; // analog touch input: x = strafe, z = forward
   }
 
   eyePos() { return [this.pos[0], this.pos[1] + EYE, this.pos[2]]; }
@@ -85,15 +86,25 @@ export class Player {
     const fwd = [-Math.sin(this.yaw), 0, -Math.cos(this.yaw)];
     const right = [Math.cos(this.yaw), 0, -Math.sin(this.yaw)];
 
-    let wx = 0, wz = 0;
-    if (k['KeyW'] || k['ArrowUp']) { wx += fwd[0]; wz += fwd[2]; }
-    if (k['KeyS'] || k['ArrowDown']) { wx -= fwd[0]; wz -= fwd[2]; }
-    if (k['KeyD'] || k['ArrowRight']) { wx += right[0]; wz += right[2]; }
-    if (k['KeyA'] || k['ArrowLeft']) { wx -= right[0]; wz -= right[2]; }
-    const len = Math.hypot(wx, wz);
-    if (len > 0) { wx /= len; wz /= len; }
+    let wx = 0, wz = 0, mag = 0;
+    const tmag = Math.hypot(this.move.x, this.move.z);
+    if (tmag > 0.12) {
+      // Analog joystick takes priority: move.z forward, move.x strafe.
+      wx = fwd[0] * this.move.z + right[0] * this.move.x;
+      wz = fwd[2] * this.move.z + right[2] * this.move.x;
+      const len = Math.hypot(wx, wz);
+      if (len > 0) { wx /= len; wz /= len; }
+      mag = Math.min(1, tmag);
+    } else {
+      if (k['KeyW'] || k['ArrowUp']) { wx += fwd[0]; wz += fwd[2]; }
+      if (k['KeyS'] || k['ArrowDown']) { wx -= fwd[0]; wz -= fwd[2]; }
+      if (k['KeyD'] || k['ArrowRight']) { wx += right[0]; wz += right[2]; }
+      if (k['KeyA'] || k['ArrowLeft']) { wx -= right[0]; wz -= right[2]; }
+      const len = Math.hypot(wx, wz);
+      if (len > 0) { wx /= len; wz /= len; mag = 1; }
+    }
 
-    const speed = this.fly ? FLY : (k['ShiftLeft'] || k['ShiftRight'] ? RUN : WALK);
+    const speed = (this.fly ? FLY : (k['ShiftLeft'] || k['ShiftRight'] ? RUN : WALK)) * mag;
     this.vel[0] = wx * speed;
     this.vel[2] = wz * speed;
 

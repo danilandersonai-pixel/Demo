@@ -137,13 +137,50 @@ function renderList(pcx, pcz) {
 }
 
 // --- input ---------------------------------------------------------------------
+const TOUCH = (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) || ('ontouchstart' in window);
+const TOUCH_SENS = 0.005;
+let playing = false; // touch "active" state (desktop uses pointer-lock `locked`)
+let breakHeld = false, placeHeld = false, actionTimer = 0;
+
 const MOVE_CODES = new Set([
   'KeyW', 'KeyA', 'KeyS', 'KeyD', 'Space', 'ShiftLeft', 'ShiftRight',
   'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight',
 ]);
 
+// Whether gameplay input is live.
+function active() { return TOUCH ? playing : locked; }
+
+function setActive(v) {
+  overlay.classList.toggle('hidden', v);
+  document.body.classList.toggle('playing', v);
+  if (!v) {
+    player.keys = Object.create(null);
+    player.move.x = 0; player.move.z = 0;
+    breakHeld = false; placeHeld = false;
+  }
+}
+
+// Block edits shared by mouse + touch.
+function doBreak() {
+  const rc = player.raycast();
+  if (!rc) return;
+  const [x, y, z] = rc.hit;
+  if (world.getBlock(x, y, z) !== B.BEDROCK) world.setBlock(x, y, z, B.AIR);
+}
+function doPlace() {
+  const rc = player.raycast();
+  if (!rc) return;
+  const [x, y, z] = rc.place;
+  if (y < 0 || y >= CHUNK_SY) return;
+  const cur = world.getBlock(x, y, z);
+  if ((cur === B.AIR || cur === B.WATER) && !player.intersectsBlock(x, y, z)) {
+    world.setBlock(x, y, z, HOTBAR[selected]);
+  }
+}
+
+// Keyboard.
 window.addEventListener('keydown', (e) => {
-  if (!locked) return; // ignore gameplay keys while paused (pointer not locked)
+  if (!active()) return;
   if (e.code >= 'Digit1' && e.code <= 'Digit9') {
     const i = +e.code.slice(5) - 1;
     if (i < HOTBAR.length) { selected = i; refreshHotbar(); }
@@ -152,53 +189,118 @@ window.addEventListener('keydown', (e) => {
   if (e.code === 'KeyF') { player.toggleFly(); return; }
   if (e.code === 'BracketRight') { RENDER_DISTANCE = Math.min(12, RENDER_DISTANCE + 1); return; }
   if (e.code === 'BracketLeft') { RENDER_DISTANCE = Math.max(3, RENDER_DISTANCE - 1); return; }
-  if (MOVE_CODES.has(e.code)) {
-    player.keys[e.code] = true;
-    if (locked) e.preventDefault();
-  }
+  if (MOVE_CODES.has(e.code)) { player.keys[e.code] = true; e.preventDefault(); }
 });
 window.addEventListener('keyup', (e) => {
   if (MOVE_CODES.has(e.code)) player.keys[e.code] = false;
 });
 
+// Mouse / pointer lock (desktop).
 canvas.addEventListener('click', () => {
-  if (!locked) canvas.requestPointerLock();
+  if (!TOUCH && !locked) canvas.requestPointerLock();
 });
-
 document.addEventListener('pointerlockchange', () => {
   locked = document.pointerLockElement === canvas;
-  overlay.classList.toggle('hidden', locked);
-  if (!locked) player.keys = Object.create(null);
+  setActive(locked);
 });
-
 document.addEventListener('mousemove', (e) => {
   if (locked) player.addLook(e.movementX || 0, e.movementY || 0, SENS);
 });
-
 canvas.addEventListener('contextmenu', (e) => e.preventDefault());
-
 canvas.addEventListener('mousedown', (e) => {
   if (!locked) return;
-  const rc = player.raycast();
-  if (!rc) return;
-  if (e.button === 0) {
-    const [x, y, z] = rc.hit;
-    if (world.getBlock(x, y, z) !== B.BEDROCK) world.setBlock(x, y, z, B.AIR);
-  } else if (e.button === 2) {
-    const [x, y, z] = rc.place;
-    if (y < 0 || y >= CHUNK_SY) return;
-    const cur = world.getBlock(x, y, z);
-    if ((cur === B.AIR || cur === B.WATER) && !player.intersectsBlock(x, y, z)) {
-      world.setBlock(x, y, z, HOTBAR[selected]);
-    }
-  }
+  if (e.button === 0) doBreak();
+  else if (e.button === 2) doPlace();
 });
-
 window.addEventListener('wheel', (e) => {
   if (!locked) return;
   selected = (selected + (e.deltaY > 0 ? 1 : -1) + HOTBAR.length) % HOTBAR.length;
   refreshHotbar();
 });
+
+// Play button: pointer lock on desktop, direct start on touch.
+document.getElementById('play').addEventListener('click', () => {
+  if (TOUCH) { playing = true; setActive(true); }
+  else canvas.requestPointerLock();
+});
+
+// Hotbar tap-to-select.
+slotEls.forEach((el, i) => el.addEventListener('click', () => { selected = i; refreshHotbar(); }));
+
+// --- touch controls ------------------------------------------------------------
+if (TOUCH) {
+  document.body.classList.add('touch');
+
+  document.getElementById('btnPause').addEventListener('click', () => { playing = false; setActive(false); });
+
+  // Look: drag on the canvas.
+  let lookId = null, lookX = 0, lookY = 0;
+  canvas.addEventListener('touchstart', (e) => {
+    if (!active() || lookId !== null) return;
+    const t = e.changedTouches[0];
+    lookId = t.identifier; lookX = t.clientX; lookY = t.clientY;
+  }, { passive: true });
+  canvas.addEventListener('touchmove', (e) => {
+    if (lookId === null) return;
+    for (const t of e.changedTouches) if (t.identifier === lookId) {
+      e.preventDefault();
+      player.addLook(t.clientX - lookX, t.clientY - lookY, TOUCH_SENS);
+      lookX = t.clientX; lookY = t.clientY;
+    }
+  }, { passive: false });
+  const endLook = (e) => { for (const t of e.changedTouches) if (t.identifier === lookId) lookId = null; };
+  canvas.addEventListener('touchend', endLook);
+  canvas.addEventListener('touchcancel', endLook);
+
+  // Virtual joystick (left thumb).
+  const joy = document.getElementById('joy');
+  const knob = document.getElementById('joyKnob');
+  const JOY_R = 46;
+  let joyId = null;
+  const resetJoy = () => { joyId = null; player.move.x = 0; player.move.z = 0; knob.style.transform = 'translate(-50%, -50%)'; };
+  const updateJoy = (t) => {
+    const r = joy.getBoundingClientRect();
+    let dx = t.clientX - (r.left + r.width / 2);
+    let dy = t.clientY - (r.top + r.height / 2);
+    const d = Math.hypot(dx, dy);
+    if (d > JOY_R) { dx = dx / d * JOY_R; dy = dy / d * JOY_R; }
+    knob.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
+    player.move.x = dx / JOY_R;
+    player.move.z = -dy / JOY_R;
+  };
+  joy.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    if (joyId !== null) return;
+    const t = e.changedTouches[0];
+    joyId = t.identifier; updateJoy(t);
+  }, { passive: false });
+  window.addEventListener('touchmove', (e) => {
+    if (joyId === null) return;
+    for (const t of e.changedTouches) if (t.identifier === joyId) { e.preventDefault(); updateJoy(t); }
+  }, { passive: false });
+  const endJoy = (e) => { for (const t of e.changedTouches) if (t.identifier === joyId) resetJoy(); };
+  window.addEventListener('touchend', endJoy);
+  window.addEventListener('touchcancel', endJoy);
+
+  // Action buttons (right thumb).
+  const hold = (id, on, off) => {
+    const el = document.getElementById(id);
+    el.addEventListener('touchstart', (e) => { e.preventDefault(); el.classList.add('pressed'); on(); }, { passive: false });
+    const up = () => { el.classList.remove('pressed'); if (off) off(); };
+    el.addEventListener('touchend', up);
+    el.addEventListener('touchcancel', up);
+  };
+  hold('btnJump', () => { player.keys['Space'] = true; }, () => { player.keys['Space'] = false; });
+  hold('btnDown', () => { player.keys['ShiftLeft'] = true; }, () => { player.keys['ShiftLeft'] = false; });
+  hold('btnBreak', () => { breakHeld = true; actionTimer = 0; }, () => { breakHeld = false; });
+  hold('btnPlace', () => { placeHeld = true; actionTimer = 0; }, () => { placeHeld = false; });
+  const flyBtn = document.getElementById('btnFly');
+  flyBtn.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    player.toggleFly();
+    flyBtn.classList.toggle('on', player.fly);
+  }, { passive: false });
+}
 
 // --- main loop -----------------------------------------------------------------
 let last = performance.now();
@@ -210,6 +312,16 @@ function frame(now) {
   if (dt > 0.05) dt = 0.05;
 
   const aspect = renderer.resize();
+
+  // Held touch break/place auto-repeats.
+  if (active() && (breakHeld || placeHeld)) {
+    actionTimer -= dt;
+    if (actionTimer <= 0) {
+      if (breakHeld) doBreak(); else doPlace();
+      actionTimer = 0.16;
+    }
+  }
+
   player.update(dt);
   updateChunks();
 
@@ -246,4 +358,10 @@ function frame(now) {
 requestAnimationFrame(frame);
 
 // Expose a little state for automated checks / debugging.
-window.__voxel = { world, player, renderer, seed, get locked() { return locked; } };
+window.__voxel = {
+  world, player, renderer, seed,
+  get locked() { return locked; },
+  get playing() { return playing; },
+  get active() { return active(); },
+  isTouch: TOUCH,
+};
