@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="ru-RU">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <title>Подземелье — мини-Diablo</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' fill='%23120a0a'/><circle cx='8' cy='8' r='4' fill='%23b3271f'/></svg>" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <canvas id="game"></canvas>
+
+  <!-- Top bar -->
+  <div id="topbar">
+    <span>Глубина <b id="depth">1</b></span>
+    <span>Ур. <b id="plevel">1</b></span>
+    <span>🪙 <b id="gold">0</b></span>
+  </div>
+  <div id="xpbar"><div id="xpfill"></div></div>
+
+  <!-- Message log -->
+  <div id="log"></div>
+
+  <!-- Orbs -->
+  <div class="orb hp">
+    <div class="fill" id="hpfill"></div>
+    <span class="orbnum" id="hptext">60</span>
+    <span class="orblabel">HP</span>
+  </div>
+  <div class="orb mp">
+    <div class="fill" id="mpfill"></div>
+    <span class="orbnum" id="mptext">30</span>
+    <span class="orblabel">MP</span>
+  </div>
+
+  <!-- Action buttons -->
+  <div id="actions">
+    <button id="btnSpell" class="actbtn spell" aria-label="Заклинание (фаербол)"><span class="ico">🔥</span></button>
+    <button id="btnPotion" class="actbtn potion" aria-label="Зелье лечения"><span class="ico">🧪</span><span class="cnt" id="potionCount">3</span></button>
+  </div>
+
+  <!-- Start overlay -->
+  <div id="start" class="overlay">
+    <div class="panel">
+      <h1>☠ Подземелье</h1>
+      <p class="lead">Мини-Diablo. Тёмные катакомбы, монстры, лут и спуск всё глубже.</p>
+      <ul class="rules">
+        <li><b>Тап по полу</b> — идти (удерживай и веди — идёшь за пальцем)</li>
+        <li><b>Тап по врагу</b> — атаковать в ближнем бою</li>
+        <li><b>🔥</b> — фаербол (тратит ману), <b>🧪</b> — зелье лечения</li>
+        <li>Встань на <b>▼ лестницу</b> — спуск на уровень глубже</li>
+        <li>Убивай монстров → опыт, уровни, золото</li>
+      </ul>
+      <button id="startBtn">В подземелье</button>
+    </div>
+  </div>
+
+  <!-- Death overlay -->
+  <div id="death" class="overlay">
+    <div class="panel">
+      <h1 class="dead">Вы пали</h1>
+      <p class="lead">Глубина: <b id="deathDepth">1</b> · Уровень: <b id="deathLevel">1</b></p>
+      <button id="deathBtn">Снова</button>
+    </div>
+  </div>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
