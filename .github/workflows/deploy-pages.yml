@@ -1,8 +1,10 @@
-name: Deploy wedding site to GitHub Pages
+name: Deploy sites to GitHub Pages
 
 on:
   push:
-    branches: ["claude/website-analysis-claude-md-kd3foj"]
+    branches:
+      - "claude/website-analysis-claude-md-kd3foj"
+      - "claude/pixel-rpg-vibe-coding-5mwc8p"
   workflow_dispatch:
 
 permissions:
@@ -24,6 +26,15 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Assemble site
+        # Wedding site at the Pages root, the RPG game as a separate page
+        # at /vibe-coder-rpg/
+        run: |
+          mkdir -p _site
+          cp -r yegor-diana-wedding/. _site/
+          mkdir -p _site/vibe-coder-rpg
+          cp -r vibe-coder-rpg/. _site/vibe-coder-rpg/
+
       - name: Configure Pages
         uses: actions/configure-pages@v5
         with:
@@ -32,8 +43,7 @@ jobs:
       - name: Upload site artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          # Serve the wedding site folder at the Pages root
-          path: ./yegor-diana-wedding
+          path: ./_site
 
       - name: Deploy to GitHub Pages
         id: deployment
