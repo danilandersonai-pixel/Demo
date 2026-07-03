@@ -28,7 +28,7 @@ window.NPCS = [
 
   {
     id: 'octavia', map: 'village', x: 14, y: 7, name: 'Сеньора Октавия',
-    human: { hair: 'm', hairD: 'M', shirt: 'p', shirtD: 'P', pants: 'K' },
+    human: { hair: 'm', hairD: 'M', shirt: 'p', shirtD: 'P', pants: 'K', acc: 'glasses' },
     async talk() {
       const { say, choice } = E;
       if (G.story === 0) {
@@ -79,7 +79,7 @@ window.NPCS = [
 
   {
     id: 'barista', map: 'village', x: 11, y: 13, name: 'Бариста Джава',
-    human: { hair: 'H', hairD: '0', shirt: 'd', shirtD: 'D', pants: 'K' },
+    human: { hair: 'H', hairD: '0', shirt: 'd', shirtD: 'D', pants: 'K', acc: 'apron' },
     async talk() {
       const { say, choice } = E;
       if (!G.flags.beansGiven) {
@@ -122,6 +122,20 @@ window.NPCS = [
     id: 'sign_village', map: 'village', x: 5, y: 9, spr: 'sign', name: 'Табличка',
     async talk() {
       await E.say('Табличка', '«Деревня Локалхост. Дом — там, где 127.0.0.1».\n\nНиже приписка мелом: «Поля Фронтенда → восток».');
+    },
+  },
+
+  {
+    id: 'cat', map: 'village', x: 16, y: 9, name: 'Кот Багси', spr: 'cat', patrol: 1,
+    async talk() {
+      const { say } = E;
+      const lines = [
+        'Мяу. (Кот Багси посмотрел на твой код и молча ушёл. Это было ревью.)',
+        'Мррр… (Багси лёг на клавиатуру. В коде появилось «яяяяяяяя». Он считает это фичей.)',
+        'Мяу! (Багси гоняется за курсором. Курсор в ужасе.)',
+      ];
+      if (G.story >= 7) await say('Кот Багси', 'Мурррр. (После релиза Багси спит на тёплом сервере. Аптайм мурчания — 100%.)');
+      else await say('Кот Багси', lines[Math.floor(Math.random() * lines.length)]);
     },
   },
 
@@ -205,7 +219,7 @@ window.NPCS = [
 
   {
     id: 'git_guard', map: 'forest', x: 15, y: 1, name: 'Гит-Страж',
-    human: { hair: 'k', hairD: 'K', shirt: 'o', shirtD: 'O', pants: 'K' },
+    human: { hair: 'k', hairD: 'K', shirt: 'o', shirtD: 'O', pants: 'K', acc: 'helmet' },
     hidden: () => G.flags.guardOpen,
     async talk() {
       const { say } = E;
@@ -224,7 +238,7 @@ window.NPCS = [
 
   {
     id: 'legacy_man', map: 'forest', x: 23, y: 14, name: 'Старик Легаси',
-    human: { hair: 'w', hairD: 'W', shirt: 'k', shirtD: 'K', pants: 'D' },
+    human: { hair: 'w', hairD: 'W', shirt: 'k', shirtD: 'K', pants: 'D', acc: 'beard' },
     async talk() {
       const { say, choice } = E;
       if (!G.flags.docsTaken) {
@@ -304,7 +318,7 @@ window.NPCS = [
 
   {
     id: 'grace', map: 'city', x: 12, y: 3, name: 'Тимлид Грейс',
-    human: { hair: 'H', hairD: '0', shirt: 'r', shirtD: 'R', pants: 'K' },
+    human: { hair: 'H', hairD: '0', shirt: 'r', shirtD: 'R', pants: 'K', acc: 'headset' },
     async talk() {
       const { say } = E;
       if (G.flags.docsTaken && !G.flags.docsDelivered && E.has('docs')) {
@@ -332,7 +346,7 @@ window.NPCS = [
 
   {
     id: 'ada', map: 'city', x: 8, y: 10, name: 'QA Ада',
-    human: { hair: 'j', hairD: 'J', shirt: 'y', shirtD: 'Y', pants: 'K' },
+    human: { hair: 'j', hairD: 'J', shirt: 'y', shirtD: 'Y', pants: 'K', acc: 'glasses' },
     async talk() {
       const { say, choice } = E;
       await say('QA Ада', 'Я нашла баг в реальности: герои вечно приходят без снаряжения. Воспроизводится стабильно. Фиксим?');
@@ -354,7 +368,7 @@ window.NPCS = [
 
   {
     id: 'pip', map: 'city', x: 16, y: 13, name: 'Стажёр Пип',
-    human: { hair: 'o', hairD: 'O', shirt: 'l', shirtD: 'L', pants: 'K' },
+    human: { hair: 'o', hairD: 'O', shirt: 'l', shirtD: 'L', pants: 'K', acc: 'beanie' },
     async talk() {
       const { say } = E;
       if (G.story >= 7) await say('Стажёр Пип', 'Я задеплоил свой первый сайт! Сам! Ну, с Клодом. Ну, Клод задеплоил. Но промпт был МОЙ!');
@@ -366,6 +380,15 @@ window.NPCS = [
     id: 'sign_city', map: 'city', x: 2, y: 8, spr: 'sign', name: 'Табличка',
     async talk() {
       await E.say('Табличка', '«Город Продакшен. Не трогай ничего в пятницу».\n\n«Башня Деплоя → север. Вход строго по Токенам».');
+    },
+  },
+
+  {
+    id: 'robot', map: 'city', x: 16, y: 12, name: 'Робот КлинАп-9000', spr: 'robot', patrol: 1,
+    async talk() {
+      const { say } = E;
+      if (G.story >= 7) await say('КлинАп-9000', 'БИП-БИП. ТЕХДОЛГ: 0 ЕДИНИЦ. ВПЕРВЫЕ ЗА 9000 ЦИКЛОВ. ЗАПРАШИВАЮ НОВЫЙ СМЫСЛ ЖИЗНИ.');
+      else await say('КлинАп-9000', 'БИП. ПОДМЕТАЮ ТЕХДОЛГ. СОБРАНО СЕГОДНЯ: 47 ЗАКОММЕНЧЕННЫХ БЛОКОВ, 12 console.log И ОДИН TODO ОТ 2019 ГОДА.');
     },
   },
 

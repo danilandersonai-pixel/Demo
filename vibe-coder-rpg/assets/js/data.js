@@ -111,8 +111,110 @@ window.HUMAN_TPL = {
   ],
 };
 
+/* ---------- варианты ног для анимации ходьбы ----------
+   индекс 0 — стоя, 1/2 — шаги (заменяют две нижние строки шаблона) */
+window.LEG_FRAMES = {
+  down: [
+    ['...uu......uu...', '...uu......uu...'],
+    ['...uu......uu...', '...uu...........'],
+    ['...uu......uu...', '...........uu...'],
+  ],
+  up: [
+    ['...uu......uu...', '...uu......uu...'],
+    ['...uu......uu...', '...........uu...'],
+    ['...uu......uu...', '...uu...........'],
+  ],
+  side: [
+    ['....uu...uu.....', '....uu...uu.....'],
+    ['...uu.....uu....', '...uu.....uu....'],
+    ['......uuuu......', '......uuuu......'],
+  ],
+};
+
+/* ---------- аксессуары персонажей (оверлеи на голову/торс) ----------
+   Рисуются поверх собранного спрайта. down/side — 16×16, '.' прозрачно. */
+window.ACCESSORIES = {
+  glasses: { // круглые очки
+    rows: {
+      down: [[5, '....10011001....']],
+      side: [[5, '.....1001001....']],
+    },
+  },
+  helmet: { // шлем стража
+    rows: {
+      down: [[0, '....mmmmmmmm....'], [1, '...mmmmmmmmmm...'], [2, '..mMmmmmmmmmMm..'], [3, '..mM........Mm..']],
+      up:   [[0, '....mmmmmmmm....'], [1, '...mmmmmmmmmm...'], [2, '..mMmmmmmmmmMm..'], [3, '..mM........Mm..']],
+      side: [[0, '....mmmmmmmm....'], [1, '...mmmmmmmmmm...'], [2, '..mMmmmmmmmmMm..'], [3, '..mM........Mm..']],
+    },
+  },
+  beard: { // белая борода
+    rows: {
+      down: [[6, '...w........w...'], [7, '...ww......ww...'], [8, '....wwwwwwww....'], [9, '.....wwwwww.....']],
+      side: [[7, '...ww...........'], [8, '....wwwww.......'], [9, '.....www........']],
+    },
+  },
+  apron: { // фартук баристы
+    rows: {
+      down: [[10, '....wwwwwwww....'], [11, '....wwwwwwww....'], [12, '....wwwwwwww....'], [13, '.....wwwwww.....']],
+      side: [[10, '.....wwwwww.....'], [11, '.....wwwwww.....'], [12, '.....wwwwww.....']],
+    },
+  },
+  headset: { // гарнитура тимлида
+    rows: {
+      down: [[3, '..k..........k..'], [4, '..kk........kk..'], [5, '..k..........k..']],
+      side: [[3, '..k.............'], [4, '..kk............'], [5, '..kk............']],
+    },
+  },
+  beanie: { // шапка стажёра
+    rows: {
+      down: [[0, '....llllllll....'], [1, '...llLlLlLlll...'], [2, '..llllllllllll..']],
+      up:   [[0, '....llllllll....'], [1, '...llLlLlLlll...'], [2, '..llllllllllll..']],
+      side: [[0, '....llllllll....'], [1, '...llLlLlLlll...'], [2, '..llllllllllll..']],
+    },
+  },
+};
+
 /* ---------- спрайты (строчный пиксель-арт) ---------- */
 window.SPRITES = {
+
+  cat: [ // рыжий кот
+    '................',
+    '...o......o.....',
+    '...oo....oo.....',
+    '...oooooooo.....',
+    '..oooooooooo....',
+    '..o0oooo0ooo....',
+    '..oooooooooo....',
+    '..ooo1o1oooo....',
+    '...oooooooo.....',
+    '...OooooooO.....',
+    '..oooooooooo.o..',
+    '..oooooooooo.o..',
+    '..oOoooooOoo..o.',
+    '..oo.oo..oo...o.',
+    '..OO.OO..OO..oo.',
+    '................',
+  ],
+
+  robot: [ // робот-уборщик техдолга
+    '................',
+    '................',
+    '.......1........',
+    '.......m........',
+    '....mmmmmmm.....',
+    '...mmmmmmmmm....',
+    '...mm0cc0mmm....',
+    '...mmmmmmmmm....',
+    '..mmMMMMMMMmm...',
+    '..mKmmmmmmmKm...',
+    '..mmmmmmmmmmm...',
+    '..mMmmMmmMmmm...',
+    '...mmmmmmmmm....',
+    '...KK.....KK....',
+    '................',
+    '................',
+  ],
+
 
   claude: [ // дух ИИ, коралловый
     '................',
@@ -458,8 +560,10 @@ window.SPRITES = {
    b стена   r крыша   d дверь (декор)     T древний терминал
    C стена пещеры      c пол пещеры        ; щебень (энкаунтеры)
    P плитка города     S серверная башня   ~ поток данных
-   f паркет (интерьер) x пустота */
-window.SOLID_TILES = new Set(['t','w','#','b','r','d','T','C','S','~','x']);
+   f паркет (интерьер) x пустота
+   Декор: W стена с окном  e забор  g камешки  m гриб  L фонарь
+          K кристалл  u сталагмит  q ковёр  B стена со знаменем */
+window.SOLID_TILES = new Set(['t','w','#','b','r','d','T','C','S','~','x','W','e','L','K','u','B']);
 window.ENCOUNTER_TILES = new Set([',', ';']);
 
 /* ---------- карты ---------- */
@@ -471,24 +575,25 @@ window.MAPS = {
     theme: { sky: '#2c4a6e', ground: '#3e8e50' },
     music: 'calm',
     encounters: [],
+    ambient: 'petals',
     rows: [
       'tttttttttttttttttttttttttttt',
-      't...........tt.............t',
+      't....g......tt.......F..g..t',
       't..rrrr...rrrr......TT.....t',
       't..rrrr...rrrr......TT.....t',
-      't..bdbb...bbdb......pp.....t',
+      't..WdbW...WbdW......pp.....t',
       't...p.......p.......p......t',
       't...p.......p.......p......t',
       't...p.......p.......p......t',
       'tppppppppppppppppppppppppppp',
-      't...p......................t',
+      't...p........g.........g...t',
       't...p...rrrr......FF.......t',
       't...p...rrrr......FF.......t',
-      't...p...bbdb...............t',
+      't...p...WbdW...............t',
       't...p.....p.....www........t',
       't...p.....p....wwwww.......t',
       't...ppppppp.....www........t',
-      't..........F..F............t',
+      't..e.......F..F.......e....t',
       'tttttttttttttttttttttttttttt',
     ],
     portals: [
@@ -501,13 +606,14 @@ window.MAPS = {
     pad: 't',
     theme: { sky: '#3e6ea0', ground: '#4aa25c' },
     encounters: ['typo', 'glitch'],
+    ambient: 'petals',
     rows: [
       'tttttttttttttttttttttttttttttt',
       't.....,,,,........FF.........t',
       't...,,,,,,,.......FF....,,...t',
       't...,,,,,,,..............,,..t',
       't.....,,,........F...........t',
-      't............................t',
+      't........g................g..t',
       't..FF.....ppp.........,,,....t',
       't.........p.p.........,,,....t',
       'pppppppppppppppppppppppppppppp',
@@ -517,7 +623,7 @@ window.MAPS = {
       't....www........,,,,.....FF..t',
       't.....F........,,,,,,........t',
       't..............,,,,,,........t',
-      't............................t',
+      't.....g..............g.......t',
       't...F...F.............F......t',
       'tttttttttttttttttttttttttttttt',
     ],
@@ -532,6 +638,7 @@ window.MAPS = {
     pad: 't',
     theme: { sky: '#1d3326', ground: '#2f6e3e' },
     encounters: ['typo', 'nullp', 'glitch'],
+    ambient: 'leaves',
     rows: [
       'ttttttttttttttt.tttttttttttttt',
       'ttttttttttttttt.tttttttttttttt',
@@ -541,17 +648,17 @@ window.MAPS = {
       'ttttt.,,,,.tttt.tttt..,,,,..tt',
       'ttttt.,,,,....,,,....,,,,,..tt',
       'tttttt.,,,....,,,,...,,,...ttt',
-      'ttt...........,,,.........tttt',
+      'ttt....m......,,,......g..tttt',
       't............,,,,...........tt',
       'pppppppppppppp,,,,pppppp..tttt',
       't.........,,,,,,,....rrrr...tt',
       't...,,.....,,,,,.....rrrr...tt',
-      't...,,,..............bbdb...tt',
-      't....,,.....................tt',
+      't...,,,..............WbdW...tt',
+      't....,,....m...........g....tt',
       't..........,,,,,,...........tt',
       'tt.........,,,,,,..........ttt',
       'ttt........,,,,............ttt',
-      'tttt......................tttt',
+      'tttt...m..............g...tttt',
       'tttttttttttttttttttttttttttttt',
     ],
     portals: [
@@ -566,13 +673,14 @@ window.MAPS = {
     theme: { sky: '#191326', ground: '#2c2440' },
     encounters: ['crab', 'nullp', 'sloth'],
     dark: true,
+    ambient: 'dust',
     rows: [
       'CCCCCCCCCCCCCCCCCCCCCCCCCC',
-      'CCCcccccCCCCCCcccccccccCCC',
+      'CCCccKccCCCCCCccccKccccCCC',
       'CCcccc;;cccCCCccc;;;ccCCCC',
       'CCccc;;;;ccCCCcc;;;ccccccc',
       'CCcccc;;;cccCCcc;;;;ccccCC',
-      'CCCcccccccccccc;;;cccccCCC',
+      'CCCcKcccccccccc;;;ccKccCCC',
       'CCCCCcccCCCCccccccccCCCCCC',
       'CCCCCcccCCCCcc;;;;ccCCCCCC',
       'CCCcc;;;ccCCCcccccccccCCCC',
@@ -581,7 +689,7 @@ window.MAPS = {
       'CCCcc;;;cccCCCCCcccccccCCC',
       'CCCCccccccCCCCCCCcccccCCCC',
       'CCCCCcccccCCCCCCCcccCCCCCC',
-      'CCCCCCcccccccccccccCCCCCCC',
+      'CCCCCCcccuccccccccccCCCCCC',
       'CCCCCCCCCCCCCcCCCCCCCCCCCC',
     ],
     portals: [
@@ -596,21 +704,22 @@ window.MAPS = {
     theme: { sky: '#131a30', ground: '#3a4258' },
     encounters: [],
     night: true,
+    ambient: 'data',
     rows: [
       'SSSSSSSSSSSSSSSSSSSSSSSSSSSS',
       'S~~~.......bbbbbb......~~~~S',
       'S~~~.......bbddbb......~~~~S',
-      'S...........PP.............S',
+      'S......L....PP....L........S',
       'SPPPPPPPPPPPPPPPPPPPPPPPPPPS',
       'S....PP......PP.......PP...S',
       'SSS..PP..SSS.PP.SSS...PP.SSS',
       'SSS..PP..SSS.PP.SSS...PP.SSS',
       'S....PP......PP.......PP...S',
       'PPPPPPPPPPPPPPPPPPPPPPPPPPPP',
-      'S....PP.........PP.........S',
+      'S....PP..L......PP....L....S',
       'S~~..PP....S....PP....~~~..S',
       'S~~..PPPPPPPPPPPPP....~~~..S',
-      'S............P.............S',
+      'S....L.......P........L....S',
       'S..........................S',
       'SSSSSSSSSSSSSSSSSSSSSSSSSSSS',
     ],
@@ -628,21 +737,22 @@ window.MAPS = {
     pad: 'b',
     theme: { sky: '#33122a', ground: '#4a2440' },
     encounters: [],
+    ambient: 'embers',
     rows: [
       'bbbbbbbbbbbbbbbb',
-      'bbbbbbbbbbbbbbbb',
-      'bffffffffffffffb',
-      'bffffffffffffffb',
-      'bffffffffffffffb',
-      'bffffffffffffffb',
-      'bffffffffffffffb',
-      'bffffffffffffffb',
-      'bffffffffffffffb',
-      'bffffffffffffffb',
-      'bffffffffffffffb',
-      'bffffffffffffffb',
-      'bbbbbbbffbbbbbbb',
-      'bbbbbbbffbbbbbbb',
+      'bbbBbbbbbbbbBbbb',
+      'bffffffqqffffffb',
+      'bffffffqqffffffb',
+      'bffffffqqffffffb',
+      'bffffffqqffffffb',
+      'bffffffqqffffffb',
+      'bffffffqqffffffb',
+      'bffffffqqffffffb',
+      'bffffffqqffffffb',
+      'bffffffqqffffffb',
+      'bffffffqqffffffb',
+      'bbbbbbbqqbbbbbbb',
+      'bbbbbbbqqbbbbbbb',
     ],
     portals: [
       { x: 7, y: 13, to: 'city', tx: 13, ty: 3 },

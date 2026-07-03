@@ -1,7 +1,8 @@
 /* ============================================================
    Вайб-Кодер: Легенда Великого Релиза — движок.
-   Один IIFE: спрайты, тайлы, карты, движение, диалоги,
-   пошаговые бои, меню, сохранение. Без зависимостей.
+   Один IIFE: спрайты (обводка, анимация ходьбы, аксессуары),
+   тайлы (2 фазы анимации), карты, частицы, диалоги с портретами,
+   пошаговые бои с задниками, меню, сохранение. Без зависимостей.
    ============================================================ */
 (() => {
 'use strict';
@@ -22,7 +23,9 @@ ctx.imageSmoothingEnabled = false;
 /* ============================================================
    СПРАЙТЫ
    ============================================================ */
-const SPR = {};
+const SPR = {};       // одиночные спрайты (обведённые)
+const SPRF = {};      // отражённые копии
+const PORTRAITS = {}; // имя говорящего → канвас портрета
 
 function artToCanvas(rows, remap) {
   const h = rows.length, w = rows[0].length;
@@ -52,21 +55,101 @@ function flipH(src) {
   return c;
 }
 
+/* тёмная обводка вокруг непрозрачных пикселей — читаемость на любом фоне */
+function outline(src, color = '#141420') {
+  const w = src.width, h = src.height;
+  const data = src.getContext('2d').getImageData(0, 0, w, h).data;
+  const a = (x, y) => data[(y * w + x) * 4 + 3];
+  const c = document.createElement('canvas');
+  c.width = w; c.height = h;
+  const g = c.getContext('2d');
+  g.drawImage(src, 0, 0);
+  g.fillStyle = color;
+  for (let y = 0; y < h; y++)
+    for (let x = 0; x < w; x++) {
+      if (a(x, y)) continue;
+      if ((x > 0 && a(x - 1, y)) || (x < w - 1 && a(x + 1, y)) ||
+          (y > 0 && a(x, y - 1)) || (y < h - 1 && a(x, y + 1)))
+        g.fillRect(x, y, 1, 1);
+    }
+  return c;
+}
+
+/* аксессуар поверх собранного персонажа */
+function applyAcc(c, accName, dir) {
+  if (!accName) return;
+  const acc = ACCESSORIES[accName];
+  const rows = acc && acc.rows[dir];
+  if (!rows) return;
+  const g = c.getContext('2d');
+  for (const [ry, str] of rows)
+    for (let x = 0; x < str.length; x++) {
+      const col = PAL[str[x]];
+      if (!col) continue;
+      g.fillStyle = col;
+      g.fillRect(x, ry, 1, 1);
+    }
+}
+
+/* человечек: 4 направления × 3 кадра (стоя / шаг Л / шаг П) */
 function buildHuman(cfg) {
   const remap = { q: cfg.hair, Q: cfg.hairD, z: cfg.shirt, Z: cfg.shirtD, u: cfg.pants || 'K' };
-  const down = artToCanvas(HUMAN_TPL.down, remap);
-  const up = artToCanvas(HUMAN_TPL.up, remap);
-  const right = artToCanvas(HUMAN_TPL.side, remap);
-  return { down, up, right, left: flipH(right) };
+  const out = {};
+  for (const dir of ['down', 'up', 'side']) {
+    const head = HUMAN_TPL[dir].slice(0, 14);
+    const frames = LEG_FRAMES[dir].map(legs => {
+      const c = artToCanvas(head.concat(legs), remap);
+      applyAcc(c, cfg.acc, dir);
+      return outline(c);
+    });
+    if (dir === 'side') { out.right = frames; out.left = frames.map(flipH); }
+    else out[dir] = frames;
+  }
+  return out;
 }
 
 function buildSprites() {
-  for (const k in SPRITES) SPR[k] = artToCanvas(SPRITES[k]);
+  for (const k in SPRITES) {
+    SPR[k] = outline(artToCanvas(SPRITES[k]));
+    SPRF[k] = flipH(SPR[k]);
+  }
   SPR.player = buildHuman({ hair: 'h', hairD: 'H', shirt: 'b', shirtD: 'B', pants: 'K' });
+
+  // портреты: игрок, Клод, враги, объекты
+  PORTRAITS['Джун'] = SPR.player.down[0];
+  PORTRAITS['Клод'] = SPR.claude;
+  PORTRAITS['Терминал'] = SPR.terminal;
+  PORTRAITS['Деплой-Терминал'] = SPR.terminal;
+  PORTRAITS['Табличка'] = SPR.sign;
+  PORTRAITS['Кот Багси'] = SPR.cat;
+  PORTRAITS['КлинАп-9000'] = SPR.robot;
+  PORTRAITS['Голова слева'] = SPR.conflict;
+  PORTRAITS['Голова справа'] = SPR.conflict;
+  for (const id in ENEMIES) PORTRAITS[ENEMIES[id].name] = SPR[ENEMIES[id].spr];
+  // персонажи-люди из сюжета
+  for (const def of NPCS) {
+    if (def.human) {
+      def._sprites = buildHuman(def.human);
+      PORTRAITS[def.name] = def._sprites.down[0];
+    } else if (def.spr && !PORTRAITS[def.name]) {
+      PORTRAITS[def.name] = SPR[def.spr];
+    }
+  }
+  // короткие имена, которыми персонажи зовут себя в репликах
+  const alias = {
+    'Пиксель': 'Дизайнер Пиксель',
+    'Ната': 'Жительница Ната',
+    'Октавия': 'Сеньора Октавия',
+    'Джава': 'Бариста Джава',
+    'Грейс': 'Тимлид Грейс',
+    'Ада': 'QA Ада',
+    'Пип': 'Стажёр Пип',
+  };
+  for (const short in alias) if (PORTRAITS[alias[short]]) PORTRAITS[short] = PORTRAITS[alias[short]];
 }
 
 /* ============================================================
-   ТАЙЛЫ
+   ТАЙЛЫ (ph — фаза анимации 0/1)
    ============================================================ */
 function hash2(x, y) {
   let h = (x * 374761393 + y * 668265263) ^ 2654435761;
@@ -77,15 +160,19 @@ function hash2(x, y) {
 const TILE_PAINTERS = {
   '.': (g, px, py, x, y) => {
     g.fillStyle = '#3e8e50'; g.fillRect(px, py, 16, 16);
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < 6; i++) {
       const r = hash2(x * 7 + i, y * 13 + i);
-      g.fillStyle = r > 0.5 ? '#4aa25c' : '#357a44';
+      g.fillStyle = r > 0.66 ? '#4aa25c' : r > 0.33 ? '#357a44' : '#46985a';
       g.fillRect(px + ((r * 97) | 0) % 15, py + ((r * 53) | 0) % 15, 1, 1);
+    }
+    if (hash2(x * 3, y * 5) > 0.9) { // редкие травинки
+      g.fillStyle = '#2f6e3e';
+      const bx = px + ((hash2(y, x) * 13) | 0) % 13;
+      g.fillRect(bx, py + 10, 1, 3); g.fillRect(bx + 2, py + 11, 1, 2);
     }
   },
   ',': (g, px, py, x, y) => {
     TILE_PAINTERS['.'](g, px, py, x, y);
-    // три пучка травы: тёмное основание + светлая верхушка
     for (let i = 0; i < 3; i++) {
       const bx = px + 1 + i * 5 + ((hash2(x + i, y) * 3) | 0);
       const bh = 7 + ((hash2(x, y + i) * 5) | 0);
@@ -101,15 +188,46 @@ const TILE_PAINTERS = {
     const kinds = [['#f272c8', '#f6e26b'], ['#f6e26b', '#e88968'], ['#ece7db', '#f6e26b']];
     const [pet, cen] = kinds[(hash2(x, y) * 3) | 0];
     const fx = px + 3 + ((hash2(x, y) * 7) | 0), fy = py + 4 + ((hash2(y, x) * 6) | 0);
+    g.fillStyle = '#2f7d45'; g.fillRect(fx, fy + 2, 1, 4);
     g.fillStyle = pet;
     g.fillRect(fx - 1, fy, 1, 1); g.fillRect(fx + 1, fy, 1, 1);
     g.fillRect(fx, fy - 1, 1, 1); g.fillRect(fx, fy + 1, 1, 1);
     g.fillStyle = cen; g.fillRect(fx, fy, 1, 1);
     g.fillStyle = '#2f7d45'; g.fillRect(fx + 4, fy + 5, 2, 2);
   },
+  'g': (g, px, py, x, y) => { // камешки
+    TILE_PAINTERS['.'](g, px, py, x, y);
+    for (let i = 0; i < 3; i++) {
+      const r = hash2(x + i * 3, y - i);
+      const gx = px + 2 + ((r * 41) | 0) % 11, gy = py + 3 + ((r * 29) | 0) % 10;
+      g.fillStyle = '#8a92a8'; g.fillRect(gx, gy, 3, 2);
+      g.fillStyle = '#b9becf'; g.fillRect(gx, gy, 2, 1);
+      g.fillStyle = '#5a6278'; g.fillRect(gx + 1, gy + 1, 2, 1);
+    }
+  },
+  'm': (g, px, py, x, y) => { // гриб
+    TILE_PAINTERS['.'](g, px, py, x, y);
+    g.fillStyle = '#ece7db'; g.fillRect(px + 6, py + 9, 3, 4);
+    g.fillStyle = '#e04f4f'; g.fillRect(px + 4, py + 6, 8, 3); g.fillRect(px + 5, py + 5, 6, 1);
+    g.fillStyle = '#ffffff';
+    g.fillRect(px + 6, py + 6, 1, 1); g.fillRect(px + 9, py + 7, 1, 1);
+    g.fillStyle = '#a83030'; g.fillRect(px + 4, py + 8, 8, 1);
+  },
+  'e': (g, px, py, x, y) => { // забор
+    TILE_PAINTERS['.'](g, px, py, x, y);
+    g.fillStyle = '#8a5a34';
+    g.fillRect(px + 2, py + 4, 2, 10); g.fillRect(px + 12, py + 4, 2, 10);
+    g.fillRect(px, py + 6, 16, 2); g.fillRect(px, py + 10, 16, 2);
+    g.fillStyle = '#5f3c20';
+    g.fillRect(px + 2, py + 13, 2, 1); g.fillRect(px + 12, py + 13, 2, 1);
+    g.fillStyle = '#b87f4e';
+    g.fillRect(px + 2, py + 4, 2, 1); g.fillRect(px + 12, py + 4, 2, 1);
+  },
   't': (g, px, py, x, y) => {
     TILE_PAINTERS['.'](g, px, py, x, y);
+    g.fillStyle = 'rgba(0,0,0,.22)'; g.fillRect(px + 3, py + 13, 10, 2); // тень кроны
     g.fillStyle = '#5f3c20'; g.fillRect(px + 6, py + 10, 4, 6);
+    g.fillStyle = '#4a2e16'; g.fillRect(px + 6, py + 10, 1, 6);
     g.fillStyle = '#1f5c31';
     g.fillRect(px + 2, py + 3, 12, 9);
     g.fillRect(px + 4, py + 1, 8, 13);
@@ -117,28 +235,34 @@ const TILE_PAINTERS = {
     g.fillRect(px + 4, py + 2, 5, 3);
     g.fillRect(px + 3 + ((hash2(x, y) * 6) | 0), py + 6, 3, 2);
     g.fillStyle = '#174726'; g.fillRect(px + 9, py + 8, 4, 3);
+    g.fillStyle = '#3f9a58'; g.fillRect(px + 5, py + 1, 2, 1); // блик
   },
-  'w': (g, px, py, x, y) => {
+  'w': (g, px, py, x, y, ph) => {
     g.fillStyle = '#2b5f9e'; g.fillRect(px, py, 16, 16);
     g.fillStyle = '#4f7de0';
     for (let i = 0; i < 3; i++) {
       const r = hash2(x + i * 3, y + i);
-      g.fillRect(px + ((r * 23) | 0) % 11, py + 2 + i * 5, 4 + ((r * 7) | 0) % 3, 1);
+      const wx = (((r * 23) | 0) % 11) + (ph ? 3 : 0);
+      g.fillRect(px + (wx % 11), py + 2 + i * 5, 4 + ((r * 7) | 0) % 3, 1);
     }
-    g.fillStyle = '#1e4776'; g.fillRect(px + ((hash2(y, x) * 13) | 0) % 12, py + 9, 3, 1);
+    g.fillStyle = '#7ea4ec';
+    g.fillRect(px + ((hash2(y, x) * 13) | 0) % 12 + (ph ? 2 : 0), py + 6, 2, 1);
+    g.fillStyle = '#1e4776'; g.fillRect(px + ((hash2(y, x) * 13) | 0) % 12, py + 9 + (ph ? 1 : 0), 3, 1);
   },
   '=': (g, px, py) => {
     g.fillStyle = '#8a5a34'; g.fillRect(px, py, 16, 16);
     g.fillStyle = '#6f4526';
     g.fillRect(px, py + 4, 16, 1); g.fillRect(px, py + 9, 16, 1); g.fillRect(px, py + 14, 16, 1);
+    g.fillStyle = '#b87f4e'; g.fillRect(px, py, 16, 1);
   },
   'p': (g, px, py, x, y) => {
     g.fillStyle = '#c9a35f'; g.fillRect(px, py, 16, 16);
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < 5; i++) {
       const r = hash2(x * 3 + i, y * 5 - i);
       g.fillStyle = r > 0.5 ? '#b08a4a' : '#d9b877';
       g.fillRect(px + ((r * 89) | 0) % 14, py + ((r * 31) | 0) % 14, 2, 1);
     }
+    if (hash2(x, y * 7) > 0.88) { g.fillStyle = '#a37f42'; g.fillRect(px + 5, py + 8, 3, 2); }
   },
   '#': (g, px, py, x, y) => {
     g.fillStyle = '#6e7488'; g.fillRect(px, py, 16, 16);
@@ -156,6 +280,14 @@ const TILE_PAINTERS = {
     }
     g.fillStyle = '#b87f4e'; g.fillRect(px + 1 + ((hash2(x, y) * 7) | 0) % 7, py + 1, 3, 1);
   },
+  'W': (g, px, py, x, y, ph) => { // стена с тёплым окном
+    TILE_PAINTERS['b'](g, px, py, x, y);
+    g.fillStyle = '#5f3c20'; g.fillRect(px + 3, py + 3, 10, 9);
+    g.fillStyle = ph ? '#f6e26b' : '#f2d54d'; g.fillRect(px + 4, py + 4, 8, 7);
+    g.fillStyle = '#c7852f';
+    g.fillRect(px + 7, py + 4, 1, 7); g.fillRect(px + 4, py + 7, 8, 1);
+    g.fillStyle = '#fff3b0'; g.fillRect(px + 5, py + 5, 2, 1);
+  },
   'r': (g, px, py, x, y) => {
     g.fillStyle = '#2f9d9d'; g.fillRect(px, py, 16, 16);
     g.fillStyle = '#267f7f';
@@ -170,25 +302,29 @@ const TILE_PAINTERS = {
     TILE_PAINTERS['b'](g, px, py, x, y);
     g.fillStyle = '#5f3c20'; g.fillRect(px + 3, py + 3, 10, 13);
     g.fillStyle = '#7a5230'; g.fillRect(px + 4, py + 4, 8, 11);
+    g.fillStyle = '#8a5f38'; g.fillRect(px + 5, py + 5, 2, 4);
     g.fillStyle = '#f2d54d'; g.fillRect(px + 11, py + 9, 1, 2);
   },
-  'T': (g, px, py, x, y) => {
+  'T': (g, px, py, x, y, ph) => {
     g.fillStyle = '#232637'; g.fillRect(px, py, 16, 16);
     g.fillStyle = '#3a3f52'; g.fillRect(px + 1, py + 1, 14, 1); g.fillRect(px + 1, py + 1, 1, 14);
     g.fillStyle = '#101019'; g.fillRect(px + 3, py + 4, 10, 8);
     g.fillStyle = '#7de3a0';
     const n = 2 + ((hash2(x, y) * 3) | 0);
-    for (let i = 0; i < n; i++) g.fillRect(px + 4, py + 5 + i * 2, 3 + ((hash2(x + i, y) * 6) | 0), 1);
+    for (let i = 0; i < n; i++)
+      g.fillRect(px + 4 + (ph && i === n - 1 ? 2 : 0), py + 5 + i * 2, 3 + ((hash2(x + i, y + ph) * 6) | 0), 1);
+    if (ph) { g.fillStyle = '#aef2c4'; g.fillRect(px + 4, py + 5 + n * 2, 2, 1); } // курсор мигает
   },
   'C': (g, px, py, x, y) => {
     g.fillStyle = '#2a2138'; g.fillRect(px, py, 16, 16);
     g.fillStyle = '#3a2f52'; g.fillRect(px + 1 + ((hash2(x, y) * 8) | 0) % 8, py + 2, 5, 3);
     g.fillStyle = '#1c1628'; g.fillRect(px + ((hash2(y, x) * 12) | 0) % 10, py + 8, 6, 3);
     g.fillStyle = '#181224'; g.fillRect(px, py + 14, 16, 2);
+    g.fillStyle = '#4a3d68'; g.fillRect(px + ((hash2(x + 9, y) * 11) | 0) % 12, py + 5, 2, 1);
   },
   'c': (g, px, py, x, y) => {
     g.fillStyle = '#453a5e'; g.fillRect(px, py, 16, 16);
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < 5; i++) {
       const r = hash2(x * 5 + i, y * 3 + i);
       g.fillStyle = r > 0.5 ? '#3a3050' : '#524670';
       g.fillRect(px + ((r * 71) | 0) % 14, py + ((r * 37) | 0) % 14, 2, 1);
@@ -203,33 +339,63 @@ const TILE_PAINTERS = {
     }
     g.fillStyle = '#6a5c8e'; g.fillRect(px + ((hash2(x, y) * 13) | 0) % 13, py + 5, 1, 1);
   },
+  'K': (g, px, py, x, y, ph) => { // светящийся кристалл
+    TILE_PAINTERS['c'](g, px, py, x, y);
+    const glow = ph ? '#8af0f0' : '#54d6d6';
+    g.fillStyle = ph ? 'rgba(84,214,214,.18)' : 'rgba(84,214,214,.10)';
+    g.fillRect(px + 1, py + 1, 14, 14);
+    g.fillStyle = '#2f9d9d';
+    g.fillRect(px + 5, py + 5, 4, 9); g.fillRect(px + 9, py + 8, 3, 6);
+    g.fillStyle = glow;
+    g.fillRect(px + 5, py + 3, 3, 8); g.fillRect(px + 9, py + 6, 2, 5);
+    g.fillStyle = '#d8ffff'; g.fillRect(px + 6, py + 4, 1, 3);
+  },
+  'u': (g, px, py, x, y) => { // сталагмит
+    TILE_PAINTERS['c'](g, px, py, x, y);
+    g.fillStyle = '#3a3050';
+    g.fillRect(px + 6, py + 4, 4, 10); g.fillRect(px + 4, py + 10, 8, 4);
+    g.fillStyle = '#524670'; g.fillRect(px + 7, py + 3, 2, 2); g.fillRect(px + 6, py + 5, 1, 6);
+    g.fillStyle = '#2c2440'; g.fillRect(px + 9, py + 6, 1, 8);
+  },
   'P': (g, px, py, x, y) => {
     g.fillStyle = '#4a5266'; g.fillRect(px, py, 16, 16);
     g.fillStyle = '#3a4152';
     g.fillRect(px, py + 15, 16, 1); g.fillRect(px + 15, py, 1, 16);
     g.fillStyle = '#565f76'; g.fillRect(px, py, 16, 1);
     if (hash2(x, y) > 0.85) { g.fillStyle = '#3a4152'; g.fillRect(px + 5, py + 5, 5, 5); g.fillStyle = '#565f76'; g.fillRect(px + 6, py + 6, 3, 3); }
+    if (hash2(x * 5, y) > 0.9) { g.fillStyle = '#7de3a0'; g.fillRect(px + 3, py + 11, 2, 1); } // мох в трещине
   },
-  'S': (g, px, py, x, y) => {
+  'L': (g, px, py, x, y, ph) => { // фонарь
+    TILE_PAINTERS['P'](g, px, py, x, y);
+    g.fillStyle = '#232637'; g.fillRect(px + 7, py + 4, 2, 11);
+    g.fillStyle = '#3a3f52'; g.fillRect(px + 5, py + 14, 6, 2);
+    g.fillStyle = ph ? '#fff3b0' : '#f6e26b';
+    g.fillRect(px + 5, py + 1, 6, 4);
+    g.fillStyle = 'rgba(246,226,107,.16)'; g.fillRect(px + 2, py, 12, 8);
+    g.fillStyle = '#232637'; g.fillRect(px + 5, py, 6, 1);
+  },
+  'S': (g, px, py, x, y, ph) => {
     g.fillStyle = '#1d2334'; g.fillRect(px, py, 16, 16);
-    g.fillStyle = '#12172400'; // прозрачный сток, не используется
     g.fillStyle = '#2a3248';
     for (let ry = 0; ry < 4; ry++) g.fillRect(px + 2, py + 2 + ry * 4, 12, 2);
+    g.fillStyle = '#12172a'; g.fillRect(px, py + 15, 16, 1);
     const leds = ['#49b866', '#54d6d6', '#e04f4f', '#f2d54d'];
     for (let ry = 0; ry < 4; ry++) {
       const r = hash2(x * 3 + ry, y * 7 + ry);
-      g.fillStyle = leds[(r * leds.length) | 0];
+      g.fillStyle = leds[((r * leds.length) | 0) + (ph ? 1 : 0) & 3];
       g.fillRect(px + 3 + ((r * 17) | 0) % 9, py + 2 + ry * 4, 1, 1);
     }
   },
-  '~': (g, px, py, x, y) => {
+  '~': (g, px, py, x, y, ph) => {
     g.fillStyle = '#101a2e'; g.fillRect(px, py, 16, 16);
     g.fillStyle = '#54d6d6';
     for (let i = 0; i < 3; i++) {
       const r = hash2(x + i, y * 2 + i);
-      g.fillRect(px + 2 + i * 5, py + ((r * 29) | 0) % 10, 1, 4 + ((r * 5) | 0));
+      const oy = (((r * 29) | 0) % 10 + (ph ? 4 : 0)) % 12;
+      g.fillRect(px + 2 + i * 5, py + oy, 1, 4 + ((r * 5) | 0));
     }
-    g.fillStyle = '#2f9d9d'; g.fillRect(px + ((hash2(y, x) * 11) | 0) % 14, py + 12, 1, 3);
+    g.fillStyle = '#2f9d9d'; g.fillRect(px + ((hash2(y, x) * 11) | 0) % 14, py + (ph ? 9 : 12), 1, 3);
+    g.fillStyle = '#8af0f0'; g.fillRect(px + 7, py + (ph ? 2 : 6), 1, 1);
   },
   'f': (g, px, py, x, y) => {
     g.fillStyle = '#8a5a34'; g.fillRect(px, py, 16, 16);
@@ -238,13 +404,36 @@ const TILE_PAINTERS = {
     g.fillRect(px + (y % 2 ? 4 : 10), py, 1, 7); g.fillRect(px + (y % 2 ? 12 : 6), py + 8, 1, 7);
     g.fillStyle = '#9c6a40'; g.fillRect(px + ((hash2(x, y) * 13) | 0) % 13, py + 2, 3, 1);
   },
+  'q': (g, px, py, x, y) => { // ковровая дорожка
+    g.fillStyle = '#8a2635'; g.fillRect(px, py, 16, 16);
+    g.fillStyle = '#a83345';
+    for (let i = 0; i < 4; i++) {
+      const r = hash2(x * 3 + i, y * 5 + i);
+      g.fillRect(px + ((r * 59) | 0) % 14, py + ((r * 37) | 0) % 14, 2, 1);
+    }
+    g.fillStyle = '#f2d54d';
+    g.fillRect(px, py, 1, 16); g.fillRect(px + 15, py, 1, 16);
+    g.fillStyle = '#6e1c28';
+    g.fillRect(px + 1, py, 1, 16); g.fillRect(px + 14, py, 1, 16);
+    if ((x + y) % 3 === 0) { g.fillStyle = '#f2d54d'; g.fillRect(px + 7, py + 7, 2, 2); }
+  },
+  'B': (g, px, py, x, y) => { // стена со знаменем релиза
+    TILE_PAINTERS['b'](g, px, py, x, y);
+    g.fillStyle = '#c05f3f'; g.fillRect(px + 4, py, 8, 12);
+    g.fillStyle = '#e88968'; g.fillRect(px + 5, py, 6, 11);
+    g.fillStyle = '#f2d54d';
+    g.fillRect(px + 7, py + 3, 2, 2); g.fillRect(px + 6, py + 6, 4, 1);
+    g.fillStyle = '#c05f3f';
+    g.fillRect(px + 5, py + 11, 2, 1); g.fillRect(px + 9, py + 11, 2, 1);
+  },
   'x': (g, px, py) => { g.fillStyle = '#05060a'; g.fillRect(px, py, 16, 16); },
 };
 
-/* ---------- пререндер карт ---------- */
+/* ---------- пререндер карт (2 фазы анимации) ---------- */
 const mapCache = {};
-function renderMap(name) {
-  if (mapCache[name]) return mapCache[name];
+function renderMap(name, ph = 0) {
+  const key = name + ph;
+  if (mapCache[key]) return mapCache[key];
   const m = MAPS[name];
   const w = m.rows[0].length;
   m.rows = m.rows.map(r => (r + m.pad.repeat(w)).slice(0, w)); // нормализация ширины
@@ -254,9 +443,9 @@ function renderMap(name) {
   for (let y = 0; y < m.rows.length; y++)
     for (let x = 0; x < w; x++) {
       const ch = m.rows[y][x];
-      (TILE_PAINTERS[ch] || TILE_PAINTERS['.'])(g, x * TILE, y * TILE, x, y);
+      (TILE_PAINTERS[ch] || TILE_PAINTERS['.'])(g, x * TILE, y * TILE, x, y, ph);
     }
-  mapCache[name] = c;
+  mapCache[key] = c;
   return c;
 }
 
@@ -351,6 +540,18 @@ function updateHUD() {
   $('hud-coins').textContent = G.coins;
   $('hud-hp').style.transform = `scaleX(${clamp(G.hp / G.maxhp, 0, 1)})`;
   $('hud-en').style.transform = `scaleX(${clamp(G.en / G.maxen, 0, 1)})`;
+  $('hud-hp-t').textContent = `HP ${G.hp}/${G.maxhp}`;
+  $('hud-en-t').textContent = `EN ${G.en}/${G.maxen}`;
+}
+
+function drawFace(cnv, spr, size) {
+  const g = cnv.getContext('2d');
+  g.imageSmoothingEnabled = false;
+  g.clearRect(0, 0, cnv.width, cnv.height);
+  if (!spr) return;
+  const s = Math.min(cnv.width / spr.width, cnv.height / spr.height);
+  const w = Math.floor(spr.width * s), h = Math.floor(spr.height * s);
+  g.drawImage(spr, ((cnv.width - w) / 2) | 0, ((cnv.height - h) / 2) | 0, w, h);
 }
 
 function toast(text, ms = 2600) {
@@ -374,7 +575,7 @@ function floatText(text, xPct, yPct, cls = '') {
 }
 
 /* ============================================================
-   ДИАЛОГИ
+   ДИАЛОГИ (с портретами)
    ============================================================ */
 let advanceFn = null;
 let typing = null;
@@ -385,6 +586,9 @@ function say(name, text) {
     G.state = 'dialog';
     $('dialog').hidden = false;
     $('dlg-name').textContent = name || '';
+    const face = PORTRAITS[name];
+    $('dlg-portrait').hidden = !face;
+    if (face) drawFace($('dlg-face'), face, 32);
     const el = $('dlg-text');
     el.textContent = '';
     let i = 0, done = false;
@@ -415,6 +619,7 @@ function choice(title, options) {
     G.state = 'dialog';
     $('dialog').hidden = false;
     $('dlg-name').textContent = '';
+    $('dlg-portrait').hidden = true;
     $('dlg-text').textContent = title;
     $('dlg-hint').style.visibility = 'hidden';
     const box = $('choices');
@@ -468,19 +673,77 @@ function useItem(id) {
 }
 
 /* ============================================================
-   КАРТА / СУЩНОСТИ
+   КАРТА / СУЩНОСТИ / ЧАСТИЦЫ
    ============================================================ */
 let ents = [];
 
 function buildEnts() {
   ents = NPCS.filter(n => n.map === G.map).map(def => {
-    let sprites = null;
-    if (def.human) sprites = buildHuman({ hair: def.human.hair, hairD: def.human.hairD, shirt: def.human.shirt, shirtD: def.human.shirtD, pants: def.human.pants });
-    return { def, x: def.x, y: def.y, sprites };
+    let sprites = def._sprites || null;
+    return { def, x: def.x, y: def.y, sprites, walkT: 0, par: 0, flip: false, patrolT: 800 + Math.random() * 1200 };
   });
 }
 const entVisible = e => !(e.def.hidden && e.def.hidden()) && !(e.def.pickup && G.flags[e.def.flag]);
 const entAt = (x, y) => ents.find(e => e.x === x && e.y === y && entVisible(e) && !e.def.pickup);
+
+/* прогулки живности (кот, робот) */
+function updatePatrols(dt) {
+  if (G.state !== 'explore') return;
+  const m = MAPS[G.map];
+  for (const e of ents) {
+    if (!e.def.patrol || !entVisible(e)) continue;
+    if (e.walkT > 0) e.walkT -= dt;
+    e.patrolT -= dt;
+    if (e.patrolT > 0) continue;
+    e.patrolT = 1200 + Math.random() * 1600;
+    const tx = e.x === e.def.x ? e.def.x + e.def.patrol : e.def.x;
+    if (isSolidTile(m, tx, e.y) || entAt(tx, e.y) || (G.px === tx && G.py === e.y)) continue;
+    e.flip = tx < e.x;
+    e.x = tx;
+    e.walkT = 300;
+    e.par ^= 1;
+  }
+}
+
+/* атмосферные частицы */
+const AMBIENT = {
+  petals: { n: 14, mk: () => ({ c: Math.random() < 0.5 ? '#f272c8' : '#ece7db', vy: 12 + Math.random() * 10, sway: 14, s: 2 }) },
+  leaves: { n: 16, mk: () => ({ c: Math.random() < 0.5 ? '#5fae57' : '#2f7d45', vy: 18 + Math.random() * 14, sway: 20, s: 2 }) },
+  dust:   { n: 18, mk: () => ({ c: Math.random() < 0.5 ? '#6a5c8e' : '#8a7cb0', vy: -6 - Math.random() * 6, sway: 6, s: 1 }) },
+  data:   { n: 16, mk: () => ({ c: Math.random() < 0.5 ? '#54d6d6' : '#7de3a0', vy: -26 - Math.random() * 20, sway: 2, s: 1, tall: 3 }) },
+  embers: { n: 16, mk: () => ({ c: Math.random() < 0.5 ? '#f0913f' : '#e88968', vy: -14 - Math.random() * 12, sway: 10, s: 2 }) },
+};
+let parts = [], partsFor = null;
+
+function ensureParts() {
+  const kind = MAPS[G.map].ambient;
+  if (partsFor === kind) return;
+  partsFor = kind;
+  parts = [];
+  if (!kind || reduceMotion) return;
+  const cfg = AMBIENT[kind];
+  for (let i = 0; i < cfg.n; i++) {
+    const p = cfg.mk();
+    p.x = Math.random() * VIEW_W;
+    p.y = Math.random() * VIEW_H;
+    p.ph = Math.random() * 6.28;
+    parts.push(p);
+  }
+}
+
+function drawParts(dt, t) {
+  ensureParts();
+  for (const p of parts) {
+    p.y += p.vy * dt / 1000;
+    p.x += Math.sin(t / 900 + p.ph) * p.sway * dt / 1000;
+    if (p.vy > 0 && p.y > VIEW_H + 4) { p.y = -4; p.x = Math.random() * VIEW_W; }
+    if (p.vy < 0 && p.y < -4) { p.y = VIEW_H + 4; p.x = Math.random() * VIEW_W; }
+    ctx.globalAlpha = 0.75;
+    ctx.fillStyle = p.c;
+    ctx.fillRect(Math.round(p.x), Math.round(p.y), p.s, p.tall || p.s);
+    ctx.globalAlpha = 1;
+  }
+}
 
 const fade = on => new Promise(res => {
   $('fade').classList.toggle('on', on);
@@ -491,7 +754,7 @@ async function loadMap(name, x, y, { skipEvent } = {}) {
   await fade(true);
   G.map = name; G.px = x; G.py = y;
   moveAnim = null;
-  renderMap(name);
+  renderMap(name, 0); renderMap(name, 1);
   buildEnts();
   save();
   toast(MAPS[name].name, 1800);
@@ -509,8 +772,9 @@ function endDialog() {
    ДВИЖЕНИЕ
    ============================================================ */
 const input = { up: false, down: false, left: false, right: false };
-let moveAnim = null; // {fx,fy,tx,ty,t}
+let moveAnim = null; // {fx,fy,t}
 let stepsSinceBattle = 0;
+let stepPar = 0; // чередование кадров шага
 
 const DIRS = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] };
 
@@ -529,6 +793,7 @@ function tryMove(dir) {
     return;
   }
   moveAnim = { fx: G.px, fy: G.py, t: 0 };
+  stepPar ^= 1;
   G.px = nx; G.py = ny;
 }
 
@@ -616,7 +881,8 @@ function battle(enemyId, opts = {}) {
       e: { ...base, name: opts.name || base.name },
       ehp: base.hp, emax: base.hp,
       stun: false, shake: 0, blink: 0, bob: 0,
-      over: false,
+      introT: reduceMotion ? 0 : 550,
+      pAtkT: 0,
       resolve: r => {
         B = null; $('battle-ui').hidden = true; $('controls').hidden = false; G.state = 'explore';
         // поражение обрабатываем централизованно: откат в деревню
@@ -638,6 +904,7 @@ function battle(enemyId, opts = {}) {
 
 function updateEnemyBar() {
   $('b-ehp').style.transform = `scaleX(${clamp(B.ehp / B.emax, 0, 1)})`;
+  $('b-ehp-t').textContent = `${B.ehp}/${B.emax}`;
 }
 
 function battleButtons(list) {
@@ -688,7 +955,9 @@ async function playerAttack(s) {
     vibe: 'Клод: «Отличный запрос!» — и генерирует решение!',
   };
   bmsg(lines[s.id] || 'Атака!');
+  B.pAtkT = reduceMotion ? 0 : 420;
   await wait(550);
+  if (!B) return;
   const dmg = dmgRoll(pAtk(), s.mult, B.e.def);
   B.ehp = Math.max(0, B.ehp - dmg);
   B.shake = reduceMotion ? 0 : 380; B.blink = 380;
@@ -696,6 +965,7 @@ async function playerAttack(s) {
   floatText('-' + dmg, 0.5, 0.28, 'hurt');
   updateEnemyBar();
   await wait(520);
+  if (!B) return;
   if (B.ehp <= 0) return victory();
   const duckStun = G.items.duck ? 0.6 : (s.stun || 0);
   if (s.stun && Math.random() < duckStun) {
@@ -744,6 +1014,7 @@ async function enemyTurn() {
   const line = B.e.lines[ri(0, B.e.lines.length - 1)];
   bmsg(line);
   await wait(650);
+  if (!B) return;
   const enraged = B.e.boss && B.ehp < B.emax * 0.3;
   const dmg = dmgRoll(B.e.atk * (enraged ? 1.3 : 1), 1, pDef());
   G.hp = Math.max(0, G.hp - dmg);
@@ -753,6 +1024,7 @@ async function enemyTurn() {
   updateHUD();
   bmsg(enraged ? `ЯРОСТЬ! ${B.e.name} наносит ${dmg} урона!` : `${B.e.name} наносит ${dmg} урона!`);
   await wait(720);
+  if (!B) return;
   if (G.hp <= 0) {
     bmsg('Джун падает… экран заливает синим…');
     await wait(900);
@@ -792,10 +1064,12 @@ function openMenu() {
   $('menu').hidden = false;
   $('menu-quest').innerHTML = `<b>ЗАДАЧА:</b> ${QUEST_HINTS[Math.min(G.story, QUEST_HINTS.length - 1)]}`;
   $('menu-stats').innerHTML =
+    `<canvas id="menu-face" width="16" height="16"></canvas><div>` +
     `<b>Джун</b> — вайб-кодер ур. ${G.lvl}<br>` +
     `HP ${G.hp}/${G.maxhp} · EN ${G.en}/${G.maxen}<br>` +
     `АТК ${pAtk()} · ЗАЩ ${pDef()} · XP ${G.xp}/${xpNeed()}<br>` +
-    `Монеты: ${G.coins} ☕ · Локация: ${MAPS[G.map].name}`;
+    `Монеты: ${G.coins} ☕ · ${MAPS[G.map].name}</div>`;
+  drawFace($('menu-face'), SPR.player.down[0], 16);
   const box = $('menu-items');
   box.innerHTML = '';
   const keys = Object.keys(G.items);
@@ -830,6 +1104,38 @@ function closeMenu() { $('menu').hidden = true; if (G.state === 'menu') G.state 
 /* ============================================================
    ТИТУЛ / ИНТРО / ФИНАЛ
    ============================================================ */
+function makeTitleArt() {
+  const c = document.createElement('canvas');
+  c.width = 150; c.height = 100;
+  const g = c.getContext('2d');
+  g.imageSmoothingEnabled = false;
+  // небо со звёздами
+  const grd = g.createLinearGradient(0, 0, 0, 100);
+  grd.addColorStop(0, '#131a30'); grd.addColorStop(0.7, '#2a2148'); grd.addColorStop(1, '#33122a');
+  g.fillStyle = grd; g.fillRect(0, 0, 150, 100);
+  g.fillStyle = '#ece7db';
+  for (let i = 0; i < 40; i++) {
+    const r = hash2(i * 7, i * 13);
+    g.globalAlpha = 0.3 + r * 0.7;
+    g.fillRect((r * 1499 | 0) % 150, ((r * 733) | 0) % 62, 1, 1);
+  }
+  g.globalAlpha = 1;
+  // луна-курсор
+  g.fillStyle = '#7de3a0'; g.fillRect(126, 10, 8, 12);
+  g.fillStyle = 'rgba(125,227,160,.25)'; g.fillRect(123, 7, 14, 18);
+  // земля
+  g.fillStyle = '#1d3326'; g.fillRect(0, 78, 150, 22);
+  g.fillStyle = '#2f6e3e'; g.fillRect(0, 78, 150, 3);
+  // дракон нависает справа
+  g.drawImage(SPR.dragon, 88, 26, 56, 56);
+  // герой и Клод слева
+  g.drawImage(SPR.player.down[0], 26, 62, 24, 24);
+  g.drawImage(SPR.claude, 50, 48, 20, 20);
+  // терминал
+  g.drawImage(SPR.terminal, 6, 62, 20, 20);
+  return c.toDataURL();
+}
+
 function showTitle() {
   G.state = 'title';
   $('title').hidden = false;
@@ -850,8 +1156,10 @@ async function startPlay(isNew) {
   $('hud').hidden = false;
   $('controls').hidden = false;
   updateHUD();
-  renderMap(G.map);
+  drawFace($('hud-face'), SPR.player.down[0], 16);
+  renderMap(G.map, 0); renderMap(G.map, 1);
   buildEnts();
+  partsFor = null;
   G.state = 'explore';
   if (isNew) {
     G.state = 'dialog';
@@ -950,9 +1258,17 @@ addEventListener('beforeunload', () => { if (G.state !== 'title') save(); });
 let hurtFlash = 0;
 let animT = 0;
 
-function drawExplore(dt) {
+function shadow(cx, cy, rx = 6, ry = 2.5) {
+  ctx.fillStyle = 'rgba(0,0,0,0.28)';
+  ctx.beginPath();
+  ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function drawExplore(dt, t) {
   const m = MAPS[G.map];
-  const mc = mapCache[G.map] || renderMap(G.map);
+  const phase = reduceMotion ? 0 : ((t / 600) | 0) % 2;
+  const mc = renderMap(G.map, phase);
 
   // позиция игрока в пикселях (с анимацией шага)
   let pxl = G.px * TILE, pyl = G.py * TILE;
@@ -960,9 +1276,9 @@ function drawExplore(dt) {
     moveAnim.t += dt / 140;
     if (moveAnim.t >= 1) { moveAnim = null; onArrive(); }
     else {
-      const t = moveAnim.t;
-      pxl = (moveAnim.fx + (G.px - moveAnim.fx) * t) * TILE;
-      pyl = (moveAnim.fy + (G.py - moveAnim.fy) * t) * TILE;
+      const k = moveAnim.t;
+      pxl = (moveAnim.fx + (G.px - moveAnim.fx) * k) * TILE;
+      pyl = (moveAnim.fy + (G.py - moveAnim.fy) * k) * TILE;
     }
   }
 
@@ -1007,25 +1323,118 @@ function drawExplore(dt) {
     ctx.fillStyle = 'rgba(20,30,70,0.16)';
     ctx.fillRect(0, 0, VIEW_W, VIEW_H);
   }
+
+  drawParts(dt, t);
 }
 
 function drawEnt(e, camX, camY) {
   const bob = (e.def.float && !reduceMotion) ? Math.round(Math.sin(animT / 300) * 2) : 0;
   let spr;
-  if (e.sprites) spr = e.sprites[e.def.dir || 'down'];
-  else if (e.def.chest) spr = G.flags[e.def.id] ? SPR.chestOpen : SPR.chest;
+  if (e.sprites) {
+    const frame = e.walkT > 0 ? 1 + e.par : 0;
+    spr = e.sprites[e.def.dir || 'down'][frame];
+  } else if (e.def.chest) spr = G.flags[e.def.id] ? SPR.chestOpen : SPR.chest;
   else if (e.def.pickup) spr = SPR[e.def.pickup];
-  else spr = SPR[e.def.spr];
+  else spr = (e.flip ? SPRF : SPR)[e.def.spr];
   if (!spr) return;
   const ox = (spr.width - 16) / 2, oy = spr.height - 16;
   const pbob = (e.def.pickup && !reduceMotion) ? Math.round(Math.sin(animT / 260 + e.x) * 1.5) : 0;
-  ctx.drawImage(spr, Math.round(e.x * TILE - ox - camX), Math.round(e.y * TILE - oy - camY + bob + pbob));
+  const sx = Math.round(e.x * TILE - ox - camX), sy = Math.round(e.y * TILE - oy - camY + bob + pbob);
+  if (!e.def.pickup) shadow(e.x * TILE + 8 - camX, e.y * TILE + 15 - camY, e.def.big ? 11 : 6);
+  ctx.drawImage(spr, sx, sy);
 }
 
 function drawPlayer(pxl, pyl, camX, camY) {
-  const spr = SPR.player[G.dir];
-  const step = moveAnim && !reduceMotion ? (Math.floor(moveAnim.t * 4) % 2 ? -1 : 0) : 0;
-  ctx.drawImage(spr, Math.round(pxl - camX), Math.round(pyl - camY + step));
+  const frame = moveAnim ? 1 + stepPar : 0;
+  const spr = SPR.player[G.dir][frame];
+  shadow(pxl + 8 - camX, pyl + 15 - camY);
+  ctx.drawImage(spr, Math.round(pxl - camX), Math.round(pyl - camY));
+}
+
+/* ---------- боевой экран ---------- */
+
+function drawBattleScenery(mapId, theme) {
+  // звёзды для ночных сцен
+  if (mapId === 'city' || mapId === 'cave' || mapId === 'tower') {
+    ctx.fillStyle = '#ece7db';
+    for (let i = 0; i < 24; i++) {
+      const r = hash2(i * 11, i * 3);
+      ctx.globalAlpha = 0.25 + r * 0.5;
+      ctx.fillRect((r * 2399 | 0) % VIEW_W, ((r * 977) | 0) % 90, 1, 1);
+    }
+    ctx.globalAlpha = 1;
+  }
+  if (mapId === 'village' || mapId === 'fields') {
+    // холмы и дальние деревья
+    ctx.fillStyle = '#274a33';
+    ctx.beginPath();
+    ctx.ellipse(40, GROUND_Y + 6, 110, 40, 0, Math.PI, 0);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(210, GROUND_Y + 10, 130, 52, 0, Math.PI, 0);
+    ctx.fill();
+    ctx.fillStyle = '#1d3326';
+    for (let i = 0; i < 7; i++) {
+      const x = 10 + i * 36 + (hash2(i, 3) * 14 | 0);
+      const h = 22 + (hash2(i, 7) * 14 | 0);
+      ctx.beginPath();
+      ctx.moveTo(x, GROUND_Y); ctx.lineTo(x + 11, GROUND_Y - h); ctx.lineTo(x + 22, GROUND_Y);
+      ctx.fill();
+    }
+  } else if (mapId === 'forest') {
+    ctx.fillStyle = '#101f16';
+    for (let i = 0; i < 6; i++) {
+      const x = -6 + i * 46;
+      ctx.beginPath();
+      ctx.moveTo(x, GROUND_Y); ctx.lineTo(x + 23, GROUND_Y - 92); ctx.lineTo(x + 46, GROUND_Y);
+      ctx.fill();
+    }
+    ctx.fillStyle = '#1a3323';
+    for (let i = 0; i < 7; i++) {
+      const x = -20 + i * 40;
+      ctx.beginPath();
+      ctx.moveTo(x, GROUND_Y); ctx.lineTo(x + 20, GROUND_Y - 56); ctx.lineTo(x + 40, GROUND_Y);
+      ctx.fill();
+    }
+  } else if (mapId === 'cave') {
+    ctx.fillStyle = '#241c38';
+    for (let i = 0; i < 8; i++) {
+      const x = i * 32 + (hash2(i, 1) * 10 | 0);
+      const h = 26 + (hash2(i, 5) * 30 | 0);
+      ctx.beginPath();
+      ctx.moveTo(x, 0); ctx.lineTo(x + 13, h); ctx.lineTo(x + 26, 0);
+      ctx.fill();
+    }
+    for (let i = 0; i < 5; i++) { // мерцающие кристаллы
+      const r = hash2(i * 9, 2);
+      ctx.fillStyle = i % 2 ? '#54d6d6' : '#8af0f0';
+      ctx.fillRect((r * 999 | 0) % VIEW_W, GROUND_Y - 12 - ((r * 61) | 0) % 40, 2, 4);
+    }
+  } else if (mapId === 'city') {
+    for (let i = 0; i < 6; i++) {
+      const x = i * 42, w = 34, h = 60 + ((hash2(i, 8) * 50) | 0);
+      ctx.fillStyle = '#0e1424';
+      ctx.fillRect(x, GROUND_Y - h, w, h);
+      ctx.fillStyle = '#f2d54d';
+      for (let wy = 0; wy < h - 10; wy += 10)
+        for (let wx = 4; wx < w - 4; wx += 8)
+          if (hash2(i * 13 + wx, wy) > 0.55) {
+            ctx.globalAlpha = 0.7;
+            ctx.fillRect(x + wx, GROUND_Y - h + 6 + wy, 3, 4);
+          }
+      ctx.globalAlpha = 1;
+    }
+    ctx.fillStyle = '#54d6d6'; ctx.fillRect(60, GROUND_Y - 130, 1, 22); ctx.fillRect(59, GROUND_Y - 131, 3, 2);
+  } else if (mapId === 'tower') {
+    ctx.fillStyle = '#2a0f22';
+    ctx.fillRect(0, 0, 26, GROUND_Y); ctx.fillRect(VIEW_W - 26, 0, 26, GROUND_Y);
+    ctx.fillStyle = '#3a1830';
+    ctx.fillRect(26, 0, 6, GROUND_Y); ctx.fillRect(VIEW_W - 32, 0, 6, GROUND_Y);
+    // знамя
+    ctx.fillStyle = '#c05f3f'; ctx.fillRect(VIEW_W / 2 - 16, 0, 32, 44);
+    ctx.fillStyle = '#e88968'; ctx.fillRect(VIEW_W / 2 - 12, 0, 24, 40);
+    ctx.fillStyle = '#f2d54d'; ctx.fillRect(VIEW_W / 2 - 4, 14, 8, 8);
+  }
 }
 
 function drawBattle(dt) {
@@ -1035,8 +1444,11 @@ function drawBattle(dt) {
   grd.addColorStop(1, '#0a0c16');
   ctx.fillStyle = grd;
   ctx.fillRect(0, 0, VIEW_W, VIEW_H);
+  drawBattleScenery(G.map, m.theme);
   ctx.fillStyle = m.theme.ground;
   ctx.fillRect(0, GROUND_Y, VIEW_W, VIEW_H - GROUND_Y);
+  ctx.fillStyle = 'rgba(255,255,255,0.05)';
+  ctx.fillRect(0, GROUND_Y, VIEW_W, 2);
   ctx.fillStyle = 'rgba(0,0,0,0.25)';
   ctx.beginPath();
   ctx.ellipse(VIEW_W / 2, GROUND_Y + 2, 62, 12, 0, 0, Math.PI * 2);
@@ -1046,17 +1458,34 @@ function drawBattle(dt) {
   B.bob += dt;
   if (B.shake > 0) B.shake -= dt;
   if (B.blink > 0) B.blink -= dt;
+  if (B.introT > 0) B.introT -= dt;
+  if (B.pAtkT > 0) B.pAtkT -= dt;
 
+  // враг
   const spr = SPR[B.e.spr];
   const scale = spr.width <= 16 ? 7 : spr.width <= 24 ? 6 : 5;
   const w = spr.width * scale, h = spr.height * scale;
   const bobY = reduceMotion ? 0 : Math.round(Math.sin(B.bob / 320) * 3);
   const shX = B.shake > 0 ? ri(-4, 4) : 0;
+  const introX = B.introT > 0 ? Math.round((B.introT / 550) * 110) : 0;
   const blinkHide = B.blink > 0 && Math.floor(B.blink / 60) % 2 === 0;
   if (!blinkHide) {
     ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(spr, Math.round(VIEW_W / 2 - w / 2 + shX), Math.round(GROUND_Y - h + bobY), w, h);
+    if (B.introT > 0) ctx.globalAlpha = 1 - B.introT / 550;
+    ctx.drawImage(spr, Math.round(VIEW_W / 2 - w / 2 + shX + introX), Math.round(GROUND_Y - h + bobY), w, h);
+    ctx.globalAlpha = 1;
   }
+
+  // герой (вид со спины) с выпадом при атаке
+  const hero = SPR.player.up[0];
+  const lunge = B.pAtkT > 0 ? Math.round(Math.sin((1 - B.pAtkT / 420) * Math.PI) * 26) : 0;
+  const hx = 24 + lunge, hy = GROUND_Y - 42;
+  ctx.fillStyle = 'rgba(0,0,0,0.3)';
+  ctx.beginPath();
+  ctx.ellipse(hx + 28, hy + 58, 24, 6, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.drawImage(hero, hx, hy, 56, 56);
+
   if (hurtFlash > 0) {
     hurtFlash -= dt;
     ctx.fillStyle = 'rgba(224,79,79,0.28)';
@@ -1094,12 +1523,12 @@ function frame(t) {
     else if (input.left) tryMove('left');
     else if (input.right) tryMove('right');
   }
+  updatePatrols(dt);
 
   if (G.state === 'battle') drawBattle(dt);
   else if (G.state === 'ending') drawEnding(dt);
-  else if (G.state !== 'title') drawExplore(dt);
+  else if (G.state !== 'title') drawExplore(dt, t);
   else {
-    // фон под титульным экраном
     ctx.fillStyle = '#0d0f1a';
     ctx.fillRect(0, 0, VIEW_W, VIEW_H);
   }
@@ -1113,14 +1542,7 @@ function frame(t) {
 window.E = { say, choice, battle, give, take, has, buy, coins, sfx, quest, endGame, useItem, loadMap };
 
 buildSprites();
-{ // арт на титульнике — Клод
-  const big = document.createElement('canvas');
-  big.width = 64; big.height = 64;
-  const g = big.getContext('2d');
-  g.imageSmoothingEnabled = false;
-  g.drawImage(SPR.claude, 0, 0, 64, 64);
-  $('title-art').style.backgroundImage = `url(${big.toDataURL()})`;
-}
+$('title-art').style.backgroundImage = `url(${makeTitleArt()})`;
 showTitle();
 requestAnimationFrame(frame);
 

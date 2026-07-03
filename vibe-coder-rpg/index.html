@@ -14,23 +14,30 @@
 
   <!-- Игровой экран -->
   <div id="screen-wrap">
-    <canvas id="screen" width="240" height="320" aria-label="Игровой экран"></canvas>
+    <div id="screen-box">
+      <canvas id="screen" width="240" height="320" aria-label="Игровой экран"></canvas>
+      <div id="scanlines" aria-hidden="true"></div>
+    </div>
   </div>
 
   <!-- HUD -->
   <div id="hud" hidden>
     <div class="hud-row">
+      <canvas id="hud-face" width="16" height="16" aria-hidden="true"></canvas>
       <span id="hud-lvl" class="hud-chip">LV 1</span>
       <span class="hud-chip hud-coins"><span class="coin-ico">☕</span><span id="hud-coins">0</span></span>
     </div>
-    <div class="bar"><i id="hud-hp" class="bar-hp"></i><b>HP</b></div>
-    <div class="bar"><i id="hud-en" class="bar-en"></i><b>EN</b></div>
+    <div class="bar"><i id="hud-hp" class="bar-hp"></i><em class="bar-ticks"></em><b id="hud-hp-t">HP</b></div>
+    <div class="bar"><i id="hud-en" class="bar-en"></i><em class="bar-ticks"></em><b id="hud-en-t">EN</b></div>
   </div>
 
   <!-- Диалоговое окно -->
   <div id="dialog" hidden>
     <div id="dlg-name"></div>
-    <div id="dlg-text"></div>
+    <div id="dlg-body">
+      <div id="dlg-portrait" hidden><canvas id="dlg-face" width="32" height="32"></canvas></div>
+      <div id="dlg-text"></div>
+    </div>
     <div id="dlg-hint">▼</div>
   </div>
 
@@ -41,7 +48,7 @@
   <div id="battle-ui" hidden>
     <div id="b-enemy">
       <span id="b-ename"></span>
-      <div class="bar bar-wide"><i id="b-ehp" class="bar-hp"></i></div>
+      <div class="bar bar-wide"><i id="b-ehp" class="bar-hp"></i><em class="bar-ticks"></em><b id="b-ehp-t"></b></div>
     </div>
     <div id="b-log"></div>
     <div id="b-menu"></div>
