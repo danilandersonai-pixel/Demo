@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="ru-RU">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <title>Вайб-Кодер: Легенда Продакшена</title>
+  <meta name="description" content="Мобильная пиксельная RPG про мир вайб-кодинга: собери артефакты, победи Демона Легаси и подними Продакшен.">
+  <meta name="theme-color" content="#0d0b1e">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body>
+<div id="stage">
+  <canvas id="screen"></canvas>
+
+  <!-- HUD -->
+  <div id="hud" class="hidden" aria-live="polite">
+    <span id="hud-lvl"></span>
+    <span id="hud-hp"></span>
+    <span id="hud-fp"></span>
+    <span id="hud-coins"></span>
+  </div>
+  <button id="btn-menu" class="hidden" aria-label="Меню">☰</button>
+
+  <!-- Диалоговое окно -->
+  <div id="dialog" class="hidden">
+    <div id="dlg-name"></div>
+    <div id="dlg-text"></div>
+    <div id="dlg-choices"></div>
+    <div id="dlg-more" aria-hidden="true">▼</div>
+  </div>
+
+  <!-- Боевое меню -->
+  <div id="battle-ui" class="hidden">
+    <div id="battle-log"></div>
+    <div id="battle-menu"></div>
+  </div>
+
+  <!-- Пауза / меню игрока -->
+  <div id="menu-ui" class="hidden">
+    <div id="menu-panel">
+      <h2>Пауза</h2>
+      <div id="menu-stats"></div>
+      <h3>Задания</h3>
+      <div id="menu-quests"></div>
+      <h3>Рюкзак</h3>
+      <div id="menu-items"></div>
+      <div id="menu-system">
+        <button id="btn-save">💾 Сохранить</button>
+        <button id="btn-load">📂 Загрузить</button>
+        <button id="btn-sound">🔊 Звук</button>
+        <button id="btn-title">🏠 На титул</button>
+      </div>
+      <button id="btn-close-menu">✕ Продолжить</button>
+    </div>
+  </div>
+
+  <!-- Тач-управление -->
+  <div id="touch-ui" class="hidden">
+    <div id="dpad">
+      <button class="dpad-btn" id="d-up" data-dir="up" aria-label="Вверх">▲</button>
+      <button class="dpad-btn" id="d-left" data-dir="left" aria-label="Влево">◀</button>
+      <button class="dpad-btn" id="d-right" data-dir="right" aria-label="Вправо">▶</button>
+      <button class="dpad-btn" id="d-down" data-dir="down" aria-label="Вниз">▼</button>
+    </div>
+    <button id="btn-a" aria-label="Действие">A</button>
+  </div>
+
+  <!-- Титульный экран -->
+  <div id="title-ui">
+    <div class="title-inner">
+      <p class="title-pre">пиксельная RPG о вайб-кодинге</p>
+      <h1>ВАЙБ‑КОДЕР</h1>
+      <p class="title-sub">Легенда Продакшена</p>
+      <div class="title-buttons">
+        <button id="btn-new">▶ Новая игра</button>
+        <button id="btn-continue" class="hidden">↻ Продолжить</button>
+      </div>
+      <p class="title-hint">📱 D‑pad + кнопка A &nbsp;·&nbsp; ⌨️ WASD/стрелки, E — действие, Esc — меню</p>
+    </div>
+  </div>
+
+  <!-- Финальный экран -->
+  <div id="ending-ui" class="hidden">
+    <div class="title-inner">
+      <h1>ПРОДАКШЕН ПОДНЯТ</h1>
+      <p class="title-sub">и вайб восстановлен</p>
+      <div id="ending-stats"></div>
+      <div class="title-buttons">
+        <button id="btn-ending-continue">Гулять по Кодоземью</button>
+      </div>
+    </div>
+  </div>
+</div>
+<script src="assets/js/game.js"></script>
+</body>
+</html>
