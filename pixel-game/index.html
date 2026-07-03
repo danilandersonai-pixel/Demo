@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="ru-RU">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Клодик и Вайб-кодинг — пиксельная мини-игра</title>
+  <meta name="description" content="Милая пиксельная мини-игра: помоги Клодику поймать вайб кодинга — лови кофе, идеи и лоу-фай, уворачивайся от багов!">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' fill='%231a1626'/><rect x='4' y='4' width='8' height='7' fill='%23e78a68'/><rect x='5' y='6' width='2' height='2' fill='%23241e35'/><rect x='9' y='6' width='2' height='2' fill='%23241e35'/></svg>">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main class="game-shell">
+    <header class="hud" aria-hidden="true">
+      <div class="hud__left">
+        <span class="hud__label">СЧЁТ</span>
+        <span class="hud__score" id="score">0</span>
+        <span class="hud__combo" id="combo"></span>
+      </div>
+      <div class="hud__mid">
+        <span class="hud__label">ВАЙБ</span>
+        <div class="vibebar"><div class="vibebar__fill" id="vibefill"></div></div>
+      </div>
+      <div class="hud__right" id="lives">♥♥♥</div>
+    </header>
+
+    <div class="stage">
+      <canvas id="game" width="240" height="160" aria-label="Игровое поле: Клодик ловит падающие предметы"></canvas>
+
+      <div class="overlay" id="menu">
+        <h1 class="overlay__title">КЛОДИК<br>И ВАЙБ-КОДИНГ</h1>
+        <p class="overlay__sub">Лови ☕ кофе, 💡 идеи и 🎵 лоу-фай.<br>Уворачивайся от 🐛 багов!<br>Заполни вайб — поймай <b>ПОТОК</b>.</p>
+        <button class="btn" id="startBtn">▶ НАЧАТЬ ВАЙБИТЬ</button>
+        <p class="overlay__hint">← → / A D — движение · можно пальцем</p>
+      </div>
+
+      <div class="overlay overlay--hidden" id="gameover">
+        <h1 class="overlay__title" id="overTitle">КОММИТ<br>ЗАПУШЕН!</h1>
+        <p class="overlay__sub" id="overStats"></p>
+        <button class="btn" id="restartBtn">↻ ЕЩЁ РАЗОК</button>
+        <p class="overlay__hint" id="overQuote"></p>
+      </div>
+    </div>
+
+    <footer class="foot">
+      <button class="foot__btn" id="muteBtn" aria-pressed="false" title="Звук">🔊</button>
+      <span class="foot__credit">сделано с вайбом · pixel mini-game</span>
+      <span class="foot__hi" id="hiscore"></span>
+    </footer>
+  </main>
+  <script src="game.js"></script>
+</body>
+</html>

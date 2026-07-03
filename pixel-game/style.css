@@ -1,0 +1,206 @@
+/* ===== Клодик и Вайб-кодинг — стили ===== */
+
+:root {
+  --bg: #14101f;
+  --panel: #1f1830;
+  --panel-2: #2a2142;
+  --ink: #f3e9dc;
+  --dim: #9d8fbf;
+  --coral: #e78a68;
+  --coral-dark: #8c4a32;
+  --gold: #f2c14e;
+  --mint: #7ed491;
+  --bug: #b96be0;
+  --err: #e0607a;
+  --px-font: "Courier New", ui-monospace, Menlo, Consolas, monospace;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html, body { height: 100%; }
+
+body {
+  background:
+    radial-gradient(circle at 20% 10%, #241b3d 0%, transparent 45%),
+    radial-gradient(circle at 85% 85%, #2b1830 0%, transparent 45%),
+    var(--bg);
+  color: var(--ink);
+  font-family: var(--px-font);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+.game-shell {
+  width: min(96vw, 560px);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  user-select: none;
+}
+
+/* ===== HUD ===== */
+
+.hud {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--panel);
+  border: 2px solid var(--panel-2);
+  border-radius: 6px;
+  padding: 7px 10px;
+  font-size: 13px;
+  letter-spacing: 1px;
+  image-rendering: pixelated;
+}
+
+.hud__left { display: flex; align-items: baseline; gap: 7px; min-width: 30%; }
+.hud__label { color: var(--dim); font-size: 10px; }
+.hud__score { color: var(--gold); font-weight: bold; font-size: 15px; }
+.hud__combo { color: var(--mint); font-size: 11px; }
+
+.hud__mid { flex: 1; display: flex; align-items: center; gap: 7px; }
+
+.vibebar {
+  flex: 1;
+  height: 12px;
+  background: #120d1e;
+  border: 2px solid var(--panel-2);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.vibebar__fill {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, var(--coral), var(--gold));
+  transition: width 0.18s steps(6);
+}
+
+.vibebar__fill.is-flow {
+  background: repeating-linear-gradient(
+    90deg,
+    var(--gold) 0 6px, var(--coral) 6px 12px, var(--mint) 12px 18px
+  );
+}
+
+.hud__right {
+  color: var(--err);
+  font-size: 15px;
+  letter-spacing: 2px;
+  min-width: 3.6em;
+  text-align: right;
+}
+
+/* ===== Сцена ===== */
+
+.stage {
+  position: relative;
+  border: 2px solid var(--panel-2);
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--panel);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.45);
+}
+
+canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  cursor: pointer;
+}
+
+/* ===== Оверлеи ===== */
+
+.overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  text-align: center;
+  background: rgba(20, 16, 31, 0.82);
+  backdrop-filter: blur(2px);
+  padding: 16px;
+}
+
+.overlay--hidden { display: none; }
+
+.overlay__title {
+  font-size: clamp(20px, 5.5vw, 30px);
+  line-height: 1.25;
+  color: var(--coral);
+  text-shadow: 3px 3px 0 #3a1f14, 0 0 24px rgba(231, 138, 104, 0.35);
+  letter-spacing: 3px;
+}
+
+.overlay__sub {
+  font-size: clamp(11px, 2.8vw, 14px);
+  line-height: 1.7;
+  color: var(--ink);
+}
+
+.overlay__sub b { color: var(--gold); }
+
+.overlay__hint {
+  font-size: clamp(9px, 2.4vw, 11px);
+  color: var(--dim);
+}
+
+.btn {
+  font-family: inherit;
+  font-size: clamp(13px, 3.2vw, 16px);
+  font-weight: bold;
+  letter-spacing: 2px;
+  color: #221109;
+  background: linear-gradient(180deg, var(--gold), #d9a53a);
+  border: 0;
+  border-bottom: 4px solid #8f6a1e;
+  border-radius: 6px;
+  padding: 10px 22px;
+  cursor: pointer;
+  transition: transform 0.08s var(--fast, ease), filter 0.08s;
+}
+
+.btn:hover { filter: brightness(1.08); }
+.btn:active { transform: translateY(3px); border-bottom-width: 1px; }
+
+/* ===== Подвал ===== */
+
+.foot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 10px;
+  color: var(--dim);
+  letter-spacing: 1px;
+  padding: 0 2px;
+}
+
+.foot__btn {
+  font-family: inherit;
+  font-size: 14px;
+  background: var(--panel);
+  border: 2px solid var(--panel-2);
+  border-radius: 5px;
+  color: var(--ink);
+  padding: 3px 8px;
+  cursor: pointer;
+}
+
+.foot__credit { flex: 1; text-align: center; }
+.foot__hi { color: var(--gold); }
+
+/* ===== Reduced motion ===== */
+
+@media (prefers-reduced-motion: reduce) {
+  .vibebar__fill { transition: none; }
+  .btn { transition: none; }
+}
