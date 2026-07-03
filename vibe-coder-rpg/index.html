@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="ru-RU">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#12141f">
+  <meta name="description" content="Вайб-Кодер — мобильная пиксельная RPG о мире вайб-кодинга: локации, персонажи, пошаговые бои и Дедлайн-Дракон.">
+  <title>Вайб-Кодер: Легенда Великого Релиза</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body>
+<div id="game">
+
+  <!-- Игровой экран -->
+  <div id="screen-wrap">
+    <canvas id="screen" width="240" height="320" aria-label="Игровой экран"></canvas>
+  </div>
+
+  <!-- HUD -->
+  <div id="hud" hidden>
+    <div class="hud-row">
+      <span id="hud-lvl" class="hud-chip">LV 1</span>
+      <span class="hud-chip hud-coins"><span class="coin-ico">☕</span><span id="hud-coins">0</span></span>
+    </div>
+    <div class="bar"><i id="hud-hp" class="bar-hp"></i><b>HP</b></div>
+    <div class="bar"><i id="hud-en" class="bar-en"></i><b>EN</b></div>
+  </div>
+
+  <!-- Диалоговое окно -->
+  <div id="dialog" hidden>
+    <div id="dlg-name"></div>
+    <div id="dlg-text"></div>
+    <div id="dlg-hint">▼</div>
+  </div>
+
+  <!-- Варианты выбора -->
+  <div id="choices" hidden></div>
+
+  <!-- Боевой интерфейс -->
+  <div id="battle-ui" hidden>
+    <div id="b-enemy">
+      <span id="b-ename"></span>
+      <div class="bar bar-wide"><i id="b-ehp" class="bar-hp"></i></div>
+    </div>
+    <div id="b-log"></div>
+    <div id="b-menu"></div>
+  </div>
+
+  <!-- Меню игрока -->
+  <div id="menu" hidden>
+    <h2>ПАУЗА</h2>
+    <div id="menu-quest"></div>
+    <div id="menu-stats"></div>
+    <div id="menu-items"></div>
+    <div id="menu-btns"></div>
+  </div>
+
+  <!-- Титульный экран -->
+  <div id="title">
+    <div id="title-inner">
+      <div id="title-logo">ВАЙБ·КОДЕР</div>
+      <div id="title-sub">Легенда Великого Релиза</div>
+      <div id="title-art"></div>
+      <div id="title-btns"></div>
+      <div id="title-note">пиксельная RPG про вайб-кодинг · играется пальцами и стрелками</div>
+    </div>
+  </div>
+
+  <!-- Затемнение для переходов -->
+  <div id="fade"></div>
+
+  <!-- Тач-управление -->
+  <div id="controls" hidden>
+    <div id="dpad">
+      <button class="pad" data-dir="up"    aria-label="Вверх">▲</button>
+      <button class="pad" data-dir="left"  aria-label="Влево">◀</button>
+      <button class="pad" data-dir="right" aria-label="Вправо">▶</button>
+      <button class="pad" data-dir="down"  aria-label="Вниз">▼</button>
+    </div>
+    <div id="ab">
+      <button id="btn-b" aria-label="Меню">B</button>
+      <button id="btn-a" aria-label="Действие">A</button>
+    </div>
+  </div>
+
+</div>
+<script src="assets/js/data.js"></script>
+<script src="assets/js/story.js"></script>
+<script src="assets/js/game.js"></script>
+</body>
+</html>
