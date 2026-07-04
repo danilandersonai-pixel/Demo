@@ -384,34 +384,34 @@ window.SPRITES = {
     '........................',
   ],
 
-  dragon: [ // Дедлайн-Дракон (32×32)
+  dragon: [ // Дедлайн-Дракон (32×32): рога, крылья, часы-амулет
     '................................',
-    '......kk................kk......',
-    '.....krrk..............krrk.....',
-    '.....rrrr..............rrrr.....',
-    '......rrrrrrrrrrrrrrrrrrrr......',
-    '.....rrrrrrrrrrrrrrrrrrrrrr.....',
-    '....rrRrrrrrrrrrrrrrrrrrRrrr....',
-    '....rr100rrrrrrrrrrrr100rrr.....',
-    '....rrrrrrrrrrrrrrrrrrrrrrr.....',
-    '.....rrrryyyyyyyyyyyyrrrr.......',
-    '.....rrry0y0y0y0y0y0yrrrr.......',
+    '....kk..................kk......',
+    '...kkkk................kkkk.....',
+    '...kk.rrrrrrrrrrrrrrrr.kk.......',
+    '......rrrrrrrrrrrrrrrrrr........',
+    '.....rrrRrrrrrrrrrrRrrrr........',
+    '.....rr10rrrrrrrrrr01rrr........',
+    '.....rrrrrrrrRRrrrrrrrrr........',
     '......rryyyyyyyyyyyyrr..........',
-    '....rrrrrrrrrrrrrrrrrrrr........',
-    '..rrrrrrRRrrrrrrrrRRrrrrrr......',
-    '.rrrrrrrrrrryyyyrrrrrrrrrrr.....',
-    '.rrkrrrrrrryyyyyyrrrrrrrkrr.....',
-    '.rkkrrrrrryyyYYyyyrrrrrrkkr.....',
-    '.rkrrrrrrryyyYYyyyrrrrrrrkr.....',
-    '..rrrrrrrryyyyyyyyrrrrrrrr......',
-    '..rrrrrrrrryyyyyyrrrrrrrr.......',
-    '...rrrrrrrrryyyyrrrrrrrr........',
-    '...RrrrrrrrrrrrrrrrrrrR.........',
-    '....rrrr..rrrrrrr..rrrr.........',
-    '....rrr....rrrrr....rrr.........',
-    '...krrk....rrrrr...krrk.........',
-    '...kkkk....RRRRR...kkkk.........',
-    '................................',
+    '......ry0y0y0y0y0y0yyr..........',
+    '.......ryyyyyyyyyyr.............',
+    '........rrrrrrrrrr..............',
+    'kk......rrrrrrrrrrrr......kk....',
+    'kkkk...rrrrrrrrrrrrrr...kkkk....',
+    'kRRkk.rrrrRRrrrrRRrrrr.kkRRk....',
+    'kRRRkkrrrryyyyyyyyrrrrkkRRRk....',
+    '.kRRRkrrryyjjjjjjyyrrrkRRRk.....',
+    '.kRRkrrrryyj0jj0jyyrrrrkRRk.....',
+    '..kkkrrrryyjj00jjyyrrrkkk.......',
+    '....rrrrryyyjjjjyyyrrrr.........',
+    '....rrrrrryyyyyyyyrrrrr.........',
+    '.....rrrrrryyyyyyrrrrr..........',
+    '.....RrrrrrrrrrrrrrrrR..........',
+    '.....rrrr..rrrrrr..rrrr.........',
+    '....krrrk..rrrrrr..krrrk........',
+    '....kkrrk...rrrr...krrkk........',
+    '....kkkk....RRRR....kkkk........',
     '................................',
     '................................',
     '................................',
@@ -562,8 +562,9 @@ window.SPRITES = {
    P плитка города     S серверная башня   ~ поток данных
    f паркет (интерьер) x пустота
    Декор: W стена с окном  e забор  g камешки  m гриб  L фонарь
-          K кристалл  u сталагмит  q ковёр  B стена со знаменем */
-window.SOLID_TILES = new Set(['t','w','#','b','r','d','T','C','S','~','x','W','e','L','K','u','B']);
+          K кристалл  u сталагмит  q ковёр  B стена со знаменем
+          h книжный шкаф */
+window.SOLID_TILES = new Set(['t','w','#','b','r','d','T','C','S','~','x','W','e','L','K','u','B','h']);
 window.ENCOUNTER_TILES = new Set([',', ';']);
 
 /* ---------- карты ---------- */
@@ -607,6 +608,7 @@ window.MAPS = {
     theme: { sky: '#3e6ea0', ground: '#4aa25c' },
     encounters: ['typo', 'glitch'],
     ambient: 'petals',
+    music: 'calm',
     rows: [
       'tttttttttttttttttttttttttttttt',
       't.....,,,,........FF.........t',
@@ -639,6 +641,7 @@ window.MAPS = {
     theme: { sky: '#1d3326', ground: '#2f6e3e' },
     encounters: ['typo', 'nullp', 'glitch'],
     ambient: 'leaves',
+    music: 'dark',
     rows: [
       'ttttttttttttttt.tttttttttttttt',
       'ttttttttttttttt.tttttttttttttt',
@@ -664,6 +667,28 @@ window.MAPS = {
     portals: [
       { x: 0, y: 10, to: 'fields', tx: 28, ty: 8 },
       { x: 15, y: 0, to: 'cave', tx: 13, ty: 14 },
+      { x: 23, y: 13, to: 'hut', tx: 5, ty: 5 }, // дверь хижины Старика Легаси
+    ],
+  },
+
+  hut: {
+    name: 'Хижина Легаси',
+    pad: 'b',
+    theme: { sky: '#221408', ground: '#3a2814' },
+    encounters: [],
+    music: 'calm',
+    rows: [
+      'bbbbbbbbbbbb',
+      'bhhbbbTbbhhb',
+      'bffffffffffb',
+      'bffffffffffb',
+      'bffffffffffb',
+      'bffffffffffb',
+      'bbbbbqqbbbbb',
+    ],
+    portals: [
+      { x: 5, y: 6, to: 'forest', tx: 23, ty: 14 },
+      { x: 6, y: 6, to: 'forest', tx: 23, ty: 14 },
     ],
   },
 
@@ -674,6 +699,7 @@ window.MAPS = {
     encounters: ['crab', 'nullp', 'sloth'],
     dark: true,
     ambient: 'dust',
+    music: 'dark',
     rows: [
       'CCCCCCCCCCCCCCCCCCCCCCCCCC',
       'CCCccKccCCCCCCccccKccccCCC',
@@ -705,6 +731,7 @@ window.MAPS = {
     encounters: [],
     night: true,
     ambient: 'data',
+    music: 'neon',
     rows: [
       'SSSSSSSSSSSSSSSSSSSSSSSSSSSS',
       'S~~~.......bbbbbb......~~~~S',
@@ -738,6 +765,7 @@ window.MAPS = {
     theme: { sky: '#33122a', ground: '#4a2440' },
     encounters: [],
     ambient: 'embers',
+    music: 'tower',
     rows: [
       'bbbbbbbbbbbbbbbb',
       'bbbBbbbbbbbbBbbb',
@@ -808,6 +836,7 @@ window.ITEMS = {
   keyboard: { name: 'Меха-клавиатура',   desc: 'АТК +3. Кликает так, что враги нервничают.', passive: { atk: 3 } },
   hoodie:   { name: 'Худи «grep»',       desc: 'ЗАЩ +2. Уютная броня настоящего кодера.', passive: { def: 2 } },
   duck:     { name: 'Резиновая Уточка',  desc: 'Шанс оглушения «Дебагом» вырастает до 60%.', passive: { duck: true } },
+  floppy:   { name: 'Дискета 1.44МБ',    desc: 'Макс. EN +10 (уже применено). Внутри — драйверы от всего на свете.' },
 };
 
 /* ---------- навыки ---------- */

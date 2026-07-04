@@ -426,8 +426,59 @@ const TILE_PAINTERS = {
     g.fillStyle = '#c05f3f';
     g.fillRect(px + 5, py + 11, 2, 1); g.fillRect(px + 9, py + 11, 2, 1);
   },
+  'h': (g, px, py, x, y) => { // книжный шкаф
+    g.fillStyle = '#5f3c20'; g.fillRect(px, py, 16, 16);
+    g.fillStyle = '#8a5a34'; g.fillRect(px, py, 16, 2);
+    const spines = ['#e04f4f', '#4f7de0', '#49b866', '#f2d54d', '#a86fe0', '#e88968'];
+    for (let shelf = 0; shelf < 3; shelf++) {
+      const sy = py + 3 + shelf * 4;
+      g.fillStyle = '#3d2617'; g.fillRect(px + 1, sy + 3, 14, 1);
+      for (let bx = 0; bx < 6; bx++) {
+        const r = hash2(x * 7 + bx + shelf * 13, y * 3 + shelf);
+        if (r < 0.15) continue; // пустое место
+        g.fillStyle = spines[(r * spines.length) | 0];
+        g.fillRect(px + 2 + bx * 2, sy + (r > 0.8 ? 1 : 0), 2, 3 - (r > 0.8 ? 1 : 0));
+      }
+    }
+    g.fillStyle = '#2a1a0c'; g.fillRect(px, py + 15, 16, 1);
+  },
   'x': (g, px, py) => { g.fillStyle = '#05060a'; g.fillRect(px, py, 16, 16); },
 };
+
+/* краевые переходы: тени стен, берега воды, трава на тропах */
+const EDGE_WALLS = new Set(['C', 'S', 'b', 'W', 'B', 'T', 'x', 'r', 'd', 'h', '#']);
+const EDGE_GRASS = new Set(['.', ',', 'F', 'g', 'm', 'e']);
+function paintEdges(g, rows, w, h) {
+  const at = (x, y) => (rows[y] && rows[y][x]) || ' ';
+  for (let y = 0; y < h; y++)
+    for (let x = 0; x < w; x++) {
+      const ch = at(x, y), up = at(x, y - 1);
+      const px = x * TILE, py = y * TILE;
+      if (ch === 'w') { // берега
+        if (up !== 'w' && up !== '=') {
+          g.fillStyle = '#7ea4ec'; g.fillRect(px, py, 16, 2);
+          g.fillStyle = '#a8c6f4'; g.fillRect(px, py, 16, 1);
+        }
+        if (at(x, y + 1) !== 'w' && at(x, y + 1) !== '=') { g.fillStyle = '#1e4776'; g.fillRect(px, py + 14, 16, 2); }
+        if (at(x - 1, y) !== 'w') { g.fillStyle = '#7ea4ec'; g.fillRect(px, py, 1, 16); }
+        if (at(x + 1, y) !== 'w') { g.fillStyle = '#1e4776'; g.fillRect(px + 15, py, 1, 16); }
+        continue;
+      }
+      // тень от стены сверху на любую проходимую поверхность
+      if (EDGE_WALLS.has(up) && !EDGE_WALLS.has(ch) && ch !== 'w') {
+        g.fillStyle = 'rgba(0,0,0,0.26)'; g.fillRect(px, py, 16, 3);
+        g.fillStyle = 'rgba(0,0,0,0.12)'; g.fillRect(px, py + 3, 16, 2);
+      }
+      // трава заползает на тропу
+      if (ch === 'p' && EDGE_GRASS.has(up)) {
+        g.fillStyle = '#3e8e50';
+        for (let i = 0; i < 5; i++) {
+          const r = hash2(x * 11 + i, y * 5);
+          if (r > 0.35) g.fillRect(px + 1 + i * 3, py, 2, 1 + (r > 0.7 ? 1 : 0));
+        }
+      }
+    }
+}
 
 /* ---------- пререндер карт (2 фазы анимации) ---------- */
 const mapCache = {};
@@ -445,6 +496,7 @@ function renderMap(name, ph = 0) {
       const ch = m.rows[y][x];
       (TILE_PAINTERS[ch] || TILE_PAINTERS['.'])(g, x * TILE, y * TILE, x, y, ph);
     }
+  paintEdges(g, m.rows, w, m.rows.length);
   mapCache[key] = c;
   return c;
 }
@@ -502,6 +554,7 @@ let AC = null;
 function audio() {
   if (!AC) { try { AC = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return null; } }
   if (AC && AC.state === 'suspended') AC.resume();
+  if (window.Music) Music.resume();
   return AC;
 }
 function beep(freq, dur, type = 'square', vol = 0.05, when = 0) {
@@ -580,12 +633,27 @@ function floatText(text, xPct, yPct, cls = '') {
 let advanceFn = null;
 let typing = null;
 
+const NAME_COLORS = {
+  'Клод': '#e88968', 'Джун': '#6f9dff',
+  'Сеньора Октавия': '#c9a2f2', 'Октавия': '#c9a2f2',
+  'Дизайнер Пиксель': '#f272c8', 'Пиксель': '#f272c8',
+  'Бариста Джава': '#d9a06c', 'Гит-Страж': '#f0913f',
+  'Старик Легаси': '#b9b3a4', 'Записка': '#b9b3a4',
+  'Тимлид Грейс': '#ff7b7b', 'QA Ада': '#f2d54d',
+  'Стажёр Пип': '#a3e14f', 'Жительница Ната': '#49b866', 'Ната': '#49b866',
+  'Кот Багси': '#f0913f', 'КлинАп-9000': '#9aa2b5',
+  'Дедлайн-Дракон': '#ff6b6b', 'Мерж-Конфликт': '#a86fe0',
+  'Спагетти-Монстр': '#f6e26b', 'Голова слева': '#a86fe0', 'Голова справа': '#a86fe0',
+  'Терминал': '#7de3a0', 'Деплой-Терминал': '#7de3a0', 'Табличка': '#b9b3a4',
+};
+
 function say(name, text) {
   return new Promise(res => {
     const prev = G.state;
     G.state = 'dialog';
     $('dialog').hidden = false;
     $('dlg-name').textContent = name || '';
+    $('dlg-name').style.color = NAME_COLORS[name] || 'var(--accent)';
     const face = PORTRAITS[name];
     $('dlg-portrait').hidden = !face;
     if (face) drawFace($('dlg-face'), face, 32);
@@ -699,6 +767,7 @@ function updatePatrols(dt) {
     const tx = e.x === e.def.x ? e.def.x + e.def.patrol : e.def.x;
     if (isSolidTile(m, tx, e.y) || entAt(tx, e.y) || (G.px === tx && G.py === e.y)) continue;
     e.flip = tx < e.x;
+    e.dir = tx < e.x ? 'left' : 'right';
     e.x = tx;
     e.walkT = 300;
     e.par ^= 1;
@@ -757,6 +826,7 @@ async function loadMap(name, x, y, { skipEvent } = {}) {
   renderMap(name, 0); renderMap(name, 1);
   buildEnts();
   save();
+  Music.play(MAPS[name].music || 'calm');
   toast(MAPS[name].name, 1800);
   await fade(false);
   if (!skipEvent && MAP_EVENTS[name]) { await MAP_EVENTS[name](); endDialog(); }
@@ -882,14 +952,18 @@ function battle(enemyId, opts = {}) {
       ehp: base.hp, emax: base.hp,
       stun: false, shake: 0, blink: 0, bob: 0,
       introT: reduceMotion ? 0 : 550,
-      pAtkT: 0,
+      glitchT: reduceMotion ? 0 : 380,
+      pAtkT: 0, eAtkT: 0,
+      fx: [],
       resolve: r => {
         B = null; $('battle-ui').hidden = true; $('controls').hidden = false; G.state = 'explore';
+        Music.play(MAPS[G.map].music || 'calm');
         // поражение обрабатываем централизованно: откат в деревню
         if (r === 'lose') loseGame().then(() => resolve(r));
         else resolve(r);
       },
     };
+    Music.play(base.boss ? 'boss' : 'battle');
     G.state = 'battle';
     $('dialog').hidden = true;
     $('controls').hidden = true; // в бою — только боевые кнопки
@@ -945,6 +1019,11 @@ function playerMenu() {
   battleButtons(btns);
 }
 
+function addFx(type, dur, data) {
+  if (!B || reduceMotion) return;
+  B.fx.push({ type, t: 0, dur, data: data || {} });
+}
+
 async function playerAttack(s) {
   if (!B) return;
   G.en -= s.en; updateHUD();
@@ -956,13 +1035,17 @@ async function playerAttack(s) {
   };
   bmsg(lines[s.id] || 'Атака!');
   B.pAtkT = reduceMotion ? 0 : 420;
+  addFx(s.id, 520);
   await wait(550);
   if (!B) return;
-  const dmg = dmgRoll(pAtk(), s.mult, B.e.def);
+  const crit = Math.random() < 0.12;
+  const dmg = Math.round(dmgRoll(pAtk(), s.mult, B.e.def) * (crit ? 1.6 : 1));
   B.ehp = Math.max(0, B.ehp - dmg);
-  B.shake = reduceMotion ? 0 : 380; B.blink = 380;
+  B.shake = reduceMotion ? 0 : (crit ? 520 : 380); B.blink = 380;
+  addFx('burst', crit ? 620 : 420, { big: crit });
   sfx('hit');
-  floatText('-' + dmg, 0.5, 0.28, 'hurt');
+  if (crit) { sfx('stun'); floatText('КРИТ! -' + dmg, 0.5, 0.24, 'hurt'); bmsg('КРИТИЧЕСКИЙ ВАЙБ! ×1.6 урона!'); }
+  else floatText('-' + dmg, 0.5, 0.28, 'hurt');
   updateEnemyBar();
   await wait(520);
   if (!B) return;
@@ -1015,6 +1098,10 @@ async function enemyTurn() {
   bmsg(line);
   await wait(650);
   if (!B) return;
+  B.eAtkT = reduceMotion ? 0 : 420;
+  addFx('slash', 420);
+  await wait(260);
+  if (!B) return;
   const enraged = B.e.boss && B.ehp < B.emax * 0.3;
   const dmg = dmgRoll(B.e.atk * (enraged ? 1.3 : 1), 1, pDef());
   G.hp = Math.max(0, G.hp - dmg);
@@ -1058,11 +1145,33 @@ async function victory() {
 /* ============================================================
    МЕНЮ ПАУЗЫ
    ============================================================ */
+function sideQuests() {
+  const rows = [];
+  rows.push(G.flags.beansGiven
+    ? '✓ Зёрна для Баристы Джавы — выполнено'
+    : `⏳ Зёрна для Баристы Джавы — собрано ${G.items.bean || 0}/3 (Поля Фронтенда)`);
+  rows.push(G.flags.docsDelivered
+    ? '✓ Древняя Документация — доставлена Грейс'
+    : G.flags.docsTaken
+      ? '⏳ Древняя Документация — отнеси её Тимлиду Грейс в Продакшен'
+      : '⏳ Древняя Документация — навести Старика Легаси в лесу');
+  rows.push(G.flags.chest_hut
+    ? '✓ Тайна Хижины Легаси — раскрыта'
+    : '⏳ Тайна Хижины Легаси — что старик прячет за дверью хижины?');
+  return rows.map(r => `<div class="sq${r[0] === '✓' ? ' sq-done' : ''}">${r}</div>`).join('');
+}
+
 function openMenu() {
   if (G.state !== 'explore') return;
   G.state = 'menu';
   $('menu').hidden = false;
-  $('menu-quest').innerHTML = `<b>ЗАДАЧА:</b> ${QUEST_HINTS[Math.min(G.story, QUEST_HINTS.length - 1)]}`;
+  const oldMap = $('menu-map-wrap');
+  if (oldMap) oldMap.remove();
+  $('menu-quest').innerHTML =
+    `<b>ЗАДАЧА:</b> ${QUEST_HINTS[Math.min(G.story, QUEST_HINTS.length - 1)]}` +
+    `<div class="sq-title">ПОБОЧНЫЕ КВЕСТЫ</div>` + sideQuests();
+  // мини-карта локации
+  const mc = renderMap(G.map, 0);
   $('menu-stats').innerHTML =
     `<canvas id="menu-face" width="16" height="16"></canvas><div>` +
     `<b>Джун</b> — вайб-кодер ур. ${G.lvl}<br>` +
@@ -1070,6 +1179,31 @@ function openMenu() {
     `АТК ${pAtk()} · ЗАЩ ${pDef()} · XP ${G.xp}/${xpNeed()}<br>` +
     `Монеты: ${G.coins} ☕ · ${MAPS[G.map].name}</div>`;
   drawFace($('menu-face'), SPR.player.down[0], 16);
+  const mapWrap = document.createElement('div');
+  mapWrap.id = 'menu-map-wrap';
+  const mm = document.createElement('canvas');
+  mm.id = 'menu-map';
+  mm.width = mc.width; mm.height = mc.height;
+  mapWrap.appendChild(mm);
+  $('menu-stats').after(mapWrap);
+  const mg = mm.getContext('2d');
+  mg.imageSmoothingEnabled = false;
+  mg.drawImage(mc, 0, 0);
+  mg.fillStyle = 'rgba(13,15,26,0.35)';
+  mg.fillRect(0, 0, mm.width, mm.height);
+  for (const p of MAPS[G.map].portals) { // выходы
+    mg.fillStyle = '#54d6d6';
+    mg.fillRect(p.x * TILE + 4, p.y * TILE + 4, 8, 8);
+  }
+  for (const e of ents) { // персонажи
+    if (!entVisible(e) || e.def.pickup) continue;
+    mg.fillStyle = e.def.chest ? '#f2d54d' : '#a3e14f';
+    mg.fillRect(e.x * TILE + 5, e.y * TILE + 5, 6, 6);
+  }
+  mg.fillStyle = '#ffffff'; // игрок
+  mg.fillRect(G.px * TILE + 3, G.py * TILE + 3, 10, 10);
+  mg.fillStyle = '#e04f4f';
+  mg.fillRect(G.px * TILE + 5, G.py * TILE + 5, 6, 6);
   const box = $('menu-items');
   box.innerHTML = '';
   const keys = Object.keys(G.items);
@@ -1149,6 +1283,7 @@ function showTitle() {
   };
   if (hasSave()) mk('▶ ПРОДОЛЖИТЬ', () => { audio(); if (load()) startPlay(false); });
   mk('★ НОВАЯ ИГРА', () => { audio(); newGame(); });
+  Music.play('title');
 }
 
 async function startPlay(isNew) {
@@ -1160,6 +1295,7 @@ async function startPlay(isNew) {
   renderMap(G.map, 0); renderMap(G.map, 1);
   buildEnts();
   partsFor = null;
+  Music.play(MAPS[G.map].music || 'calm');
   G.state = 'explore';
   if (isNew) {
     G.state = 'dialog';
@@ -1184,6 +1320,7 @@ async function endGame() {
   await fade(true);
   G.state = 'ending';
   $('battle-ui').hidden = true;
+  Music.play('title');
   await fade(false);
   for (const page of ENDING_PAGES) { await say('', page); G.state = 'ending'; }
   if (!reduceMotion) {
@@ -1200,6 +1337,7 @@ async function endGame() {
   await say('Клод', 'Прод зелёный, мир спасён… но приключение не обязано кончаться. Гуляй, добивай сайд-квесты — Кодоземье теперь твоё. Вайб с тобой!');
   endDialog();
   quest(QUEST_HINTS[7]);
+  Music.play(MAPS[G.map].music || 'calm');
   G.state = 'explore';
 }
 
@@ -1332,7 +1470,7 @@ function drawEnt(e, camX, camY) {
   let spr;
   if (e.sprites) {
     const frame = e.walkT > 0 ? 1 + e.par : 0;
-    spr = e.sprites[e.def.dir || 'down'][frame];
+    spr = e.sprites[e.dir || e.def.dir || 'down'][frame];
   } else if (e.def.chest) spr = G.flags[e.def.id] ? SPR.chestOpen : SPR.chest;
   else if (e.def.pickup) spr = SPR[e.def.pickup];
   else spr = (e.flip ? SPRF : SPR)[e.def.spr];
@@ -1460,19 +1598,30 @@ function drawBattle(dt) {
   if (B.blink > 0) B.blink -= dt;
   if (B.introT > 0) B.introT -= dt;
   if (B.pAtkT > 0) B.pAtkT -= dt;
+  if (B.eAtkT > 0) B.eAtkT -= dt;
 
-  // враг
+  // враг: дыхание (лёгкое сжатие по вертикали) + выпад к герою
   const spr = SPR[B.e.spr];
   const scale = spr.width <= 16 ? 7 : spr.width <= 24 ? 6 : 5;
-  const w = spr.width * scale, h = spr.height * scale;
+  const w = spr.width * scale;
+  const breathe = reduceMotion ? 0 : Math.sin(B.bob / 420) * 0.022;
+  const h = Math.round(spr.height * scale * (1 + breathe));
   const bobY = reduceMotion ? 0 : Math.round(Math.sin(B.bob / 320) * 3);
   const shX = B.shake > 0 ? ri(-4, 4) : 0;
   const introX = B.introT > 0 ? Math.round((B.introT / 550) * 110) : 0;
+  let lungeX = 0, lungeY = 0;
+  if (B.eAtkT > 0) {
+    const q = Math.sin((1 - B.eAtkT / 420) * Math.PI);
+    lungeX = Math.round(-q * 30); lungeY = Math.round(q * 16);
+  }
+  const ex = Math.round(VIEW_W / 2 + shX + introX + lungeX);
+  const eyTop = Math.round(GROUND_Y - h + bobY + lungeY);
+  B.eCx = ex; B.eCy = eyTop + h / 2; // центр врага для эффектов
   const blinkHide = B.blink > 0 && Math.floor(B.blink / 60) % 2 === 0;
   if (!blinkHide) {
     ctx.imageSmoothingEnabled = false;
     if (B.introT > 0) ctx.globalAlpha = 1 - B.introT / 550;
-    ctx.drawImage(spr, Math.round(VIEW_W / 2 - w / 2 + shX + introX), Math.round(GROUND_Y - h + bobY), w, h);
+    ctx.drawImage(spr, ex - w / 2, eyTop, w, h);
     ctx.globalAlpha = 1;
   }
 
@@ -1480,17 +1629,108 @@ function drawBattle(dt) {
   const hero = SPR.player.up[0];
   const lunge = B.pAtkT > 0 ? Math.round(Math.sin((1 - B.pAtkT / 420) * Math.PI) * 26) : 0;
   const hx = 24 + lunge, hy = GROUND_Y - 42;
+  B.hCx = hx + 28; B.hCy = hy + 28;
   ctx.fillStyle = 'rgba(0,0,0,0.3)';
   ctx.beginPath();
   ctx.ellipse(hx + 28, hy + 58, 24, 6, 0, 0, Math.PI * 2);
   ctx.fill();
   ctx.drawImage(hero, hx, hy, 56, 56);
 
+  drawBattleFx(dt);
+
   if (hurtFlash > 0) {
     hurtFlash -= dt;
     ctx.fillStyle = 'rgba(224,79,79,0.28)';
     ctx.fillRect(0, 0, VIEW_W, VIEW_H);
   }
+
+  // глитч-переход в начале боя
+  if (B.glitchT > 0) {
+    B.glitchT -= dt;
+    const n = 9;
+    for (let i = 0; i < n; i++) {
+      const gy = ri(0, VIEW_H);
+      ctx.fillStyle = i % 3 === 0 ? 'rgba(84,214,214,0.5)' : 'rgba(5,6,10,0.75)';
+      ctx.fillRect(0, gy, VIEW_W, ri(2, 8));
+    }
+  }
+}
+
+/* спецэффекты навыков и ударов */
+function drawBattleFx(dt) {
+  if (!B || !B.fx.length) return;
+  const ex = B.eCx, ey = B.eCy, hx = B.hCx, hy = B.hCy;
+  for (const f of B.fx) {
+    f.t += dt;
+    const p = clamp(f.t / f.dur, 0, 1);
+    ctx.save();
+    if (f.type === 'prompt') { // символы кода летят во врага
+      ctx.font = 'bold 11px monospace';
+      const glyphs = ['>', '{', '}', ';'];
+      for (let i = 0; i < 4; i++) {
+        const q = clamp(p * 1.3 - i * 0.08, 0, 1);
+        const gx = hx + (ex - hx) * q, gy = hy + (ey - hy) * q - Math.sin(q * Math.PI) * 34;
+        ctx.globalAlpha = 1 - q * 0.4;
+        ctx.fillStyle = '#54d6d6';
+        ctx.fillText(glyphs[i], gx + i * 5, gy);
+      }
+    } else if (f.type === 'debug') { // сходящийся прицел
+      ctx.globalAlpha = 0.4 + p * 0.6;
+      ctx.strokeStyle = '#e04f4f';
+      ctx.lineWidth = 2;
+      const r = (1 - p) * 58 + 12;
+      ctx.beginPath(); ctx.arc(ex, ey, r, 0, Math.PI * 2); ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(ex - r - 7, ey); ctx.lineTo(ex - r + 7, ey);
+      ctx.moveTo(ex + r - 7, ey); ctx.lineTo(ex + r + 7, ey);
+      ctx.moveTo(ex, ey - r - 7); ctx.lineTo(ex, ey - r + 7);
+      ctx.moveTo(ex, ey + r - 7); ctx.lineTo(ex, ey + r + 7);
+      ctx.stroke();
+    } else if (f.type === 'refactor') { // зелёная волна чистоты
+      ctx.globalAlpha = Math.sin(p * Math.PI) * 0.8;
+      ctx.fillStyle = '#49b866';
+      const sweep = -70 + p * 150;
+      for (let i = 0; i < 6; i++)
+        ctx.fillRect(ex - 60 + ((i * 23 + sweep) % 130), ey - 55 + i * 18, 14, 4);
+    } else if (f.type === 'vibe') { // Клод прилетает и бьёт лучом
+      const cx = hx + 14, cy = hy - 44 + Math.sin(p * 6) * 3;
+      if (p > 0.25) {
+        const beamA = Math.sin(clamp((p - 0.25) / 0.75, 0, 1) * Math.PI);
+        ctx.globalAlpha = beamA * 0.85;
+        const grad = ctx.createLinearGradient(cx, cy, ex, ey);
+        grad.addColorStop(0, '#e88968'); grad.addColorStop(1, '#f6e26b');
+        ctx.strokeStyle = grad; ctx.lineWidth = 7;
+        ctx.beginPath(); ctx.moveTo(cx + 8, cy + 8); ctx.lineTo(ex, ey); ctx.stroke();
+        ctx.strokeStyle = '#fff'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(cx + 8, cy + 8); ctx.lineTo(ex, ey); ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+      ctx.drawImage(SPR.claude, cx - 16, cy - 16, 32, 32);
+    } else if (f.type === 'burst') { // звёздный разлёт при попадании
+      const R = (f.data.big ? 46 : 30) * p;
+      ctx.globalAlpha = 1 - p;
+      for (let i = 0; i < 8; i++) {
+        const a = i * Math.PI / 4 + 0.4;
+        ctx.fillStyle = i % 2 ? '#f6e26b' : '#ffffff';
+        const sz = f.data.big ? 4 : 3;
+        ctx.fillRect(ex + Math.cos(a) * R - sz / 2, ey + Math.sin(a) * R - sz / 2, sz, sz);
+      }
+    } else if (f.type === 'slash') { // вражеские когти по герою
+      ctx.globalAlpha = Math.sin(p * Math.PI);
+      ctx.strokeStyle = '#ff6b6b';
+      ctx.lineWidth = 3;
+      for (let i = 0; i < 3; i++) {
+        const off = (p * 26) - 13 + i * 9;
+        ctx.beginPath();
+        ctx.moveTo(hx - 22 + off, hy - 26);
+        ctx.lineTo(hx + 2 + off, hy + 22);
+        ctx.stroke();
+      }
+    }
+    ctx.restore();
+    ctx.globalAlpha = 1;
+  }
+  B.fx = B.fx.filter(f => f.t < f.dur);
 }
 
 function drawEnding(dt) {

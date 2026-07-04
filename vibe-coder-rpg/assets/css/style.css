@@ -88,11 +88,13 @@ html, body {
   inset: 3px;
   pointer-events: none;
   border-radius: 2px;
-  background: repeating-linear-gradient(
-    to bottom,
-    transparent 0 2px,
-    rgba(0, 0, 0, .10) 2px 3px
-  );
+  background:
+    radial-gradient(ellipse at center, transparent 58%, rgba(0, 0, 0, .28) 100%),
+    repeating-linear-gradient(
+      to bottom,
+      transparent 0 2px,
+      rgba(0, 0, 0, .10) 2px 3px
+    );
   mix-blend-mode: multiply;
 }
 
@@ -361,6 +363,34 @@ html, body {
   box-shadow: 0 3px 0 #000;
 }
 #menu-quest b { color: var(--gold); }
+.sq-title {
+  margin-top: 8px;
+  padding-top: 6px;
+  border-top: 2px solid var(--border);
+  color: var(--dim);
+  font-size: 11px;
+  letter-spacing: .18em;
+}
+.sq { margin-top: 4px; font-size: 13px; color: var(--ink); }
+.sq-done { color: var(--good); }
+
+#menu-map-wrap {
+  margin: 0 auto 10px;
+  max-width: 540px;
+  background: linear-gradient(var(--panel-2), var(--panel));
+  border: 3px solid var(--border);
+  border-radius: 8px;
+  padding: 8px;
+  box-shadow: 0 3px 0 #000;
+  text-align: center;
+}
+#menu-map {
+  image-rendering: pixelated;
+  width: 100%;
+  max-width: 300px;
+  border: 2px solid var(--border-lit);
+  border-radius: 4px;
+}
 #menu-stats {
   display: flex;
   gap: 12px;

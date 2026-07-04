@@ -109,7 +109,7 @@ window.NPCS = [
   },
 
   {
-    id: 'nata', map: 'village', x: 6, y: 9, name: 'Жительница Ната',
+    id: 'nata', map: 'village', x: 6, y: 9, name: 'Жительница Ната', patrol: 1,
     human: { hair: 'j', hairD: 'J', shirt: 'g', shirtD: 'G', pants: 'K' },
     async talk() {
       const { say } = E;
@@ -256,6 +256,31 @@ window.NPCS = [
     },
   },
 
+  /* ===== ХИЖИНА ЛЕГАСИ (секретная комната) ===== */
+
+  {
+    id: 'chest_hut', map: 'hut', x: 2, y: 3, chest: true, name: 'Сундук',
+    async talk() {
+      const { say } = E;
+      if (G.flags.chest_hut) { await say('', 'Пустой сундук. Пахнет 1998 годом.'); return; }
+      G.flags.chest_hut = true;
+      E.give('floppy', 1);
+      G.maxen += 10; G.en += 10;
+      E.coins(40);
+      E.sfx('fanfare');
+      await say('', '💾 Найдено: Дискета 1.44МБ и 40 ☕!\nДревняя энергия наполняет тебя: макс. EN +10!');
+    },
+  },
+
+  {
+    id: 'hut_note', map: 'hut', x: 9, y: 2, spr: 'sign', name: 'Записка',
+    async talk() {
+      const { say } = E;
+      await say('Записка', 'Дневник, запись №9000:\n«Сегодня я снова хотел переписать лес с Perl на что-то новое. Открыл код. Закрыл код. Полил фикус».');
+      await say('Записка', '«Если кто-то это читает: настоящее легаси нельзя переписать. Его можно только понять. Ну или обойти лесом».');
+    },
+  },
+
   {
     id: 'chest_forest', map: 'forest', x: 7, y: 17, chest: true, name: 'Сундук',
     async talk() {
@@ -367,7 +392,7 @@ window.NPCS = [
   },
 
   {
-    id: 'pip', map: 'city', x: 16, y: 13, name: 'Стажёр Пип',
+    id: 'pip', map: 'city', x: 16, y: 13, name: 'Стажёр Пип', patrol: 1,
     human: { hair: 'o', hairD: 'O', shirt: 'l', shirtD: 'L', pants: 'K', acc: 'beanie' },
     async talk() {
       const { say } = E;
@@ -460,6 +485,13 @@ window.MAP_EVENTS = {
     if (!G.flags.towerIntro && !G.flags.dragonDown) {
       G.flags.towerIntro = true;
       await say('', 'Воздух дрожит. Наверху слышно тиканье гигантских часов и чьё-то очень недовольное дыхание…');
+    }
+  },
+  async hut() {
+    const { say } = E;
+    if (!G.flags.hutIntro) {
+      G.flags.hutIntro = true;
+      await say('Клод', 'Хижина Старика Легаси… Пыль, дискеты и книги «Perl за 21 день» всех 21 изданий. Тут пахнет историей. И немного носками.');
     }
   },
 };
