@@ -14,11 +14,29 @@ const ri = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
 const wait = ms => new Promise(r => setTimeout(r, ms));
 const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-const TILE = 16, VIEW_W = 240, VIEW_H = 320;
-const GROUND_Y = 220; // линия земли на боевом экране
+const TILE = 16;
+let VIEW_W = 240, VIEW_H = 320;
+let GROUND_Y = 220; // линия земли на боевом экране
 const canvas = $('screen');
 const ctx = canvas.getContext('2d');
 ctx.imageSmoothingEnabled = false;
+
+/* канвас на весь экран: внутреннее разрешение подгоняется под
+   пропорции устройства с целочисленным пиксельным масштабом */
+function resizeView() {
+  const w = Math.max(1, innerWidth), h = Math.max(1, innerHeight);
+  const scale = Math.max(2, Math.min(Math.floor(w / 176), Math.floor(h / 176)));
+  VIEW_W = Math.ceil(w / scale);
+  VIEW_H = Math.ceil(h / scale);
+  GROUND_Y = VIEW_H - 100;
+  canvas.width = VIEW_W;
+  canvas.height = VIEW_H;
+  canvas.style.width = VIEW_W * scale + 'px';
+  canvas.style.height = VIEW_H * scale + 'px';
+  ctx.imageSmoothingEnabled = false;
+  partsFor = null; // пересеять частицы под новый размер
+}
+addEventListener('resize', resizeView);
 
 /* ============================================================
    СПРАЙТЫ
@@ -503,6 +521,18 @@ function renderMap(name, ph = 0) {
 
 const tileAt = (m, x, y) => (m.rows[y] && m.rows[y][x]) || m.pad;
 const isSolidTile = (m, x, y) => SOLID_TILES.has(tileAt(m, x, y));
+
+/* бесшовный фон из тайла-границы — заполняет экран за пределами карты */
+const padPatterns = {};
+function padPattern(name) {
+  if (padPatterns[name]) return padPatterns[name];
+  const m = MAPS[name];
+  const c = document.createElement('canvas');
+  c.width = TILE; c.height = TILE;
+  (TILE_PAINTERS[m.pad] || TILE_PAINTERS['.'])(c.getContext('2d'), 0, 0, 0, 0, 0);
+  padPatterns[name] = ctx.createPattern(c, 'repeat');
+  return padPatterns[name];
+}
 
 /* ============================================================
    СОСТОЯНИЕ
@@ -1427,7 +1457,13 @@ function drawExplore(dt, t) {
     ? -Math.round((VIEW_H - mc.height) / 2)
     : clamp(pyl + 8 - VIEW_H / 2, 0, mc.height - VIEW_H);
 
-  ctx.fillStyle = '#05060a';
+  // за краем карты — затемнённый узор из тайла-границы (лес, скалы, стены)
+  ctx.save();
+  ctx.translate(-Math.round(camX), -Math.round(camY));
+  ctx.fillStyle = padPattern(G.map);
+  ctx.fillRect(Math.round(camX), Math.round(camY), VIEW_W + TILE, VIEW_H + TILE);
+  ctx.restore();
+  ctx.fillStyle = 'rgba(5,6,10,0.45)';
   ctx.fillRect(0, 0, VIEW_W, VIEW_H);
   ctx.drawImage(mc, -Math.round(camX), -Math.round(camY));
 
@@ -1506,41 +1542,39 @@ function drawBattleScenery(mapId, theme) {
     // холмы и дальние деревья
     ctx.fillStyle = '#274a33';
     ctx.beginPath();
-    ctx.ellipse(40, GROUND_Y + 6, 110, 40, 0, Math.PI, 0);
+    ctx.ellipse(VIEW_W * 0.17, GROUND_Y + 6, VIEW_W * 0.5, 40, 0, Math.PI, 0);
     ctx.fill();
     ctx.beginPath();
-    ctx.ellipse(210, GROUND_Y + 10, 130, 52, 0, Math.PI, 0);
+    ctx.ellipse(VIEW_W * 0.85, GROUND_Y + 10, VIEW_W * 0.55, 52, 0, Math.PI, 0);
     ctx.fill();
     ctx.fillStyle = '#1d3326';
-    for (let i = 0; i < 7; i++) {
-      const x = 10 + i * 36 + (hash2(i, 3) * 14 | 0);
+    for (let x = 4, i = 0; x < VIEW_W; x += 36, i++) {
+      const ox = (hash2(i, 3) * 14 | 0);
       const h = 22 + (hash2(i, 7) * 14 | 0);
       ctx.beginPath();
-      ctx.moveTo(x, GROUND_Y); ctx.lineTo(x + 11, GROUND_Y - h); ctx.lineTo(x + 22, GROUND_Y);
+      ctx.moveTo(x + ox, GROUND_Y); ctx.lineTo(x + ox + 11, GROUND_Y - h); ctx.lineTo(x + ox + 22, GROUND_Y);
       ctx.fill();
     }
   } else if (mapId === 'forest') {
     ctx.fillStyle = '#101f16';
-    for (let i = 0; i < 6; i++) {
-      const x = -6 + i * 46;
+    for (let x = -6; x < VIEW_W; x += 46) {
       ctx.beginPath();
       ctx.moveTo(x, GROUND_Y); ctx.lineTo(x + 23, GROUND_Y - 92); ctx.lineTo(x + 46, GROUND_Y);
       ctx.fill();
     }
     ctx.fillStyle = '#1a3323';
-    for (let i = 0; i < 7; i++) {
-      const x = -20 + i * 40;
+    for (let x = -20; x < VIEW_W; x += 40) {
       ctx.beginPath();
       ctx.moveTo(x, GROUND_Y); ctx.lineTo(x + 20, GROUND_Y - 56); ctx.lineTo(x + 40, GROUND_Y);
       ctx.fill();
     }
   } else if (mapId === 'cave') {
     ctx.fillStyle = '#241c38';
-    for (let i = 0; i < 8; i++) {
-      const x = i * 32 + (hash2(i, 1) * 10 | 0);
+    for (let x = 0, i = 0; x < VIEW_W; x += 32, i++) {
+      const ox = (hash2(i, 1) * 10 | 0);
       const h = 26 + (hash2(i, 5) * 30 | 0);
       ctx.beginPath();
-      ctx.moveTo(x, 0); ctx.lineTo(x + 13, h); ctx.lineTo(x + 26, 0);
+      ctx.moveTo(x + ox, 0); ctx.lineTo(x + ox + 13, h); ctx.lineTo(x + ox + 26, 0);
       ctx.fill();
     }
     for (let i = 0; i < 5; i++) { // мерцающие кристаллы
@@ -1549,8 +1583,8 @@ function drawBattleScenery(mapId, theme) {
       ctx.fillRect((r * 999 | 0) % VIEW_W, GROUND_Y - 12 - ((r * 61) | 0) % 40, 2, 4);
     }
   } else if (mapId === 'city') {
-    for (let i = 0; i < 6; i++) {
-      const x = i * 42, w = 34, h = 60 + ((hash2(i, 8) * 50) | 0);
+    for (let x = 0, i = 0; x < VIEW_W; x += 42, i++) {
+      const w = 34, h = 60 + ((hash2(i, 8) * 50) | 0);
       ctx.fillStyle = '#0e1424';
       ctx.fillRect(x, GROUND_Y - h, w, h);
       ctx.fillStyle = '#f2d54d';
@@ -1602,7 +1636,9 @@ function drawBattle(dt) {
 
   // враг: дыхание (лёгкое сжатие по вертикали) + выпад к герою
   const spr = SPR[B.e.spr];
-  const scale = spr.width <= 16 ? 7 : spr.width <= 24 ? 6 : 5;
+  let scale = spr.width <= 16 ? 7 : spr.width <= 24 ? 6 : 5;
+  // не выше сцены: ужимаем масштаб под низкие/широкие экраны
+  while (scale > 2 && spr.height * scale > GROUND_Y - 30) scale--;
   const w = spr.width * scale;
   const breathe = reduceMotion ? 0 : Math.sin(B.bob / 420) * 0.022;
   const h = Math.round(spr.height * scale * (1 + breathe));
@@ -1783,6 +1819,7 @@ window.E = { say, choice, battle, give, take, has, buy, coins, sfx, quest, endGa
 
 buildSprites();
 $('title-art').style.backgroundImage = `url(${makeTitleArt()})`;
+resizeView();
 showTitle();
 requestAnimationFrame(frame);
 

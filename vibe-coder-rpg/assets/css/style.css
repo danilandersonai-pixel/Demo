@@ -50,50 +50,37 @@ html, body {
 
 /* ---------- канвас ---------- */
 
+/* игровой экран — на весь экран телефона, без рамок */
 #screen-wrap {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 0;
-  padding: 6px;
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
 }
 
 #screen-box {
-  position: relative;
-  max-width: 100%;
-  max-height: 100%;
-  aspect-ratio: 240 / 320;
-  height: 100%;
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
 }
 
 #screen {
   image-rendering: pixelated;
   image-rendering: crisp-edges;
   display: block;
-  width: 100%;
-  height: 100%;
   background: #000;
-  border: 3px solid var(--border);
-  border-radius: 4px;
-  box-shadow:
-    0 0 0 3px #000,
-    0 0 0 4px #2a3050,
-    0 12px 40px rgba(0,0,0,.65),
-    inset 0 0 30px rgba(0,0,0,.25);
+  /* точные размеры выставляет движок (целочисленный пиксель-масштаб) */
 }
 
 #scanlines {
   position: absolute;
-  inset: 3px;
+  inset: 0;
   pointer-events: none;
-  border-radius: 2px;
   background:
-    radial-gradient(ellipse at center, transparent 58%, rgba(0, 0, 0, .28) 100%),
+    radial-gradient(ellipse at center, transparent 62%, rgba(0, 0, 0, .26) 100%),
     repeating-linear-gradient(
       to bottom,
       transparent 0 2px,
-      rgba(0, 0, 0, .10) 2px 3px
+      rgba(0, 0, 0, .09) 2px 3px
     );
   mix-blend-mode: multiply;
 }
@@ -526,14 +513,16 @@ html, body {
 /* ---------- тач-управление ---------- */
 
 #controls {
-  position: relative;
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
   z-index: 50;
   display: flex;
   justify-content: space-between;
   align-items: flex-end;
   padding: 6px 14px calc(env(safe-area-inset-bottom) + 12px);
-  min-height: 168px;
+  pointer-events: none; /* сквозь пустоту видно и «нажимается» мир */
 }
+#controls button { pointer-events: auto; }
 #dpad {
   display: grid;
   grid-template-columns: 52px 52px 52px;
@@ -548,14 +537,14 @@ html, body {
 .pad, #ab button {
   font-family: var(--font);
   color: var(--ink);
-  background: linear-gradient(rgba(36,44,82,.92), rgba(22,26,44,.92));
-  border: 3px solid var(--border);
-  border-top-color: var(--border-lit);
+  background: linear-gradient(rgba(36,44,82,.72), rgba(22,26,44,.72));
+  border: 3px solid rgba(74,84,128,.8);
+  border-top-color: rgba(118,131,184,.8);
   border-radius: 10px;
   font-size: 18px;
   font-weight: bold;
   touch-action: none;
-  box-shadow: 0 3px 0 #000;
+  box-shadow: 0 3px 0 rgba(0,0,0,.6);
 }
 .pad:active, #ab button:active, .pad.held {
   background: var(--accent);
@@ -585,7 +574,6 @@ html, body {
 
 /* десктоп: компактнее контролы */
 @media (hover: hover) and (pointer: fine) {
-  #controls { min-height: 120px; }
   #dpad { grid-template-columns: 40px 40px 40px; grid-template-rows: 40px 40px 40px; }
   #ab button { width: 50px; height: 50px; font-size: 18px; }
   #btn-b { width: 44px !important; height: 44px !important; }
