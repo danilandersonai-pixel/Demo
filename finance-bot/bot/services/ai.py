@@ -11,6 +11,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import json
 import logging
@@ -67,16 +68,27 @@ class AIClient:
             "X-Title": "Finance Bot",
             "HTTP-Referer": "https://t.me/",
         }
-        try:
-            async with httpx.AsyncClient(timeout=self.timeout) as client:
-                resp = await client.post(OPENROUTER_URL, headers=headers, json=payload)
-            if resp.status_code != 200:
-                logger.warning("OpenRouter %s: %s", resp.status_code, resp.text[:300])
-                return None
-            return resp.json()
-        except Exception as exc:  # pragma: no cover
-            logger.warning("OpenRouter запрос не удался: %s", exc)
-            return None
+        # До 3 попыток: сетевые сбои и 5xx/429 бывают разовыми — повторяем
+        # с паузой, чтобы пользователь не видел ошибку из-за одного глюка сети.
+        last_err = None
+        for attempt in range(3):
+            if attempt:
+                await asyncio.sleep(1.5 * attempt)
+            try:
+                async with httpx.AsyncClient(timeout=self.timeout) as client:
+                    resp = await client.post(
+                        OPENROUTER_URL, headers=headers, json=payload
+                    )
+                if resp.status_code == 200:
+                    return resp.json()
+                last_err = f"HTTP {resp.status_code}: {resp.text[:200]}"
+                # 4xx (кроме 429) повторять бессмысленно — ошибка в запросе/ключе.
+                if resp.status_code != 429 and resp.status_code < 500:
+                    break
+            except Exception as exc:
+                last_err = str(exc)
+        logger.warning("OpenRouter не ответил после ретраев: %s", last_err)
+        return None
 
     async def _chat(
         self,
