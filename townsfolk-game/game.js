@@ -654,9 +654,10 @@
   }
 
   /* ==========================================================
-     СПРАЙТЫ — процедурный пиксель-арт. Гекс 32×36 с «толщиной»
-     (светлая поверхность + тёмный земляной борт), постройки
-     32×48 с черепицей и обводкой, выступают за гекс вверх.
+     СПРАЙТЫ — процедурный пиксель-арт с псевдо-объёмом.
+     Свет слева-сверху: левые скаты крыш подсвечены, правые
+     грани стен в тени, у построек контактные тени на земле.
+     Гекс 32×36 с фактурным земляным бортом, постройки 32×48.
      ========================================================== */
   const P = {
     outline: '#0c1112',
@@ -690,7 +691,7 @@
     return [0, 31];
   }
 
-  function makeSprite(draw, w = HW, h = HH) {
+  function makeSprite(draw, w = HW, h = BH) {
     const c = document.createElement('canvas');
     c.width = w; c.height = h;
     const g = c.getContext('2d');
@@ -703,52 +704,32 @@
     g.fillRect(x, y, w, h);
   }
 
-  // Гекс с «толщиной»: поверхность + земляной борт снизу + обводка
-  function hexBase(g, pal, noiseN = 26) {
-    const side = pal.side || P.side, sideDark = pal.sideDark || P.sideDark;
-    for (let y = 0; y < HH; y++) {
-      const [x0, x1] = hexSpan(y);
-      let c = pal.base;
-      if (y >= HH - 3) c = sideDark;
-      else if (y >= HH - 6) c = side;
-      px(g, c, x0, y, x1 - x0 + 1, 1);
-    }
-    for (let k = 0; k < noiseN; k++) {
-      const y = rnd(HH - 7);
-      const [x0, x1] = hexSpan(y);
-      px(g, chance(.5) ? pal.dark : pal.light, x0 + rnd(x1 - x0 + 1), y);
-    }
-    // край поверхности над бортом
-    const [e0, e1] = hexSpan(HH - 6);
-    px(g, pal.edge, e0, HH - 7, e1 - e0 + 1, 1);
-    // обводка
-    for (let y = 0; y < HH; y++) {
-      const [x0, x1] = hexSpan(y);
-      px(g, P.outline, x0, y); px(g, P.outline, x1, y);
-      if (y < 9 || y >= 27) { px(g, P.outline, x0 + 1, y); px(g, P.outline, x1 - 1, y); }
-    }
-    const [t0, t1] = hexSpan(0);
-    px(g, P.outline, t0, 0, t1 - t0 + 1, 1);
-    const [b0, b1] = hexSpan(HH - 1);
-    px(g, P.outline, b0, HH - 1, b1 - b0 + 1, 1);
-    // блик по верхним граням
-    for (let y = 1; y < 8; y++) {
-      const [x0, x1] = hexSpan(y);
-      px(g, pal.light, x0 + 2, y); px(g, pal.light, x1 - 2, y);
-    }
+  // Затенение (правые грани) и контактная тень на земле
+  function shade(g, x, y, w, h, a = .32) {
+    g.fillStyle = `rgba(12,8,4,${a})`;
+    g.fillRect(x, y, w, h);
+  }
+  function groundShadow(g, x, y, w) {
+    g.fillStyle = 'rgba(8,11,12,.45)';
+    g.fillRect(x, y, w, 2);
   }
 
-  // Черепичная крыша: чередование рядов и колонок + конёк
-  function shingles(g, x, y, w, h, cols) {
-    for (let yy = 0; yy < h; yy++) {
-      const phase = (yy >> 1) & 1;
+  // Крыша-трапеция (видна и «глубина» ската): левый край подсвечен,
+  // правый в тени, светлый конёк, тень под свесом
+  function roofTrap(g, cx, y, topW, botW, h, cols) {
+    for (let r = 0; r < h; r++) {
+      const w = Math.round(topW + (botW - topW) * (r / Math.max(1, h - 1)));
+      const x = cx - (w >> 1);
       for (let xx = 0; xx < w; xx++) {
-        const s = ((xx + phase * 2) >> 1) & 1;
-        px(g, s ? cols[1] : cols[0], x + xx, y + yy);
+        const s = ((xx + r) >> 1) & 1;
+        px(g, s ? cols[1] : cols[0], x + xx, y + r);
       }
+      px(g, cols[2], x, y + r);
+      px(g, cols[2], x + 1, y + r);
+      shade(g, x + w - 2, y + r, 2, 1, .3);
     }
-    px(g, cols[2], x, y, w, 1);            // конёк
-    px(g, P.ink, x, y + h - 1, w, 1);      // тень под свесом
+    px(g, cols[2], cx - (topW >> 1) - 1, y, topW + 2, 1);
+    px(g, P.ink, cx - (botW >> 1), y + h, botW, 1);
   }
 
   // Фахверковая стена: светлая штукатурка + тёмные балки
@@ -776,32 +757,105 @@
     px(g, P.gold, x, y + h - 1, w, 1);
   }
 
-  // Большая ель (11×14)
+  // Каменная труба (рисовать после крыши)
+  function chimney(g, x, y) {
+    px(g, P.outline, x - 1, y - 1, 5, 7);
+    px(g, P.stone, x, y, 3, 5);
+    px(g, '#9a958a', x, y, 1, 5);
+    px(g, P.stoneDark, x, y + 2, 3, 1);
+  }
+
+  // Гекс с «толщиной»: поверхность, фактурный борт, светлый кант
+  function hexBase(g, pal, noiseN = 26) {
+    const side = pal.side || P.side, sideDark = pal.sideDark || P.sideDark;
+    const SB = 7; // высота борта
+    for (let y = 0; y < HH; y++) {
+      const [x0, x1] = hexSpan(y);
+      px(g, y >= HH - SB ? side : pal.base, x0, y, x1 - x0 + 1, 1);
+    }
+    // шум поверхности
+    for (let k = 0; k < noiseN; k++) {
+      const y = rnd(HH - SB - 1);
+      const [x0, x1] = hexSpan(y);
+      px(g, chance(.5) ? pal.dark : pal.light, x0 + rnd(x1 - x0 + 1), y);
+    }
+    // борт: вертикальные прожилки, тёмный низ
+    for (let y = HH - SB; y < HH; y++) {
+      const [x0, x1] = hexSpan(y);
+      for (let x = x0; x <= x1; x++) {
+        if ((x % 4) === 1) px(g, sideDark, x, y);
+      }
+    }
+    const [d0, d1] = hexSpan(HH - 2);
+    px(g, sideDark, d0, HH - 2, d1 - d0 + 1, 1);
+    // затенение стыка поверхности и борта
+    const [a0, a1] = hexSpan(HH - SB - 1);
+    px(g, pal.edge, a0, HH - SB - 1, a1 - a0 + 1, 1);
+    // обводка
+    for (let y = 0; y < HH; y++) {
+      const [x0, x1] = hexSpan(y);
+      px(g, P.outline, x0, y); px(g, P.outline, x1, y);
+      if (y < 9 || y >= 27) { px(g, P.outline, x0 + 1, y); px(g, P.outline, x1 - 1, y); }
+    }
+    const [t0, t1] = hexSpan(0);
+    px(g, P.outline, t0, 0, t1 - t0 + 1, 1);
+    const [b0, b1] = hexSpan(HH - 1);
+    px(g, P.outline, b0, HH - 1, b1 - b0 + 1, 1);
+    // светлый кант по верхнему периметру поверхности
+    for (let y = 1; y < 9; y++) {
+      const [x0, x1] = hexSpan(y);
+      px(g, pal.light, x0 + 2, y); px(g, pal.light, x1 - 2, y);
+    }
+    const [h0, h1] = hexSpan(1);
+    px(g, pal.light, h0 + 1, 1, h1 - h0 - 1, 1);
+  }
+
+  // Гора: пик с освещённой левой и затенённой правой гранью
+  function peak(g, cx, y, hgt, snowRows) {
+    for (let r = 0; r < hgt; r++) {
+      const w = 1 + r * 2, x = cx - r;
+      const lw = Math.ceil(w / 2);
+      if (r < snowRows) {
+        px(g, P.snow, x, y + r, w, 1);
+        px(g, '#eceade', x, y + r, lw, 1);
+      } else {
+        px(g, '#716e60', x, y + r, lw, 1);
+        px(g, '#524f45', x + lw, y + r, w - lw, 1);
+      }
+    }
+    px(g, '#3d3b32', cx + 1, y + snowRows + 1, 1, Math.max(0, hgt - snowRows - 1));
+  }
+
+  // Большая ель (11×14): освещена слева, тень на земле
   function pineBig(g, x, y) {
     const d = '#20361f', m = '#2c4a2b', l = '#3f6b3c';
+    groundShadow(g, x + 1, y + 12, 9);
     px(g, d, x + 5, y, 1, 1);
     px(g, m, x + 4, y + 1, 3, 1);
     px(g, d, x + 3, y + 2, 5, 2);
     px(g, m, x + 2, y + 4, 7, 2);
     px(g, d, x + 1, y + 6, 9, 2);
     px(g, m, x, y + 8, 11, 2);
-    px(g, l, x + 4, y + 2); px(g, l, x + 3, y + 5); px(g, l, x + 2, y + 8);
+    px(g, l, x + 4, y + 1); px(g, l, x + 3, y + 3); px(g, l, x + 2, y + 5);
+    px(g, l, x + 1, y + 7); px(g, l, x, y + 9);
     px(g, P.wood, x + 5, y + 10, 2, 3);
-    px(g, '#1a2e1f', x + 3, y + 13, 6, 1);
   }
 
   // Малая ель (7×9)
   function pineSmall(g, x, y) {
-    const d = '#20361f', m = '#2c4a2b';
+    const d = '#20361f', m = '#2c4a2b', l = '#3f6b3c';
+    groundShadow(g, x + 1, y + 8, 5);
     px(g, m, x + 3, y, 1, 1);
     px(g, d, x + 2, y + 1, 3, 2);
     px(g, m, x + 1, y + 3, 5, 2);
     px(g, d, x, y + 5, 7, 2);
+    px(g, l, x + 2, y + 2); px(g, l, x + 1, y + 4);
     px(g, P.wood, x + 3, y + 7, 1, 2);
   }
 
   // Овца (6×5)
   function sheep(g, x, y) {
+    groundShadow(g, x - 1, y + 4, 6);
     px(g, P.ink, x - 1, y, 6, 4);
     px(g, P.cream, x, y, 4, 3);
     px(g, '#f2ece0', x, y, 2, 1);
@@ -811,82 +865,83 @@
 
   // Корова (8×6)
   function cow(g, x, y) {
+    groundShadow(g, x - 1, y + 5, 9);
     px(g, P.ink, x - 1, y - 1, 9, 6);
     px(g, P.cream, x, y, 7, 4);
+    px(g, '#f2ece0', x, y, 3, 1);
     px(g, '#3a3226', x + 1, y + 1, 2, 2); px(g, '#3a3226', x + 5, y, 2, 2);
     px(g, '#c9a0a0', x + 6, y + 2, 2, 2);
     px(g, P.ink, x, y + 4, 1, 2); px(g, P.ink, x + 5, y + 4, 1, 2);
   }
 
-  // Домик с трубой (17×13, якорь — левый верх)
+  // Домик (объёмный): трапеция крыши, тень справа, тень на земле
   function cottage(g, x, y, withChimney) {
-    px(g, P.outline, x - 2, y, 19, 13);
-    if (withChimney) {
-      px(g, P.outline, x + 10, y - 4, 5, 5);
-      px(g, P.stone, x + 11, y - 3, 3, 4);
-      px(g, P.stoneDark, x + 11, y - 1, 3, 1);
-    }
-    shingles(g, x - 1, y + 1, 17, 5, ROOF_RED);
+    groundShadow(g, x - 1, y + 12, 18);
+    px(g, P.outline, x - 3, y - 1, 21, 14);
     timberWall(g, x, y + 6, 15, 6);
-    px(g, P.wood, x + 6, y + 8, 3, 4);
-    px(g, P.goldLight, x + 8, y + 10, 1, 1);
+    shade(g, x + 12, y + 6, 3, 6);
+    roofTrap(g, x + 7, y, 7, 19, 6, ROOF_RED);
+    if (withChimney) chimney(g, x + 10, y - 4);
+    px(g, P.ink, x + 5, y + 7, 5, 5);
+    px(g, P.woodMid, x + 6, y + 8, 3, 4);
+    px(g, P.goldLight, x + 8, y + 9, 1, 1);
     litWindow(g, x + 2, y + 8, 2, 2);
     litWindow(g, x + 11, y + 8, 2, 2);
   }
 
   function initSprites() {
-    // --- Террейны (по 3 варианта) ---
+    // --- Террейны (по 3 варианта), 32×36 ---
     sprites.grass = [
       makeSprite(g => {
         hexBase(g, P.grass);
         sheep(g, 8, 18); sheep(g, 19, 13);
         px(g, '#c9c25a', 22, 20); px(g, '#b56a6a', 12, 10); px(g, '#548049', 11, 11);
-      }),
+      }, HW, HH),
       makeSprite(g => {
         hexBase(g, P.grass);
         cow(g, 12, 16);
         px(g, '#c9c25a', 8, 12); px(g, '#c9c25a', 22, 22);
         pineSmall(g, 20, 6);
-      }),
+      }, HW, HH),
       makeSprite(g => {
         hexBase(g, P.grass);
         sheep(g, 14, 20);
-        // стожок
+        // стожок с бликом и тенью
+        groundShadow(g, 7, 15, 9);
         px(g, P.ink, 7, 10, 8, 6);
-        px(g, P.gold, 8, 12, 6, 3); px(g, P.goldLight, 9, 11, 4, 1); px(g, P.goldLight, 10, 10, 2, 1);
+        px(g, P.gold, 8, 12, 6, 3);
+        px(g, P.goldLight, 9, 11, 4, 1); px(g, P.goldLight, 10, 10, 2, 1);
+        px(g, P.goldLight, 8, 12, 1, 3);
+        shade(g, 12, 12, 2, 3, .25);
         px(g, '#b56a6a', 22, 14);
-      }),
+      }, HW, HH),
     ];
     sprites.forest = [
-      makeSprite(g => { hexBase(g, P.forest); pineBig(g, 4, 6); pineBig(g, 17, 10); pineSmall(g, 12, 20); }),
-      makeSprite(g => { hexBase(g, P.forest); pineBig(g, 10, 5); pineSmall(g, 4, 15); pineBig(g, 19, 14); }),
-      makeSprite(g => { hexBase(g, P.forest); pineBig(g, 6, 12); pineSmall(g, 18, 7); pineSmall(g, 21, 18); px(g, '#7a4a3a', 8, 26, 3, 1); }),
+      makeSprite(g => { hexBase(g, P.forest); pineBig(g, 4, 6); pineBig(g, 17, 10); pineSmall(g, 12, 20); }, HW, HH),
+      makeSprite(g => { hexBase(g, P.forest); pineBig(g, 10, 5); pineSmall(g, 4, 15); pineBig(g, 19, 14); }, HW, HH),
+      makeSprite(g => { hexBase(g, P.forest); pineBig(g, 6, 12); pineSmall(g, 18, 7); pineSmall(g, 21, 18); px(g, '#7a4a3a', 8, 26, 3, 1); }, HW, HH),
     ];
     sprites.mountain = [
       makeSprite(g => {
         hexBase(g, P.mountain, 30);
-        // главный пик
-        for (let r = 0; r < 13; r++) {
-          const w = 1 + r * 2, x = 14 - r;
-          px(g, r < 3 ? P.snow : (r % 2 ? '#716e60' : '#615f52'), x, 7 + r, w, 1);
-        }
-        px(g, '#4a473e', 11, 14, 2, 5); px(g, '#4a473e', 17, 12, 1, 7);
-        px(g, '#dfdbd0', 13, 8, 2, 1);
-        // малый пик справа
-        for (let r = 0; r < 7; r++) px(g, r < 2 ? P.snow : '#565348', 23 - r, 17 + r, 1 + r * 2, 1);
-      }),
+        groundShadow(g, 5, 22, 22);
+        peak(g, 14, 7, 13, 3);
+        peak(g, 23, 17, 7, 2);
+        px(g, '#787666', 5, 24, 4, 2); px(g, '#8a8577', 5, 24, 2, 1);
+      }, HW, HH),
       makeSprite(g => {
         hexBase(g, P.mountain, 30);
-        for (let r = 0; r < 11; r++) px(g, r < 3 ? P.snow : (r % 2 ? '#6b695c' : '#5d5b52'), 17 - r, 9 + r, 1 + r * 2, 1);
-        px(g, '#4a473e', 15, 13, 1, 6);
+        groundShadow(g, 7, 21, 18);
+        peak(g, 17, 9, 11, 3);
         px(g, '#787666', 6, 22, 5, 3); px(g, '#8a8577', 7, 22, 2, 1);
-      }),
+      }, HW, HH),
       makeSprite(g => {
         hexBase(g, P.mountain, 30);
-        for (let r = 0; r < 9; r++) px(g, r < 2 ? P.snow : '#6b695c', 12 - r, 10 + r, 1 + r * 2, 1);
-        for (let r = 0; r < 8; r++) px(g, r < 2 ? P.snow : '#5d5b52', 22 - r, 14 + r, 1 + r * 2, 1);
+        groundShadow(g, 4, 20, 20);
+        peak(g, 12, 10, 9, 2);
+        peak(g, 22, 14, 8, 2);
         px(g, '#787666', 8, 24, 4, 2);
-      }),
+      }, HW, HH),
     ];
     // Вода — два кадра волн
     const waves = [[6, 11], [17, 15], [9, 22], [21, 25], [14, 7]];
@@ -898,7 +953,7 @@
         px(g, '#4a7396', wx + ox + 1, wy, 2, 1);
         px(g, '#5d86ab', wx + ox + 1, wy, 1, 1);
       }
-    }));
+    }, HW, HH));
 
     // Неразведанное — почти чёрный гекс
     sprites.hidden = makeSprite(g => {
@@ -906,49 +961,52 @@
         base: '#121a1c', dark: '#0e1416', light: '#182225', edge: '#0c1112',
         side: '#0e1416', sideDark: '#0a0f11',
       }, 10);
-    });
+    }, HW, HH);
 
     /* --- Постройки 32×48 (низ спрайта = низ гекса) --- */
 
     sprites.townhall = makeSprite(g => {
-      // большой зал старейшины: высокая красная крыша, фахверк
-      px(g, P.outline, 2, 16, 28, 26);
-      // фронтон крыши ступенями
-      px(g, ROOF_RED[2], 12, 17, 8, 1);
-      shingles(g, 8, 18, 16, 3, ROOF_RED);
-      shingles(g, 5, 21, 22, 3, ROOF_RED);
-      shingles(g, 3, 24, 26, 4, ROOF_RED);
+      groundShadow(g, 3, 42, 27);
+      px(g, P.outline, 2, 15, 28, 27);
+      // звонница (за крышей)
+      px(g, P.outline, 12, 1, 8, 17);
+      px(g, P.wallCream, 13, 9, 6, 8);
+      px(g, P.beam, 13, 9, 1, 8); px(g, P.beam, 18, 9, 1, 8);
+      px(g, P.goldLight, 14, 11, 4, 3); px(g, P.ink, 15, 11, 2, 3);
+      for (let r = 0; r < 6; r++) {
+        px(g, ROOF_BLUE[1], 15 - r, 3 + r, 2 + r * 2, 1);
+        px(g, ROOF_BLUE[2], 15 - r, 3 + r, 1 + r, 1);
+      }
+      px(g, P.gold, 15, 0, 2, 3);
+      // зал: стены + большая крыша-трапеция
       timberWall(g, 4, 28, 24, 13);
-      // высокая дверь с золотым фонарём
+      shade(g, 25, 28, 3, 13);
+      roofTrap(g, 16, 17, 10, 30, 11, ROOF_RED);
+      chimney(g, 24, 12);
+      // высокая дверь с фонарём
       px(g, P.ink, 12, 31, 8, 10);
       px(g, P.woodMid, 13, 32, 6, 9);
+      px(g, P.woodPale, 13, 32, 1, 9);
       px(g, P.goldLight, 15, 30, 2, 1);
       litWindow(g, 6, 31, 3, 4); litWindow(g, 23, 31, 3, 4);
-      // звонница на коньке с синим шатром
-      px(g, P.outline, 12, 4, 8, 14);
-      px(g, P.wallCream, 13, 10, 6, 7);
-      px(g, P.beam, 13, 10, 1, 7); px(g, P.beam, 18, 10, 1, 7);
-      px(g, P.goldLight, 14, 12, 4, 3); px(g, P.ink, 15, 12, 2, 3); // колокол
-      for (let r = 0; r < 5; r++) px(g, r ? ROOF_BLUE[r % 2] : ROOF_BLUE[2], 15 - r, 5 + r, 2 + r * 2, 1);
-      // штандарты по бокам входа
+      // штандарты по бокам
       px(g, P.wood, 5, 20, 1, 8); px(g, P.red, 6, 21, 3, 4); px(g, '#8e3436', 6, 24, 2, 1);
       px(g, P.wood, 26, 20, 1, 8); px(g, P.red, 23, 21, 3, 4); px(g, '#8e3436', 24, 24, 2, 1);
-      // труба (дым рисуется в рендере)
-      px(g, P.outline, 23, 12, 5, 7);
-      px(g, P.stone, 24, 13, 3, 6); px(g, P.stoneDark, 24, 16, 3, 1);
     });
 
     sprites.house = makeSprite(g => {
-      cottage(g, 4, 13, true);
-      cottage(g, 14, 28, false);
+      cottage(g, 4, 14, true);
+      cottage(g, 15, 29, false);
     });
 
     sprites.farm = makeSprite(g => {
-      // амбар
-      px(g, P.outline, 17, 16, 14, 13);
-      shingles(g, 18, 17, 12, 4, ROOF_RED);
-      logWall(g, 19, 21, 10, 7);
-      px(g, P.ink, 22, 23, 4, 5); px(g, P.woodPale, 23, 24, 2, 4);
+      // амбар с трапециевидной крышей
+      groundShadow(g, 17, 28, 14);
+      px(g, P.outline, 16, 14, 15, 15);
+      logWall(g, 19, 20, 10, 8);
+      shade(g, 26, 20, 3, 8);
+      roofTrap(g, 24, 15, 6, 16, 5, ROOF_RED);
+      px(g, P.ink, 22, 22, 4, 6); px(g, P.woodPale, 23, 23, 2, 4);
       // золотое поле с грядками
       px(g, P.ink, 2, 27, 19, 14);
       px(g, '#6a5232', 3, 28, 17, 12);
@@ -962,123 +1020,161 @@
       // изгородь
       px(g, P.woodPale, 22, 32, 1, 4); px(g, P.woodPale, 26, 33, 1, 4); px(g, P.woodPale, 30, 34, 1, 4);
       px(g, P.woodLight, 22, 33, 9, 1);
-      // стожок
-      px(g, P.ink, 22, 39, 9, 5);
-      px(g, P.gold, 23, 41, 7, 2); px(g, P.goldLight, 24, 40, 5, 1); px(g, P.goldLight, 25, 39, 3, 1);
+      // стожок объёмный
+      groundShadow(g, 22, 43, 9);
+      px(g, P.ink, 22, 38, 9, 6);
+      px(g, P.gold, 23, 41, 7, 2);
+      px(g, P.goldLight, 24, 40, 5, 1); px(g, P.goldLight, 25, 39, 3, 1);
+      px(g, P.goldLight, 23, 41, 1, 2);
+      shade(g, 28, 40, 2, 3, .25);
     });
 
     sprites.lumber = makeSprite(g => {
       pineBig(g, 2, 10);
       // изба лесоруба
-      px(g, P.outline, 12, 22, 19, 17);
-      shingles(g, 13, 23, 17, 5, ROOF_RED);
-      logWall(g, 14, 28, 15, 10);
-      px(g, P.ink, 19, 31, 4, 7); px(g, P.woodPale, 20, 32, 2, 5);
+      groundShadow(g, 12, 38, 19);
+      px(g, P.outline, 11, 20, 20, 19);
+      logWall(g, 14, 27, 15, 11);
+      shade(g, 26, 27, 3, 11);
+      roofTrap(g, 21, 21, 8, 20, 6, ROOF_RED);
+      chimney(g, 26, 16);
+      px(g, P.ink, 18, 30, 4, 8); px(g, P.woodPale, 19, 31, 2, 6);
       litWindow(g, 25, 30, 3, 3);
-      // труба
-      px(g, P.outline, 26, 18, 4, 5);
-      px(g, P.stone, 27, 19, 2, 4);
-      // штабель брёвен
+      // штабель брёвен с бликами
       px(g, P.outline, 2, 38, 11, 5);
       px(g, P.woodMid, 3, 39, 9, 1); px(g, P.woodLight, 3, 41, 9, 1);
       px(g, P.cream, 3, 39, 1, 1); px(g, P.cream, 11, 41, 1, 1);
       px(g, P.woodMid, 5, 40, 7, 1);
+      shade(g, 10, 39, 2, 3, .25);
     });
 
     sprites.mine = makeSprite(g => {
-      // скальный массив
+      // скальный массив с гранями
+      groundShadow(g, 4, 40, 26);
       for (let r = 0; r < 14; r++) {
         const w = 4 + r * 2, x = 14 - r;
-        px(g, r < 2 ? P.snow : (r % 2 ? '#6b695c' : '#5d5b52'), x, 14 + r, Math.min(w, 30 - x), 1);
+        const ww = Math.min(w, 30 - x);
+        const lw = Math.ceil(ww / 2);
+        if (r < 2) px(g, P.snow, x, 14 + r, ww, 1);
+        else { px(g, '#716e60', x, 14 + r, lw, 1); px(g, '#524f45', x + lw, 14 + r, ww - lw, 1); }
       }
-      px(g, '#4a473e', 9, 20, 2, 6); px(g, '#4a473e', 22, 18, 1, 8);
+      px(g, '#3d3b32', 16, 18, 1, 8); px(g, '#3d3b32', 22, 20, 1, 6);
       // вход-штольня
       px(g, P.outline, 11, 26, 11, 14);
       px(g, '#100c08', 13, 28, 7, 12);
-      px(g, P.woodLight, 11, 26, 2, 14); px(g, P.woodLight, 20, 26, 2, 14);
+      px(g, P.woodPale, 11, 26, 2, 14);
+      px(g, P.woodMid, 20, 26, 2, 14);
       px(g, P.woodLight, 11, 26, 11, 2);
-      px(g, P.goldLight, 12, 30, 1, 1); // фонарь
+      px(g, P.goldLight, 12, 30, 1, 1);
       // рельсы и вагонетка
       px(g, '#3a382f', 14, 40, 5, 1); px(g, '#3a382f', 14, 42, 5, 1);
+      groundShadow(g, 24, 43, 8);
       px(g, P.outline, 23, 36, 8, 6);
       px(g, P.woodMid, 24, 37, 6, 4);
+      px(g, P.woodPale, 24, 37, 1, 4);
       px(g, P.gold, 25, 36, 4, 2); px(g, P.goldLight, 26, 36, 2, 1);
       px(g, P.ink, 24, 41, 2, 2); px(g, P.ink, 28, 41, 2, 2);
     });
 
     sprites.church = makeSprite(g => {
+      groundShadow(g, 8, 41, 20);
+      // колокольня со шпилем (за нефом)
+      px(g, P.outline, 12, 1, 10, 25);
+      px(g, P.wallCream, 13, 11, 8, 15);
+      px(g, P.beam, 13, 11, 1, 15);
+      shade(g, 19, 11, 2, 15, .25);
+      for (let r = 0; r < 8; r++) {
+        px(g, ROOF_BLUE[1], 16 - r, 3 + r, 2 + r * 2, 1);
+        px(g, ROOF_BLUE[2], 16 - r, 3 + r, 1 + r, 1);
+      }
+      px(g, P.gold, 16, 0, 2, 4); px(g, P.gold, 14, 1, 6, 2);
+      litWindow(g, 15, 14, 3, 4);
       // неф
-      px(g, P.outline, 7, 25, 22, 17);
-      shingles(g, 8, 26, 20, 5, ROOF_BLUE);
-      px(g, P.wallCream, 9, 31, 18, 10);
+      px(g, P.outline, 7, 23, 22, 19);
+      px(g, P.wallCream, 9, 30, 18, 11);
       px(g, P.wallShade, 9, 39, 18, 2);
-      px(g, P.ink, 15, 34, 6, 7);
-      px(g, P.woodMid, 16, 35, 4, 6);
-      px(g, P.gold, 16, 34, 4, 1);
+      shade(g, 24, 30, 3, 11);
+      roofTrap(g, 18, 24, 8, 22, 6, ROOF_BLUE);
+      px(g, P.ink, 15, 33, 6, 8);
+      px(g, P.woodMid, 16, 34, 4, 7);
+      px(g, P.gold, 16, 33, 4, 1);
       litWindow(g, 11, 33, 2, 4); litWindow(g, 23, 33, 2, 4);
-      // колокольня со шпилем
-      px(g, P.outline, 12, 4, 10, 22);
-      px(g, P.wallCream, 13, 14, 8, 12);
-      for (let r = 0; r < 7; r++) px(g, r ? ROOF_BLUE[r % 2] : ROOF_BLUE[2], 16 - r, 7 + r, 2 + r * 2, 1);
-      litWindow(g, 15, 17, 3, 4);
-      // золотой крест
-      px(g, P.gold, 16, 0, 2, 6); px(g, P.gold, 14, 2, 6, 2);
     });
 
     sprites.market = makeSprite(g => {
-      // навес в полоску с фестонами
-      px(g, P.outline, 4, 22, 24, 6);
-      for (let c = 0; c < 11; c++) px(g, c % 2 ? P.cream : P.red, 5 + c * 2, 23, 2, 4);
+      groundShadow(g, 6, 40, 22);
+      // навес: видимая верхняя плоскость + полосатый перед + фестоны
+      px(g, P.outline, 4, 20, 24, 9);
+      for (let c = 0; c < 11; c++) {
+        const col = c % 2 ? P.cream : P.red;
+        px(g, col, 5 + c * 2, 21, 2, 2);           // верхняя плоскость
+        px(g, c % 2 ? '#f2ece0' : '#d06264', 5 + c * 2, 21, 2, 1);
+        px(g, col, 5 + c * 2, 23, 2, 4);           // перед
+      }
       for (let c = 0; c < 6; c++) px(g, c % 2 ? P.red : P.cream, 6 + c * 4, 27, 2, 1);
-      // стойки и прилавок
-      px(g, P.wood, 5, 28, 2, 12); px(g, P.wood, 25, 28, 2, 12);
-      px(g, P.outline, 6, 33, 20, 6);
-      px(g, P.woodLight, 7, 34, 18, 4);
-      px(g, P.woodMid, 7, 36, 18, 1);
+      shade(g, 24, 21, 3, 7, .28);
+      // стойки: левая освещена, правая в тени
+      px(g, P.woodPale, 5, 28, 2, 12);
+      px(g, P.woodMid, 25, 28, 2, 12);
+      // прилавок с видимой столешницей
+      px(g, P.outline, 6, 33, 20, 7);
+      px(g, P.woodPale, 7, 34, 18, 1);
+      px(g, P.woodLight, 7, 35, 18, 4);
+      px(g, P.woodMid, 7, 37, 18, 1);
+      shade(g, 22, 34, 3, 5, .25);
       // товары на прилавке
       px(g, P.gold, 9, 31, 3, 3); px(g, P.goldLight, 9, 31, 2, 1);
       px(g, '#7fa060', 14, 31, 3, 3); px(g, '#95bc74', 14, 31, 1, 1);
       px(g, P.red, 19, 31, 3, 3); px(g, '#d06264', 19, 31, 1, 1);
       // бочка
+      groundShadow(g, 27, 42, 6);
       px(g, P.outline, 27, 36, 5, 7);
-      px(g, P.woodLight, 28, 37, 3, 5); px(g, P.wood, 28, 38, 3, 1); px(g, P.wood, 28, 40, 3, 1);
+      px(g, P.woodLight, 28, 37, 3, 5);
+      px(g, P.woodPale, 28, 37, 1, 5);
+      px(g, P.wood, 28, 38, 3, 1); px(g, P.wood, 28, 40, 3, 1);
     });
 
     sprites.tavern = makeSprite(g => {
-      // двухэтажный дом с выносом
-      px(g, P.outline, 4, 14, 25, 28);
-      shingles(g, 5, 15, 23, 6, ROOF_RED);
-      timberWall(g, 6, 21, 21, 7);      // верхний этаж
-      litWindow(g, 9, 23, 3, 3); litWindow(g, 21, 23, 3, 3);
-      px(g, P.wood, 5, 28, 23, 1);      // балка-вынос
-      timberWall(g, 8, 29, 17, 12);     // нижний этаж
-      px(g, P.wood, 14, 33, 5, 8);
+      groundShadow(g, 6, 41, 21);
+      px(g, P.outline, 4, 13, 26, 29);
+      // верхний этаж
+      timberWall(g, 6, 21, 21, 7);
+      shade(g, 24, 21, 3, 7);
+      roofTrap(g, 16, 14, 10, 26, 7, ROOF_RED);
+      chimney(g, 23, 10);
+      litWindow(g, 9, 23, 3, 3); litWindow(g, 20, 23, 3, 3);
+      // вынос и нижний этаж
+      px(g, P.wood, 5, 28, 23, 1);
+      timberWall(g, 8, 29, 17, 12);
+      shade(g, 22, 29, 3, 12);
+      px(g, P.ink, 13, 32, 7, 9);
+      px(g, P.woodMid, 14, 33, 5, 8);
+      px(g, P.woodPale, 14, 33, 1, 8);
       px(g, P.goldLight, 17, 36, 1, 1);
-      litWindow(g, 10, 32, 3, 3);
+      litWindow(g, 10, 32, 2, 3);
       // вывеска-кружка на кронштейне
       px(g, P.wood, 27, 24, 4, 1);
       px(g, P.wood, 30, 24, 1, 4);
       px(g, P.outline, 28, 28, 5, 5);
       px(g, P.gold, 29, 29, 3, 3); px(g, P.goldLight, 29, 29, 1, 2);
-      // труба
-      px(g, P.outline, 22, 10, 5, 6);
-      px(g, P.stone, 23, 11, 3, 5); px(g, P.stoneDark, 23, 13, 3, 1);
     });
 
     sprites.dock = makeSprite(g => {
+      // тень ладьи на воде
+      px(g, '#16283a', 13, 37, 19, 2);
       // пирс на сваях
       px(g, P.outline, 1, 36, 16, 4);
-      px(g, P.woodLight, 2, 37, 14, 2);
-      px(g, P.woodMid, 5, 37, 1, 2); px(g, P.woodMid, 10, 37, 1, 2);
+      for (let c = 0; c < 7; c++) px(g, c % 2 ? P.woodLight : P.woodPale, 2 + c * 2, 37, 2, 2);
       px(g, P.wood, 3, 40, 2, 5); px(g, P.wood, 13, 40, 2, 5);
+      px(g, '#16283a', 3, 44, 2, 1); px(g, '#16283a', 13, 44, 2, 1);
       // ладья со щитами
-      px(g, P.outline, 13, 28, 19, 9);
+      px(g, P.outline, 12, 25, 20, 12);
+      px(g, P.woodPale, 14, 29, 17, 1);
       px(g, P.woodMid, 14, 30, 17, 4);
-      px(g, P.woodLight, 14, 30, 17, 1);
       px(g, P.wood, 14, 34, 17, 2);
-      px(g, P.wood, 13, 27, 2, 4);       // нос
-      px(g, P.gold, 13, 26, 2, 2);       // фигура на носу
-      // щиты по борту
+      shade(g, 28, 29, 3, 7, .28);
+      px(g, P.wood, 12, 26, 2, 5);
+      px(g, P.gold, 12, 25, 2, 2);
       for (let s = 0; s < 3; s++) {
         const sx = 17 + s * 5;
         px(g, P.outline, sx - 1, 30, 5, 4);
@@ -1086,7 +1182,8 @@
         px(g, P.gold, sx + 1, 31, 1, 1);
       }
       // мачта с реем и свёрнутым парусом
-      px(g, P.wood, 22, 12, 2, 16);
+      px(g, P.wood, 22, 12, 2, 15);
+      px(g, P.woodPale, 22, 12, 1, 15);
       px(g, P.woodMid, 17, 14, 12, 1);
       px(g, P.cream, 17, 15, 12, 3);
       px(g, P.wallShade, 17, 17, 12, 1);
@@ -1096,19 +1193,21 @@
 
     sprites.beast = makeSprite(g => {
       const b = '#26221e';
+      groundShadow(g, 7, 26, 16);
       px(g, P.ink, 7, 17, 15, 8);
-      px(g, b, 8, 18, 13, 6);            // тело
-      px(g, b, 18, 12, 7, 7);            // голова
-      px(g, b, 19, 10, 2, 2); px(g, b, 23, 10, 2, 2); // уши
-      px(g, '#c93a3a', 20, 14, 2, 1); px(g, '#c93a3a', 23, 14, 1, 1); // глаза
-      px(g, P.cream, 24, 17, 1, 2);      // клык
-      px(g, b, 5, 19, 3, 2);             // хвост
-      px(g, b, 9, 24, 2, 4); px(g, b, 17, 24, 2, 4); // лапы
-      px(g, '#3a342e', 9, 19, 4, 2);     // холка
-    });
+      px(g, b, 8, 18, 13, 6);
+      px(g, b, 18, 12, 7, 7);
+      px(g, b, 19, 10, 2, 2); px(g, b, 23, 10, 2, 2);
+      px(g, '#c93a3a', 20, 14, 2, 1); px(g, '#c93a3a', 23, 14, 1, 1);
+      px(g, P.cream, 24, 17, 1, 2);
+      px(g, b, 5, 19, 3, 2);
+      px(g, b, 9, 24, 2, 4); px(g, b, 17, 24, 2, 4);
+      px(g, '#3a342e', 9, 19, 4, 2);
+    }, HW, HH);
 
     sprites.tamed = makeSprite(g => {
       const b = '#6b512c';
+      groundShadow(g, 7, 26, 16);
       px(g, P.ink, 7, 17, 15, 8);
       px(g, b, 8, 18, 13, 6);
       px(g, b, 18, 12, 7, 7);
@@ -1116,10 +1215,11 @@
       px(g, '#3f6d9e', 20, 14, 2, 1);
       px(g, b, 5, 19, 3, 2);
       px(g, b, 9, 24, 2, 4); px(g, b, 17, 24, 2, 4);
+      px(g, '#8a6a3e', 9, 18, 4, 2);
       // сердечко
       px(g, '#c93a3a', 12, 4, 2, 2); px(g, '#c93a3a', 16, 4, 2, 2);
       px(g, '#c93a3a', 12, 6, 6, 2); px(g, '#c93a3a', 14, 8, 2, 1);
-    });
+    }, HW, HH);
 
     sprites.fertile = makeSprite(g => {
       for (const [x, y] of [[8, 10], [19, 9], [12, 19], [22, 20]]) {
@@ -1127,15 +1227,16 @@
         px(g, P.gold, x - 1, y + 1, 2, 1); px(g, P.gold, x + 2, y + 1, 2, 1);
         px(g, P.goldLight, x + 1, y, 1, 1);
       }
-    });
+    }, HW, HH);
 
     sprites.timber = makeSprite(g => {
+      groundShadow(g, 8, 25, 18);
       px(g, P.outline, 7, 20, 19, 6);
       px(g, P.woodMid, 8, 21, 8, 2); px(g, P.woodLight, 17, 21, 8, 2);
       px(g, P.woodLight, 8, 23, 8, 2); px(g, P.woodMid, 17, 23, 8, 2);
       px(g, P.woodMid, 12, 18, 9, 2);
       px(g, P.cream, 9, 21, 1, 1); px(g, P.cream, 18, 23, 1, 1); px(g, P.cream, 13, 18, 1, 1);
-    });
+    }, HW, HH);
 
     sprites.ore = makeSprite(g => {
       for (const [x, y] of [[10, 12], [19, 16], [13, 22]]) {
@@ -1143,7 +1244,7 @@
         px(g, P.gold, x, y, 4, 3);
         px(g, P.goldLight, x + 1, y, 2, 1); px(g, P.goldLight, x, y + 1, 1, 1);
       }
-    });
+    }, HW, HH);
 
     sprites.fish = makeSprite(g => {
       px(g, P.cream, 11, 14, 7, 3);
@@ -1151,7 +1252,7 @@
       px(g, P.ink, 12, 15, 1, 1);
       px(g, P.water.light, 8, 21, 9, 1);
       px(g, P.water.light, 12, 24, 6, 1);
-    });
+    }, HW, HH);
 
     /* --- Маркеры и эффекты --- */
 
@@ -1192,7 +1293,7 @@
       px(g, P.goldLight, t0, 0, t1 - t0 + 1, 1);
       const [b0, b1] = hexSpan(HH - 1);
       px(g, P.goldLight, b0, HH - 1, b1 - b0 + 1, 1);
-    });
+    }, HW, HH);
 
     // Туман поверх террейна
     sprites.fog = makeSprite(g => {
@@ -1207,15 +1308,15 @@
         const [x0, x1] = hexSpan(y);
         px(g, 'rgba(24,34,37,.85)', x0 + rnd(x1 - x0 + 1), y);
       }
-    });
+    }, HW, HH);
   }
 
   // Позиции дыма (в координатах спрайта 32×48) для построек с трубами
   const SMOKE_POS = {
-    townhall: [23, 10],
-    house: [12, 2],
-    tavern: [22, 0],
-    lumber: [25, 8],
+    townhall: [21, 10],
+    house: [11, 8],
+    tavern: [20, 8],
+    lumber: [23, 14],
   };
 
   // ---------- Отрисовка ----------
