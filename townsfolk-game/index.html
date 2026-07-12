@@ -2,59 +2,100 @@
 <html lang="ru-RU">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>Городок — стратегия по мотивам TownsFolk</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%2317151d'/%3E%3Crect x='3' y='7' width='10' height='6' fill='%23c9b998'/%3E%3Cpath d='M2 7l6-4 6 4z' fill='%23a34f3f'/%3E%3Crect x='7' y='9' width='2' height='4' fill='%235c4327'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <div class="app">
-    <header class="topbar">
-      <h1>ГОРОДОК</h1>
-      <div class="topbar__meta">
-        <span id="turn-label">День 1</span>
-        <span id="tribute-label">До дани: 12 дн.</span>
+  <div id="game">
+
+    <!-- Карта на весь экран -->
+    <div id="map-scroll">
+      <div class="map-inner">
+        <canvas id="map" width="1440" height="852"></canvas>
+      </div>
+    </div>
+
+    <!-- Верхняя панель -->
+    <header class="hud-top">
+      <div class="panel hud-day">
+        <img class="hud-day__crest" id="crest" alt="">
+        <div>
+          <div class="hud-day__label">ДЕНЬ <b id="turn-label">1</b></div>
+          <div class="hud-day__tribute" id="tribute-label">До дани: 12 дн.</div>
+        </div>
+        <div class="hud-day__controls">
+          <button class="mini-btn" id="btn-endday" title="Следующий день">▶</button>
+          <button class="mini-btn" id="btn-skip3" title="Пропустить 3 дня">⏩</button>
+        </div>
+      </div>
+
+      <div class="panel hud-res" id="resbar" aria-label="Ресурсы">
+        <span class="res" title="Жители (всего/лимит, +свободные)"><img class="ico" id="ico-pop" alt="👥"><span><b id="r-pop">4/6</b><i id="d-pop">+4</i></span></span>
+        <span class="res" title="Еда"><img class="ico" id="ico-food" alt="🍞"><span><b id="r-food">25</b><i id="d-food">−4</i></span></span>
+        <span class="res" title="Производство"><img class="ico" id="ico-prod" alt="⚒️"><span><b id="r-prod">14</b><i id="d-prod">+2</i></span></span>
+        <span class="res" title="Золото"><img class="ico" id="ico-gold" alt="🪙"><span><b id="r-gold">12</b><i id="d-gold">+1</i></span></span>
+        <span class="res" title="Вера"><img class="ico" id="ico-faith" alt="✨"><span><b id="r-faith">2</b><i id="d-faith">+0</i></span></span>
+        <span class="res" title="Очки знаний"><img class="ico" id="ico-sci" alt="🔬"><span><b id="r-sci">0</b><i id="d-sci">+1</i></span></span>
+      </div>
+
+      <div class="hud-corner">
+        <button class="panel icon-btn" id="btn-help" title="Как играть"><img id="ico-help" alt="❓"></button>
+        <button class="panel icon-btn" id="btn-tech" title="Технологии"><img id="ico-tech" alt="🔬"></button>
+        <button class="panel icon-btn" id="btn-newgame" title="Новая партия"><img id="ico-gear" alt="🔁"></button>
       </div>
     </header>
 
-    <div class="resbar" id="resbar" aria-label="Ресурсы">
-      <span class="res" title="Жители (свободные/всего/лимит)"><img class="ico" id="ico-pop" alt="👥"> <b id="r-pop">4</b></span>
-      <span class="res" title="Еда"><img class="ico" id="ico-food" alt="🍞"> <b id="r-food">25</b></span>
-      <span class="res" title="Производство"><img class="ico" id="ico-prod" alt="⚒️"> <b id="r-prod">12</b></span>
-      <span class="res" title="Золото"><img class="ico" id="ico-gold" alt="🪙"> <b id="r-gold">12</b></span>
-      <span class="res" title="Вера"><img class="ico" id="ico-faith" alt="✨"> <b id="r-faith">2</b></span>
-      <span class="res" title="Очки знаний"><img class="ico" id="ico-sci" alt="🔬"> <b id="r-sci">0</b></span>
+    <!-- Цели -->
+    <aside class="panel objectives" id="objectives">
+      <h4>ЦЕЛИ</h4>
+      <div id="obj-list"></div>
+    </aside>
+
+    <!-- Боковые кнопки -->
+    <div class="side-buttons">
+      <button class="panel side-btn" id="btn-events"><span class="side-btn__ico">⚜️</span><span>СОБЫТИЯ</span></button>
+      <button class="panel side-btn" id="btn-log"><span class="side-btn__ico">📜</span><span>ЛЕТОПИСЬ</span></button>
     </div>
 
-    <div class="map-wrap">
-      <canvas id="map" width="1440" height="852"></canvas>
+    <!-- Мини-карта и зум -->
+    <div class="minimap-wrap">
+      <div class="zoom">
+        <button class="panel mini-btn" id="z-in">＋</button>
+        <button class="panel mini-btn" id="z-out">－</button>
+      </div>
+      <div class="panel minimap"><canvas id="minimap" width="120" height="76"></canvas></div>
     </div>
 
-    <section class="panel" id="panel">
-      <p class="panel__hint">Коснитесь гекса: «?» в тумане — разведка, своя земля — стройка.</p>
-    </section>
+    <!-- Инфо о выбранном тайле -->
+    <section class="panel tile-info" id="panel" hidden></section>
 
-    <div class="actions">
-      <button class="btn btn--primary" id="btn-endday">🌙 Новый день</button>
-      <button class="btn" id="btn-tech">🔬 Технологии</button>
-      <button class="btn" id="btn-help">❓</button>
-    </div>
-
-    <section class="log" id="log" aria-live="polite"></section>
-
-    <footer class="credits">
-      Фанатская веб-версия по мотивам игры TownsFolk (Short Circuit Studio / MWM).
-      Код, графика и тексты — оригинальные.
+    <!-- Нижняя панель строительства -->
+    <footer class="buildbar">
+      <div class="tabs" id="build-tabs"></div>
+      <div class="panel cards-wrap"><div class="cards" id="build-cards"></div></div>
     </footer>
-  </div>
 
-  <div class="modal-overlay" id="modal" hidden>
-    <div class="modal" role="dialog" aria-modal="true">
-      <h2 id="modal-title"></h2>
-      <img id="modal-pic" class="modal__pic" alt="" hidden>
-      <p id="modal-text"></p>
-      <div class="modal__buttons" id="modal-buttons"></div>
+    <!-- Главная кнопка -->
+    <button class="big-day" id="btn-bigday"><span class="big-day__ico">🌙</span><span>НОВЫЙ<br>ДЕНЬ</span></button>
+
+    <!-- Летопись -->
+    <div class="log-overlay panel" id="log-overlay" hidden>
+      <h4>ЛЕТОПИСЬ <button class="mini-btn log-close" id="btn-log-close">✕</button></h4>
+      <section class="log" id="log" aria-live="polite"></section>
     </div>
+
+    <!-- Модальное окно-карточка -->
+    <div class="modal-overlay" id="modal" hidden>
+      <div class="modal panel" role="dialog" aria-modal="true">
+        <img id="modal-pic" class="modal__pic" alt="" hidden>
+        <h2 id="modal-title"></h2>
+        <p id="modal-text"></p>
+        <div class="modal__buttons" id="modal-buttons"></div>
+      </div>
+    </div>
+
   </div>
 
   <script src="assets.js"></script>

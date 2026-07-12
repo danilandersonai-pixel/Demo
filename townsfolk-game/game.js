@@ -174,6 +174,7 @@
     selected = -1;
     modalQueue = [];
     modalOpen = false;
+    walkers = [];
     document.getElementById('log').innerHTML = '';
     log('Король дал вам землю и год сроку. Стройте, исследуйте — и готовьте дань.');
     renderAll();
@@ -246,7 +247,7 @@
   // Всплывающий текст над клеткой
   function floatText(i, text, cls) {
     if (reduceMotion) return;
-    const wrap = document.querySelector('.map-wrap');
+    const wrap = document.querySelector('.map-inner');
     const scale = canvas.clientWidth / CANW;
     const { sx, sy } = tileOrigin(i);
     const el = document.createElement('span');
@@ -818,10 +819,12 @@
     }
     if (RAW.a_wolf && RAW.a_wolf.width) CIMG.beast = fitCanvas(RAW.a_wolf, 26 * Z, 26 * Z);
     if (RAW.a_deer && RAW.a_deer.width) CIMG.tamed = fitCanvas(RAW.a_deer, 26 * Z, 26 * Z);
-    // иконки ресурсов в шапке
+    // иконки ресурсов, герб и угловые кнопки
     const hud = {
       'ico-pop': 'r_pop', 'ico-food': 'r_food', 'ico-prod': 'r_workers',
       'ico-gold': 'r_gold', 'ico-faith': 'r_faith', 'ico-sci': 'r_research',
+      'crest': 'castle', 'ico-help': 't_education', 'ico-tech': 'r_research',
+      'ico-gear': 't_engineering',
     };
     for (const id in hud) {
       const el = document.getElementById(id);
@@ -892,6 +895,16 @@
         px(g, '#efc76e', x * Z, (y - 3) * Z, Z, Z);
       }
     }, TW * Z, TH * Z);
+
+    // жители 6×9: три цвета туники × два кадра шага
+    const tunics = ['#8e4a3a', '#3f6d9e', '#5c7a3c'];
+    sprites.walker = tunics.map(col => [0, 1].map(f => makeSprite(g => {
+      px(g, '#0c1112', 1, 0, 4, 9);            // силуэт-обводка
+      px(g, '#d8b58c', 2, 1, 2, 2);            // голова
+      px(g, col, 1, 3, 4, 3);                  // туника
+      px(g, '#2a2320', f ? 1 : 3, 6, 1, 2);    // ноги (шаг)
+      px(g, '#2a2320', f ? 3 : 1, 6, 1, 3);
+    }, 6, 9)));
   }
 
   // ---------- Отрисовка ----------
@@ -981,19 +994,19 @@
     }
   }
 
-  // Постоянный цикл анимации (блики, «?», дым, выделение).
+  // Постоянный цикл анимации (блики, «?», дым, жители, выделение).
   function loop(now) {
     render(now);
+    updateWalkers(now);
+    drawWalkers(now);
     requestAnimationFrame(loop);
   }
 
-  // ---------- Панель клетки ----------
+  // ---------- Инфо о выбранном тайле ----------
   function renderPanel() {
     const panel = document.getElementById('panel');
-    if (selected < 0) {
-      panel.innerHTML = '<p class="panel__hint">Коснитесь тайла: «?» в тумане — разведка, своя земля — стройка.</p>';
-      return;
-    }
+    if (selected < 0) { panel.hidden = true; return; }
+    panel.hidden = false;
     const t = S.tiles[selected];
     panel.innerHTML = '';
     const h = document.createElement('h3');
@@ -1039,24 +1052,8 @@
           btns.appendChild(tame);
         }
       } else {
-        p.textContent = (t.c ? `${CONTENT_NAME[t.c]}. ` : '') + 'Можно строить:';
-        let any = false;
-        for (const key in BUILDINGS) {
-          const b = BUILDINGS[key];
-          if (b.terr !== t.t) continue;
-          any = true;
-          const cost = buildCost(key);
-          const costTxt = [cost.prod ? `${cost.prod} ⚒️` : '', cost.gold ? `${cost.gold} 🪙` : '']
-            .filter(Boolean).join(' + ');
-          const btn = document.createElement('button');
-          btn.className = 'btn btn--small';
-          btn.innerHTML = `${b.name} <span class="cost">(${costTxt})</span>`;
-          btn.title = b.desc;
-          btn.disabled = !canAfford(cost) || S.over;
-          btn.addEventListener('click', () => build(selected, key));
-          btns.appendChild(btn);
-        }
-        if (!any) p.textContent = 'Здесь ничего не построить.';
+        p.textContent = (t.c ? `${CONTENT_NAME[t.c]}. ` : '') +
+          'Выберите постройку на панели внизу.';
       }
     }
 
@@ -1065,31 +1062,255 @@
     if (btns.children.length) panel.appendChild(btns);
   }
 
+  // ---------- Панель строительства: вкладки и карточки ----------
+  const BUILD_TABS = [
+    { id: 'basic', name: 'ЖИЛЬЁ',    keys: ['house', 'farm'] },
+    { id: 'prod',  name: 'ПРОМЫСЕЛ', keys: ['lumber', 'mine', 'dock', 'market'] },
+    { id: 'spec',  name: 'ОСОБОЕ',   keys: ['church', 'tavern'] },
+  ];
+  let activeTab = 'basic';
+
+  function costIcon(kind) {
+    const key = kind === 'gold' ? 'r_gold' : 'r_workers';
+    if (typeof ASSETS !== 'undefined' && ASSETS[key]) return `<img src="${ASSETS[key]}" alt="">`;
+    return kind === 'gold' ? '🪙' : '⚒️';
+  }
+
+  function renderTabs() {
+    const box = document.getElementById('build-tabs');
+    box.innerHTML = '';
+    for (const tab of BUILD_TABS) {
+      const b = document.createElement('button');
+      b.className = 'tab' + (tab.id === activeTab ? ' is-active' : '');
+      b.textContent = tab.name;
+      b.addEventListener('click', () => { activeTab = tab.id; renderTabs(); renderCards(); });
+      box.appendChild(b);
+    }
+  }
+
+  function renderCards() {
+    const box = document.getElementById('build-cards');
+    box.innerHTML = '';
+    const tab = BUILD_TABS.find(t => t.id === activeTab);
+    const sel = selected >= 0 ? S.tiles[selected] : null;
+    for (const key of tab.keys) {
+      const b = BUILDINGS[key];
+      const cost = buildCost(key);
+      const card = document.createElement('button');
+      card.className = 'card';
+      const img = (typeof ASSETS !== 'undefined' && ASSETS[BUILD_ASSET[key]])
+        ? `<img src="${ASSETS[BUILD_ASSET[key]]}" alt="">` : '';
+      card.innerHTML = img +
+        `<span class="card__name">${b.name}</span>` +
+        `<span class="card__cost">` +
+        (cost.prod ? `<span>${costIcon('prod')} ${cost.prod}</span>` : '') +
+        (cost.gold ? `<span>${costIcon('gold')} ${cost.gold}</span>` : '') +
+        `</span>`;
+      const placeOk = sel && sel.vis === 2 && !sel.b && sel.c !== 'beast' && sel.t === b.terr;
+      card.disabled = S.over || !placeOk || !canAfford(cost);
+      card.title = `${b.desc}. Ставится на: ${TERRAIN_NAME[b.terr].toLowerCase()}` +
+        (placeOk ? '' : '. Сначала выберите подходящий тайл');
+      card.addEventListener('click', () => build(selected, key));
+      box.appendChild(card);
+    }
+  }
+
+  // ---------- Цели ----------
+  function renderObjectives() {
+    const box = document.getElementById('obj-list');
+    const farms = S.tiles.filter(t => t.b === 'farm').length;
+    const explored = S.tiles.filter(t => t.vis === 2).length - 5;
+    const objs = [
+      { name: 'Выплатить дани королю', n: S.tributesPaid, m: TRIBUTES_TO_WIN },
+      { name: 'Построить ферму', n: Math.min(farms, 1), m: 1 },
+      { name: 'Разведать земли', n: Math.max(0, Math.min(explored, 20)), m: 20 },
+      { name: 'Жителей в городке', n: S.pop, m: 10 },
+    ];
+    box.innerHTML = '';
+    for (const o of objs) {
+      const row = document.createElement('div');
+      row.className = 'obj' + (o.n >= o.m ? ' is-done' : '');
+      row.innerHTML = `<span class="obj__box"></span>` +
+        `<span class="obj__name">${o.name}</span>` +
+        `<span class="obj__n">${o.n}/${o.m}</span>`;
+      box.appendChild(row);
+    }
+  }
+
+  // ---------- Мини-карта ----------
+  const minimap = document.getElementById('minimap');
+  const mctx = minimap.getContext('2d');
+  const MMW = minimap.width, MMH = minimap.height;
+  const MINI_COLOR = {
+    grass: '#4f7a43', forest: '#33552c', mountain: '#6e6c60', water: '#2d5b80',
+  };
+
+  function renderMinimap() {
+    mctx.fillStyle = '#0a0e16';
+    mctx.fillRect(0, 0, MMW, MMH);
+    const kx = MMW / CANW, ky = MMH / CANH;
+    for (let i = 0; i < S.tiles.length; i++) {
+      const t = S.tiles[i];
+      const { sx, sy } = tileOrigin(i);
+      let col = '#182029';
+      if (t.vis === 1) col = '#243140';
+      else if (t.vis === 2) col = MINI_COLOR[t.t];
+      mctx.fillStyle = col;
+      mctx.fillRect((sx + 8) * kx, (sy + 8) * ky, TW * kx - 1, TH * ky);
+      if (t.vis === 2 && t.b) {
+        mctx.fillStyle = '#eec46a';
+        mctx.fillRect((sx + TW / 2 - 3) * kx, (sy + TH / 2 - 3) * ky, 2, 2);
+      }
+    }
+    // рамка видимой области
+    const wrap = document.getElementById('map-scroll');
+    if (canvas.clientWidth > 0) {
+      const fx = wrap.scrollLeft / canvas.clientWidth;
+      const fw = Math.min(1, wrap.clientWidth / canvas.clientWidth);
+      const fy = wrap.scrollTop / canvas.clientHeight;
+      const fh = Math.min(1, wrap.clientHeight / canvas.clientHeight);
+      mctx.strokeStyle = '#e2d9c2';
+      mctx.lineWidth = 1;
+      mctx.strokeRect(fx * MMW + .5, fy * MMH + .5, fw * MMW - 1, fh * MMH - 1);
+    }
+  }
+
+  // ---------- Зум и прокрутка ----------
+  let zoom = 1;
+  const scrollBox = document.getElementById('map-scroll');
+
+  function applyZoom(centerFrac) {
+    const fit = Math.min(scrollBox.clientWidth / CANW, scrollBox.clientHeight / CANH);
+    const w = Math.round(CANW * fit * zoom);
+    const h = Math.round(w * CANH / CANW);
+    canvas.style.width = w + 'px';
+    canvas.style.height = h + 'px';
+    if (centerFrac) {
+      scrollBox.scrollLeft = centerFrac[0] * w - scrollBox.clientWidth / 2;
+      scrollBox.scrollTop = centerFrac[1] * h - scrollBox.clientHeight / 2;
+    }
+    renderMinimap();
+  }
+
+  function zoomCenterFrac() {
+    return [
+      (scrollBox.scrollLeft + scrollBox.clientWidth / 2) / Math.max(1, canvas.clientWidth),
+      (scrollBox.scrollTop + scrollBox.clientHeight / 2) / Math.max(1, canvas.clientHeight),
+    ];
+  }
+
+  document.getElementById('z-in').addEventListener('click', () => {
+    const c = zoomCenterFrac();
+    zoom = Math.min(2.6, zoom * 1.4);
+    applyZoom(c);
+  });
+  document.getElementById('z-out').addEventListener('click', () => {
+    const c = zoomCenterFrac();
+    zoom = Math.max(1, zoom / 1.4);
+    applyZoom(c);
+  });
+  window.addEventListener('resize', () => applyZoom());
+  scrollBox.addEventListener('scroll', () => renderMinimap(), { passive: true });
+
+  minimap.addEventListener('click', (e) => {
+    const r = minimap.getBoundingClientRect();
+    const fx = (e.clientX - r.left) / r.width;
+    const fy = (e.clientY - r.top) / r.height;
+    scrollBox.scrollLeft = fx * canvas.clientWidth - scrollBox.clientWidth / 2;
+    scrollBox.scrollTop = fy * canvas.clientHeight - scrollBox.clientHeight / 2;
+  });
+
+  // ---------- Жители на карте ----------
+  let walkers = [];
+
+  function landTiles() {
+    const out = [];
+    for (let i = 0; i < S.tiles.length; i++) {
+      const t = S.tiles[i];
+      if (t.vis === 2 && t.t !== 'water') out.push(i);
+    }
+    return out;
+  }
+
+  function tileCenter(i) {
+    const { sx, sy } = tileOrigin(i);
+    return [sx + TW / 2, sy + TH / 2];
+  }
+
+  function updateWalkers(now) {
+    const land = landTiles();
+    const want = Math.min(8, S.pop);
+    while (walkers.length < want && land.length > 1) {
+      const from = land[rnd(land.length)];
+      walkers.push({ from, to: from, t0: now, dur: 1, v: rnd(3), off: [rnd(17) - 8, rnd(9) - 4] });
+    }
+    if (walkers.length > want) walkers.length = want;
+    for (const w of walkers) {
+      if (now - w.t0 >= w.dur) {
+        w.from = w.to;
+        const opts = neighbors4(w.from).filter(n => S.tiles[n].vis === 2 && S.tiles[n].t !== 'water');
+        w.to = opts.length && chance(.8) ? opts[rnd(opts.length)] : w.from;
+        const [ax, ay] = tileCenter(w.from), [bx, by] = tileCenter(w.to);
+        const dist = Math.hypot(bx - ax, by - ay);
+        w.t0 = now;
+        w.dur = 700 + dist * 55 + rnd(1200);
+      }
+    }
+  }
+
+  function drawWalkers(now) {
+    for (const w of walkers) {
+      const k = Math.min(1, (now - w.t0) / w.dur);
+      const [ax, ay] = tileCenter(w.from), [bx, by] = tileCenter(w.to);
+      const x = ax + (bx - ax) * k + w.off[0];
+      const y = ay + (by - ay) * k + w.off[1];
+      const f = w.from === w.to ? 0 : Math.floor(now / 220) % 2;
+      ctx.drawImage(sprites.walker[w.v][f], (x - 3) * Z, (y - 9) * Z, 6 * Z, 9 * Z);
+    }
+  }
+
   // ---------- Верхние индикаторы ----------
   function renderHud() {
     const inc = income();
     const set = (id, v) => { document.getElementById(id).textContent = v; };
-    set('r-pop', `${freeCitizens()}/${S.pop}/${S.cap}`);
-    set('r-food', `${S.food} (${inc.food - S.pop >= 0 ? '+' : ''}${inc.food - S.pop})`);
-    set('r-prod', `${S.prod} (+${inc.prod})`);
-    set('r-gold', `${S.gold} (+${inc.gold})`);
-    set('r-faith', `${S.faith} (+${inc.faith})`);
+    const delta = (id, v, plus = true) => {
+      const el = document.getElementById(id);
+      el.textContent = `${v >= 0 && plus ? '+' : ''}${v}`;
+      el.classList.toggle('is-neg', v < 0);
+    };
+    set('r-pop', `${S.pop}/${S.cap}`);
+    delta('d-pop', freeCitizens());
+    set('r-food', S.food);
+    delta('d-food', inc.food - S.pop);
+    set('r-prod', S.prod);
+    delta('d-prod', inc.prod);
+    set('r-gold', S.gold);
+    delta('d-gold', inc.gold);
+    set('r-faith', S.faith);
+    delta('d-faith', inc.faith);
     set('r-sci', S.sci);
-    set('turn-label', `День ${S.turn}`);
+    delta('d-sci', 1);
+    set('turn-label', S.turn);
     const left = S.nextTribute - S.turn;
     const tl = document.getElementById('tribute-label');
     const d = tributeDemand(S.tributesPaid + 1);
     tl.textContent = S.won && S.tributesPaid >= TRIBUTES_TO_WIN
-      ? '👑 Милость короля заслужена'
-      : `До дани: ${left} дн. (${d.gold} 🪙 + ${d.food} 🍞)`;
+      ? '👑 Король доволен'
+      : `Дань: ${left} дн. (${d.gold}🪙+${d.food}🍞)`;
     tl.classList.toggle('is-soon', left <= 3 && !S.won);
-    document.getElementById('btn-endday').disabled = S.over;
+    for (const id of ['btn-endday', 'btn-skip3', 'btn-bigday']) {
+      document.getElementById(id).disabled = S.over;
+    }
   }
 
   function renderAll() {
     if (reduceMotion) render(0);
     renderPanel();
     renderHud();
+    renderTabs();
+    renderCards();
+    renderObjectives();
+    renderMinimap();
   }
 
   // ---------- Ввод ----------
@@ -1107,26 +1328,65 @@
       const d = dx * dx + dy * dy;
       if (d < bestD) { bestD = d; best = i; }
     }
-    if (best < 0) return;
-    selected = (S.tiles[best].vis === 0) ? -1 : best;
+    selected = (best < 0 || S.tiles[best].vis === 0) ? -1 : best;
     renderAll();
   });
 
+  function skipDays(n) {
+    for (let k = 0; k < n; k++) {
+      if (S.over || modalOpen) break;
+      endDay();
+    }
+  }
+
   document.getElementById('btn-endday').addEventListener('click', endDay);
+  document.getElementById('btn-bigday').addEventListener('click', endDay);
+  document.getElementById('btn-skip3').addEventListener('click', () => skipDays(3));
   document.getElementById('btn-tech').addEventListener('click', openTech);
+
+  document.getElementById('btn-newgame').addEventListener('click', () => {
+    if (modalOpen) return;
+    showModal('🔁 Новая партия', 'Начать заново на новой случайной карте?\nТекущий прогресс будет потерян.', [
+      { label: 'Да, начать заново', fn: newGame },
+      { label: 'Отмена', fn: () => {} },
+    ]);
+  });
+
+  document.getElementById('btn-events').addEventListener('click', () => {
+    if (modalOpen) return;
+    const n = S.tributesPaid + 1;
+    const d = tributeDemand(n);
+    const left = S.nextTribute - S.turn;
+    const beasts = S.tiles.filter(t => t.vis === 2 && t.c === 'beast').length;
+    showModal('⚜️ Вести городка',
+      `Дань №${n} из ${TRIBUTES_TO_WIN}: ${d.gold} 🪙 и ${d.food} 🍞 — через ${left} дн.\n` +
+      `Отсрочек осталось: ${S.postpones}.\n` +
+      `Зверей у поселения: ${beasts}.\n` +
+      `Свободных жителей: ${freeCitizens()} из ${S.pop}.`,
+      [{ label: 'Понятно', fn: () => {} }], 'ev_kingstax');
+  });
+
+  const logOverlay = document.getElementById('log-overlay');
+  document.getElementById('btn-log').addEventListener('click', () => {
+    logOverlay.hidden = !logOverlay.hidden;
+  });
+  document.getElementById('btn-log-close').addEventListener('click', () => {
+    logOverlay.hidden = true;
+  });
+
   document.getElementById('btn-help').addEventListener('click', () => {
     if (modalOpen) return;
     showModal('❓ Как играть',
       'Ваше поселение окружено туманом. Каждый тайл тумана скрывает сюрприз: клад, руины, ' +
       'плодородную землю — или дикого зверя.\n\n' +
       '• Коснитесь тайла с «?» рядом со своей землёй, чтобы послать разведчика.\n' +
-      '• На своей земле стройте: фермы кормят, дома дают жителей, шахты и рынки приносят ' +
-      'производство и золото, церкви — веру.\n' +
+      '• Выберите свой тайл и постройку на нижней панели: фермы кормят, дома дают жителей, ' +
+      'шахты и рынки приносят производство и золото, церкви — веру.\n' +
       '• Жители едят 1 🍞 в день каждый. Голод убивает.\n' +
       '• Очки знаний 🔬 открывают технологии — с каждым открытием дороже.\n' +
       '• Раз в 12 дней король требует дань. Не заплатите — потеряете колонию. ' +
       `Выплатите ${TRIBUTES_TO_WIN} даней — победа!\n\n` +
-      'Каждая партия — новая случайная карта. Удачи!',
+      'Фанатская веб-версия по мотивам TownsFolk (Short Circuit Studio / MWM).',
       [{ label: 'Понятно', fn: () => {} }]);
   });
 
@@ -1135,6 +1395,7 @@
   loadAssets(() => {
     prepareAssets();
     newGame();
+    applyZoom();
     if (!reduceMotion) requestAnimationFrame(loop);
   });
 })();
