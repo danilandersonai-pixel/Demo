@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="ru-RU">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Городок — стратегия по мотивам TownsFolk</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%2317151d'/%3E%3Crect x='3' y='7' width='10' height='6' fill='%23c9b998'/%3E%3Cpath d='M2 7l6-4 6 4z' fill='%23a34f3f'/%3E%3Crect x='7' y='9' width='2' height='4' fill='%235c4327'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <h1>ГОРОДОК</h1>
+      <div class="topbar__meta">
+        <span id="turn-label">День 1</span>
+        <span id="tribute-label">До дани: 12 дн.</span>
+      </div>
+    </header>
+
+    <div class="resbar" id="resbar" aria-label="Ресурсы">
+      <span class="res" title="Жители (свободные/всего/лимит)">👥 <b id="r-pop">4</b></span>
+      <span class="res" title="Еда">🍞 <b id="r-food">25</b></span>
+      <span class="res" title="Производство">⚒️ <b id="r-prod">12</b></span>
+      <span class="res" title="Золото">🪙 <b id="r-gold">12</b></span>
+      <span class="res" title="Вера">✨ <b id="r-faith">2</b></span>
+      <span class="res" title="Очки знаний">🔬 <b id="r-sci">0</b></span>
+    </div>
+
+    <div class="map-wrap">
+      <canvas id="map" width="208" height="208"></canvas>
+    </div>
+
+    <section class="panel" id="panel">
+      <p class="panel__hint">Коснитесь клетки: тумана — чтобы разведать, своей земли — чтобы строить.</p>
+    </section>
+
+    <div class="actions">
+      <button class="btn btn--primary" id="btn-endday">🌙 Новый день</button>
+      <button class="btn" id="btn-tech">🔬 Технологии</button>
+      <button class="btn" id="btn-help">❓</button>
+    </div>
+
+    <section class="log" id="log" aria-live="polite"></section>
+
+    <footer class="credits">
+      Фанатская веб-версия по мотивам игры TownsFolk (Short Circuit Studio / MWM).
+      Код, графика и тексты — оригинальные.
+    </footer>
+  </div>
+
+  <div class="modal-overlay" id="modal" hidden>
+    <div class="modal" role="dialog" aria-modal="true">
+      <h2 id="modal-title"></h2>
+      <p id="modal-text"></p>
+      <div class="modal__buttons" id="modal-buttons"></div>
+    </div>
+  </div>
+
+  <script src="game.js"></script>
+</body>
+</html>

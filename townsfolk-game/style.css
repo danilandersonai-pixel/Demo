@@ -1,0 +1,240 @@
+/* ==========================================================
+   Городок — стратегия по мотивам TownsFolk
+   Оригинальная вёрстка и стили. Мобильный портрет прежде всего.
+   ========================================================== */
+
+:root {
+  --bg: #17151d;
+  --panel: #241f2c;
+  --panel-2: #2e2838;
+  --line: #3d3550;
+  --ink: #e8e2d4;
+  --ink-dim: #a89f8f;
+  --accent: #e6b455;
+  --accent-2: #7fb069;
+  --danger: #d95b5b;
+  --fast: cubic-bezier(.25, .8, .3, 1);
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html, body { height: 100%; }
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  -webkit-font-smoothing: none;
+  touch-action: manipulation;
+}
+
+.app {
+  max-width: 520px;
+  margin: 0 auto;
+  padding: 10px 12px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* --- Шапка --- */
+.topbar {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.topbar h1 {
+  font-size: 20px;
+  letter-spacing: 4px;
+  color: var(--accent);
+}
+
+.topbar__meta {
+  display: flex;
+  gap: 12px;
+  font-size: 12px;
+  color: var(--ink-dim);
+}
+
+#tribute-label.is-soon { color: var(--danger); font-weight: bold; }
+
+/* --- Ресурсы --- */
+.resbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 13px;
+}
+
+.res b { color: var(--ink); }
+.res.is-flash b { color: var(--accent); }
+
+/* --- Карта --- */
+.map-wrap {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px;
+  display: flex;
+  justify-content: center;
+}
+
+#map {
+  width: 100%;
+  max-width: 468px;
+  aspect-ratio: 1;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  cursor: pointer;
+}
+
+/* --- Панель выбранной клетки --- */
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px;
+  min-height: 88px;
+  font-size: 13px;
+}
+
+.panel__hint { color: var(--ink-dim); }
+
+.panel h3 { font-size: 14px; margin-bottom: 4px; color: var(--accent); }
+.panel p  { margin-bottom: 8px; color: var(--ink-dim); }
+
+.panel__btns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* --- Кнопки --- */
+.btn {
+  font: inherit;
+  font-size: 13px;
+  color: var(--ink);
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 8px 12px;
+  cursor: pointer;
+  transition: background .15s var(--fast), transform .1s var(--fast);
+}
+
+.btn:hover:not(:disabled) { background: var(--line); }
+.btn:active:not(:disabled) { transform: scale(.97); }
+.btn:disabled { opacity: .4; cursor: not-allowed; }
+
+.btn--primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #241f10;
+  font-weight: bold;
+  flex: 1;
+}
+
+.btn--primary:hover:not(:disabled) { background: #f2c56b; }
+
+.btn--small { padding: 6px 8px; font-size: 12px; }
+
+.btn .cost { color: var(--ink-dim); font-size: 11px; }
+.btn--primary .cost { color: #5c4d22; }
+
+.actions { display: flex; gap: 8px; }
+
+/* --- Журнал --- */
+.log {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 12px;
+  color: var(--ink-dim);
+  max-height: 120px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 3px;
+}
+
+.log p b { color: var(--ink); }
+.log .log--good { color: var(--accent-2); }
+.log .log--bad  { color: var(--danger); }
+
+.credits {
+  font-size: 10px;
+  color: var(--ink-dim);
+  text-align: center;
+  opacity: .7;
+}
+
+/* --- Модальные окна --- */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(10, 8, 14, .8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  z-index: 50;
+}
+
+.modal-overlay[hidden] { display: none; }
+
+.modal {
+  background: var(--panel);
+  border: 2px solid var(--accent);
+  border-radius: 10px;
+  padding: 18px;
+  max-width: 420px;
+  width: 100%;
+  max-height: 84vh;
+  overflow-y: auto;
+  animation: modal-in .18s var(--fast);
+}
+
+@keyframes modal-in {
+  from { opacity: 0; transform: translateY(10px) scale(.97); }
+  to   { opacity: 1; transform: none; }
+}
+
+.modal h2 { font-size: 16px; color: var(--accent); margin-bottom: 8px; }
+.modal p  { font-size: 13px; color: var(--ink); margin-bottom: 14px; white-space: pre-line; }
+
+.modal__buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.modal__buttons .btn { text-align: left; }
+.modal__buttons .btn small { display: block; color: var(--ink-dim); font-size: 11px; }
+
+/* --- Технологии --- */
+.tech-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+  border-bottom: 1px dashed var(--line);
+  font-size: 12px;
+}
+
+.tech-row:last-child { border-bottom: none; }
+.tech-row .tech-name { color: var(--ink); }
+.tech-row .tech-desc { color: var(--ink-dim); font-size: 11px; }
+.tech-row.is-owned .tech-name { color: var(--accent-2); }
+
+@media (prefers-reduced-motion: reduce) {
+  .modal { animation: none; }
+  .btn { transition: none; }
+}

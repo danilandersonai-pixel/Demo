@@ -1,0 +1,979 @@
+/* ==========================================================
+   Городок — пошаговая рогалик-стратегия по мотивам TownsFolk.
+   Оригинальный код и графика (спрайты рисуются процедурно).
+   Один IIFE, без зависимостей и сборки.
+   ========================================================== */
+(() => {
+  'use strict';
+
+  // ---------- Константы ----------
+  const W = 13, H = 13, TS = 16;      // карта 13×13, тайл 16 px
+  const CX = 6, CY = 6;               // центр — ратуша
+  const TRIBUTE_EVERY = 12;           // дань раз в 12 дней
+  const TRIBUTES_TO_WIN = 5;
+  const EXPLORE_TURNS_BASE = 2;
+
+  const TERRAIN_NAME = {
+    grass: 'Луг', forest: 'Лес', mountain: 'Горы', water: 'Вода',
+  };
+
+  const CONTENT_NAME = {
+    beast: 'Дикий зверь', fertile: 'Плодородная земля', timber: 'Строевой лес',
+    ore: 'Богатая жила', fish: 'Рыбное место', tamed: 'Приручённый зверь',
+  };
+
+  const BUILDINGS = {
+    townhall: { name: 'Ратуша', desc: '+2 ⚒️ и +1 🪙 в день, даёт 6 мест жителям' },
+    house:  { name: 'Дом',       terr: 'grass',    cost: { prod: 12 },          desc: '+3 к лимиту жителей' },
+    farm:   { name: 'Ферма',     terr: 'grass',    cost: { prod: 14 },          desc: '+4 🍞 в день (плодородие: +2)' },
+    lumber: { name: 'Лесопилка', terr: 'forest',   cost: { prod: 16 },          desc: '+2 ⚒️ в день (строевой лес: +1)' },
+    mine:   { name: 'Шахта',     terr: 'mountain', cost: { prod: 24 },          desc: '+2 ⚒️ и +2 🪙 в день (жила: +1 🪙)' },
+    church: { name: 'Церковь',   terr: 'grass',    cost: { prod: 24, gold: 8 }, desc: '+2 ✨ в день' },
+    market: { name: 'Рынок',     terr: 'grass',    cost: { prod: 20, gold: 6 }, desc: '+3 🪙 в день' },
+    tavern: { name: 'Таверна',   terr: 'grass',    cost: { prod: 18, gold: 8 }, desc: 'Новые жители прибывают каждый день' },
+    dock:   { name: 'Причал',    terr: 'water',    cost: { prod: 12 },          desc: '+3 🍞 в день (рыбное место: +2)' },
+  };
+
+  const TECHS = [
+    { id: 'cartography', name: 'Картография',   desc: 'Разведка занимает 1 день вместо 2' },
+    { id: 'crops',       name: 'Севооборот',    desc: 'Фермы дают +2 🍞' },
+    { id: 'hunting',     name: 'Охота',         desc: 'Бой со зверем без потерь, добыча +8 🍞' },
+    { id: 'taming',      name: 'Приручение',    desc: 'Зверей можно приручать за 10 ✨ (+2 🍞 в день)' },
+    { id: 'mining',      name: 'Горное дело',   desc: 'Шахты дают +2 ⚒️' },
+    { id: 'trade',       name: 'Торговые пути', desc: 'Рынки +2 🪙, дань короне −20%' },
+    { id: 'masonry',     name: 'Каменная кладка', desc: 'Постройки дешевле на 25%' },
+    { id: 'theology',    name: 'Богословие',    desc: 'Церкви дают +2 ✨' },
+  ];
+
+  // ---------- Состояние ----------
+  let S = null;         // всё состояние партии
+  let selected = -1;    // индекс выбранной клетки
+  let modalQueue = [];  // очередь модальных окон
+  let modalOpen = false;
+
+  const rnd = (n) => Math.floor(Math.random() * n);
+  const chance = (p) => Math.random() < p;
+  const idx = (x, y) => y * W + x;
+  const inMap = (x, y) => x >= 0 && x < W && y >= 0 && y < H;
+
+  function neighbors4(i) {
+    const x = i % W, y = (i / W) | 0, out = [];
+    if (inMap(x - 1, y)) out.push(idx(x - 1, y));
+    if (inMap(x + 1, y)) out.push(idx(x + 1, y));
+    if (inMap(x, y - 1)) out.push(idx(x, y - 1));
+    if (inMap(x, y + 1)) out.push(idx(x, y + 1));
+    return out;
+  }
+
+  function neighbors8(i) {
+    const x = i % W, y = (i / W) | 0, out = [];
+    for (let dy = -1; dy <= 1; dy++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        if (!dx && !dy) continue;
+        if (inMap(x + dx, y + dy)) out.push(idx(x + dx, y + dy));
+      }
+    }
+    return out;
+  }
+
+  // ---------- Генерация карты ----------
+  function genMap() {
+    const tiles = [];
+    for (let i = 0; i < W * H; i++) {
+      const r = Math.random();
+      let t = 'grass';
+      if (r > .85) t = 'water';
+      else if (r > .70) t = 'mountain';
+      else if (r > .48) t = 'forest';
+      tiles.push({ t, vis: 0, b: null, c: null, explore: 0 });
+    }
+    // Сглаживание: клетка с 50% перенимает террейн случайного соседа
+    for (let pass = 0; pass < 2; pass++) {
+      for (let i = 0; i < tiles.length; i++) {
+        if (chance(.5)) {
+          const ns = neighbors4(i);
+          tiles[i].t = tiles[ns[rnd(ns.length)]].t;
+        }
+      }
+    }
+    // Гарантии старта: центр — луг с ратушей, вокруг есть луг и лес
+    const c = idx(CX, CY);
+    tiles[c].t = 'grass';
+    tiles[c].b = 'townhall';
+    tiles[c].vis = 2;
+    tiles[idx(CX - 1, CY)].t = 'grass';
+    tiles[idx(CX + 1, CY)].t = 'grass';
+    tiles[idx(CX, CY - 1)].t = 'forest';
+    // Гарантия гор где-то на карте
+    if (!tiles.some(tl => tl.t === 'mountain')) {
+      tiles[idx(rnd(W), rnd(3))].t = 'mountain';
+    }
+    // Стартовое поселение: ратуша + 4 соседних клетки уже освоены
+    for (const n of neighbors4(c)) tiles[n].vis = 2;
+    for (const s of [c, ...neighbors4(c)]) {
+      for (const n of neighbors8(s)) tiles[n].vis = Math.max(tiles[n].vis, 1);
+    }
+    return tiles;
+  }
+
+  function rollContent(t) {
+    const r = Math.random();
+    if (t === 'grass') {
+      if (r < .12) return 'treasure';
+      if (r < .20) return 'ruins';
+      if (r < .34) return 'beast';
+      if (r < .48) return 'fertile';
+    } else if (t === 'forest') {
+      if (r < .10) return 'treasure';
+      if (r < .26) return 'beast';
+      if (r < .42) return 'timber';
+    } else if (t === 'mountain') {
+      if (r < .10) return 'treasure';
+      if (r < .20) return 'ruins';
+      if (r < .42) return 'ore';
+    } else if (t === 'water') {
+      if (r < .32) return 'fish';
+    }
+    return null;
+  }
+
+  // ---------- Новая партия ----------
+  function newGame() {
+    S = {
+      turn: 1,
+      tiles: genMap(),
+      pop: 4, cap: 6,
+      food: 25, prod: 14, gold: 12, faith: 2, sci: 0,
+      techs: {},
+      tributesPaid: 0,
+      nextTribute: TRIBUTE_EVERY,
+      postpones: 3,
+      tributeBonus: 0,   // надбавка к дани от событий
+      growth: 0,
+      over: false,
+      won: false,
+    };
+    selected = -1;
+    modalQueue = [];
+    modalOpen = false;
+    document.getElementById('log').innerHTML = '';
+    log('Король дал вам землю и год сроку. Стройте, исследуйте — и готовьте дань.');
+    renderAll();
+  }
+
+  // ---------- Утилиты состояния ----------
+  function busyCitizens() {
+    return S.tiles.reduce((n, t) => n + (t.explore > 0 ? 1 : 0), 0);
+  }
+  function freeCitizens() { return Math.max(0, S.pop - busyCitizens()); }
+
+  function buildCost(key) {
+    const base = BUILDINGS[key].cost;
+    const k = S.techs.masonry ? .75 : 1;
+    const out = {};
+    for (const r in base) out[r] = Math.ceil(base[r] * k);
+    return out;
+  }
+
+  function canAfford(cost) {
+    return (!cost.prod || S.prod >= cost.prod) && (!cost.gold || S.gold >= cost.gold);
+  }
+
+  function pay(cost) {
+    if (cost.prod) S.prod -= cost.prod;
+    if (cost.gold) S.gold -= cost.gold;
+  }
+
+  function exploreTurns() { return S.techs.cartography ? 1 : EXPLORE_TURNS_BASE; }
+
+  // Дневной доход по каждому ресурсу
+  function income() {
+    const inc = { food: 0, prod: 2, gold: 1, faith: 0 }; // ратуша
+    for (const t of S.tiles) {
+      if (t.vis !== 2) continue;
+      if (t.c === 'tamed') inc.food += 2;
+      switch (t.b) {
+        case 'farm':   inc.food += 4 + (t.c === 'fertile' ? 2 : 0) + (S.techs.crops ? 2 : 0); break;
+        case 'dock':   inc.food += 3 + (t.c === 'fish' ? 2 : 0); break;
+        case 'lumber': inc.prod += 2 + (t.c === 'timber' ? 1 : 0); break;
+        case 'mine':
+          inc.prod += 2 + (S.techs.mining ? 2 : 0);
+          inc.gold += 2 + (t.c === 'ore' ? 1 : 0);
+          break;
+        case 'market': inc.gold += 3 + (S.techs.trade ? 2 : 0); break;
+        case 'church': inc.faith += 2 + (S.techs.theology ? 2 : 0); break;
+      }
+    }
+    return inc;
+  }
+
+  function tributeDemand(n) {
+    const k = S.techs.trade ? .8 : 1;
+    return {
+      gold: Math.ceil((10 + 12 * n + S.tributeBonus) * k),
+      food: Math.ceil((8 + 6 * n) * k),
+    };
+  }
+
+  // ---------- Журнал ----------
+  function log(msg, cls) {
+    const el = document.getElementById('log');
+    const p = document.createElement('p');
+    if (cls) p.className = cls;
+    p.innerHTML = `<b>Д${S.turn}</b> ${msg}`;
+    el.prepend(p);
+    while (el.children.length > 40) el.removeChild(el.lastChild);
+  }
+
+  // ---------- Ход (конец дня) ----------
+  function endDay() {
+    if (S.over || modalOpen) return;
+    S.turn++;
+
+    // 1. Разведка продвигается
+    for (let i = 0; i < S.tiles.length; i++) {
+      const t = S.tiles[i];
+      if (t.explore > 0 && --t.explore === 0) revealTile(i);
+    }
+
+    // 2. Доход
+    const inc = income();
+    S.food += inc.food; S.prod += inc.prod; S.gold += inc.gold; S.faith += inc.faith;
+    S.sci += 1;
+
+    // 3. Прокорм и голод
+    S.food -= S.pop;
+    if (S.food < 0) {
+      S.food = 0;
+      S.pop--;
+      log('Голод! Один житель умер. Стройте фермы.', 'log--bad');
+    }
+
+    // 4. Набеги зверей
+    for (const t of S.tiles) {
+      if (t.vis === 2 && t.c === 'beast' && chance(.4)) {
+        if (S.food >= 4) { S.food -= 4; log('Зверь разорил припасы: −4 🍞.', 'log--bad'); }
+        else { S.pop--; log('Зверь напал на жителя! −1 👥.', 'log--bad'); }
+      }
+    }
+
+    // 5. Прирост населения
+    if (S.pop > 0 && S.pop < S.cap && S.food >= S.pop * 2) {
+      S.growth++;
+      const need = S.tiles.some(t => t.vis === 2 && t.b === 'tavern') ? 1 : 2;
+      if (S.growth >= need) { S.growth = 0; S.pop++; log('В городок прибыл новый житель. +1 👥', 'log--good'); }
+    } else {
+      S.growth = 0;
+    }
+
+    // 6. Поражение от вымирания
+    if (S.pop <= 0) return gameOver('Все жители погибли. Колония пала.');
+
+    // 7. Дань или случайное событие
+    if (S.turn >= S.nextTribute) {
+      queueTribute();
+    } else if (S.turn > 3 && chance(.25)) {
+      queueEvent(EVENTS[rnd(EVENTS.length)]);
+    }
+
+    renderAll();
+    nextModal();
+  }
+
+  function revealTile(i) {
+    const t = S.tiles[i];
+    t.vis = 2;
+    for (const n of neighbors8(i)) S.tiles[n].vis = Math.max(S.tiles[n].vis, 1);
+    const c = rollContent(t.t);
+    if (c === 'treasure') {
+      const g = 15 + rnd(16);
+      S.gold += g;
+      log(`Разведчики нашли клад: +${g} 🪙!`, 'log--good');
+    } else if (c === 'ruins') {
+      S.sci += 4;
+      log('В древних руинах найдены знания: +4 🔬.', 'log--good');
+    } else if (c) {
+      t.c = c;
+      if (c === 'beast') log('Разведчики наткнулись на логово зверя!', 'log--bad');
+      else log(`Разведана новая земля: ${CONTENT_NAME[c].toLowerCase()}.`, 'log--good');
+    } else {
+      log(`Разведана новая земля (${TERRAIN_NAME[t.t].toLowerCase()}).`);
+    }
+  }
+
+  function gameOver(reason) {
+    S.over = true;
+    renderAll();
+    showModal('☠️ Колония потеряна', reason, [
+      { label: '🔁 Новая попытка', fn: newGame },
+    ]);
+  }
+
+  // ---------- Дань короне ----------
+  function queueTribute() {
+    modalQueue.push(() => {
+      const n = S.tributesPaid + 1;
+      const d = tributeDemand(n);
+      const text = `Гонец короля требует дань №${n} из ${TRIBUTES_TO_WIN}:\n` +
+        `${d.gold} 🪙 и ${d.food} 🍞.\n\nОтсрочек осталось: ${S.postpones}.`;
+      const buttons = [];
+      buttons.push({
+        label: `Заплатить (−${d.gold} 🪙, −${d.food} 🍞)`,
+        disabled: S.gold < d.gold || S.food < d.food,
+        fn: () => {
+          S.gold -= d.gold; S.food -= d.food;
+          S.tributesPaid++; S.sci += 5;
+          S.tributeBonus = 0;
+          S.nextTribute = S.turn + TRIBUTE_EVERY;
+          log(`Дань №${n} уплачена. Король доволен. +5 🔬`, 'log--good');
+          if (S.tributesPaid >= TRIBUTES_TO_WIN && !S.won) victory();
+          renderAll();
+        },
+      });
+      if (S.postpones > 0) {
+        buttons.push({
+          label: `Просить отсрочку (+3 дня, спрос +25%)`,
+          sub: `Осталось отсрочек: ${S.postpones}`,
+          fn: () => {
+            S.postpones--;
+            S.tributeBonus += Math.ceil((10 + 12 * n) * .25);
+            S.nextTribute = S.turn + 3;
+            log('Король дал отсрочку, но требования выросли.', 'log--bad');
+            renderAll();
+          },
+        });
+      }
+      if ((S.gold < tributeDemand(n).gold || S.food < tributeDemand(n).food) && S.postpones <= 0) {
+        buttons.length = 0;
+        buttons.push({
+          label: 'Признать поражение…',
+          fn: () => gameOver('Платить нечем, отсрочек нет. Король отозвал покровительство.'),
+        });
+      }
+      showModal('👑 Дань короне', text, buttons);
+    });
+  }
+
+  function victory() {
+    S.won = true;
+    modalQueue.push(() => showModal(
+      '🏆 Победа!',
+      `Вы выплатили все ${TRIBUTES_TO_WIN} даней за ${S.turn} дней и заслужили милость короля.\n` +
+      `Жителей: ${S.pop}. Городок процветает!\n\nМожно продолжить играть без цели или начать заново.`,
+      [
+        { label: '▶️ Продолжить правление', fn: () => {} },
+        { label: '🔁 Новая партия', fn: newGame },
+      ]
+    ));
+  }
+
+  // ---------- Случайные события ----------
+  const EVENTS = [
+    {
+      title: '🚶 Странник у ворот',
+      text: 'К воротам вышел измождённый путник и просит приюта.',
+      opts: [
+        { label: 'Принять (−6 🍞, +1 👥)', need: { food: 6 },
+          fn: () => { S.food -= 6; if (S.pop < S.cap) { S.pop++; log('Странник остался жить в городке. +1 👥', 'log--good'); } else log('Странник поел и ушёл — жить негде.'); } },
+        { label: 'Прогнать (−2 ✨)',
+          fn: () => { S.faith = Math.max(0, S.faith - 2); log('Странника прогнали. Люди ропщут. −2 ✨', 'log--bad'); } },
+      ],
+    },
+    {
+      title: '🛒 Торговый караван',
+      text: 'Через городок проходит караван. Торговцы предлагают сделки.',
+      opts: [
+        { label: 'Купить еду (−12 🪙, +18 🍞)', need: { gold: 12 },
+          fn: () => { S.gold -= 12; S.food += 18; log('Куплены припасы у каравана.', 'log--good'); } },
+        { label: 'Продать зерно (−12 🍞, +14 🪙)', need: { food: 12 },
+          fn: () => { S.food -= 12; S.gold += 14; log('Зерно продано каравану.', 'log--good'); } },
+        { label: 'Пропустить караван', fn: () => { log('Караван ушёл дальше.'); } },
+      ],
+    },
+    {
+      title: '🔥 Пожар на складе',
+      text: 'Ночью загорелся склад! Огонь вот-вот перекинется на припасы.',
+      opts: [
+        { label: 'Тушить всем селом (−6 ⚒️)', need: { prod: 6 },
+          fn: () => { S.prod -= 6; log('Пожар потушен ценой материалов.', 'log--good'); } },
+        { label: 'Молиться о дожде (−8 ✨)', need: { faith: 8 },
+          fn: () => { S.faith -= 8; log('Хлынул ливень — склад спасён чудом!', 'log--good'); } },
+        { label: 'Спасать что успеем (−12 🍞)',
+          fn: () => { S.food = Math.max(0, S.food - 12); log('Часть припасов сгорела. −12 🍞', 'log--bad'); } },
+      ],
+    },
+    {
+      title: '☀️ Засуха',
+      text: 'Уже неделю ни капли дождя. Поля сохнут.',
+      opts: [
+        { label: 'Молебен о дожде (−6 ✨)', need: { faith: 6 },
+          fn: () => { S.faith -= 6; log('После молебна пошёл дождь. Урожай спасён.', 'log--good'); } },
+        { label: 'Терпеть (−10 🍞)',
+          fn: () => { S.food = Math.max(0, S.food - 10); log('Засуха погубила часть урожая. −10 🍞', 'log--bad'); } },
+      ],
+    },
+    {
+      title: '🎉 Праздник урожая',
+      text: 'Жители просят устроить праздник в честь удачного сезона.',
+      opts: [
+        { label: 'Устроить пир (−8 🍞, +6 ✨)', need: { food: 8 },
+          fn: () => { S.food -= 8; S.faith += 6; log('Праздник удался! +6 ✨', 'log--good'); } },
+        { label: 'Работать как обычно (+4 ⚒️)',
+          fn: () => { S.prod += 4; log('Вместо праздника — трудовой день. +4 ⚒️'); } },
+      ],
+    },
+    {
+      title: '📜 Сборщик податей',
+      text: 'Королевский сборщик явился раньше срока и требует «добровольный» взнос.',
+      opts: [
+        { label: 'Заплатить (−10 🪙)', need: { gold: 10 },
+          fn: () => { S.gold -= 10; log('Сборщик уехал довольный. −10 🪙', 'log--bad'); } },
+        { label: 'Отказать (−4 ✨, дань +5 🪙)',
+          fn: () => { S.faith = Math.max(0, S.faith - 4); S.tributeBonus += 5; log('Сборщик затаил обиду. Следующая дань выше.', 'log--bad'); } },
+      ],
+    },
+    {
+      title: '🐺 Волчий вой',
+      text: 'По ночам вокруг городка воют волки. Люди боятся выходить.',
+      opts: [
+        { label: 'Выставить дозор (−4 ⚒️)', need: { prod: 4 },
+          fn: () => { S.prod -= 4; log('Дозор отогнал стаю.', 'log--good'); } },
+        { label: 'Ничего не делать',
+          fn: () => {
+            const spots = S.tiles
+              .map((t, i) => ({ t, i }))
+              .filter(o => o.t.vis === 2 && !o.t.b && !o.t.c && o.t.t !== 'water');
+            if (spots.length) {
+              spots[rnd(spots.length)].t.c = 'beast';
+              log('Стая поселилась у самого городка!', 'log--bad');
+            } else {
+              log('Волки повыли и ушли.');
+            }
+          } },
+      ],
+    },
+    {
+      title: '⛪ Заезжий проповедник',
+      text: 'Странствующий проповедник готов прочитать проповедь на площади.',
+      opts: [
+        { label: 'Пожертвовать (−8 🪙, +6 ✨)', need: { gold: 8 },
+          fn: () => { S.gold -= 8; S.faith += 6; log('Проповедь воодушевила жителей. +6 ✨', 'log--good'); } },
+        { label: 'Выслушать бесплатно (+1 ✨)',
+          fn: () => { S.faith += 1; log('Проповедник ушёл, слегка обидевшись. +1 ✨'); } },
+      ],
+    },
+  ];
+
+  function queueEvent(ev) {
+    modalQueue.push(() => {
+      const buttons = ev.opts.map(o => ({
+        label: o.label,
+        disabled: o.need && (
+          (o.need.gold && S.gold < o.need.gold) ||
+          (o.need.food && S.food < o.need.food) ||
+          (o.need.prod && S.prod < o.need.prod) ||
+          (o.need.faith && S.faith < o.need.faith)
+        ),
+        fn: () => { o.fn(); renderAll(); },
+      }));
+      showModal(ev.title, ev.text, buttons);
+    });
+  }
+
+  // ---------- Модальные окна ----------
+  function showModal(title, text, buttons) {
+    modalOpen = true;
+    document.getElementById('modal-title').textContent = title;
+    document.getElementById('modal-text').textContent = text;
+    const box = document.getElementById('modal-buttons');
+    box.innerHTML = '';
+    for (const b of buttons) {
+      const btn = document.createElement('button');
+      btn.className = 'btn';
+      btn.innerHTML = b.sub ? `${b.label}<small>${b.sub}</small>` : b.label;
+      btn.disabled = !!b.disabled;
+      btn.addEventListener('click', () => {
+        closeModal();
+        b.fn();
+        renderAll();
+        nextModal();
+      });
+      box.appendChild(btn);
+    }
+    document.getElementById('modal').hidden = false;
+  }
+
+  function closeModal() {
+    modalOpen = false;
+    document.getElementById('modal').hidden = true;
+  }
+
+  function nextModal() {
+    if (!modalOpen && modalQueue.length) modalQueue.shift()();
+  }
+
+  // ---------- Технологии ----------
+  function techCost() {
+    const owned = Object.keys(S.techs).length;
+    return Math.ceil(8 * Math.pow(1.5, owned));
+  }
+
+  function openTech() {
+    if (modalOpen) return;
+    const cost = techCost();
+    const box = document.getElementById('modal-buttons');
+    document.getElementById('modal-title').textContent = '🔬 Технологии';
+    document.getElementById('modal-text').textContent =
+      `Очков знаний: ${S.sci}. Следующее открытие стоит ${cost} 🔬 (дорожает с каждым).`;
+    box.innerHTML = '';
+    for (const t of TECHS) {
+      const row = document.createElement('div');
+      row.className = 'tech-row' + (S.techs[t.id] ? ' is-owned' : '');
+      const info = document.createElement('div');
+      info.innerHTML = `<div class="tech-name">${S.techs[t.id] ? '✅ ' : ''}${t.name}</div>` +
+                       `<div class="tech-desc">${t.desc}</div>`;
+      row.appendChild(info);
+      if (!S.techs[t.id]) {
+        const btn = document.createElement('button');
+        btn.className = 'btn btn--small';
+        btn.textContent = `${cost} 🔬`;
+        btn.disabled = S.sci < cost || S.over;
+        btn.addEventListener('click', () => {
+          S.sci -= cost;
+          S.techs[t.id] = true;
+          log(`Открыта технология «${t.name}»!`, 'log--good');
+          renderAll();
+          openTechRefresh();
+        });
+        row.appendChild(btn);
+      }
+      box.appendChild(row);
+    }
+    const close = document.createElement('button');
+    close.className = 'btn btn--primary';
+    close.textContent = 'Закрыть';
+    close.addEventListener('click', () => { closeModal(); nextModal(); });
+    box.appendChild(close);
+    modalOpen = true;
+    document.getElementById('modal').hidden = false;
+  }
+
+  function openTechRefresh() { modalOpen = false; openTech(); }
+
+  // ---------- Действия на клетке ----------
+  function startExplore(i) {
+    const t = S.tiles[i];
+    if (t.vis !== 1 || t.explore > 0) return;
+    if (!neighbors4(i).some(n => S.tiles[n].vis === 2)) return;
+    if (freeCitizens() < 1) { log('Нет свободных жителей для разведки.', 'log--bad'); return; }
+    t.explore = exploreTurns();
+    log(`Разведчик отправился в ${TERRAIN_NAME[t.t].toLowerCase()} (${t.explore} дн.).`);
+    renderAll();
+  }
+
+  function build(i, key) {
+    const t = S.tiles[i];
+    const cost = buildCost(key);
+    if (t.vis !== 2 || t.b || t.c === 'beast' || !canAfford(cost)) return;
+    pay(cost);
+    t.b = key;
+    if (key === 'house') S.cap += 3;
+    S.sci += 2;
+    log(`Построен объект «${BUILDINGS[key].name}». +2 🔬`, 'log--good');
+    renderAll();
+  }
+
+  function fightBeast(i) {
+    const t = S.tiles[i];
+    if (t.c !== 'beast') return;
+    if (S.techs.hunting) {
+      t.c = null;
+      S.food += 8;
+      log('Охотники выследили зверя без потерь. +8 🍞', 'log--good');
+    } else {
+      if (freeCitizens() < 2) { log('Для боя нужно хотя бы 2 свободных жителя.', 'log--bad'); return; }
+      S.pop--;
+      t.c = null;
+      log('Зверь повержен, но один житель погиб в бою. −1 👥', 'log--bad');
+      if (S.pop <= 0) return gameOver('Последний житель погиб в схватке со зверем.');
+    }
+    renderAll();
+  }
+
+  function tameBeast(i) {
+    const t = S.tiles[i];
+    if (t.c !== 'beast' || !S.techs.taming || S.faith < 10) return;
+    S.faith -= 10;
+    t.c = 'tamed';
+    log('Зверь приручён и теперь помогает добывать еду! +2 🍞 в день', 'log--good');
+    renderAll();
+  }
+
+  // ---------- Спрайты (процедурный пиксель-арт) ----------
+  const sprites = {};
+
+  function makeSprite(draw) {
+    const c = document.createElement('canvas');
+    c.width = TS; c.height = TS;
+    const g = c.getContext('2d');
+    draw(g);
+    return c;
+  }
+
+  function px(g, color, x, y, w = 1, h = 1) {
+    g.fillStyle = color;
+    g.fillRect(x, y, w, h);
+  }
+
+  function baseGrass(g) {
+    px(g, '#6da34d', 0, 0, TS, TS);
+    for (let k = 0; k < 14; k++) px(g, '#5e9142', rnd(TS), rnd(TS));
+    for (let k = 0; k < 6; k++) px(g, '#7fb35c', rnd(TS), rnd(TS));
+  }
+
+  function initSprites() {
+    sprites.grass = makeSprite(baseGrass);
+
+    sprites.forest = makeSprite(g => {
+      baseGrass(g);
+      const tree = (x, y) => {
+        px(g, '#2e5c33', x + 1, y, 3, 1);
+        px(g, '#2e5c33', x, y + 1, 5, 3);
+        px(g, '#3d7a44', x + 1, y + 1, 2, 2);
+        px(g, '#5c4327', x + 2, y + 4, 1, 2);
+      };
+      tree(2, 2); tree(8, 4); tree(4, 9);
+    });
+
+    sprites.mountain = makeSprite(g => {
+      px(g, '#8a8577', 0, 0, TS, TS);
+      for (let k = 0; k < 12; k++) px(g, '#7a7568', rnd(TS), rnd(TS));
+      // два пика
+      for (let r = 0; r < 6; r++) px(g, '#6b6659', 5 - r, 6 + r, 1 + r * 2, 1);
+      for (let r = 0; r < 5; r++) px(g, '#5d5950', 11 - r, 8 + r, 1 + r * 2, 1);
+      px(g, '#e8e4da', 4, 6, 3, 1);
+      px(g, '#e8e4da', 10, 8, 3, 1);
+    });
+
+    sprites.water = makeSprite(g => {
+      px(g, '#3f6d9e', 0, 0, TS, TS);
+      for (let k = 0; k < 10; k++) px(g, '#35608f', rnd(TS), rnd(TS));
+      px(g, '#6f9cc7', 2, 4, 4, 1);
+      px(g, '#6f9cc7', 9, 8, 4, 1);
+      px(g, '#6f9cc7', 4, 12, 4, 1);
+    });
+
+    sprites.hidden = makeSprite(g => {
+      px(g, '#100e15', 0, 0, TS, TS);
+      for (let k = 0; k < 8; k++) px(g, '#1a1722', rnd(TS), rnd(TS));
+    });
+
+    // Постройки — рисуются поверх террейна
+    sprites.townhall = makeSprite(g => {
+      px(g, '#4a5a8a', 2, 3, 12, 3);       // крыша
+      px(g, '#6b7fb5', 3, 2, 10, 1);
+      px(g, '#c9b998', 3, 6, 10, 8);       // стены
+      px(g, '#8a7a5a', 3, 13, 10, 1);
+      px(g, '#5c4327', 7, 9, 2, 5);        // дверь
+      px(g, '#4a5a8a', 5, 7, 2, 2); px(g, '#4a5a8a', 9, 7, 2, 2); // окна
+      px(g, '#e6b455', 7, 0, 1, 3);        // флагшток
+      px(g, '#d95b5b', 8, 0, 3, 2);        // флаг
+    });
+
+    sprites.house = makeSprite(g => {
+      px(g, '#a34f3f', 3, 4, 10, 3);       // крыша
+      px(g, '#b8604e', 4, 3, 8, 1);
+      px(g, '#d8c8a8', 4, 7, 8, 6);        // стены
+      px(g, '#5c4327', 7, 9, 2, 4);        // дверь
+      px(g, '#4a5a8a', 5, 8, 1, 1); px(g, '#4a5a8a', 10, 8, 1, 1);
+    });
+
+    sprites.farm = makeSprite(g => {
+      for (let r = 0; r < 4; r++) px(g, '#8a6a3a', 2, 3 + r * 3, 12, 1);
+      for (let r = 0; r < 4; r++)
+        for (let x = 0; x < 6; x++) px(g, '#d9c25a', 3 + x * 2, 2 + r * 3, 1, 1);
+    });
+
+    sprites.lumber = makeSprite(g => {
+      px(g, '#8a6a3a', 3, 8, 10, 5);       // сруб
+      px(g, '#6b512c', 3, 8, 10, 1);
+      px(g, '#a34f3f', 2, 6, 12, 2);       // крыша
+      // брёвна
+      px(g, '#5c4327', 4, 13, 3, 2); px(g, '#5c4327', 9, 13, 3, 2);
+      px(g, '#c9b998', 5, 13, 1, 1); px(g, '#c9b998', 10, 13, 1, 1);
+    });
+
+    sprites.mine = makeSprite(g => {
+      px(g, '#3d3a33', 4, 6, 8, 8);        // вход в штольню
+      px(g, '#100e15', 6, 8, 4, 6);
+      px(g, '#6b512c', 4, 5, 8, 1);        // крепь
+      px(g, '#6b512c', 4, 6, 1, 8); px(g, '#6b512c', 11, 6, 1, 8);
+      px(g, '#e6b455', 12, 12, 2, 2);      // тачка золота
+    });
+
+    sprites.church = makeSprite(g => {
+      px(g, '#e8e4da', 5, 6, 6, 8);        // белые стены
+      px(g, '#8a8577', 5, 13, 6, 1);
+      px(g, '#4a5a8a', 4, 4, 8, 2);        // крыша
+      px(g, '#e6b455', 7, 0, 2, 1); px(g, '#e6b455', 7, 1, 2, 3); // крест-шпиль
+      px(g, '#e6b455', 6, 1, 4, 1);
+      px(g, '#5c4327', 7, 10, 2, 4);       // дверь
+    });
+
+    sprites.market = makeSprite(g => {
+      for (let x = 0; x < 6; x++) px(g, x % 2 ? '#d95b5b' : '#e8e4da', 2 + x * 2, 4, 2, 2); // навес
+      px(g, '#8a6a3a', 3, 6, 1, 7); px(g, '#8a6a3a', 12, 6, 1, 7); // стойки
+      px(g, '#6b512c', 3, 10, 10, 2);      // прилавок
+      px(g, '#e6b455', 5, 9, 2, 1); px(g, '#7fb069', 9, 9, 2, 1);  // товар
+    });
+
+    sprites.tavern = makeSprite(g => {
+      px(g, '#6b512c', 3, 5, 10, 2);       // крыша
+      px(g, '#8a6a3a', 3, 7, 10, 6);       // стены
+      px(g, '#5c4327', 6, 9, 2, 4);        // дверь
+      px(g, '#e6b455', 10, 8, 2, 2);       // окно светится
+      px(g, '#e6b455', 2, 3, 3, 2);        // вывеска-кружка
+      px(g, '#8a6a3a', 3, 5, 1, 1);
+    });
+
+    sprites.dock = makeSprite(g => {
+      px(g, '#8a6a3a', 2, 7, 12, 3);       // настил
+      px(g, '#6b512c', 3, 10, 1, 4); px(g, '#6b512c', 12, 10, 1, 4); // сваи
+      px(g, '#d8c8a8', 9, 3, 1, 4);        // мачта лодки
+      px(g, '#d95b5b', 10, 3, 3, 2);       // парус
+      px(g, '#5c4327', 7, 6, 6, 2);        // лодка
+    });
+
+    // Содержимое клеток
+    sprites.beast = makeSprite(g => {
+      px(g, '#3d3a33', 4, 8, 8, 4);        // тело
+      px(g, '#3d3a33', 10, 5, 3, 4);       // голова
+      px(g, '#3d3a33', 3, 9, 1, 2);        // хвост
+      px(g, '#d95b5b', 11, 6, 1, 1);       // глаз
+      px(g, '#3d3a33', 5, 12, 1, 2); px(g, '#3d3a33', 9, 12, 1, 2); // лапы
+      px(g, '#e8e4da', 12, 8, 1, 1);       // клык
+    });
+
+    sprites.tamed = makeSprite(g => {
+      px(g, '#8a6a3a', 4, 8, 8, 4);
+      px(g, '#8a6a3a', 10, 5, 3, 4);
+      px(g, '#8a6a3a', 3, 9, 1, 2);
+      px(g, '#4a5a8a', 11, 6, 1, 1);
+      px(g, '#8a6a3a', 5, 12, 1, 2); px(g, '#8a6a3a', 9, 12, 1, 2);
+      px(g, '#d95b5b', 6, 3, 1, 1); px(g, '#d95b5b', 8, 3, 1, 1);   // сердечко
+      px(g, '#d95b5b', 6, 4, 3, 1); px(g, '#d95b5b', 7, 5, 1, 1);
+    });
+
+    sprites.fertile = makeSprite(g => {
+      for (const [x, y] of [[3, 4], [10, 3], [6, 10], [12, 11]]) {
+        px(g, '#d9c25a', x, y, 1, 2);
+        px(g, '#d9c25a', x - 1, y + 1, 3, 1);
+      }
+    });
+
+    sprites.timber = makeSprite(g => {
+      px(g, '#5c4327', 3, 11, 4, 2); px(g, '#5c4327', 8, 11, 4, 2);
+      px(g, '#5c4327', 5, 9, 4, 2);
+      px(g, '#c9b998', 4, 11, 1, 1); px(g, '#c9b998', 9, 11, 1, 1); px(g, '#c9b998', 6, 9, 1, 1);
+    });
+
+    sprites.ore = makeSprite(g => {
+      for (const [x, y] of [[4, 5], [10, 8], [6, 12]]) {
+        px(g, '#e6b455', x, y, 2, 2);
+        px(g, '#f2d98a', x, y, 1, 1);
+      }
+    });
+
+    sprites.fish = makeSprite(g => {
+      px(g, '#e8e4da', 5, 7, 4, 2);        // рыбка
+      px(g, '#e8e4da', 9, 6, 1, 1); px(g, '#e8e4da', 9, 9, 1, 1);
+      px(g, '#100e15', 6, 7, 1, 1);
+      px(g, '#6f9cc7', 4, 11, 5, 1);       // круги на воде
+    });
+  }
+
+  // ---------- Отрисовка ----------
+  const canvas = document.getElementById('map');
+  const ctx = canvas.getContext('2d');
+  ctx.imageSmoothingEnabled = false;
+
+  function render() {
+    for (let y = 0; y < H; y++) {
+      for (let x = 0; x < W; x++) {
+        const i = idx(x, y);
+        const t = S.tiles[i];
+        const dx = x * TS, dy = y * TS;
+        if (t.vis === 0) {
+          ctx.drawImage(sprites.hidden, dx, dy);
+          continue;
+        }
+        ctx.drawImage(sprites[t.t], dx, dy);
+        if (t.vis === 1) {
+          // туман: террейн виден, содержимое — нет
+          ctx.fillStyle = 'rgba(16,14,21,.55)';
+          ctx.fillRect(dx, dy, TS, TS);
+          if (t.explore > 0) {
+            // идёт разведка — фонарик
+            ctx.fillStyle = '#e6b455';
+            ctx.fillRect(dx + 7, dy + 6, 2, 4);
+            ctx.fillRect(dx + 6, dy + 7, 4, 2);
+          } else if (neighbors4(i).some(n => S.tiles[n].vis === 2)) {
+            // доступна для разведки — уголки
+            ctx.fillStyle = 'rgba(232,226,212,.7)';
+            ctx.fillRect(dx + 1, dy + 1, 3, 1); ctx.fillRect(dx + 1, dy + 1, 1, 3);
+            ctx.fillRect(dx + TS - 4, dy + 1, 3, 1); ctx.fillRect(dx + TS - 2, dy + 1, 1, 3);
+            ctx.fillRect(dx + 1, dy + TS - 2, 3, 1); ctx.fillRect(dx + 1, dy + TS - 4, 1, 3);
+            ctx.fillRect(dx + TS - 4, dy + TS - 2, 3, 1); ctx.fillRect(dx + TS - 2, dy + TS - 4, 1, 3);
+          }
+        } else {
+          if (t.c && sprites[t.c]) ctx.drawImage(sprites[t.c], dx, dy);
+          if (t.b) ctx.drawImage(sprites[t.b], dx, dy);
+        }
+        if (i === selected) {
+          ctx.strokeStyle = '#e6b455';
+          ctx.lineWidth = 1;
+          ctx.strokeRect(dx + .5, dy + .5, TS - 1, TS - 1);
+        }
+      }
+    }
+  }
+
+  // ---------- Панель клетки ----------
+  function renderPanel() {
+    const panel = document.getElementById('panel');
+    if (selected < 0) {
+      panel.innerHTML = '<p class="panel__hint">Коснитесь клетки: тумана — чтобы разведать, своей земли — чтобы строить.</p>';
+      return;
+    }
+    const t = S.tiles[selected];
+    panel.innerHTML = '';
+    const h = document.createElement('h3');
+    const p = document.createElement('p');
+    const btns = document.createElement('div');
+    btns.className = 'panel__btns';
+
+    if (t.vis === 1) {
+      h.textContent = `${TERRAIN_NAME[t.t]} (в тумане)`;
+      if (t.explore > 0) {
+        p.textContent = `Разведка идёт: осталось ${t.explore} дн.`;
+      } else if (neighbors4(selected).some(n => S.tiles[n].vis === 2)) {
+        p.textContent = 'Что там — неизвестно, пока не пошлёшь разведчика.';
+        const b = document.createElement('button');
+        b.className = 'btn btn--small';
+        b.innerHTML = `🔦 Разведать <span class="cost">(${exploreTurns()} дн., занимает 1 👥)</span>`;
+        b.disabled = freeCitizens() < 1 || S.over;
+        b.addEventListener('click', () => startExplore(selected));
+        btns.appendChild(b);
+      } else {
+        p.textContent = 'Слишком далеко — разведайте соседнюю клетку.';
+      }
+    } else {
+      h.textContent = TERRAIN_NAME[t.t] + (t.b ? ` — ${BUILDINGS[t.b].name}` : '');
+      if (t.b) {
+        p.textContent = BUILDINGS[t.b].desc;
+      } else if (t.c === 'beast') {
+        p.textContent = 'Логово зверя! Он будет разорять припасы, пока его не прогнать.';
+        const fight = document.createElement('button');
+        fight.className = 'btn btn--small';
+        fight.innerHTML = S.techs.hunting
+          ? '⚔️ Выследить <span class="cost">(без потерь, +8 🍞)</span>'
+          : '⚔️ В бой <span class="cost">(−1 👥, нужно 2 свободных)</span>';
+        fight.disabled = S.over || (!S.techs.hunting && freeCitizens() < 2);
+        fight.addEventListener('click', () => fightBeast(selected));
+        btns.appendChild(fight);
+        if (S.techs.taming) {
+          const tame = document.createElement('button');
+          tame.className = 'btn btn--small';
+          tame.innerHTML = '🐾 Приручить <span class="cost">(−10 ✨)</span>';
+          tame.disabled = S.faith < 10 || S.over;
+          tame.addEventListener('click', () => tameBeast(selected));
+          btns.appendChild(tame);
+        }
+      } else {
+        p.textContent = (t.c ? `${CONTENT_NAME[t.c]}. ` : '') + 'Можно строить:';
+        let any = false;
+        for (const key in BUILDINGS) {
+          const b = BUILDINGS[key];
+          if (b.terr !== t.t) continue;
+          any = true;
+          const cost = buildCost(key);
+          const costTxt = [cost.prod ? `${cost.prod} ⚒️` : '', cost.gold ? `${cost.gold} 🪙` : '']
+            .filter(Boolean).join(' + ');
+          const btn = document.createElement('button');
+          btn.className = 'btn btn--small';
+          btn.innerHTML = `${b.name} <span class="cost">(${costTxt})</span>`;
+          btn.title = b.desc;
+          btn.disabled = !canAfford(cost) || S.over;
+          btn.addEventListener('click', () => build(selected, key));
+          btns.appendChild(btn);
+        }
+        if (!any) p.textContent = 'Здесь ничего не построить.';
+      }
+    }
+
+    panel.appendChild(h);
+    panel.appendChild(p);
+    if (btns.children.length) panel.appendChild(btns);
+  }
+
+  // ---------- Верхние индикаторы ----------
+  function renderHud() {
+    const inc = income();
+    const set = (id, v) => { document.getElementById(id).textContent = v; };
+    set('r-pop', `${freeCitizens()}/${S.pop}/${S.cap}`);
+    set('r-food', `${S.food} (${inc.food - S.pop >= 0 ? '+' : ''}${inc.food - S.pop})`);
+    set('r-prod', `${S.prod} (+${inc.prod})`);
+    set('r-gold', `${S.gold} (+${inc.gold})`);
+    set('r-faith', `${S.faith} (+${inc.faith})`);
+    set('r-sci', S.sci);
+    set('turn-label', `День ${S.turn}`);
+    const left = S.nextTribute - S.turn;
+    const tl = document.getElementById('tribute-label');
+    const d = tributeDemand(S.tributesPaid + 1);
+    tl.textContent = S.won && S.tributesPaid >= TRIBUTES_TO_WIN
+      ? '👑 Милость короля заслужена'
+      : `До дани: ${left} дн. (${d.gold} 🪙 + ${d.food} 🍞)`;
+    tl.classList.toggle('is-soon', left <= 3 && !S.won);
+    document.getElementById('btn-endday').disabled = S.over;
+  }
+
+  function renderAll() {
+    render();
+    renderPanel();
+    renderHud();
+  }
+
+  // ---------- Ввод ----------
+  canvas.addEventListener('click', (e) => {
+    if (S.over || modalOpen) return;
+    const r = canvas.getBoundingClientRect();
+    const x = Math.floor((e.clientX - r.left) / r.width * W);
+    const y = Math.floor((e.clientY - r.top) / r.height * H);
+    if (!inMap(x, y)) return;
+    const i = idx(x, y);
+    selected = (S.tiles[i].vis === 0) ? -1 : i;
+    renderAll();
+  });
+
+  document.getElementById('btn-endday').addEventListener('click', endDay);
+  document.getElementById('btn-tech').addEventListener('click', openTech);
+  document.getElementById('btn-help').addEventListener('click', () => {
+    if (modalOpen) return;
+    showModal('❓ Как играть',
+      'Ваше поселение окружено туманом. Каждая клетка тумана скрывает сюрприз: клад, руины, ' +
+      'плодородную землю — или дикого зверя.\n\n' +
+      '• Коснитесь клетки тумана рядом со своей землёй, чтобы послать разведчика.\n' +
+      '• На своей земле стройте: фермы кормят, дома дают жителей, шахты и рынки приносят ' +
+      'производство и золото, церкви — веру.\n' +
+      '• Жители едят 1 🍞 в день каждый. Голод убивает.\n' +
+      '• Очки знаний 🔬 открывают технологии — с каждым открытием дороже.\n' +
+      '• Раз в 12 дней король требует дань. Не заплатите — потеряете колонию. ' +
+      `Выплатите ${TRIBUTES_TO_WIN} даней — победа!\n\n` +
+      'Каждая партия — новая случайная карта. Удачи!',
+      [{ label: 'Понятно', fn: () => {} }]);
+  });
+
+  // ---------- Старт ----------
+  initSprites();
+  newGame();
+})();
