@@ -1,0 +1,46 @@
+name: Deploy wedding site + game to GitHub Pages
+
+on:
+  push:
+    branches: ["claude/townsfolk-iphone-game-hxfqcq"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Assemble site (wedding at root, game under /game)
+        run: |
+          mkdir -p _site
+          cp -r yegor-diana-wedding/. _site/
+          mkdir -p _site/game
+          cp -r townsfolk-game/. _site/game/
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+        with:
+          enablement: true
+
+      - name: Upload site artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./_site
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

@@ -5,6 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>Городок — стратегия по мотивам TownsFolk</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%2317151d'/%3E%3Crect x='3' y='7' width='10' height='6' fill='%23c9b998'/%3E%3Cpath d='M2 7l6-4 6 4z' fill='%23a34f3f'/%3E%3Crect x='7' y='9' width='2' height='4' fill='%235c4327'/%3E%3C/svg%3E">
+  <!-- PWA: приложение на домашнем экране -->
+  <link rel="manifest" href="manifest.webmanifest">
+  <meta name="theme-color" content="#0d1220">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Городок">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -100,5 +108,13 @@
 
   <script src="assets.js"></script>
   <script src="game.js"></script>
+  <script>
+    // офлайн-режим: регистрируем сервис-воркер (не в file:// и не в песочницах)
+    if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('sw.js').catch(() => {});
+      });
+    }
+  </script>
 </body>
 </html>
