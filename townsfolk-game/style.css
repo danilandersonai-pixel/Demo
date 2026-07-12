@@ -111,7 +111,7 @@ body {
 #map {
   width: 100%;
   max-width: 520px;
-  aspect-ratio: 336 / 292;
+  aspect-ratio: 444 / 372;
   image-rendering: pixelated;
   image-rendering: crisp-edges;
   cursor: pointer;
