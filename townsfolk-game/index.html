@@ -18,16 +18,16 @@
     </header>
 
     <div class="resbar" id="resbar" aria-label="Ресурсы">
-      <span class="res" title="Жители (свободные/всего/лимит)">👥 <b id="r-pop">4</b></span>
-      <span class="res" title="Еда">🍞 <b id="r-food">25</b></span>
-      <span class="res" title="Производство">⚒️ <b id="r-prod">12</b></span>
-      <span class="res" title="Золото">🪙 <b id="r-gold">12</b></span>
-      <span class="res" title="Вера">✨ <b id="r-faith">2</b></span>
-      <span class="res" title="Очки знаний">🔬 <b id="r-sci">0</b></span>
+      <span class="res" title="Жители (свободные/всего/лимит)"><img class="ico" id="ico-pop" alt="👥"> <b id="r-pop">4</b></span>
+      <span class="res" title="Еда"><img class="ico" id="ico-food" alt="🍞"> <b id="r-food">25</b></span>
+      <span class="res" title="Производство"><img class="ico" id="ico-prod" alt="⚒️"> <b id="r-prod">12</b></span>
+      <span class="res" title="Золото"><img class="ico" id="ico-gold" alt="🪙"> <b id="r-gold">12</b></span>
+      <span class="res" title="Вера"><img class="ico" id="ico-faith" alt="✨"> <b id="r-faith">2</b></span>
+      <span class="res" title="Очки знаний"><img class="ico" id="ico-sci" alt="🔬"> <b id="r-sci">0</b></span>
     </div>
 
     <div class="map-wrap">
-      <canvas id="map" width="444" height="372"></canvas>
+      <canvas id="map" width="888" height="744"></canvas>
     </div>
 
     <section class="panel" id="panel">
@@ -51,11 +51,13 @@
   <div class="modal-overlay" id="modal" hidden>
     <div class="modal" role="dialog" aria-modal="true">
       <h2 id="modal-title"></h2>
+      <img id="modal-pic" class="modal__pic" alt="" hidden>
       <p id="modal-text"></p>
       <div class="modal__buttons" id="modal-buttons"></div>
     </div>
   </div>
 
+  <script src="assets.js"></script>
   <script src="game.js"></script>
 </body>
 </html>

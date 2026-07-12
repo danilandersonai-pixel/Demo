@@ -46,14 +46,14 @@
   };
 
   const TECHS = [
-    { id: 'cartography', name: 'Картография',   desc: 'Разведка занимает 1 день вместо 2' },
-    { id: 'crops',       name: 'Севооборот',    desc: 'Фермы дают +2 🍞' },
-    { id: 'hunting',     name: 'Охота',         desc: 'Бой со зверем без потерь, добыча +8 🍞' },
-    { id: 'taming',      name: 'Приручение',    desc: 'Зверей можно приручать за 10 ✨ (+2 🍞 в день)' },
-    { id: 'mining',      name: 'Горное дело',   desc: 'Шахты дают +2 ⚒️' },
-    { id: 'trade',       name: 'Торговые пути', desc: 'Рынки +2 🪙, дань короне −20%' },
-    { id: 'masonry',     name: 'Каменная кладка', desc: 'Постройки дешевле на 25%' },
-    { id: 'theology',    name: 'Богословие',    desc: 'Церкви дают +2 ✨' },
+    { id: 'cartography', name: 'Картография',   desc: 'Разведка занимает 1 день вместо 2', icon: 't_education' },
+    { id: 'crops',       name: 'Севооборот',    desc: 'Фермы дают +2 🍞', icon: 't_farming' },
+    { id: 'hunting',     name: 'Охота',         desc: 'Бой со зверем без потерь, добыча +8 🍞', icon: 't_military' },
+    { id: 'taming',      name: 'Приручение',    desc: 'Зверей можно приручать за 10 ✨ (+2 🍞 в день)', icon: 't_gathering' },
+    { id: 'mining',      name: 'Горное дело',   desc: 'Шахты дают +2 ⚒️', icon: 't_engineering' },
+    { id: 'trade',       name: 'Торговые пути', desc: 'Рынки +2 🪙, дань короне −20%', icon: 't_governance' },
+    { id: 'masonry',     name: 'Каменная кладка', desc: 'Постройки дешевле на 25%', icon: 't_masonry' },
+    { id: 'theology',    name: 'Богословие',    desc: 'Церкви дают +2 ✨', icon: 't_architecture' },
   ];
 
   // ---------- Состояние ----------
@@ -345,7 +345,7 @@
     renderAll();
     showModal('☠️ Колония потеряна', reason, [
       { label: '🔁 Новая попытка', fn: newGame },
-    ]);
+    ], 'ev_plague');
   }
 
   // ---------- Дань короне ----------
@@ -389,7 +389,7 @@
           fn: () => gameOver('Платить нечем, отсрочек нет. Король отозвал покровительство.'),
         });
       }
-      showModal('👑 Дань короне', text, buttons);
+      showModal('👑 Дань короне', text, buttons, 'ev_kingstax');
     });
   }
 
@@ -402,7 +402,8 @@
       [
         { label: '▶️ Продолжить правление', fn: () => {} },
         { label: '🔁 Новая партия', fn: newGame },
-      ]
+      ],
+      't_governance'
     ));
   }
 
@@ -411,6 +412,7 @@
     {
       title: '🚶 Странник у ворот',
       text: 'К воротам вышел измождённый путник и просит приюта.',
+      img: 'ev_merchants',
       opts: [
         { label: 'Принять (−6 🍞, +1 👥)', need: { food: 6 },
           fn: () => { S.food -= 6; if (S.pop < S.cap) { S.pop++; log('Странник остался жить в городке. +1 👥', 'log--good'); } else log('Странник поел и ушёл — жить негде.'); } },
@@ -421,6 +423,7 @@
     {
       title: '🛒 Торговый караван',
       text: 'Через городок проходит караван. Торговцы предлагают сделки.',
+      img: 'ev_merchants',
       opts: [
         { label: 'Купить еду (−12 🪙, +18 🍞)', need: { gold: 12 },
           fn: () => { S.gold -= 12; S.food += 18; log('Куплены припасы у каравана.', 'log--good'); } },
@@ -432,6 +435,7 @@
     {
       title: '🔥 Пожар на складе',
       text: 'Ночью загорелся склад! Огонь вот-вот перекинется на припасы.',
+      img: 'fx_fire',
       opts: [
         { label: 'Тушить всем селом (−6 ⚒️)', need: { prod: 6 },
           fn: () => { S.prod -= 6; log('Пожар потушен ценой материалов.', 'log--good'); } },
@@ -444,6 +448,7 @@
     {
       title: '☀️ Засуха',
       text: 'Уже неделю ни капли дождя. Поля сохнут.',
+      img: 'ev_harvest',
       opts: [
         { label: 'Молебен о дожде (−6 ✨)', need: { faith: 6 },
           fn: () => { S.faith -= 6; log('После молебна пошёл дождь. Урожай спасён.', 'log--good'); } },
@@ -464,6 +469,7 @@
     {
       title: '📜 Сборщик податей',
       text: 'Королевский сборщик явился раньше срока и требует «добровольный» взнос.',
+      img: 'ev_kingstax',
       opts: [
         { label: 'Заплатить (−10 🪙)', need: { gold: 10 },
           fn: () => { S.gold -= 10; log('Сборщик уехал довольный. −10 🪙', 'log--bad'); } },
@@ -474,6 +480,7 @@
     {
       title: '🐺 Волчий вой',
       text: 'По ночам вокруг городка воют волки. Люди боятся выходить.',
+      img: 'ev_bandit',
       opts: [
         { label: 'Выставить дозор (−4 ⚒️)', need: { prod: 4 },
           fn: () => { S.prod -= 4; log('Дозор отогнал стаю.', 'log--good'); } },
@@ -515,15 +522,24 @@
         ),
         fn: () => { o.fn(); renderAll(); },
       }));
-      showModal(ev.title, ev.text, buttons);
+      showModal(ev.title, ev.text, buttons, ev.img);
     });
   }
 
   // ---------- Модальные окна ----------
-  function showModal(title, text, buttons) {
+  function showModal(title, text, buttons, imgKey) {
     modalOpen = true;
     document.getElementById('modal-title').textContent = title;
     document.getElementById('modal-text').textContent = text;
+    const pic = document.getElementById('modal-pic');
+    if (pic) {
+      if (imgKey && typeof ASSETS !== 'undefined' && ASSETS[imgKey]) {
+        pic.src = ASSETS[imgKey];
+        pic.hidden = false;
+      } else {
+        pic.hidden = true;
+      }
+    }
     const box = document.getElementById('modal-buttons');
     box.innerHTML = '';
     for (const b of buttons) {
@@ -564,13 +580,18 @@
     document.getElementById('modal-title').textContent = '🔬 Технологии';
     document.getElementById('modal-text').textContent =
       `Очков знаний: ${S.sci}. Следующее открытие стоит ${cost} 🔬 (дорожает с каждым).`;
+    const pic = document.getElementById('modal-pic');
+    if (pic) pic.hidden = true;
     box.innerHTML = '';
     for (const t of TECHS) {
       const row = document.createElement('div');
       row.className = 'tech-row' + (S.techs[t.id] ? ' is-owned' : '');
       const info = document.createElement('div');
-      info.innerHTML = `<div class="tech-name">${S.techs[t.id] ? '✅ ' : ''}${t.name}</div>` +
-                       `<div class="tech-desc">${t.desc}</div>`;
+      info.className = 'tech-info';
+      const hasIcon = t.icon && typeof ASSETS !== 'undefined' && ASSETS[t.icon];
+      info.innerHTML = (hasIcon ? `<img class="tech-ico" src="${ASSETS[t.icon]}" alt="">` : '') +
+                       `<div><div class="tech-name">${S.techs[t.id] ? '✅ ' : ''}${t.name}</div>` +
+                       `<div class="tech-desc">${t.desc}</div></div>`;
       row.appendChild(info);
       if (!S.techs[t.id]) {
         const btn = document.createElement('button');
@@ -1404,13 +1425,71 @@
     px(g, pal.light, h0 + 1, 1, h1 - h0 - 1, 1);
   }
 
-  // Позиции дыма (в координатах спрайта 32×48) для построек с трубами
-  const SMOKE_POS = {
-    townhall: [19, 13],
-    house: [11, 11],
-    tavern: [18, 10],
-    lumber: [22, 16],
+  /* ==========================================================
+     ГРАФИЧЕСКИЕ АССЕТЫ из пользовательского ассет-листа
+     (assets.js). Загружаются картинками, масштабируются один
+     раз в offscreen-канвасы под размер гекса ×Z.
+     ========================================================== */
+  const Z = 2;                 // внутренний масштаб канваса
+  const RAW = {};              // исходные Image по ключам ASSETS
+  const BIMG = {};             // готовые канвасы построек
+  const CIMG = {};             // готовые канвасы существ
+
+  // постройка игры → ассет
+  const BUILD_ASSET = {
+    townhall: 'castle', house: 'house', farm: 'farm', lumber: 'sawmill',
+    mine: 'mine', church: 'temple', market: 'market', tavern: 'bakery',
+    dock: 'harbor',
   };
+
+  // Постройки, над которыми поднимается дым очага
+  const SMOKE_BUILDINGS = { townhall: 1, house: 1, tavern: 1, lumber: 1 };
+
+  function fitCanvas(img, maxW, maxH) {
+    const s = Math.min(maxW / img.width, maxH / img.height);
+    const w = Math.max(1, Math.round(img.width * s));
+    const h = Math.max(1, Math.round(img.height * s));
+    const c = document.createElement('canvas');
+    c.width = w; c.height = h;
+    const g = c.getContext('2d');
+    g.imageSmoothingEnabled = true;
+    g.imageSmoothingQuality = 'high';
+    g.drawImage(img, 0, 0, w, h);
+    return c;
+  }
+
+  function loadAssets(done) {
+    if (typeof ASSETS === 'undefined') { done(); return; }
+    const keys = Object.keys(ASSETS);
+    let left = keys.length;
+    if (!left) { done(); return; }
+    const fin = () => { if (--left === 0) done(); };
+    for (const k of keys) {
+      const im = new Image();
+      im.onload = fin;
+      im.onerror = fin;
+      im.src = ASSETS[k];
+      RAW[k] = im;
+    }
+  }
+
+  function prepareAssets() {
+    for (const key in BUILD_ASSET) {
+      const im = RAW[BUILD_ASSET[key]];
+      if (im && im.width) BIMG[key] = fitCanvas(im, 31 * Z, 40 * Z);
+    }
+    if (RAW.a_wolf && RAW.a_wolf.width) CIMG.beast = fitCanvas(RAW.a_wolf, 22 * Z, 22 * Z);
+    if (RAW.a_deer && RAW.a_deer.width) CIMG.tamed = fitCanvas(RAW.a_deer, 22 * Z, 22 * Z);
+    // иконки ресурсов в шапке
+    const hud = {
+      'ico-pop': 'r_pop', 'ico-food': 'r_food', 'ico-prod': 'r_workers',
+      'ico-gold': 'r_gold', 'ico-faith': 'r_faith', 'ico-sci': 'r_research',
+    };
+    for (const id in hud) {
+      const el = document.getElementById(id);
+      if (el && RAW[hud[id]] && RAW[hud[id]].width) el.src = ASSETS[hud[id]];
+    }
+  }
 
   // ---------- Отрисовка ----------
   const canvas = document.getElementById('map');
@@ -1424,12 +1503,12 @@
 
   function render(now) {
     ctx.fillStyle = '#0c1112';
-    ctx.fillRect(0, 0, CANW, CANH);
+    ctx.fillRect(0, 0, CANW * Z, CANH * Z);
     for (let i = 0; i < S.tiles.length; i++) {
       const t = S.tiles[i];
       const { px: dx, py: dy } = tileOrigin(i);
       if (t.vis === 0) {
-        ctx.drawImage(sprites.hidden, dx, dy);
+        ctx.drawImage(sprites.hidden, dx * Z, dy * Z, HW * Z, HH * Z);
         continue;
       }
 
@@ -1438,35 +1517,44 @@
       if (!reduceMotion && t.pop && now - t.pop < 260) {
         scale = .6 + .4 * ((now - t.pop) / 260);
       }
-      // низ спрайта прижат к низу гекса; высокие постройки уходят вверх
+      // процедурный спрайт: низ прижат к низу гекса
       const drawSpr = (img) => {
         const oy = HH - img.height;
-        if (scale === 1) { ctx.drawImage(img, dx, dy + oy); return; }
+        const w = img.width * Z * scale, h = img.height * Z * scale;
+        ctx.drawImage(img, dx * Z + (img.width * Z - w) / 2, (dy + oy) * Z + (img.height * Z - h) / 2, w, h);
+      };
+      // ассет: низ по поверхности гекса (над земляным бортом)
+      const drawImgSpr = (img) => {
         const w = img.width * scale, h = img.height * scale;
-        ctx.drawImage(img, dx + (img.width - w) / 2, dy + oy + (img.height - h) / 2, w, h);
+        ctx.drawImage(img, dx * Z + (HW * Z - w) / 2, (dy + HH - 5) * Z - h, w, h);
+        return (dy + HH - 5) * Z - h; // верх картинки — для дыма
       };
 
       drawSpr(terrainSprite(t, now));
 
       if (t.vis === 1) {
-        ctx.drawImage(sprites.fog, dx, dy);
+        ctx.drawImage(sprites.fog, dx * Z, dy * Z, HW * Z, HH * Z);
         if (t.explore > 0) {
-          ctx.drawImage(sprites.hourglass, dx + 12, dy + 12);
+          ctx.drawImage(sprites.hourglass, (dx + 12) * Z, (dy + 12) * Z, 9 * Z, 12 * Z);
         } else if (hexNeighbors(i).some(n => S.tiles[n].vis === 2)) {
           const bob = reduceMotion ? 0 : Math.round(Math.sin(now / 420 + i) * 2);
-          ctx.drawImage(sprites.qmark, dx + 12, dy + 11 + bob);
+          ctx.drawImage(sprites.qmark, (dx + 12) * Z, (dy + 11 + bob) * Z, 9 * Z, 12 * Z);
         }
       } else {
-        if (t.c && sprites[t.c]) drawSpr(sprites[t.c]);
+        if (t.c && (CIMG[t.c] || sprites[t.c])) {
+          if (CIMG[t.c]) drawImgSpr(CIMG[t.c]);
+          else drawSpr(sprites[t.c]);
+        }
         if (t.b) {
-          drawSpr(sprites[t.b]);
-          // дым из трубы
-          const sp = SMOKE_POS[t.b];
-          if (sp && !reduceMotion) {
+          let top = null;
+          if (BIMG[t.b]) top = drawImgSpr(BIMG[t.b]);
+          else drawSpr(sprites[t.b]);
+          // дым над домами с очагом
+          if (top !== null && SMOKE_BUILDINGS[t.b] && !reduceMotion) {
             const f = (Math.floor(now / 520) + i) % 2;
-            const rise = (Math.floor(now / 260) + i) % 3;
-            ctx.globalAlpha = .75;
-            ctx.drawImage(sprites.smoke[f], dx + sp[0], dy + OY + sp[1] - 9 - rise);
+            const rise = ((Math.floor(now / 260) + i) % 3) * Z;
+            ctx.globalAlpha = .7;
+            ctx.drawImage(sprites.smoke[f], (dx + HW / 2 + 3) * Z, top - 9 * Z - rise, 10 * Z, 11 * Z);
             ctx.globalAlpha = 1;
           }
         }
@@ -1474,7 +1562,7 @@
 
       if (i === selected) {
         ctx.globalAlpha = reduceMotion ? 1 : .65 + .35 * Math.sin(now / 280);
-        ctx.drawImage(sprites.select, dx, dy);
+        ctx.drawImage(sprites.select, dx * Z, dy * Z, HW * Z, HH * Z);
         ctx.globalAlpha = 1;
       }
     }
@@ -1631,6 +1719,9 @@
 
   // ---------- Старт ----------
   initSprites();
-  newGame();
-  if (!reduceMotion) requestAnimationFrame(loop);
+  loadAssets(() => {
+    prepareAssets();
+    newGame();
+    if (!reduceMotion) requestAnimationFrame(loop);
+  });
 })();
