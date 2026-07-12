@@ -1209,13 +1209,14 @@
     zoom = Math.max(1, zoom / 1.4);
     applyZoom(c);
   });
-  window.addEventListener('resize', () => applyZoom());
+  window.addEventListener('resize', () => { updateCompact(); applyZoom(); });
+  window.addEventListener('orientationchange', () => {
+    setTimeout(() => { updateCompact(); applyZoom(); }, 60);
+  });
   scrollBox.addEventListener('scroll', () => renderMinimap(), { passive: true });
 
   minimap.addEventListener('click', (e) => {
-    const r = minimap.getBoundingClientRect();
-    const fx = (e.clientX - r.left) / r.width;
-    const fy = (e.clientY - r.top) / r.height;
+    const [fx, fy] = localFrac(e, minimap);
     scrollBox.scrollLeft = fx * canvas.clientWidth - scrollBox.clientWidth / 2;
     scrollBox.scrollTop = fy * canvas.clientHeight - scrollBox.clientHeight / 2;
   });
@@ -1313,12 +1314,28 @@
     renderMinimap();
   }
 
-  // ---------- Ввод ----------
-  canvas.addEventListener('click', (e) => {
+  // ---------- Ввод (с учётом поворота экрана в портрете) ----------
+  const portraitMq = window.matchMedia('(orientation: portrait)');
+  const isRotated = () => portraitMq.matches;
+
+  // клиентские координаты → доли [0..1] внутри элемента (учёт поворота 90°)
+  function localFrac(e, el) {
+    const r = el.getBoundingClientRect();
+    if (!isRotated()) {
+      return [(e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height];
+    }
+    return [(e.clientY - r.top) / r.height, (r.right - e.clientX) / r.width];
+  }
+
+  function updateCompact() {
+    const lh = isRotated() ? window.innerWidth : window.innerHeight;
+    document.getElementById('game').classList.toggle('compact', lh < 560);
+  }
+
+  function selectAt(e) {
     if (S.over || modalOpen) return;
-    const r = canvas.getBoundingClientRect();
-    const mx = (e.clientX - r.left) / r.width * CANW;
-    const my = (e.clientY - r.top) / r.height * CANH;
+    const [fx, fy] = localFrac(e, canvas);
+    const mx = fx * CANW, my = fy * CANH;
     // ближайший центр ромба (нормированная эллиптическая метрика)
     let best = -1, bestD = 1.4;
     for (let i = 0; i < S.tiles.length; i++) {
@@ -1330,7 +1347,33 @@
     }
     selected = (best < 0 || S.tiles[best].vis === 0) ? -1 : best;
     renderAll();
+  }
+
+  // перетаскивание карты + тап по тайлу (оси верны в обеих ориентациях)
+  let drag = null;
+  scrollBox.addEventListener('pointerdown', (e) => {
+    drag = {
+      x: e.clientX, y: e.clientY,
+      sl: scrollBox.scrollLeft, st: scrollBox.scrollTop,
+      moved: false,
+    };
+    scrollBox.setPointerCapture(e.pointerId);
   });
+  scrollBox.addEventListener('pointermove', (e) => {
+    if (!drag) return;
+    const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+    if (Math.abs(dx) + Math.abs(dy) > 8) drag.moved = true;
+    if (!drag.moved) return;
+    const lx = isRotated() ? dy : dx;
+    const ly = isRotated() ? -dx : dy;
+    scrollBox.scrollLeft = drag.sl - lx;
+    scrollBox.scrollTop = drag.st - ly;
+  });
+  scrollBox.addEventListener('pointerup', (e) => {
+    if (drag && !drag.moved) selectAt(e);
+    drag = null;
+  });
+  scrollBox.addEventListener('pointercancel', () => { drag = null; });
 
   function skipDays(n) {
     for (let k = 0; k < n; k++) {
@@ -1395,6 +1438,7 @@
   loadAssets(() => {
     prepareAssets();
     newGame();
+    updateCompact();
     applyZoom();
     if (!reduceMotion) requestAnimationFrame(loop);
   });

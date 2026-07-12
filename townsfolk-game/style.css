@@ -34,11 +34,25 @@ body {
 
 #game { position: fixed; inset: 0; }
 
+/* Портрет: поворачиваем весь игровой экран на 90° — игра всегда горизонтальная */
+@media (orientation: portrait) {
+  #game {
+    inset: auto;
+    top: 0;
+    left: 100vw;
+    width: 100vh;
+    height: 100vw;
+    transform: rotate(90deg);
+    transform-origin: 0 0;
+  }
+}
+
 /* --- Карта: тёмное «ночное небо» с туманными облаками --- */
 #map-scroll {
   position: absolute;
   inset: 0;
   overflow: auto;
+  touch-action: none;   /* пан — своим перетаскиванием, оси верны и в повороте */
   scrollbar-width: none;
   background:
     radial-gradient(ellipse 40% 30% at 15% 20%, rgba(50, 62, 90, .35), transparent),
@@ -256,7 +270,9 @@ body {
   padding: 8px 12px 10px;
   font-size: 13px;
   z-index: 18;
+  pointer-events: none; /* не блокирует тапы по карте */
 }
+.tile-info .btn { pointer-events: auto; }
 
 .tile-info h3 {
   font-size: 14px;
@@ -502,21 +518,40 @@ body {
 .tech-row .tech-desc { color: var(--ink-dim); font-size: 11px; }
 .tech-row.is-owned .tech-name { color: var(--green); }
 
-/* --- Узкие экраны (портрет) --- */
-@media (max-width: 760px) {
-  .hud-top { flex-wrap: wrap; }
-  .hud-day { order: 1; }
-  .hud-corner { order: 2; margin-left: auto; }
-  .hud-res { order: 3; width: 100%; flex: none; }
-  .objectives { top: 170px; width: 158px; font-size: 11px; opacity: .92; }
-  .side-buttons { transform: translateY(10%); }
-  .side-btn { width: 52px; font-size: 8px; }
-  .buildbar { width: calc(100% - 16px); bottom: 116px; }
-  .big-day { width: 92px; height: 82px; font-size: 12px; }
-  .tile-info { bottom: 236px; min-width: 200px; max-width: calc(100% - 24px); }
-  .minimap-wrap { bottom: 12px; }
-  #minimap { width: 110px; }
+/* --- Компактная горизонталь (телефон): класс ставит JS по локальной высоте --- */
+#game.compact .hud-day { padding: 4px 8px; gap: 6px; }
+#game.compact .hud-day__crest { width: 26px; height: 26px; }
+#game.compact .hud-day__label { font-size: 13px; }
+#game.compact .hud-day__tribute { font-size: 10px; }
+#game.compact .icon-btn { width: 34px; height: 34px; }
+#game.compact .icon-btn img { width: 20px; height: 20px; }
+#game.compact .res { padding: 1px 6px; }
+#game.compact .res .ico { width: 16px; height: 16px; }
+#game.compact .res b { font-size: 12px; }
+#game.compact .objectives { top: 56px; width: 152px; font-size: 10px; }
+#game.compact .objectives h4 { font-size: 11px; padding: 4px 8px 3px; }
+#game.compact #obj-list { padding: 5px 8px 6px; gap: 5px; }
+#game.compact .side-buttons {
+  left: auto; right: 10px; top: auto; bottom: 108px;
+  transform: none;
 }
+#game.compact .side-btn { width: 56px; font-size: 8px; padding: 5px 3px; }
+#game.compact .side-btn__ico { font-size: 15px; }
+#game.compact .minimap-wrap { bottom: 6px; }
+#game.compact #minimap { width: 104px; }
+#game.compact .buildbar {
+  left: 186px; bottom: 6px;
+  transform: none;
+  width: calc(100% - 314px);
+}
+#game.compact .tab { font-size: 10px; padding: 4px 10px 3px; }
+#game.compact .card { flex-basis: 72px; padding: 4px 3px; }
+#game.compact .card img { width: 36px; height: 30px; }
+#game.compact .card__name { font-size: 9px; }
+#game.compact .big-day { width: 84px; height: 72px; font-size: 10px; letter-spacing: 1px; }
+#game.compact .big-day__ico { font-size: 18px; }
+#game.compact .tile-info { bottom: 102px; min-width: 210px; font-size: 12px; }
+#game.compact .log-overlay { left: 10px; top: 56px; transform: none; width: min(320px, 60%); }
 
 @media (prefers-reduced-motion: reduce) {
   .modal { animation: none; }
