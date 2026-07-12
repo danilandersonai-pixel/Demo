@@ -42,7 +42,7 @@
 
       <div class="hud-corner">
         <button class="panel icon-btn" id="btn-help" title="Как играть"><img id="ico-help" alt="❓"></button>
-        <button class="panel icon-btn" id="btn-tech" title="Технологии"><img id="ico-tech" alt="🔬"></button>
+        <button class="panel icon-btn" id="btn-tech" title="Технологии">⭐</button>
         <button class="panel icon-btn" id="btn-newgame" title="Новая партия"><img id="ico-gear" alt="🔁"></button>
       </div>
     </header>
@@ -55,8 +55,8 @@
 
     <!-- Боковые кнопки -->
     <div class="side-buttons">
-      <button class="panel side-btn" id="btn-events"><span class="side-btn__ico">⚜️</span><span>СОБЫТИЯ</span></button>
-      <button class="panel side-btn" id="btn-log"><span class="side-btn__ico">📜</span><span>ЛЕТОПИСЬ</span></button>
+      <button class="panel side-btn" id="btn-events"><span class="side-btn__ico">⚜️</span><span>СОБЫТИЯ</span><span class="badge" id="badge-events" hidden></span></button>
+      <button class="panel side-btn" id="btn-log"><span class="side-btn__ico">📜</span><span>ЛЕТОПИСЬ</span><span class="badge" id="badge-log" hidden></span></button>
     </div>
 
     <!-- Мини-карта и зум -->
@@ -78,7 +78,7 @@
     </footer>
 
     <!-- Главная кнопка -->
-    <button class="big-day" id="btn-bigday"><span class="big-day__ico">🌙</span><span>НОВЫЙ<br>ДЕНЬ</span></button>
+    <button class="big-day" id="btn-bigday"><img class="big-day__ico" id="ico-day" alt="🌙"><span>НОВЫЙ<br>ДЕНЬ</span></button>
 
     <!-- Летопись -->
     <div class="log-overlay panel" id="log-overlay" hidden>

@@ -103,7 +103,7 @@
       if (r > .85) t = 'water';
       else if (r > .70) t = 'mountain';
       else if (r > .48) t = 'forest';
-      tiles.push({ t, vis: 0, b: null, c: null, explore: 0, v: rnd(2), pop: 0 });
+      tiles.push({ t, vis: 0, b: null, c: null, explore: 0, v: rnd(2), pop: 0, d: null });
     }
     // Сглаживание: клетка с 50% перенимает террейн случайного соседа
     for (let pass = 0; pass < 2; pass++) {
@@ -130,6 +130,14 @@
     for (const n of neighbors4(c)) tiles[n].vis = 2;
     for (const s of [c, ...neighbors4(c)]) {
       for (const n of neighbors8(s)) tiles[n].vis = Math.max(tiles[n].vis, 1);
+    }
+    // декор лугов: загоны с овцами, стога, валуны — оживляют деревню
+    for (const t of tiles) {
+      if (t.t !== 'grass') continue;
+      const r = Math.random();
+      if (r < .18) t.d = 'pen';
+      else if (r < .30) t.d = 'hay';
+      else if (r < .40) t.d = 'rocks';
     }
     return tiles;
   }
@@ -175,6 +183,7 @@
     modalQueue = [];
     modalOpen = false;
     walkers = [];
+    rebuildPaths();
     document.getElementById('log').innerHTML = '';
     log('Король дал вам землю и год сроку. Стройте, исследуйте — и готовьте дань.');
     renderAll();
@@ -235,6 +244,8 @@
   }
 
   // ---------- Журнал ----------
+  let unreadLog = 0;
+
   function log(msg, cls) {
     const el = document.getElementById('log');
     const p = document.createElement('p');
@@ -242,6 +253,21 @@
     p.innerHTML = `<b>Д${S.turn}</b> ${msg}`;
     el.prepend(p);
     while (el.children.length > 40) el.removeChild(el.lastChild);
+    const overlay = document.getElementById('log-overlay');
+    if (overlay && overlay.hidden) unreadLog++;
+  }
+
+  function updateBadges() {
+    const be = document.getElementById('badge-events');
+    const bl = document.getElementById('badge-log');
+    if (be) {
+      be.hidden = modalQueue.length === 0;
+      be.textContent = modalQueue.length;
+    }
+    if (bl) {
+      bl.hidden = unreadLog === 0;
+      bl.textContent = Math.min(unreadLog, 9);
+    }
   }
 
   // Всплывающий текст над клеткой
@@ -547,10 +573,11 @@
       }
     }
     const box = document.getElementById('modal-buttons');
+    box.classList.remove('is-list');
     box.innerHTML = '';
-    for (const b of buttons) {
+    buttons.forEach((b, bi) => {
       const btn = document.createElement('button');
-      btn.className = 'btn';
+      btn.className = 'btn' + (bi === 0 && buttons.length > 1 ? ' btn--primary' : '');
       btn.innerHTML = b.sub ? `${b.label}<small>${b.sub}</small>` : b.label;
       btn.disabled = !!b.disabled;
       btn.addEventListener('click', () => {
@@ -560,7 +587,7 @@
         nextModal();
       });
       box.appendChild(btn);
-    }
+    });
     document.getElementById('modal').hidden = false;
   }
 
@@ -588,6 +615,7 @@
       `Очков знаний: ${S.sci}. Следующее открытие стоит ${cost} 🔬 (дорожает с каждым).`;
     const pic = document.getElementById('modal-pic');
     if (pic) pic.hidden = true;
+    box.classList.add('is-list');
     box.innerHTML = '';
     for (const t of TECHS) {
       const row = document.createElement('div');
@@ -644,6 +672,7 @@
     pay(cost);
     t.b = key;
     t.pop = performance.now();
+    rebuildPaths();
     if (key === 'house') S.cap += 3;
     S.sci += 2;
     log(`Построен объект «${BUILDINGS[key].name}». +2 🔬`, 'log--good');
@@ -762,7 +791,7 @@
     if (!im || !im.width) return null;
     const c = scaleToWidth(im, (TW + OVERSCAN) * Z);
     const top = widestRow(c) - (TH * Z) / 2;
-    return { c, fog: darken(c, .62), hidden: darken(c, .86), top };
+    return { c, fog: darken(c, .55), hidden: darken(c, .8), top };
   }
 
   function loadAssets(done) {
@@ -823,8 +852,8 @@
     const hud = {
       'ico-pop': 'r_pop', 'ico-food': 'r_food', 'ico-prod': 'r_workers',
       'ico-gold': 'r_gold', 'ico-faith': 'r_faith', 'ico-sci': 'r_research',
-      'crest': 'castle', 'ico-help': 't_education', 'ico-tech': 'r_research',
-      'ico-gear': 't_engineering',
+      'crest': 'castle', 'ico-help': 't_education', 'ico-gear': 't_engineering',
+      'ico-day': 'r_workers',
     };
     for (const id in hud) {
       const el = document.getElementById(id);
@@ -905,7 +934,45 @@
       px(g, '#2a2320', f ? 1 : 3, 6, 1, 2);    // ноги (шаг)
       px(g, '#2a2320', f ? 3 : 1, 6, 1, 3);
     }, 6, 9)));
+
+    // --- декор лугов (в координатах ромба ×Z) ---
+    const sheepAt = (g, x, y) => {
+      px(g, '#0c1112', (x - 1) * Z, (y - 1) * Z, 6 * Z, 5 * Z);
+      px(g, '#e8e0c8', x * Z, y * Z, 4 * Z, 3 * Z);
+      px(g, '#f2ece0', x * Z, y * Z, 2 * Z, Z);
+      px(g, '#8f8877', (x + 3) * Z, y * Z, Z, Z);
+    };
+    // загон: жерди изгороди + две овцы
+    sprites.decorPen = makeSprite(g => {
+      const rail = '#96744c', post = '#6b512c';
+      for (const [x0, y0, x1, y1] of [[30, 9, 54, 9], [30, 15, 54, 15]]) {
+        for (let x = x0; x <= x1; x += 1) px(g, rail, x * Z, (y0 + ((x - x0) % 8 === 4 ? 0 : 0)) * Z, Z, Z);
+        void y1;
+      }
+      for (let x = 30; x <= 54; x += 6) { px(g, post, x * Z, 7 * Z, Z, 4 * Z); px(g, post, x * Z, 13 * Z, Z, 4 * Z); }
+      sheepAt(g, 36, 11); sheepAt(g, 45, 12);
+    }, TW * Z, TH * Z);
+    // стога сена
+    sprites.decorHay = makeSprite(g => {
+      for (const [x, y] of [[14, 12], [22, 17]]) {
+        px(g, '#0c1112', (x - 1) * Z, (y - 1) * Z, 7 * Z, 5 * Z);
+        px(g, '#d9a84c', x * Z, y * Z, 5 * Z, 3 * Z);
+        px(g, '#efc76e', (x + 1) * Z, (y - 1) * Z, 3 * Z, Z);
+        px(g, '#efc76e', x * Z, y * Z, Z, 2 * Z);
+        px(g, '#a97c2e', (x + 4) * Z, (y + 1) * Z, Z, 2 * Z);
+      }
+    }, TW * Z, TH * Z);
+    // валуны
+    sprites.decorRocks = makeSprite(g => {
+      for (const [x, y, w] of [[38, 18, 5], [46, 15, 3]]) {
+        px(g, '#0c1112', (x - 1) * Z, (y - 1) * Z, (w + 2) * Z, 4 * Z);
+        px(g, '#6e6c60', x * Z, y * Z, w * Z, 2 * Z);
+        px(g, '#8a8577', x * Z, y * Z, (w - 1) * Z, Z);
+      }
+    }, TW * Z, TH * Z);
   }
+
+  const DECOR_SPRITE = { pen: 'decorPen', hay: 'decorHay', rocks: 'decorRocks' };
 
   // ---------- Отрисовка ----------
   const canvas = document.getElementById('map');
@@ -918,17 +985,63 @@
     [[24, 14], [44, 16], [34, 24]],
   ];
 
+  // --- Дороги между постройками (дерево кратчайших связей от ратуши) ---
+  let PATHS = [];
+
+  function rebuildPaths() {
+    const nodes = [];
+    for (let i = 0; i < S.tiles.length; i++) {
+      if (S.tiles[i].b) nodes.push(i);
+    }
+    PATHS = [];
+    if (nodes.length < 2) return;
+    const connected = [nodes[0]];
+    const rest = nodes.slice(1);
+    while (rest.length) {
+      let bi = 0, ba = connected[0], bd = Infinity;
+      for (const a of connected) {
+        const [ax, ay] = tileCenter(a);
+        for (let k = 0; k < rest.length; k++) {
+          const [bx, by] = tileCenter(rest[k]);
+          const d = (bx - ax) ** 2 + (by - ay) ** 2;
+          if (d < bd) { bd = d; bi = k; ba = a; }
+        }
+      }
+      const b = rest.splice(bi, 1)[0];
+      PATHS.push([ba, b]);
+      connected.push(b);
+    }
+  }
+
+  function drawPaths() {
+    for (let p = 0; p < PATHS.length; p++) {
+      const [a, b] = PATHS[p];
+      const [ax, ay] = tileCenter(a), [bx, by] = tileCenter(b);
+      const dist = Math.hypot(bx - ax, by - ay);
+      const n = Math.max(2, Math.round(dist / 4));
+      for (let k = 1; k < n; k++) {
+        const f = k / n;
+        const j = ((p * 97 + k * 31) % 5) - 2;   // детерминированный изгиб
+        const xx = ax + (bx - ax) * f + j * ((by - ay) / dist);
+        const yy = ay + (by - ay) * f - j * ((bx - ax) / dist) * .5;
+        ctx.fillStyle = (k % 2) ? '#8a6a42' : '#7d5f3a';
+        ctx.fillRect(Math.round(xx - 1) * Z, Math.round(yy) * Z, 2 * Z, Z);
+        ctx.fillStyle = 'rgba(60,45,25,.5)';
+        ctx.fillRect(Math.round(xx - 1) * Z, Math.round(yy + 1) * Z, 2 * Z, Z);
+      }
+    }
+  }
+
   function render(now) {
     ctx.fillStyle = '#10161a';
     ctx.fillRect(0, 0, CANW * Z, CANH * Z);
-    // порядок художника: по диагоналям (глубина)
+    // проход 1: террейн и наземный декор (по диагоналям)
     for (let s = 0; s <= W + H - 2; s++) {
       for (let x = Math.max(0, s - H + 1); x <= Math.min(W - 1, s); x++) {
         const y = s - x;
         const i = idx(x, y);
         const t = S.tiles[i];
         const { sx, sy } = tileOrigin(i);
-
         // тайл: месторождение (если разведано) или террейн
         let td = null;
         if (t.vis === 2 && t.c && TIMG[t.c] && TIMG[t.c].c) td = TIMG[t.c];
@@ -938,6 +1051,24 @@
         }
         const img = t.vis === 0 ? td.hidden : (t.vis === 1 ? td.fog : td.c);
         ctx.drawImage(img, (sx - OVERSCAN / 2) * Z, sy * Z - td.top);
+        if (t.vis !== 2) continue;
+        if (t.c === 'fertile' && !t.b) ctx.drawImage(sprites.fertile, sx * Z, sy * Z);
+        if (t.d && !t.b && !t.c && sprites[DECOR_SPRITE[t.d]]) {
+          ctx.drawImage(sprites[DECOR_SPRITE[t.d]], sx * Z, sy * Z);
+        }
+      }
+    }
+
+    // проход 1.5: дороги поверх земли, под постройками
+    drawPaths();
+
+    // проход 2: маркеры, существа, постройки, эффекты
+    for (let s = 0; s <= W + H - 2; s++) {
+      for (let x = Math.max(0, s - H + 1); x <= Math.min(W - 1, s); x++) {
+        const y = s - x;
+        const i = idx(x, y);
+        const t = S.tiles[i];
+        const { sx, sy } = tileOrigin(i);
         if (t.vis === 0) continue;
 
         if (t.vis === 1) {
@@ -952,9 +1083,6 @@
           let scale = 1;
           if (!reduceMotion && t.pop && now - t.pop < 260) {
             scale = .6 + .4 * ((now - t.pop) / 260);
-          }
-          if (t.c === 'fertile' && !t.b) {
-            ctx.drawImage(sprites.fertile, sx * Z, sy * Z);
           }
           if (t.c && CIMG[t.c]) {
             const im = CIMG[t.c];
@@ -1064,9 +1192,9 @@
 
   // ---------- Панель строительства: вкладки и карточки ----------
   const BUILD_TABS = [
-    { id: 'basic', name: 'ЖИЛЬЁ',    keys: ['house', 'farm'] },
-    { id: 'prod',  name: 'ПРОМЫСЕЛ', keys: ['lumber', 'mine', 'dock', 'market'] },
-    { id: 'spec',  name: 'ОСОБОЕ',   keys: ['church', 'tavern'] },
+    { id: 'basic', name: '🏠 ЖИЛЬЁ',    keys: ['house', 'farm'] },
+    { id: 'prod',  name: '⚙️ ПРОМЫСЕЛ', keys: ['lumber', 'mine', 'dock', 'market'] },
+    { id: 'spec',  name: '⛪ ОСОБОЕ',   keys: ['church', 'tavern'] },
   ];
   let activeTab = 'basic';
 
@@ -1240,7 +1368,7 @@
 
   function updateWalkers(now) {
     const land = landTiles();
-    const want = Math.min(8, S.pop);
+    const want = Math.min(12, S.pop + 2);
     while (walkers.length < want && land.length > 1) {
       const from = land[rnd(land.length)];
       walkers.push({ from, to: from, t0: now, dur: 1, v: rnd(3), off: [rnd(17) - 8, rnd(9) - 4] });
@@ -1312,6 +1440,7 @@
     renderCards();
     renderObjectives();
     renderMinimap();
+    updateBadges();
   }
 
   // ---------- Ввод (с учётом поворота экрана в портрете) ----------
@@ -1412,6 +1541,7 @@
   const logOverlay = document.getElementById('log-overlay');
   document.getElementById('btn-log').addEventListener('click', () => {
     logOverlay.hidden = !logOverlay.hidden;
+    if (!logOverlay.hidden) { unreadLog = 0; updateBadges(); }
   });
   document.getElementById('btn-log-close').addEventListener('click', () => {
     logOverlay.hidden = true;
