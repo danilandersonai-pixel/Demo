@@ -1,18 +1,25 @@
 /* ==========================================================
    Городок — стратегия по мотивам TownsFolk
-   Оригинальная вёрстка и стили. Мобильный портрет прежде всего.
+   Оригинальная вёрстка. Ночная палитра + пергамент и дерево,
+   как в референсе. Мобильный портрет прежде всего.
    ========================================================== */
 
 :root {
-  --bg: #17151d;
-  --panel: #241f2c;
-  --panel-2: #2e2838;
-  --line: #3d3550;
-  --ink: #e8e2d4;
-  --ink-dim: #a89f8f;
-  --accent: #e6b455;
-  --accent-2: #7fb069;
-  --danger: #d95b5b;
+  --bg: #101a1d;
+  --bg-deep: #0c1315;
+  --parch: #d8c8a2;
+  --parch-dark: #c4b28a;
+  --parch-ink: #3a2c1c;
+  --parch-ink-dim: #6b5a42;
+  --wood: #5a4028;
+  --wood-dark: #3a2c1c;
+  --wood-light: #7a5a38;
+  --ink: #e2d9c2;
+  --ink-dim: #97917d;
+  --gold: #d9a84c;
+  --gold-light: #eec46a;
+  --green: #7fa060;
+  --danger: #c95b4b;
   --fast: cubic-bezier(.25, .8, .3, 1);
 }
 
@@ -21,15 +28,16 @@
 html, body { height: 100%; }
 
 body {
-  background: var(--bg);
+  background:
+    radial-gradient(ellipse at 50% 0%, #16242a 0%, var(--bg) 55%, var(--bg-deep) 100%);
+  background-attachment: fixed;
   color: var(--ink);
-  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-  -webkit-font-smoothing: none;
+  font-family: Georgia, 'Times New Roman', serif;
   touch-action: manipulation;
 }
 
 .app {
-  max-width: 520px;
+  max-width: 560px;
   margin: 0 auto;
   padding: 10px 12px 20px;
   display: flex;
@@ -37,7 +45,7 @@ body {
   gap: 10px;
 }
 
-/* --- Шапка --- */
+/* --- Шапка: вывеска --- */
 .topbar {
   display: flex;
   align-items: baseline;
@@ -46,68 +54,117 @@ body {
 }
 
 .topbar h1 {
-  font-size: 20px;
-  letter-spacing: 4px;
-  color: var(--accent);
+  font-size: 22px;
+  font-variant: small-caps;
+  letter-spacing: 5px;
+  color: var(--gold);
+  text-shadow: 0 2px 0 var(--bg-deep);
 }
 
 .topbar__meta {
   display: flex;
   gap: 12px;
-  font-size: 12px;
+  font-size: 13px;
   color: var(--ink-dim);
+  font-variant-numeric: tabular-nums;
 }
 
 #tribute-label.is-soon { color: var(--danger); font-weight: bold; }
 
-/* --- Ресурсы --- */
+/* --- Ресурсы: деревянная планка с пергаментными ярлыками --- */
 .resbar {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px 12px;
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 8px 10px;
+  gap: 5px 6px;
+  background: linear-gradient(180deg, var(--wood-light), var(--wood) 30%, var(--wood-dark));
+  border: 2px solid var(--wood-dark);
+  border-radius: 6px;
+  box-shadow: inset 0 1px 0 rgba(255, 230, 180, .25), 0 3px 0 var(--bg-deep);
+  padding: 7px 8px;
   font-size: 13px;
+  font-variant-numeric: tabular-nums;
 }
 
-.res b { color: var(--ink); }
-.res.is-flash b { color: var(--accent); }
+.res {
+  background: var(--parch);
+  color: var(--parch-ink);
+  border: 1px solid var(--wood-dark);
+  border-radius: 4px;
+  padding: 2px 7px;
+  box-shadow: inset 0 -2px 0 var(--parch-dark);
+}
+
+.res b { color: var(--parch-ink); }
 
 /* --- Карта --- */
 .map-wrap {
-  background: var(--panel);
-  border: 1px solid var(--line);
+  position: relative;
+  background: var(--bg-deep);
+  border: 2px solid var(--wood-dark);
   border-radius: 8px;
-  padding: 8px;
+  box-shadow: inset 0 0 24px rgba(0, 0, 0, .7);
+  padding: 6px;
   display: flex;
   justify-content: center;
 }
 
 #map {
   width: 100%;
-  max-width: 468px;
-  aspect-ratio: 1;
+  max-width: 520px;
+  aspect-ratio: 336 / 292;
   image-rendering: pixelated;
   image-rendering: crisp-edges;
   cursor: pointer;
 }
 
-/* --- Панель выбранной клетки --- */
-.panel {
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 10px;
-  min-height: 88px;
+/* Всплывающий текст над клеткой */
+.floater {
+  position: absolute;
+  transform: translate(-50%, -50%);
   font-size: 13px;
+  font-weight: bold;
+  color: var(--ink);
+  text-shadow: 0 1px 0 var(--bg-deep), 0 0 4px var(--bg-deep);
+  pointer-events: none;
+  animation: float-up 1.15s var(--fast) forwards;
+  white-space: nowrap;
+  z-index: 5;
 }
 
-.panel__hint { color: var(--ink-dim); }
+.floater--good { color: var(--gold-light); }
+.floater--bad  { color: var(--danger); }
 
-.panel h3 { font-size: 14px; margin-bottom: 4px; color: var(--accent); }
-.panel p  { margin-bottom: 8px; color: var(--ink-dim); }
+@keyframes float-up {
+  from { opacity: 0; margin-top: 4px; }
+  15%  { opacity: 1; }
+  to   { opacity: 0; margin-top: -26px; }
+}
+
+/* --- Панель выбранной клетки: пергамент --- */
+.panel {
+  background: linear-gradient(180deg, var(--parch), var(--parch-dark));
+  color: var(--parch-ink);
+  border: 2px solid var(--wood-dark);
+  border-radius: 6px;
+  box-shadow: inset 0 0 0 1px rgba(255, 240, 200, .35), 0 3px 0 var(--bg-deep);
+  padding: 10px 12px;
+  min-height: 92px;
+  font-size: 14px;
+}
+
+.panel__hint { color: var(--parch-ink-dim); font-style: italic; }
+
+.panel h3 {
+  font-size: 15px;
+  font-variant: small-caps;
+  letter-spacing: 1px;
+  margin-bottom: 3px;
+  color: var(--parch-ink);
+  border-bottom: 1px solid rgba(58, 44, 28, .3);
+  padding-bottom: 2px;
+}
+
+.panel p { margin-bottom: 8px; color: var(--parch-ink-dim); }
 
 .panel__btns {
   display: flex;
@@ -115,71 +172,73 @@ body {
   gap: 6px;
 }
 
-/* --- Кнопки --- */
+/* --- Кнопки: деревянные таблички --- */
 .btn {
   font: inherit;
-  font-size: 13px;
+  font-size: 14px;
   color: var(--ink);
-  background: var(--panel-2);
-  border: 1px solid var(--line);
-  border-radius: 6px;
+  background: linear-gradient(180deg, var(--wood-light), var(--wood) 40%, var(--wood-dark));
+  border: 2px solid var(--wood-dark);
+  border-radius: 5px;
+  box-shadow: inset 0 1px 0 rgba(255, 230, 180, .3), 0 2px 0 var(--bg-deep);
   padding: 8px 12px;
   cursor: pointer;
-  transition: background .15s var(--fast), transform .1s var(--fast);
+  transition: filter .15s var(--fast), transform .1s var(--fast);
 }
 
-.btn:hover:not(:disabled) { background: var(--line); }
-.btn:active:not(:disabled) { transform: scale(.97); }
-.btn:disabled { opacity: .4; cursor: not-allowed; }
+.btn:hover:not(:disabled) { filter: brightness(1.15); }
+.btn:active:not(:disabled) { transform: translateY(1px); box-shadow: inset 0 1px 0 rgba(255, 230, 180, .3); }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+.btn:focus-visible { outline: 2px solid var(--gold); outline-offset: 1px; }
 
 .btn--primary {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: #241f10;
+  background: linear-gradient(180deg, var(--gold-light), var(--gold) 45%, #a97c2e);
+  border-color: #6b4d1c;
+  color: #33240e;
   font-weight: bold;
   flex: 1;
 }
 
-.btn--primary:hover:not(:disabled) { background: #f2c56b; }
-
-.btn--small { padding: 6px 8px; font-size: 12px; }
+.btn--small { padding: 6px 8px; font-size: 13px; }
 
 .btn .cost { color: var(--ink-dim); font-size: 11px; }
+.btn--small .cost { display: block; }
+.panel .btn--small { color: var(--ink); }
 .btn--primary .cost { color: #5c4d22; }
 
 .actions { display: flex; gap: 8px; }
 
-/* --- Журнал --- */
+/* --- Журнал: летопись --- */
 .log {
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 8px;
+  background: rgba(12, 19, 21, .8);
+  border: 2px solid var(--wood-dark);
+  border-radius: 6px;
   padding: 8px 10px;
-  font-size: 12px;
+  font-size: 13px;
   color: var(--ink-dim);
-  max-height: 120px;
+  max-height: 128px;
   overflow-y: auto;
   display: flex;
   flex-direction: column-reverse;
   gap: 3px;
 }
 
-.log p b { color: var(--ink); }
-.log .log--good { color: var(--accent-2); }
+.log p b { color: var(--gold); font-variant-numeric: tabular-nums; }
+.log .log--good { color: var(--green); }
 .log .log--bad  { color: var(--danger); }
 
 .credits {
-  font-size: 10px;
+  font-size: 11px;
   color: var(--ink-dim);
   text-align: center;
-  opacity: .7;
+  opacity: .65;
 }
 
-/* --- Модальные окна --- */
+/* --- Модальные окна: пергаментный свиток в раме --- */
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(10, 8, 14, .8);
+  background: rgba(6, 10, 12, .82);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -190,11 +249,16 @@ body {
 .modal-overlay[hidden] { display: none; }
 
 .modal {
-  background: var(--panel);
-  border: 2px solid var(--accent);
-  border-radius: 10px;
+  background: linear-gradient(180deg, var(--parch), var(--parch-dark));
+  color: var(--parch-ink);
+  border: 3px solid var(--wood-dark);
+  border-radius: 8px;
+  box-shadow:
+    inset 0 0 0 2px var(--parch),
+    inset 0 0 0 3px rgba(58, 44, 28, .4),
+    0 10px 30px rgba(0, 0, 0, .6);
   padding: 18px;
-  max-width: 420px;
+  max-width: 440px;
   width: 100%;
   max-height: 84vh;
   overflow-y: auto;
@@ -206,8 +270,23 @@ body {
   to   { opacity: 1; transform: none; }
 }
 
-.modal h2 { font-size: 16px; color: var(--accent); margin-bottom: 8px; }
-.modal p  { font-size: 13px; color: var(--ink); margin-bottom: 14px; white-space: pre-line; }
+.modal h2 {
+  font-size: 17px;
+  font-variant: small-caps;
+  letter-spacing: 1px;
+  color: var(--parch-ink);
+  margin-bottom: 8px;
+  text-align: center;
+  border-bottom: 2px solid rgba(58, 44, 28, .3);
+  padding-bottom: 6px;
+}
+
+.modal p {
+  font-size: 14px;
+  color: var(--parch-ink);
+  margin-bottom: 14px;
+  white-space: pre-line;
+}
 
 .modal__buttons {
   display: flex;
@@ -225,16 +304,17 @@ body {
   align-items: center;
   gap: 8px;
   padding: 6px 0;
-  border-bottom: 1px dashed var(--line);
-  font-size: 12px;
+  border-bottom: 1px dashed rgba(58, 44, 28, .35);
+  font-size: 13px;
 }
 
-.tech-row:last-child { border-bottom: none; }
-.tech-row .tech-name { color: var(--ink); }
-.tech-row .tech-desc { color: var(--ink-dim); font-size: 11px; }
-.tech-row.is-owned .tech-name { color: var(--accent-2); }
+.tech-row:last-of-type { border-bottom: none; }
+.tech-row .tech-name { color: var(--parch-ink); font-weight: bold; }
+.tech-row .tech-desc { color: var(--parch-ink-dim); font-size: 12px; }
+.tech-row.is-owned .tech-name { color: #4d6b34; }
 
 @media (prefers-reduced-motion: reduce) {
   .modal { animation: none; }
   .btn { transition: none; }
+  .floater { animation: none; opacity: 0; }
 }

@@ -1,17 +1,25 @@
 /* ==========================================================
    Городок — пошаговая рогалик-стратегия по мотивам TownsFolk.
    Оригинальный код и графика (спрайты рисуются процедурно).
+   Гексагональная карта, ночная палитра, живые анимации.
    Один IIFE, без зависимостей и сборки.
    ========================================================== */
 (() => {
   'use strict';
 
   // ---------- Константы ----------
-  const W = 13, H = 13, TS = 16;      // карта 13×13, тайл 16 px
+  const W = 13, H = 13;               // карта 13×13 гексов
   const CX = 6, CY = 6;               // центр — ратуша
+  const HW = 24, HH = 28;             // гекс: ширина × высота, px
+  const ROWH = 21;                    // вертикальный шаг рядов
+  const PAD = 6;
+  const CANW = PAD * 2 + W * HW + HW / 2;      // 336
+  const CANH = PAD * 2 + (H - 1) * ROWH + HH;  // 292
   const TRIBUTE_EVERY = 12;           // дань раз в 12 дней
   const TRIBUTES_TO_WIN = 5;
   const EXPLORE_TURNS_BASE = 2;
+
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   const TERRAIN_NAME = {
     grass: 'Луг', forest: 'Лес', mountain: 'Горы', water: 'Вода',
@@ -56,24 +64,26 @@
   const idx = (x, y) => y * W + x;
   const inMap = (x, y) => x >= 0 && x < W && y >= 0 && y < H;
 
-  function neighbors4(i) {
-    const x = i % W, y = (i / W) | 0, out = [];
-    if (inMap(x - 1, y)) out.push(idx(x - 1, y));
-    if (inMap(x + 1, y)) out.push(idx(x + 1, y));
-    if (inMap(x, y - 1)) out.push(idx(x, y - 1));
-    if (inMap(x, y + 1)) out.push(idx(x, y + 1));
+  // Гексы, ориентация «вершиной вверх», нечётные ряды сдвинуты вправо
+  function hexNeighbors(i) {
+    const x = i % W, y = (i / W) | 0;
+    const odd = y % 2;
+    const deltas = odd
+      ? [[-1, 0], [1, 0], [0, -1], [1, -1], [0, 1], [1, 1]]
+      : [[-1, 0], [1, 0], [-1, -1], [0, -1], [-1, 1], [0, 1]];
+    const out = [];
+    for (const [dx, dy] of deltas) {
+      if (inMap(x + dx, y + dy)) out.push(idx(x + dx, y + dy));
+    }
     return out;
   }
 
-  function neighbors8(i) {
-    const x = i % W, y = (i / W) | 0, out = [];
-    for (let dy = -1; dy <= 1; dy++) {
-      for (let dx = -1; dx <= 1; dx++) {
-        if (!dx && !dy) continue;
-        if (inMap(x + dx, y + dy)) out.push(idx(x + dx, y + dy));
-      }
-    }
-    return out;
+  function tileOrigin(i) {
+    const x = i % W, y = (i / W) | 0;
+    return {
+      px: PAD + x * HW + (y % 2 ? HW / 2 : 0),
+      py: PAD + y * ROWH,
+    };
   }
 
   // ---------- Генерация карты ----------
@@ -85,18 +95,18 @@
       if (r > .85) t = 'water';
       else if (r > .70) t = 'mountain';
       else if (r > .48) t = 'forest';
-      tiles.push({ t, vis: 0, b: null, c: null, explore: 0 });
+      tiles.push({ t, vis: 0, b: null, c: null, explore: 0, v: rnd(3), pop: 0 });
     }
     // Сглаживание: клетка с 50% перенимает террейн случайного соседа
     for (let pass = 0; pass < 2; pass++) {
       for (let i = 0; i < tiles.length; i++) {
         if (chance(.5)) {
-          const ns = neighbors4(i);
+          const ns = hexNeighbors(i);
           tiles[i].t = tiles[ns[rnd(ns.length)]].t;
         }
       }
     }
-    // Гарантии старта: центр — луг с ратушей, вокруг есть луг и лес
+    // Гарантии старта: центр — луг с ратушей, вокруг есть луга и лес
     const c = idx(CX, CY);
     tiles[c].t = 'grass';
     tiles[c].b = 'townhall';
@@ -108,10 +118,10 @@
     if (!tiles.some(tl => tl.t === 'mountain')) {
       tiles[idx(rnd(W), rnd(3))].t = 'mountain';
     }
-    // Стартовое поселение: ратуша + 4 соседних клетки уже освоены
-    for (const n of neighbors4(c)) tiles[n].vis = 2;
-    for (const s of [c, ...neighbors4(c)]) {
-      for (const n of neighbors8(s)) tiles[n].vis = Math.max(tiles[n].vis, 1);
+    // Стартовое поселение: ратуша + соседние клетки уже освоены
+    for (const n of hexNeighbors(c)) tiles[n].vis = 2;
+    for (const s of [c, ...hexNeighbors(c)]) {
+      for (const n of hexNeighbors(s)) tiles[n].vis = Math.max(tiles[n].vis, 1);
     }
     return tiles;
   }
@@ -225,6 +235,21 @@
     while (el.children.length > 40) el.removeChild(el.lastChild);
   }
 
+  // Всплывающий текст над клеткой (как цифры урона в оригинале)
+  function floatText(i, text, cls) {
+    if (reduceMotion) return;
+    const wrap = document.querySelector('.map-wrap');
+    const scale = canvas.clientWidth / CANW;
+    const { px, py } = tileOrigin(i);
+    const el = document.createElement('span');
+    el.className = 'floater' + (cls ? ` ${cls}` : '');
+    el.textContent = text;
+    el.style.left = `${canvas.offsetLeft + (px + HW / 2) * scale}px`;
+    el.style.top = `${canvas.offsetTop + py * scale}px`;
+    el.addEventListener('animationend', () => el.remove());
+    wrap.appendChild(el);
+  }
+
   // ---------- Ход (конец дня) ----------
   function endDay() {
     if (S.over || modalOpen) return;
@@ -250,10 +275,18 @@
     }
 
     // 4. Набеги зверей
-    for (const t of S.tiles) {
+    for (let i = 0; i < S.tiles.length; i++) {
+      const t = S.tiles[i];
       if (t.vis === 2 && t.c === 'beast' && chance(.4)) {
-        if (S.food >= 4) { S.food -= 4; log('Зверь разорил припасы: −4 🍞.', 'log--bad'); }
-        else { S.pop--; log('Зверь напал на жителя! −1 👥.', 'log--bad'); }
+        if (S.food >= 4) {
+          S.food -= 4;
+          log('Зверь разорил припасы: −4 🍞.', 'log--bad');
+          floatText(i, '−4 🍞', 'floater--bad');
+        } else {
+          S.pop--;
+          log('Зверь напал на жителя! −1 👥.', 'log--bad');
+          floatText(i, '−1 👥', 'floater--bad');
+        }
       }
     }
 
@@ -283,18 +316,21 @@
   function revealTile(i) {
     const t = S.tiles[i];
     t.vis = 2;
-    for (const n of neighbors8(i)) S.tiles[n].vis = Math.max(S.tiles[n].vis, 1);
+    t.pop = performance.now(); // анимация «появления» гекса
+    for (const n of hexNeighbors(i)) S.tiles[n].vis = Math.max(S.tiles[n].vis, 1);
     const c = rollContent(t.t);
     if (c === 'treasure') {
       const g = 15 + rnd(16);
       S.gold += g;
       log(`Разведчики нашли клад: +${g} 🪙!`, 'log--good');
+      floatText(i, `+${g} 🪙`, 'floater--good');
     } else if (c === 'ruins') {
       S.sci += 4;
       log('В древних руинах найдены знания: +4 🔬.', 'log--good');
+      floatText(i, '+4 🔬', 'floater--good');
     } else if (c) {
       t.c = c;
-      if (c === 'beast') log('Разведчики наткнулись на логово зверя!', 'log--bad');
+      if (c === 'beast') { log('Разведчики наткнулись на логово зверя!', 'log--bad'); floatText(i, '🐺!', 'floater--bad'); }
       else log(`Разведана новая земля: ${CONTENT_NAME[c].toLowerCase()}.`, 'log--good');
     } else {
       log(`Разведана новая земля (${TERRAIN_NAME[t.t].toLowerCase()}).`);
@@ -564,7 +600,7 @@
   function startExplore(i) {
     const t = S.tiles[i];
     if (t.vis !== 1 || t.explore > 0) return;
-    if (!neighbors4(i).some(n => S.tiles[n].vis === 2)) return;
+    if (!hexNeighbors(i).some(n => S.tiles[n].vis === 2)) return;
     if (freeCitizens() < 1) { log('Нет свободных жителей для разведки.', 'log--bad'); return; }
     t.explore = exploreTurns();
     log(`Разведчик отправился в ${TERRAIN_NAME[t.t].toLowerCase()} (${t.explore} дн.).`);
@@ -577,9 +613,11 @@
     if (t.vis !== 2 || t.b || t.c === 'beast' || !canAfford(cost)) return;
     pay(cost);
     t.b = key;
+    t.pop = performance.now();
     if (key === 'house') S.cap += 3;
     S.sci += 2;
     log(`Построен объект «${BUILDINGS[key].name}». +2 🔬`, 'log--good');
+    floatText(i, '⚒️', 'floater--good');
     renderAll();
   }
 
@@ -590,11 +628,13 @@
       t.c = null;
       S.food += 8;
       log('Охотники выследили зверя без потерь. +8 🍞', 'log--good');
+      floatText(i, '+8 🍞', 'floater--good');
     } else {
       if (freeCitizens() < 2) { log('Для боя нужно хотя бы 2 свободных жителя.', 'log--bad'); return; }
       S.pop--;
       t.c = null;
       log('Зверь повержен, но один житель погиб в бою. −1 👥', 'log--bad');
+      floatText(i, '−1 👥', 'floater--bad');
       if (S.pop <= 0) return gameOver('Последний житель погиб в схватке со зверем.');
     }
     renderAll();
@@ -606,15 +646,42 @@
     S.faith -= 10;
     t.c = 'tamed';
     log('Зверь приручён и теперь помогает добывать еду! +2 🍞 в день', 'log--good');
+    floatText(i, '🐾', 'floater--good');
     renderAll();
   }
 
-  // ---------- Спрайты (процедурный пиксель-арт) ----------
+  /* ==========================================================
+     СПРАЙТЫ — процедурный пиксель-арт в ночной палитре оригинала.
+     Гекс 24×28, вершиной вверх, тёмная обводка.
+     ========================================================== */
+  const PALETTE = {
+    outline: '#0c1112',
+    grass:  { base: '#41633c', dark: '#37552f', light: '#4d7346', edge: '#2a4126' },
+    forest: { base: '#37552f', dark: '#2c4526', light: '#41633c', edge: '#22331d' },
+    mountain: { base: '#5c5a4e', dark: '#4d4b41', light: '#6b695c', edge: '#3a382f' },
+    water:  { base: '#264257', dark: '#1f3849', light: '#31536d', edge: '#182b39' },
+    wall: '#d3c8a4', wallShade: '#b3a682',
+    roof: '#8e4a3a', roofLight: '#a85a44',
+    roofBlue: '#4a4a6e', roofBlueLight: '#5c5c86',
+    wood: '#4a3524', woodLight: '#6b512c',
+    gold: '#d9a84c', goldLight: '#eec46a',
+    snow: '#cfcbc0',
+    cream: '#e8e0c8',
+  };
+
   const sprites = {};
 
-  function makeSprite(draw) {
+  // Профиль гекса: [x0, x1] включительно для каждой строки y
+  const HEX_A = [1, 3, 5, 7, 9, 10, 11];
+  function hexSpan(y) {
+    if (y < 7)   { const a = HEX_A[y];      return [11 - a, 12 + a]; }
+    if (y >= 21) { const a = HEX_A[27 - y]; return [11 - a, 12 + a]; }
+    return [0, 23];
+  }
+
+  function makeSprite(draw, w = HW, h = HH) {
     const c = document.createElement('canvas');
-    c.width = TS; c.height = TS;
+    c.width = w; c.height = h;
     const g = c.getContext('2d');
     draw(g);
     return c;
@@ -625,170 +692,321 @@
     g.fillRect(x, y, w, h);
   }
 
-  function baseGrass(g) {
-    px(g, '#6da34d', 0, 0, TS, TS);
-    for (let k = 0; k < 14; k++) px(g, '#5e9142', rnd(TS), rnd(TS));
-    for (let k = 0; k < 6; k++) px(g, '#7fb35c', rnd(TS), rnd(TS));
+  // Заливка гекса с шумом + тёмная обводка + блик сверху
+  function hexBase(g, pal, noiseN = 16) {
+    for (let y = 0; y < HH; y++) {
+      const [x0, x1] = hexSpan(y);
+      px(g, pal.base, x0, y, x1 - x0 + 1, 1);
+    }
+    for (let k = 0; k < noiseN; k++) {
+      const y = rnd(HH);
+      const [x0, x1] = hexSpan(y);
+      px(g, chance(.5) ? pal.dark : pal.light, x0 + rnd(x1 - x0 + 1), y);
+    }
+    // обводка
+    for (let y = 0; y < HH; y++) {
+      const [x0, x1] = hexSpan(y);
+      px(g, PALETTE.outline, x0, y); px(g, PALETTE.outline, x1, y);
+      if (y < 7 || y >= 21) { px(g, PALETTE.outline, x0 + 1, y); px(g, PALETTE.outline, x1 - 1, y); }
+    }
+    const [t0, t1] = hexSpan(0);
+    px(g, PALETTE.outline, t0, 0, t1 - t0 + 1, 1);
+    const [b0, b1] = hexSpan(HH - 1);
+    px(g, PALETTE.outline, b0, HH - 1, b1 - b0 + 1, 1);
+    // блик по верхним граням
+    for (let y = 1; y < 6; y++) {
+      const [x0, x1] = hexSpan(y);
+      px(g, pal.light, x0 + 2, y); px(g, pal.light, x1 - 2, y);
+    }
+    // тень по нижним граням
+    for (let y = 22; y < 27; y++) {
+      const [x0, x1] = hexSpan(y);
+      px(g, pal.edge, x0 + 2, y); px(g, pal.edge, x1 - 2, y);
+    }
+  }
+
+  function drawPine(g, x, y, big) {
+    const dark = '#1e3823', mid = '#2a4a2e', light = '#39603a';
+    if (big) {
+      px(g, dark, x + 2, y, 1, 1);
+      px(g, mid, x + 1, y + 1, 3, 1);
+      px(g, dark, x, y + 2, 5, 2);
+      px(g, mid, x - 1, y + 4, 7, 1);
+      px(g, light, x + 1, y + 2, 1, 1);
+      px(g, PALETTE.wood, x + 2, y + 5, 1, 2);
+    } else {
+      px(g, mid, x + 1, y, 1, 1);
+      px(g, dark, x, y + 1, 3, 2);
+      px(g, PALETTE.wood, x + 1, y + 3, 1, 1);
+    }
+  }
+
+  function drawCottage(g, x, y) {
+    // маленький домик 7×6: красная крыша, светлая стена
+    px(g, PALETTE.outline, x - 1, y + 1, 9, 5);
+    px(g, PALETTE.roofLight, x, y, 7, 1);
+    px(g, PALETTE.roof, x - 1, y + 1, 9, 2);
+    px(g, PALETTE.wall, x, y + 3, 7, 3);
+    px(g, PALETTE.wallShade, x, y + 5, 7, 1);
+    px(g, PALETTE.wood, x + 3, y + 4, 1, 2);
+    px(g, '#3a3226', x + 1, y + 4, 1, 1);
+  }
+
+  function drawSheep(g, x, y) {
+    px(g, PALETTE.cream, x, y, 3, 2);
+    px(g, '#8f8877', x + 3, y, 1, 1);
+    px(g, '#3a3226', x, y + 2, 1, 1); px(g, '#3a3226', x + 2, y + 2, 1, 1);
   }
 
   function initSprites() {
-    sprites.grass = makeSprite(baseGrass);
+    const P = PALETTE;
 
-    sprites.forest = makeSprite(g => {
-      baseGrass(g);
-      const tree = (x, y) => {
-        px(g, '#2e5c33', x + 1, y, 3, 1);
-        px(g, '#2e5c33', x, y + 1, 5, 3);
-        px(g, '#3d7a44', x + 1, y + 1, 2, 2);
-        px(g, '#5c4327', x + 2, y + 4, 1, 2);
-      };
-      tree(2, 2); tree(8, 4); tree(4, 9);
-    });
+    // --- Террейны (по 2 варианта для разнообразия) ---
+    sprites.grass = [
+      makeSprite(g => { hexBase(g, P.grass); drawSheep(g, 6, 16); px(g, '#c9c25a', 15, 10); px(g, '#b56a6a', 9, 8); }),
+      makeSprite(g => { hexBase(g, P.grass); px(g, '#c9c25a', 7, 12); px(g, '#c9c25a', 16, 18); drawPine(g, 15, 8, false); }),
+      makeSprite(g => { hexBase(g, P.grass); drawSheep(g, 13, 12); drawSheep(g, 5, 18); }),
+    ];
+    sprites.forest = [
+      makeSprite(g => { hexBase(g, P.forest); drawPine(g, 4, 6, true); drawPine(g, 13, 10, true); drawPine(g, 8, 17, true); drawPine(g, 17, 18, false); }),
+      makeSprite(g => { hexBase(g, P.forest); drawPine(g, 9, 5, true); drawPine(g, 4, 14, true); drawPine(g, 15, 15, true); }),
+      makeSprite(g => { hexBase(g, P.forest); drawPine(g, 6, 8, true); drawPine(g, 14, 7, false); drawPine(g, 11, 14, true); px(g, '#7a4a3a', 6, 20, 2, 1); }),
+    ];
+    sprites.mountain = [
+      makeSprite(g => {
+        hexBase(g, P.mountain, 20);
+        // большой пик
+        for (let r = 0; r < 9; r++) px(g, r < 3 ? P.snow : (r % 2 ? '#6e6c60' : '#63615a'), 11 - r, 6 + r, 1 + r * 2, 1);
+        px(g, '#4d4b41', 8, 12, 2, 3); px(g, '#4d4b41', 13, 10, 1, 5);
+        for (let r = 0; r < 5; r++) px(g, r < 1 ? P.snow : '#5d5b52', 17 - r, 16 + r, 1 + r * 2, 1);
+      }),
+      makeSprite(g => {
+        hexBase(g, P.mountain, 20);
+        for (let r = 0; r < 7; r++) px(g, r < 2 ? P.snow : '#6b695c', 8 - r + 4, 8 + r, 1 + r * 2, 1);
+        px(g, '#4d4b41', 10, 11, 1, 4);
+        px(g, '#787666', 5, 18, 3, 2); px(g, '#787666', 16, 19, 3, 2);
+      }),
+      makeSprite(g => {
+        hexBase(g, P.mountain, 20);
+        for (let r = 0; r < 8; r++) px(g, r < 2 ? P.snow : (r % 2 ? '#6e6c60' : '#5d5b52'), 12 - r, 7 + r, 1 + r * 2, 1);
+        px(g, '#787666', 4, 17, 4, 2);
+      }),
+    ];
+    // Вода — два кадра волн для анимации
+    const waves = [[4, 9], [13, 13], [7, 18], [16, 21]];
+    sprites.water = [0, 1].map(f => makeSprite(g => {
+      hexBase(g, P.water, 10);
+      for (const [wx, wy] of waves) {
+        const ox = f ? 2 : 0;
+        px(g, P.water.light, wx + ox, wy, 3, 1);
+        px(g, '#4a7396', wx + ox + 1, wy, 1, 1);
+      }
+    }));
 
-    sprites.mountain = makeSprite(g => {
-      px(g, '#8a8577', 0, 0, TS, TS);
-      for (let k = 0; k < 12; k++) px(g, '#7a7568', rnd(TS), rnd(TS));
-      // два пика
-      for (let r = 0; r < 6; r++) px(g, '#6b6659', 5 - r, 6 + r, 1 + r * 2, 1);
-      for (let r = 0; r < 5; r++) px(g, '#5d5950', 11 - r, 8 + r, 1 + r * 2, 1);
-      px(g, '#e8e4da', 4, 6, 3, 1);
-      px(g, '#e8e4da', 10, 8, 3, 1);
-    });
-
-    sprites.water = makeSprite(g => {
-      px(g, '#3f6d9e', 0, 0, TS, TS);
-      for (let k = 0; k < 10; k++) px(g, '#35608f', rnd(TS), rnd(TS));
-      px(g, '#6f9cc7', 2, 4, 4, 1);
-      px(g, '#6f9cc7', 9, 8, 4, 1);
-      px(g, '#6f9cc7', 4, 12, 4, 1);
-    });
-
+    // Неразведанное — почти чёрный гекс
     sprites.hidden = makeSprite(g => {
-      px(g, '#100e15', 0, 0, TS, TS);
-      for (let k = 0; k < 8; k++) px(g, '#1a1722', rnd(TS), rnd(TS));
+      hexBase(g, { base: '#121a1c', dark: '#0e1416', light: '#172124', edge: '#0c1112' }, 8);
     });
 
-    // Постройки — рисуются поверх террейна
+    // --- Постройки (рисуются поверх гекса) ---
     sprites.townhall = makeSprite(g => {
-      px(g, '#4a5a8a', 2, 3, 12, 3);       // крыша
-      px(g, '#6b7fb5', 3, 2, 10, 1);
-      px(g, '#c9b998', 3, 6, 10, 8);       // стены
-      px(g, '#8a7a5a', 3, 13, 10, 1);
-      px(g, '#5c4327', 7, 9, 2, 5);        // дверь
-      px(g, '#4a5a8a', 5, 7, 2, 2); px(g, '#4a5a8a', 9, 7, 2, 2); // окна
-      px(g, '#e6b455', 7, 0, 1, 3);        // флагшток
-      px(g, '#d95b5b', 8, 0, 3, 2);        // флаг
+      // зал с сине-фиолетовой крышей, как замки оригинала
+      px(g, P.outline, 4, 6, 16, 16);
+      px(g, P.wall, 5, 12, 14, 9);
+      px(g, P.wallShade, 5, 19, 14, 2);
+      px(g, P.roofBlue, 4, 8, 16, 4);
+      px(g, P.roofBlueLight, 5, 8, 14, 1);
+      // башенка
+      px(g, P.wall, 10, 4, 4, 4);
+      px(g, P.roofBlue, 9, 2, 6, 2);
+      px(g, P.roofBlueLight, 11, 0, 2, 2);
+      // окна и дверь
+      px(g, '#2e2a3e', 7, 14, 2, 2); px(g, '#2e2a3e', 15, 14, 2, 2);
+      px(g, P.wood, 10, 16, 4, 5);
+      px(g, P.gold, 11, 18, 1, 1);
+      // флаг
+      px(g, '#b5484a', 15, 0, 4, 2); px(g, P.wood, 14, 0, 1, 4);
     });
 
     sprites.house = makeSprite(g => {
-      px(g, '#a34f3f', 3, 4, 10, 3);       // крыша
-      px(g, '#b8604e', 4, 3, 8, 1);
-      px(g, '#d8c8a8', 4, 7, 8, 6);        // стены
-      px(g, '#5c4327', 7, 9, 2, 4);        // дверь
-      px(g, '#4a5a8a', 5, 8, 1, 1); px(g, '#4a5a8a', 10, 8, 1, 1);
+      drawCottage(g, 4, 7);
+      drawCottage(g, 12, 14);
     });
 
     sprites.farm = makeSprite(g => {
-      for (let r = 0; r < 4; r++) px(g, '#8a6a3a', 2, 3 + r * 3, 12, 1);
-      for (let r = 0; r < 4; r++)
-        for (let x = 0; x < 6; x++) px(g, '#d9c25a', 3 + x * 2, 2 + r * 3, 1, 1);
+      // грядки пшеницы + стожок
+      px(g, '#54422e', 4, 9, 15, 12);
+      for (let r = 0; r < 4; r++) {
+        px(g, '#463726', 5, 10 + r * 3, 13, 1);
+        for (let x = 0; x < 6; x++) px(g, x % 2 ? P.gold : '#c9a84c', 6 + x * 2, 9 + r * 3, 1, 2);
+      }
+      px(g, '#c9a84c', 16, 5, 4, 3); px(g, P.goldLight, 17, 4, 2, 1);
     });
 
     sprites.lumber = makeSprite(g => {
-      px(g, '#8a6a3a', 3, 8, 10, 5);       // сруб
-      px(g, '#6b512c', 3, 8, 10, 1);
-      px(g, '#a34f3f', 2, 6, 12, 2);       // крыша
-      // брёвна
-      px(g, '#5c4327', 4, 13, 3, 2); px(g, '#5c4327', 9, 13, 3, 2);
-      px(g, '#c9b998', 5, 13, 1, 1); px(g, '#c9b998', 10, 13, 1, 1);
+      drawPine(g, 4, 5, true);
+      // сруб
+      px(g, P.outline, 8, 10, 12, 10);
+      px(g, P.woodLight, 9, 13, 10, 6);
+      px(g, P.roof, 8, 10, 12, 3);
+      px(g, P.roofLight, 9, 10, 10, 1);
+      px(g, P.wood, 13, 15, 2, 4);
+      // штабель брёвен
+      px(g, P.wood, 4, 20, 6, 2); px(g, P.woodLight, 5, 20, 1, 1); px(g, P.woodLight, 8, 21, 1, 1);
     });
 
     sprites.mine = makeSprite(g => {
-      px(g, '#3d3a33', 4, 6, 8, 8);        // вход в штольню
-      px(g, '#100e15', 6, 8, 4, 6);
-      px(g, '#6b512c', 4, 5, 8, 1);        // крепь
-      px(g, '#6b512c', 4, 6, 1, 8); px(g, '#6b512c', 11, 6, 1, 8);
-      px(g, '#e6b455', 12, 12, 2, 2);      // тачка золота
+      // вход в штольню
+      px(g, '#4d4b41', 6, 8, 12, 12);
+      px(g, '#14100c', 9, 12, 6, 8);
+      px(g, P.woodLight, 8, 10, 8, 2);
+      px(g, P.woodLight, 8, 12, 2, 8); px(g, P.woodLight, 14, 12, 2, 8);
+      // рельсы и тачка
+      px(g, '#3a382f', 10, 20, 4, 1);
+      px(g, P.wood, 17, 18, 4, 3); px(g, P.gold, 18, 17, 2, 1);
     });
 
     sprites.church = makeSprite(g => {
-      px(g, '#e8e4da', 5, 6, 6, 8);        // белые стены
-      px(g, '#8a8577', 5, 13, 6, 1);
-      px(g, '#4a5a8a', 4, 4, 8, 2);        // крыша
-      px(g, '#e6b455', 7, 0, 2, 1); px(g, '#e6b455', 7, 1, 2, 3); // крест-шпиль
-      px(g, '#e6b455', 6, 1, 4, 1);
-      px(g, '#5c4327', 7, 10, 2, 4);       // дверь
+      px(g, P.outline, 6, 7, 12, 14);
+      px(g, P.cream, 7, 12, 10, 8);
+      px(g, P.wallShade, 7, 18, 10, 2);
+      px(g, P.roofBlue, 6, 9, 12, 3);
+      // шпиль с крестом
+      px(g, P.cream, 10, 5, 4, 4);
+      px(g, P.roofBlue, 9, 3, 6, 2);
+      px(g, P.gold, 11, 0, 2, 3); px(g, P.gold, 10, 1, 4, 1);
+      px(g, P.wood, 11, 16, 2, 4);
+      px(g, '#2e2a3e', 8, 14, 1, 2); px(g, '#2e2a3e', 15, 14, 1, 2);
     });
 
     sprites.market = makeSprite(g => {
-      for (let x = 0; x < 6; x++) px(g, x % 2 ? '#d95b5b' : '#e8e4da', 2 + x * 2, 4, 2, 2); // навес
-      px(g, '#8a6a3a', 3, 6, 1, 7); px(g, '#8a6a3a', 12, 6, 1, 7); // стойки
-      px(g, '#6b512c', 3, 10, 10, 2);      // прилавок
-      px(g, '#e6b455', 5, 9, 2, 1); px(g, '#7fb069', 9, 9, 2, 1);  // товар
+      // полосатый навес
+      px(g, P.outline, 4, 8, 16, 12);
+      for (let x = 0; x < 8; x++) px(g, x % 2 ? '#b5484a' : P.cream, 4 + x * 2, 8, 2, 3);
+      px(g, P.wood, 5, 11, 1, 8); px(g, P.wood, 18, 11, 1, 8);
+      px(g, P.woodLight, 5, 15, 14, 2);
+      // товары
+      px(g, P.gold, 7, 13, 2, 2); px(g, '#7fa060', 11, 13, 2, 2); px(g, '#b5484a', 15, 13, 2, 2);
     });
 
     sprites.tavern = makeSprite(g => {
-      px(g, '#6b512c', 3, 5, 10, 2);       // крыша
-      px(g, '#8a6a3a', 3, 7, 10, 6);       // стены
-      px(g, '#5c4327', 6, 9, 2, 4);        // дверь
-      px(g, '#e6b455', 10, 8, 2, 2);       // окно светится
-      px(g, '#e6b455', 2, 3, 3, 2);        // вывеска-кружка
-      px(g, '#8a6a3a', 3, 5, 1, 1);
+      px(g, P.outline, 5, 7, 14, 13);
+      px(g, P.woodLight, 6, 11, 12, 8);
+      px(g, P.roof, 5, 8, 14, 3);
+      px(g, P.roofLight, 6, 8, 12, 1);
+      px(g, P.wood, 10, 14, 3, 5);
+      // светящиеся окна
+      px(g, P.goldLight, 7, 12, 2, 2); px(g, P.goldLight, 15, 12, 2, 2);
+      // вывеска-кружка
+      px(g, P.wood, 3, 9, 1, 4); px(g, P.gold, 2, 12, 3, 3);
     });
 
     sprites.dock = makeSprite(g => {
-      px(g, '#8a6a3a', 2, 7, 12, 3);       // настил
-      px(g, '#6b512c', 3, 10, 1, 4); px(g, '#6b512c', 12, 10, 1, 4); // сваи
-      px(g, '#d8c8a8', 9, 3, 1, 4);        // мачта лодки
-      px(g, '#d95b5b', 10, 3, 3, 2);       // парус
-      px(g, '#5c4327', 7, 6, 6, 2);        // лодка
+      // настил и лодка с парусом
+      px(g, P.woodLight, 3, 15, 12, 3);
+      px(g, P.wood, 4, 18, 1, 4); px(g, P.wood, 12, 18, 1, 4);
+      px(g, P.outline, 13, 5, 8, 9);
+      px(g, P.cream, 15, 4, 1, 8);
+      px(g, '#b5484a', 16, 5, 4, 4);
+      px(g, P.wood, 13, 11, 8, 3);
+      px(g, P.woodLight, 14, 11, 6, 1);
     });
 
-    // Содержимое клеток
+    // --- Содержимое клеток ---
     sprites.beast = makeSprite(g => {
-      px(g, '#3d3a33', 4, 8, 8, 4);        // тело
-      px(g, '#3d3a33', 10, 5, 3, 4);       // голова
-      px(g, '#3d3a33', 3, 9, 1, 2);        // хвост
-      px(g, '#d95b5b', 11, 6, 1, 1);       // глаз
-      px(g, '#3d3a33', 5, 12, 1, 2); px(g, '#3d3a33', 9, 12, 1, 2); // лапы
-      px(g, '#e8e4da', 12, 8, 1, 1);       // клык
+      // волк: тёмный силуэт, красные глаза
+      px(g, '#2a2622', 6, 13, 10, 5);
+      px(g, '#2a2622', 14, 9, 5, 5);
+      px(g, '#2a2622', 15, 7, 2, 2);  // ухо
+      px(g, '#2a2622', 4, 14, 2, 2);  // хвост
+      px(g, '#c93a3a', 16, 10, 2, 1); // глаза
+      px(g, '#2a2622', 7, 18, 2, 3); px(g, '#2a2622', 13, 18, 2, 3);
+      px(g, P.cream, 18, 12, 1, 1);   // клык
     });
 
     sprites.tamed = makeSprite(g => {
-      px(g, '#8a6a3a', 4, 8, 8, 4);
-      px(g, '#8a6a3a', 10, 5, 3, 4);
-      px(g, '#8a6a3a', 3, 9, 1, 2);
-      px(g, '#4a5a8a', 11, 6, 1, 1);
-      px(g, '#8a6a3a', 5, 12, 1, 2); px(g, '#8a6a3a', 9, 12, 1, 2);
-      px(g, '#d95b5b', 6, 3, 1, 1); px(g, '#d95b5b', 8, 3, 1, 1);   // сердечко
-      px(g, '#d95b5b', 6, 4, 3, 1); px(g, '#d95b5b', 7, 5, 1, 1);
+      px(g, '#6b512c', 6, 13, 10, 5);
+      px(g, '#6b512c', 14, 9, 5, 5);
+      px(g, '#6b512c', 15, 7, 2, 2);
+      px(g, '#6b512c', 4, 14, 2, 2);
+      px(g, '#3f6d9e', 16, 10, 2, 1);
+      px(g, '#6b512c', 7, 18, 2, 3); px(g, '#6b512c', 13, 18, 2, 3);
+      px(g, '#c93a3a', 8, 5, 2, 2); px(g, '#c93a3a', 11, 5, 2, 2);
+      px(g, '#c93a3a', 8, 7, 5, 2); px(g, '#c93a3a', 10, 9, 1, 1);
     });
 
     sprites.fertile = makeSprite(g => {
-      for (const [x, y] of [[3, 4], [10, 3], [6, 10], [12, 11]]) {
-        px(g, '#d9c25a', x, y, 1, 2);
-        px(g, '#d9c25a', x - 1, y + 1, 3, 1);
+      for (const [x, y] of [[6, 9], [14, 8], [9, 16], [16, 17]]) {
+        px(g, P.gold, x, y, 1, 3);
+        px(g, P.gold, x - 1, y + 1, 3, 1);
+        px(g, P.goldLight, x, y, 1, 1);
       }
     });
 
     sprites.timber = makeSprite(g => {
-      px(g, '#5c4327', 3, 11, 4, 2); px(g, '#5c4327', 8, 11, 4, 2);
-      px(g, '#5c4327', 5, 9, 4, 2);
-      px(g, '#c9b998', 4, 11, 1, 1); px(g, '#c9b998', 9, 11, 1, 1); px(g, '#c9b998', 6, 9, 1, 1);
+      px(g, P.wood, 6, 16, 6, 2); px(g, P.wood, 13, 16, 6, 2);
+      px(g, P.wood, 9, 13, 6, 2);
+      px(g, P.cream, 7, 16, 1, 1); px(g, P.cream, 14, 16, 1, 1); px(g, P.cream, 10, 13, 1, 1);
     });
 
     sprites.ore = makeSprite(g => {
-      for (const [x, y] of [[4, 5], [10, 8], [6, 12]]) {
-        px(g, '#e6b455', x, y, 2, 2);
-        px(g, '#f2d98a', x, y, 1, 1);
+      for (const [x, y] of [[8, 10], [15, 13], [10, 18]]) {
+        px(g, P.gold, x, y, 3, 2);
+        px(g, P.goldLight, x + 1, y, 1, 1);
       }
     });
 
     sprites.fish = makeSprite(g => {
-      px(g, '#e8e4da', 5, 7, 4, 2);        // рыбка
-      px(g, '#e8e4da', 9, 6, 1, 1); px(g, '#e8e4da', 9, 9, 1, 1);
-      px(g, '#100e15', 6, 7, 1, 1);
-      px(g, '#6f9cc7', 4, 11, 5, 1);       // круги на воде
+      px(g, P.cream, 8, 12, 5, 2);
+      px(g, P.cream, 13, 11, 1, 1); px(g, P.cream, 13, 14, 1, 1);
+      px(g, P.outline, 9, 12, 1, 1);
+      px(g, P.water.light, 6, 17, 7, 1);
+    });
+
+    // --- Маркеры ---
+    // «?» над туманом
+    sprites.qmark = makeSprite(g => {
+      const c = P.cream, o = P.outline;
+      px(g, o, 1, 0, 5, 9);
+      px(g, c, 2, 1, 3, 1); px(g, c, 4, 2, 1, 2); px(g, c, 3, 4, 1, 1);
+      px(g, c, 3, 6, 1, 1); px(g, c, 3, 8, 0, 0); px(g, c, 3, 7, 1, 0);
+      px(g, c, 3, 8, 1, 1);
+    }, 7, 10);
+
+    // песочные часы разведки
+    sprites.hourglass = makeSprite(g => {
+      const o = P.outline, s = P.gold;
+      px(g, o, 0, 0, 7, 10);
+      px(g, P.woodLight, 1, 1, 5, 1); px(g, P.woodLight, 1, 8, 5, 1);
+      px(g, s, 2, 2, 3, 2); px(g, s, 3, 4, 1, 2); px(g, s, 2, 6, 3, 2);
+    }, 7, 10);
+
+    // золотая обводка выбранного гекса
+    sprites.select = makeSprite(g => {
+      for (let y = 0; y < HH; y++) {
+        const [x0, x1] = hexSpan(y);
+        px(g, P.goldLight, x0, y); px(g, P.goldLight, x1, y);
+        if (y < 7 || y >= 21) { px(g, P.goldLight, x0 + 1, y); px(g, P.goldLight, x1 - 1, y); }
+      }
+      const [t0, t1] = hexSpan(0);
+      px(g, P.goldLight, t0, 0, t1 - t0 + 1, 1);
+      const [b0, b1] = hexSpan(HH - 1);
+      px(g, P.goldLight, b0, HH - 1, b1 - b0 + 1, 1);
+    });
+
+    // туман поверх террейна
+    sprites.fog = makeSprite(g => {
+      g.globalAlpha = .68;
+      for (let y = 0; y < HH; y++) {
+        const [x0, x1] = hexSpan(y);
+        px(g, '#0b1216', x0, y, x1 - x0 + 1, 1);
+      }
+      g.globalAlpha = 1;
+      for (let k = 0; k < 10; k++) {
+        const y = rnd(HH);
+        const [x0, x1] = hexSpan(y);
+        px(g, 'rgba(23,33,36,.8)', x0 + rnd(x1 - x0 + 1), y);
+      }
     });
   }
 
@@ -797,52 +1015,68 @@
   const ctx = canvas.getContext('2d');
   ctx.imageSmoothingEnabled = false;
 
-  function render() {
-    for (let y = 0; y < H; y++) {
-      for (let x = 0; x < W; x++) {
-        const i = idx(x, y);
-        const t = S.tiles[i];
-        const dx = x * TS, dy = y * TS;
-        if (t.vis === 0) {
-          ctx.drawImage(sprites.hidden, dx, dy);
-          continue;
+  function terrainSprite(t, now) {
+    if (t.t === 'water') return sprites.water[Math.floor(now / 700) % 2];
+    return sprites[t.t][t.v % sprites[t.t].length];
+  }
+
+  function render(now) {
+    ctx.fillStyle = '#0c1112';
+    ctx.fillRect(0, 0, CANW, CANH);
+    for (let i = 0; i < S.tiles.length; i++) {
+      const t = S.tiles[i];
+      const { px: dx, py: dy } = tileOrigin(i);
+      if (t.vis === 0) {
+        ctx.drawImage(sprites.hidden, dx, dy);
+        continue;
+      }
+
+      // «появление» гекса после разведки/стройки
+      let scale = 1;
+      if (!reduceMotion && t.pop && now - t.pop < 260) {
+        scale = .6 + .4 * ((now - t.pop) / 260);
+      }
+      const drawTile = (img) => {
+        if (scale === 1) { ctx.drawImage(img, dx, dy); return; }
+        const w = HW * scale, h = HH * scale;
+        ctx.drawImage(img, dx + (HW - w) / 2, dy + (HH - h) / 2, w, h);
+      };
+
+      drawTile(terrainSprite(t, now));
+
+      if (t.vis === 1) {
+        ctx.drawImage(sprites.fog, dx, dy);
+        if (t.explore > 0) {
+          ctx.drawImage(sprites.hourglass, dx + 8, dy + 9);
+        } else if (hexNeighbors(i).some(n => S.tiles[n].vis === 2)) {
+          const bob = reduceMotion ? 0 : Math.round(Math.sin(now / 420 + i) * 1.5);
+          ctx.drawImage(sprites.qmark, dx + 8, dy + 8 + bob);
         }
-        ctx.drawImage(sprites[t.t], dx, dy);
-        if (t.vis === 1) {
-          // туман: террейн виден, содержимое — нет
-          ctx.fillStyle = 'rgba(16,14,21,.55)';
-          ctx.fillRect(dx, dy, TS, TS);
-          if (t.explore > 0) {
-            // идёт разведка — фонарик
-            ctx.fillStyle = '#e6b455';
-            ctx.fillRect(dx + 7, dy + 6, 2, 4);
-            ctx.fillRect(dx + 6, dy + 7, 4, 2);
-          } else if (neighbors4(i).some(n => S.tiles[n].vis === 2)) {
-            // доступна для разведки — уголки
-            ctx.fillStyle = 'rgba(232,226,212,.7)';
-            ctx.fillRect(dx + 1, dy + 1, 3, 1); ctx.fillRect(dx + 1, dy + 1, 1, 3);
-            ctx.fillRect(dx + TS - 4, dy + 1, 3, 1); ctx.fillRect(dx + TS - 2, dy + 1, 1, 3);
-            ctx.fillRect(dx + 1, dy + TS - 2, 3, 1); ctx.fillRect(dx + 1, dy + TS - 4, 1, 3);
-            ctx.fillRect(dx + TS - 4, dy + TS - 2, 3, 1); ctx.fillRect(dx + TS - 2, dy + TS - 4, 1, 3);
-          }
-        } else {
-          if (t.c && sprites[t.c]) ctx.drawImage(sprites[t.c], dx, dy);
-          if (t.b) ctx.drawImage(sprites[t.b], dx, dy);
-        }
-        if (i === selected) {
-          ctx.strokeStyle = '#e6b455';
-          ctx.lineWidth = 1;
-          ctx.strokeRect(dx + .5, dy + .5, TS - 1, TS - 1);
-        }
+      } else {
+        if (t.c && sprites[t.c]) drawTile(sprites[t.c]);
+        if (t.b) drawTile(sprites[t.b]);
+      }
+
+      if (i === selected) {
+        ctx.globalAlpha = reduceMotion ? 1 : .65 + .35 * Math.sin(now / 280);
+        ctx.drawImage(sprites.select, dx, dy);
+        ctx.globalAlpha = 1;
       }
     }
+  }
+
+  // Постоянный цикл анимации (вода, «?», выделение).
+  // При prefers-reduced-motion рисуем только по изменению состояния.
+  function loop(now) {
+    render(now);
+    requestAnimationFrame(loop);
   }
 
   // ---------- Панель клетки ----------
   function renderPanel() {
     const panel = document.getElementById('panel');
     if (selected < 0) {
-      panel.innerHTML = '<p class="panel__hint">Коснитесь клетки: тумана — чтобы разведать, своей земли — чтобы строить.</p>';
+      panel.innerHTML = '<p class="panel__hint">Коснитесь гекса: «?» в тумане — разведка, своя земля — стройка.</p>';
       return;
     }
     const t = S.tiles[selected];
@@ -856,7 +1090,7 @@
       h.textContent = `${TERRAIN_NAME[t.t]} (в тумане)`;
       if (t.explore > 0) {
         p.textContent = `Разведка идёт: осталось ${t.explore} дн.`;
-      } else if (neighbors4(selected).some(n => S.tiles[n].vis === 2)) {
+      } else if (hexNeighbors(selected).some(n => S.tiles[n].vis === 2)) {
         p.textContent = 'Что там — неизвестно, пока не пошлёшь разведчика.';
         const b = document.createElement('button');
         b.className = 'btn btn--small';
@@ -865,7 +1099,7 @@
         b.addEventListener('click', () => startExplore(selected));
         btns.appendChild(b);
       } else {
-        p.textContent = 'Слишком далеко — разведайте соседнюю клетку.';
+        p.textContent = 'Слишком далеко — разведайте соседний гекс.';
       }
     } else {
       h.textContent = TERRAIN_NAME[t.t] + (t.b ? ` — ${BUILDINGS[t.b].name}` : '');
@@ -938,7 +1172,7 @@
   }
 
   function renderAll() {
-    render();
+    if (reduceMotion) render(0);
     renderPanel();
     renderHud();
   }
@@ -947,11 +1181,18 @@
   canvas.addEventListener('click', (e) => {
     if (S.over || modalOpen) return;
     const r = canvas.getBoundingClientRect();
-    const x = Math.floor((e.clientX - r.left) / r.width * W);
-    const y = Math.floor((e.clientY - r.top) / r.height * H);
-    if (!inMap(x, y)) return;
-    const i = idx(x, y);
-    selected = (S.tiles[i].vis === 0) ? -1 : i;
+    const mx = (e.clientX - r.left) / r.width * CANW;
+    const my = (e.clientY - r.top) / r.height * CANH;
+    // ближайший центр гекса
+    let best = -1, bestD = 15 * 15;
+    for (let i = 0; i < S.tiles.length; i++) {
+      const { px, py } = tileOrigin(i);
+      const dx = mx - (px + HW / 2), dy = my - (py + HH / 2);
+      const d = dx * dx + dy * dy;
+      if (d < bestD) { bestD = d; best = i; }
+    }
+    if (best < 0) return;
+    selected = (S.tiles[best].vis === 0) ? -1 : best;
     renderAll();
   });
 
@@ -960,9 +1201,9 @@
   document.getElementById('btn-help').addEventListener('click', () => {
     if (modalOpen) return;
     showModal('❓ Как играть',
-      'Ваше поселение окружено туманом. Каждая клетка тумана скрывает сюрприз: клад, руины, ' +
+      'Ваше поселение окружено туманом. Каждый гекс тумана скрывает сюрприз: клад, руины, ' +
       'плодородную землю — или дикого зверя.\n\n' +
-      '• Коснитесь клетки тумана рядом со своей землёй, чтобы послать разведчика.\n' +
+      '• Коснитесь гекса с «?» рядом со своей землёй, чтобы послать разведчика.\n' +
       '• На своей земле стройте: фермы кормят, дома дают жителей, шахты и рынки приносят ' +
       'производство и золото, церкви — веру.\n' +
       '• Жители едят 1 🍞 в день каждый. Голод убивает.\n' +
@@ -976,4 +1217,5 @@
   // ---------- Старт ----------
   initSprites();
   newGame();
+  if (!reduceMotion) requestAnimationFrame(loop);
 })();
