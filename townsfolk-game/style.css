@@ -379,6 +379,11 @@ body {
 .card__cost img { width: 12px; height: 12px; vertical-align: -2px; }
 .card:hover:not(:disabled) { border-color: var(--line); }
 .card:disabled { opacity: .38; cursor: not-allowed; }
+.card.is-active {
+  border-color: var(--green);
+  box-shadow: 0 0 0 1px var(--green), 0 0 10px rgba(127, 176, 105, .35);
+}
+.card__cost.is-poor { color: var(--danger); }
 
 /* --- Главная кнопка --- */
 .big-day {

@@ -58,6 +58,42 @@
   let selected = -1;    // индекс выбранной клетки
   let modalQueue = [];  // очередь модальных окон
   let modalOpen = false;
+  let placing = null;   // режим размещения постройки (ключ здания)
+  let lastEventIdx = -1;
+
+  // ---------- Сохранение партии ----------
+  const SAVE_KEY = 'gorodok-save-v1';
+  const SEEN_HELP_KEY = 'gorodok-seen-help';
+
+  function saveGame() {
+    try {
+      const tiles = S.tiles.map(t => ({
+        t: t.t, vis: t.vis, b: t.b, c: t.c, explore: t.explore, v: t.v, d: t.d,
+      }));
+      localStorage.setItem(SAVE_KEY, JSON.stringify(Object.assign({}, S, { tiles })));
+    } catch (e) { /* приватный режим — играем без сохранений */ }
+  }
+
+  function loadGame() {
+    try {
+      const raw = localStorage.getItem(SAVE_KEY);
+      if (!raw) return false;
+      const data = JSON.parse(raw);
+      if (!data || !Array.isArray(data.tiles) || data.tiles.length !== W * H || data.over) return false;
+      data.tiles = data.tiles.map(t => Object.assign({ pop: 0 }, t));
+      S = data;
+      selected = -1;
+      modalQueue = [];
+      modalOpen = false;
+      placing = null;
+      walkers = [];
+      rebuildPaths();
+      document.getElementById('log').innerHTML = '';
+      log(`С возвращением! Партия продолжается — день ${S.turn}.`);
+      renderAll();
+      return true;
+    } catch (e) { return false; }
+  }
 
   const rnd = (n) => Math.floor(Math.random() * n);
   const chance = (p) => Math.random() < p;
@@ -169,7 +205,7 @@
       turn: 1,
       tiles: genMap(),
       pop: 4, cap: 6,
-      food: 25, prod: 14, gold: 12, faith: 2, sci: 0,
+      food: 30, prod: 14, gold: 12, faith: 2, sci: 0,
       techs: {},
       tributesPaid: 0,
       nextTribute: TRIBUTE_EVERY,
@@ -187,6 +223,7 @@
     document.getElementById('log').innerHTML = '';
     log('Король дал вам землю и год сроку. Стройте, исследуйте — и готовьте дань.');
     renderAll();
+    saveGame();
   }
 
   // ---------- Утилиты состояния ----------
@@ -312,7 +349,7 @@
     // 4. Набеги зверей
     for (let i = 0; i < S.tiles.length; i++) {
       const t = S.tiles[i];
-      if (t.vis === 2 && t.c === 'beast' && chance(.4)) {
+      if (t.vis === 2 && t.c === 'beast' && chance(.33)) {
         if (S.food >= 4) {
           S.food -= 4;
           log('Зверь разорил припасы: −4 🍞.', 'log--bad');
@@ -337,15 +374,25 @@
     // 6. Поражение от вымирания
     if (S.pop <= 0) return gameOver('Все жители погибли. Колония пала.');
 
-    // 7. Дань или случайное событие
+    // 7. Предупреждение о дани
+    if (S.nextTribute - S.turn === 3 && !S.won) {
+      log('⚠️ Через 3 дня гонец короля прибудет за данью. Готовьте припасы!', 'log--bad');
+    }
+
+    // 8. Дань или случайное событие (одно и то же не подряд)
     if (S.turn >= S.nextTribute) {
       queueTribute();
     } else if (S.turn > 3 && chance(.25)) {
-      queueEvent(EVENTS[rnd(EVENTS.length)]);
+      let ei = rnd(EVENTS.length);
+      if (ei === lastEventIdx) ei = (ei + 1) % EVENTS.length;
+      lastEventIdx = ei;
+      queueEvent(EVENTS[ei]);
     }
 
+    placing = null;
     renderAll();
     nextModal();
+    saveGame();
   }
 
   function revealTile(i) {
@@ -399,6 +446,7 @@
           log(`Дань №${n} уплачена. Король доволен. +5 🔬`, 'log--good');
           if (S.tributesPaid >= TRIBUTES_TO_WIN && !S.won) victory();
           renderAll();
+          saveGame();
         },
       });
       if (S.postpones > 0) {
@@ -411,6 +459,7 @@
             S.nextTribute = S.turn + 3;
             log('Король дал отсрочку, но требования выросли.', 'log--bad');
             renderAll();
+            saveGame();
           },
         });
       }
@@ -552,7 +601,7 @@
           (o.need.prod && S.prod < o.need.prod) ||
           (o.need.faith && S.faith < o.need.faith)
         ),
-        fn: () => { o.fn(); renderAll(); },
+        fn: () => { o.fn(); renderAll(); saveGame(); },
       }));
       showModal(ev.title, ev.text, buttons, ev.img);
     });
@@ -637,6 +686,7 @@
           S.techs[t.id] = true;
           log(`Открыта технология «${t.name}»!`, 'log--good');
           renderAll();
+          saveGame();
           openTechRefresh();
         });
         row.appendChild(btn);
@@ -661,23 +711,43 @@
     if (!neighbors4(i).some(n => S.tiles[n].vis === 2)) return;
     if (freeCitizens() < 1) { log('Нет свободных жителей для разведки.', 'log--bad'); return; }
     t.explore = exploreTurns();
-    log(`Разведчик отправился в ${TERRAIN_NAME[t.t].toLowerCase()} (${t.explore} дн.).`);
+    const dir = { grass: 'в луга', forest: 'в лес', mountain: 'в горы', water: 'на воду' };
+    log(`Разведчик отправился ${dir[t.t]} (${t.explore} дн.).`);
+    floatText(i, '🔦', 'floater--good');
     renderAll();
+    saveGame();
+  }
+
+  function canPlace(i, key) {
+    const t = S.tiles[i];
+    return t.vis === 2 && !t.b && t.c !== 'beast' && t.t === BUILDINGS[key].terr;
+  }
+
+  function placeTargets(key) {
+    const out = [];
+    for (let i = 0; i < S.tiles.length; i++) {
+      if (canPlace(i, key)) out.push(i);
+    }
+    return out;
   }
 
   function build(i, key) {
-    const t = S.tiles[i];
+    if (i < 0 || !canPlace(i, key)) return;
     const cost = buildCost(key);
-    if (t.vis !== 2 || t.b || t.c === 'beast' || !canAfford(cost)) return;
+    if (!canAfford(cost)) return;
+    const t = S.tiles[i];
     pay(cost);
     t.b = key;
     t.pop = performance.now();
     rebuildPaths();
     if (key === 'house') S.cap += 3;
     S.sci += 2;
+    placing = null;
+    selected = i;
     log(`Построен объект «${BUILDINGS[key].name}». +2 🔬`, 'log--good');
     floatText(i, '⚒️', 'floater--good');
     renderAll();
+    saveGame();
   }
 
   function fightBeast(i) {
@@ -697,6 +767,7 @@
       if (S.pop <= 0) return gameOver('Последний житель погиб в схватке со зверем.');
     }
     renderAll();
+    saveGame();
   }
 
   function tameBeast(i) {
@@ -707,6 +778,7 @@
     log('Зверь приручён и теперь помогает добывать еду! +2 🍞 в день', 'log--good');
     floatText(i, '🐾', 'floater--good');
     renderAll();
+    saveGame();
   }
 
   /* ==========================================================
@@ -902,9 +974,9 @@
       }
     }, 10, 11));
 
-    // золотая обводка ромба выбранного тайла
-    sprites.select = makeSprite(g => {
-      g.strokeStyle = '#efc76e';
+    // обводка ромба тайла: золотая (выбор) и зелёная (размещение)
+    const diamondOutline = (color) => makeSprite(g => {
+      g.strokeStyle = color;
       g.lineWidth = 2 * Z;
       g.beginPath();
       g.moveTo(TW * Z / 2, Z);
@@ -914,6 +986,8 @@
       g.closePath();
       g.stroke();
     }, TW * Z, TH * Z);
+    sprites.select = diamondOutline('#efc76e');
+    sprites.place = diamondOutline('#7fb069');
 
     // плодородная земля: золотые колосья по ромбу
     sprites.fertile = makeSprite(g => {
@@ -1113,7 +1187,11 @@
           }
         }
 
-        if (i === selected) {
+        if (placing && canPlace(i, placing)) {
+          ctx.globalAlpha = reduceMotion ? .9 : .55 + .4 * Math.sin(now / 240 + i);
+          ctx.drawImage(sprites.place, sx * Z, sy * Z);
+          ctx.globalAlpha = 1;
+        } else if (i === selected && !placing) {
           ctx.globalAlpha = reduceMotion ? 1 : .65 + .35 * Math.sin(now / 280);
           ctx.drawImage(sprites.select, sx * Z, sy * Z);
           ctx.globalAlpha = 1;
@@ -1133,6 +1211,12 @@
   // ---------- Инфо о выбранном тайле ----------
   function renderPanel() {
     const panel = document.getElementById('panel');
+    if (placing) {
+      panel.hidden = false;
+      panel.innerHTML = `<h3>Стройка: ${BUILDINGS[placing].name}</h3>` +
+        `<p>Коснитесь подсвеченного тайла, чтобы построить. Тап мимо — отмена.</p>`;
+      return;
+    }
     if (selected < 0) { panel.hidden = true; return; }
     panel.hidden = false;
     const t = S.tiles[selected];
@@ -1220,25 +1304,31 @@
     const box = document.getElementById('build-cards');
     box.innerHTML = '';
     const tab = BUILD_TABS.find(t => t.id === activeTab);
-    const sel = selected >= 0 ? S.tiles[selected] : null;
     for (const key of tab.keys) {
       const b = BUILDINGS[key];
       const cost = buildCost(key);
       const card = document.createElement('button');
-      card.className = 'card';
+      card.className = 'card' + (placing === key ? ' is-active' : '');
       const img = (typeof ASSETS !== 'undefined' && ASSETS[BUILD_ASSET[key]])
         ? `<img src="${ASSETS[BUILD_ASSET[key]]}" alt="">` : '';
+      const poor = !canAfford(cost);
       card.innerHTML = img +
         `<span class="card__name">${b.name}</span>` +
-        `<span class="card__cost">` +
+        `<span class="card__cost${poor ? ' is-poor' : ''}">` +
         (cost.prod ? `<span>${costIcon('prod')} ${cost.prod}</span>` : '') +
         (cost.gold ? `<span>${costIcon('gold')} ${cost.gold}</span>` : '') +
         `</span>`;
-      const placeOk = sel && sel.vis === 2 && !sel.b && sel.c !== 'beast' && sel.t === b.terr;
-      card.disabled = S.over || !placeOk || !canAfford(cost);
+      const targets = placeTargets(key);
+      card.disabled = S.over || poor || targets.length === 0;
       card.title = `${b.desc}. Ставится на: ${TERRAIN_NAME[b.terr].toLowerCase()}` +
-        (placeOk ? '' : '. Сначала выберите подходящий тайл');
-      card.addEventListener('click', () => build(selected, key));
+        (targets.length === 0 ? '. Нет подходящих разведанных тайлов'
+          : (poor ? '. Не хватает ресурсов' : ''));
+      card.addEventListener('click', () => {
+        // выбранный подходящий тайл — строим сразу, иначе режим размещения
+        if (selected >= 0 && canPlace(selected, key)) { build(selected, key); return; }
+        placing = placing === key ? null : key;
+        renderAll();
+      });
       box.appendChild(card);
     }
   }
@@ -1474,7 +1564,27 @@
       const d = dx * dx + dy * dy;
       if (d < bestD) { bestD = d; best = i; }
     }
-    selected = (best < 0 || S.tiles[best].vis === 0) ? -1 : best;
+
+    // режим размещения: тап по подсвеченному тайлу строит, мимо — отмена
+    if (placing) {
+      if (best >= 0 && canPlace(best, placing) && canAfford(buildCost(placing))) {
+        build(best, placing);
+      } else {
+        placing = null;
+        renderAll();
+      }
+      return;
+    }
+
+    const next = (best < 0 || S.tiles[best].vis === 0) ? -1 : best;
+    // повторный тап по тайлу тумана с «?» — сразу отправляем разведчика
+    if (next >= 0 && next === selected && S.tiles[next].vis === 1 &&
+        S.tiles[next].explore === 0 &&
+        neighbors4(next).some(n => S.tiles[n].vis === 2) && freeCitizens() > 0) {
+      startExplore(next);
+      return;
+    }
+    selected = next;
     renderAll();
   }
 
@@ -1567,9 +1677,22 @@
   initSprites();
   loadAssets(() => {
     prepareAssets();
-    newGame();
+    if (!loadGame()) newGame();
     updateCompact();
     applyZoom();
     if (!reduceMotion) requestAnimationFrame(loop);
+    // обучающая подсказка при первом запуске
+    let seenHelp = false;
+    try { seenHelp = !!localStorage.getItem(SEEN_HELP_KEY); } catch (e) { seenHelp = true; }
+    if (!seenHelp && !modalOpen) {
+      try { localStorage.setItem(SEEN_HELP_KEY, '1'); } catch (e) {}
+      showModal('👋 Добро пожаловать в Городок!',
+        'Быстрый старт:\n' +
+        '1. Постройте ферму: карточка «Ферма» внизу → тап по зелёному тайлу.\n' +
+        '2. Разведайте туман: два тапа по тайлу с «?».\n' +
+        '3. Жмите НОВЫЙ ДЕНЬ и копите золото и еду — раз в 12 дней король берёт дань.\n\n' +
+        'Прогресс сохраняется автоматически. Удачи!',
+        [{ label: '▶️ Играть', fn: () => {} }], 'castle');
+    }
   });
 })();
