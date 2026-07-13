@@ -146,27 +146,59 @@
   function genMap() {
     const tiles = [];
     for (let i = 0; i < W * H; i++) {
-      const r = Math.random();
-      let t = 'grass';
-      if (r > .85) t = 'water';
-      else if (r > .70) t = 'mountain';
-      else if (r > .48) t = 'forest';
-      tiles.push({ t, vis: 0, b: null, c: null, explore: 0, v: rnd(4), pop: 0, d: null });
+      tiles.push({ t: 'grass', vis: 0, b: null, c: null, explore: 0, v: rnd(4), pop: 0, d: null });
     }
-    // Сглаживание: клетка с 50% перенимает террейн случайного соседа
-    for (let pass = 0; pass < 2; pass++) {
-      for (let i = 0; i < tiles.length; i++) {
-        if (chance(.5)) {
-          const ns = neighbors4(i);
-          tiles[i].t = tiles[ns[rnd(ns.length)]].t;
+    const c = idx(CX, CY);
+    // связная география: кляксы-озёра, лесные массивы, горные гряды —
+    // вместо шума, чтобы карта читалась как настоящая местность
+    const farFromStart = (i) => {
+      const x = i % W, y = (i / W) | 0;
+      return Math.max(Math.abs(x - CX), Math.abs(y - CY)) > 2;
+    };
+    const pickFar = () => {
+      let p = rnd(W * H), guard = 60;
+      while (!farFromStart(p) && guard--) p = rnd(W * H);
+      return p;
+    };
+    const blob = (terr, size) => {
+      const frontier = [pickFar()];
+      const used = new Set();
+      while (size > 0 && frontier.length) {
+        const k = frontier.splice(rnd(frontier.length), 1)[0];
+        if (used.has(k)) continue;
+        used.add(k);
+        if (!farFromStart(k)) continue;
+        tiles[k].t = terr;
+        size--;
+        for (const n of neighbors4(k)) if (!used.has(n) && chance(.75)) frontier.push(n);
+      }
+    };
+    blob('water', 9 + rnd(7));      // большое озеро
+    blob('water', 5 + rnd(5));      // малое озеро
+    blob('forest', 13 + rnd(8));    // лесные массивы
+    blob('forest', 9 + rnd(6));
+    blob('forest', 7 + rnd(5));
+    blob('forest', 5 + rnd(4));
+    for (let r = 0; r < 2; r++) {   // горные гряды-змейки
+      let p = pickFar();
+      for (let s = 0; s < 5 + rnd(4); s++) {
+        if (farFromStart(p)) {
+          tiles[p].t = 'mountain';
+          if (chance(.5)) {
+            const side = neighbors4(p).filter(farFromStart);
+            if (side.length) tiles[side[rnd(side.length)]].t = 'mountain';
+          }
         }
+        const ns = neighbors4(p).filter(farFromStart);
+        if (!ns.length) break;
+        p = ns[rnd(ns.length)];
       }
     }
-    // Гарантии старта: центр — луг с ратушей, вокруг есть луга и лес
-    const c = idx(CX, CY);
+    // Гарантии старта: центр — луг с ратушей, вокруг стройплощадки и лес
     tiles[c].t = 'grass';
     tiles[c].b = 'townhall';
     tiles[c].vis = 2;
+    for (const n of neighbors8(c)) if (tiles[n].t === 'water') tiles[n].t = 'grass';
     tiles[idx(CX - 1, CY)].t = 'grass';
     tiles[idx(CX + 1, CY)].t = 'grass';
     tiles[idx(CX, CY - 1)].t = 'forest';
@@ -835,6 +867,7 @@
   const TIMG = {};      // тайлы: {c, top} + варианты fog/hidden
   const BIMG = {};      // постройки
   const CIMG = {};      // существа
+  const PIMG = [];      // пропсы-рассев: деревья, кусты, валуны
 
   const TILE_ASSET = {
     grass: ['tl_grass', 'tl_hills'],
@@ -850,13 +883,14 @@
   };
   const SMOKE_BUILDINGS = { townhall: 1, house: 1, tavern: 1, lumber: 1 };
 
+  // Апскейл пиксель-арта БЕЗ сглаживания: чёткие крупные пиксели,
+  // как на референсах, вместо «мыла» от smooth-масштабирования
   function scaleToWidth(img, w) {
     const h = Math.max(1, Math.round(img.height * w / img.width));
     const c = document.createElement('canvas');
     c.width = w; c.height = h;
     const g = c.getContext('2d');
-    g.imageSmoothingEnabled = true;
-    g.imageSmoothingQuality = 'high';
+    g.imageSmoothingEnabled = false;
     g.drawImage(img, 0, 0, w, h);
     return c;
   }
@@ -868,8 +902,7 @@
     const c = document.createElement('canvas');
     c.width = w; c.height = h;
     const g = c.getContext('2d');
-    g.imageSmoothingEnabled = true;
-    g.imageSmoothingQuality = 'high';
+    g.imageSmoothingEnabled = false;
     g.drawImage(img, 0, 0, w, h);
     return c;
   }
@@ -901,7 +934,7 @@
     return o;
   }
 
-  const OVERSCAN = 4; // тайлы чуть шире ромба, чтобы не было швов
+  const OVERSCAN = 6; // тайлы чуть шире ромба, чтобы не было швов
 
   function prepTile(key) {
     const im = RAW[key];
@@ -976,10 +1009,16 @@
     }
     for (const key in BUILD_ASSET) {
       const im = RAW[BUILD_ASSET[key]];
-      if (im && im.width) BIMG[key] = fitCanvas(im, 46 * Z, 52 * Z);
+      if (im && im.width) BIMG[key] = fitCanvas(im, 58 * Z, 64 * Z);
     }
-    if (RAW.a_wolf && RAW.a_wolf.width) CIMG.beast = fitCanvas(RAW.a_wolf, 26 * Z, 26 * Z);
-    if (RAW.a_deer && RAW.a_deer.width) CIMG.tamed = fitCanvas(RAW.a_deer, 26 * Z, 26 * Z);
+    if (RAW.a_wolf && RAW.a_wolf.width) CIMG.beast = fitCanvas(RAW.a_wolf, 30 * Z, 30 * Z);
+    if (RAW.a_deer && RAW.a_deer.width) CIMG.tamed = fitCanvas(RAW.a_deer, 30 * Z, 30 * Z);
+    // одиночные деревья, кусты и валуны для рассева по ландшафту
+    const PROP_KEYS = ['p_pine2', 'p_pine', 'p_pine3', 'p_bush', 'p_rock'];
+    PIMG.length = 0;
+    for (const k of PROP_KEYS) {
+      if (RAW[k] && RAW[k].width) PIMG.push(fitCanvas(RAW[k], 26 * Z, 38 * Z));
+    }
     // иконки ресурсов, герб и угловые кнопки
     const hud = {
       'ico-pop': 'r_pop', 'ico-food': 'r_food', 'ico-prod': 'r_workers',
@@ -1264,6 +1303,24 @@
             ctx.drawImage(sprites.qmark, (sx + TW / 2 - 4.5) * Z, (sy + 5 + bob) * Z, 9 * Z, 12 * Z);
           }
         } else {
+          // рассев деревьев/кустов/валунов: сшивает тайлы в единый ландшафт
+          if (PIMG.length && !t.b) {
+            const h1 = (i * 2654435761) >>> 0;
+            let n = 0;
+            if (t.t === 'forest') n = 2;
+            else if (t.t === 'grass') n = h1 % 3;
+            else if (t.t === 'mountain') n = h1 % 2;
+            if (t.c || t.d === 'pen' || t.d === 'hay') n = Math.min(n, 1);
+            for (let k = 0; k < n; k++) {
+              const hh = ((i * 73856093) ^ ((k + 1) * 19349663)) >>> 0;
+              const im = t.t === 'mountain'
+                ? PIMG[PIMG.length - 1]                       // на горах — валуны
+                : PIMG[hh % (t.t === 'forest' ? 3 : PIMG.length)];
+              const bx = sx + 8 + (hh % 48);
+              const by = sy + 6 + ((hh >> 6) % 24);
+              ctx.drawImage(im, bx * Z - im.width / 2, by * Z - im.height);
+            }
+          }
           // масштаб «появления»
           let scale = 1;
           if (!reduceMotion && t.pop && now - t.pop < 260) {
