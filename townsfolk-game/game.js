@@ -143,69 +143,42 @@
   }
 
   // ---------- Генерация карты ----------
+  // География «пирога»: земля запечена одним полотном (ground_base),
+  // раскладка тайлов повторяет её рельеф. g луг, f лес, m горы, w вода.
+  const MAP_LAYOUT = [
+    'ggggggffggggggg',
+    'ggfffgffggggggg',
+    'gffffggggfgmmmg',
+    'ggffgggfffgmmmg',
+    'ggggggggffggmgg',
+    'ffggggggggggggg',
+    'ffgwwggfggfffgg',
+    'gggwwwggggfffgg',
+    'gmmgwwgggggfgfg',
+    'gmggggggggggffg',
+    'gggggggwwgggffg',
+    'gggfffggwwggggg',
+    'ggggfffggwwggfg',
+    'gggggfggggggffg',
+    'ggggggggggggggg',
+  ];
+  const LAYOUT_T = { g: 'grass', f: 'forest', m: 'mountain', w: 'water' };
+
   function genMap() {
     const tiles = [];
     for (let i = 0; i < W * H; i++) {
       tiles.push({ t: 'grass', vis: 0, b: null, c: null, explore: 0, v: rnd(4), pop: 0, d: null });
     }
     const c = idx(CX, CY);
-    // связная география: кляксы-озёра, лесные массивы, горные гряды —
-    // вместо шума, чтобы карта читалась как настоящая местность
-    const farFromStart = (i) => {
-      const x = i % W, y = (i / W) | 0;
-      return Math.max(Math.abs(x - CX), Math.abs(y - CY)) > 2;
-    };
-    const pickFar = () => {
-      let p = rnd(W * H), guard = 60;
-      while (!farFromStart(p) && guard--) p = rnd(W * H);
-      return p;
-    };
-    const blob = (terr, size) => {
-      const frontier = [pickFar()];
-      const used = new Set();
-      while (size > 0 && frontier.length) {
-        const k = frontier.splice(rnd(frontier.length), 1)[0];
-        if (used.has(k)) continue;
-        used.add(k);
-        if (!farFromStart(k)) continue;
-        tiles[k].t = terr;
-        size--;
-        for (const n of neighbors4(k)) if (!used.has(n) && chance(.75)) frontier.push(n);
-      }
-    };
-    blob('water', 9 + rnd(7));      // большое озеро
-    blob('water', 5 + rnd(5));      // малое озеро
-    blob('forest', 13 + rnd(8));    // лесные массивы
-    blob('forest', 9 + rnd(6));
-    blob('forest', 7 + rnd(5));
-    blob('forest', 5 + rnd(4));
-    for (let r = 0; r < 2; r++) {   // горные гряды-змейки
-      let p = pickFar();
-      for (let s = 0; s < 5 + rnd(4); s++) {
-        if (farFromStart(p)) {
-          tiles[p].t = 'mountain';
-          if (chance(.5)) {
-            const side = neighbors4(p).filter(farFromStart);
-            if (side.length) tiles[side[rnd(side.length)]].t = 'mountain';
-          }
-        }
-        const ns = neighbors4(p).filter(farFromStart);
-        if (!ns.length) break;
-        p = ns[rnd(ns.length)];
+    for (let y = 0; y < H; y++) {
+      for (let x = 0; x < W; x++) {
+        tiles[idx(x, y)].t = LAYOUT_T[MAP_LAYOUT[y][x]] || 'grass';
       }
     }
-    // Гарантии старта: центр — луг с ратушей, вокруг стройплощадки и лес
+    // Старт: центр — луг с ратушей, рядом гарантированный лес
     tiles[c].t = 'grass';
     tiles[c].b = 'townhall';
     tiles[c].vis = 2;
-    for (const n of neighbors8(c)) if (tiles[n].t === 'water') tiles[n].t = 'grass';
-    tiles[idx(CX - 1, CY)].t = 'grass';
-    tiles[idx(CX + 1, CY)].t = 'grass';
-    tiles[idx(CX, CY - 1)].t = 'forest';
-    // Гарантия гор где-то на карте
-    if (!tiles.some(tl => tl.t === 'mountain')) {
-      tiles[idx(rnd(W), rnd(3))].t = 'mountain';
-    }
     // Стартовое поселение: ратуша + всё кольцо вокруг уже освоено
     for (const n of neighbors8(c)) tiles[n].vis = 2;
     for (const s of [c, ...neighbors8(c)]) {
@@ -1099,6 +1072,7 @@
         PIMG.push({ img: mirror(RAW[k]), lw: RAW[k].width, lh: RAW[k].height });
         PIMG.push(scaledProp(RAW[k], .78));   // молодое дерево
         PIMG.push(scaledProp(RAW[k], 1.18));  // старое высокое
+        PIMG.push(scaledProp(RAW[k], 1.45));  // лесной великан
       }
     }
     // луга: дубы, цветы, пень — редкие одиночные акценты
@@ -1209,6 +1183,15 @@
     sprites.lily = makeSprite(g => {
       px(g, '#3f7a44', 0, 1, 8, 4); px(g, '#54924e', 1, 1, 4, 2); px(g, '#c47ba0', 5, 0, 2, 2);
     }, 9, 6);
+    // рыбное место: круги на воде и спинки рыб
+    sprites.fishmark = makeSprite(g => {
+      g.strokeStyle = 'rgba(210,230,240,.6)';
+      g.lineWidth = 1;
+      g.beginPath(); g.ellipse(9, 7, 8, 3.5, 0, 0, Math.PI * 2); g.stroke();
+      g.beginPath(); g.ellipse(19, 9, 5, 2.2, 0, 0, Math.PI * 2); g.stroke();
+      px(g, '#16323e', 6, 6, 5, 2); px(g, '#16323e', 10, 5, 2, 2);
+      px(g, '#16323e', 16, 8, 4, 2); px(g, '#16323e', 19, 7, 2, 2);
+    }, 28, 14);
 
     sprites.smoke = [0, 1].map(f => makeSprite(g => {
       const a = '#b2ac9e', b = '#8f8a7d';
@@ -1495,52 +1478,60 @@
     g.clearRect(0, 0, CANW, CANH);
     const put = (td, sx, sy) => g.drawImage(td.c,
       Math.round(sx + TW / 2 - td.c.width / 2), Math.round(sy + TH / 2 - td.top));
-    // 1: базовая травяная сетка (боковины дают обрыв по краю карты)
-    for (let s = 0; s <= W + H - 2; s++) {
-      for (let x = Math.max(0, s - H + 1); x <= Math.min(W - 1, s); x++) {
-        const i = idx(x, s - x);
-        const { sx, sy } = tileOrigin(i);
-        put(TIMG.grass[S.tiles[i].v % TIMG.grass.length], sx, sy);
+    // «пирог»: земля с озёрами и светом запечена одним полотном
+    const baked = RAW.ground_base && RAW.ground_base.width;
+    if (baked) {
+      g.drawImage(RAW.ground_base, 0, 0);
+    } else {
+      // запасной путь: сборка на лету (сетка + бомбинг + вода)
+      for (let s = 0; s <= W + H - 2; s++) {
+        for (let x = Math.max(0, s - H + 1); x <= Math.min(W - 1, s); x++) {
+          const i = idx(x, s - x);
+          const { sx, sy } = tileOrigin(i);
+          put(TIMG.grass[S.tiles[i].v % TIMG.grass.length], sx, sy);
+        }
       }
-    }
-    // 2: бомбинг — пятна травы в узлах и межузлиях стирают сетку
-    if (SURF.length) {
-      for (let y = 0; y < H; y++) {
-        for (let x = 0; x < W; x++) {
-          const i = idx(x, y);
-          const [cx, cy] = tileCenter(i);
-          const hh = (i * 2246822519) >>> 0;
-          stampSurf(g, hh, cx, cy);
-          if (x < W - 1 && y < H - 1) stampSurf(g, (hh ^ 0x9e3779b9) >>> 0, cx, cy + TH / 2);
+      if (SURF.length) {
+        for (let y = 0; y < H; y++) {
+          for (let x = 0; x < W; x++) {
+            const i = idx(x, y);
+            const [cx, cy] = tileCenter(i);
+            const hh = (i * 2246822519) >>> 0;
+            stampSurf(g, hh, cx, cy);
+            if (x < W - 1 && y < H - 1) stampSurf(g, (hh ^ 0x9e3779b9) >>> 0, cx, cy + TH / 2);
+          }
         }
       }
     }
-    // 3: фичи местности поверх ровной земли
+    // фичи поверх земли: руды, поля (вода уже в пироге)
     for (let s = 0; s <= W + H - 2; s++) {
       for (let x = Math.max(0, s - H + 1); x <= Math.min(W - 1, s); x++) {
         const y = s - x;
         const i = idx(x, y);
         const t = S.tiles[i];
         const { sx, sy } = tileOrigin(i);
-        if (t.t === 'water') put(TIMG.water[t.v % TIMG.water.length], sx, sy);
-        else if (t.c && TIMG[t.c] && TIMG[t.c].c) put(TIMG[t.c], sx, sy);
-        else if (t.t === 'grass' && PLAINS_SOFT && !t.b && plainsHash(x, y)) {
+        if (t.t === 'water') {
+          if (!baked) put(TIMG.water[t.v % TIMG.water.length], sx, sy);
+        } else if (t.c && t.c !== 'fish' && TIMG[t.c] && TIMG[t.c].c) {
+          put(TIMG[t.c], sx, sy);
+        } else if (!baked && t.t === 'grass' && PLAINS_SOFT && !t.b && plainsHash(x, y)) {
           const [cx, cy] = tileCenter(i);
           g.drawImage(PLAINS_SOFT, Math.round(cx - PLAINS_SOFT.width / 2),
             Math.round(cy - PLAINS_SOFT.height / 2));
         }
       }
     }
-    // 4: крупный свет — центр поселения теплее, углы карты темнее
-    const [hx, hy] = tileCenter(idx(CX, CY));
-    const rg = g.createRadialGradient(hx, hy, 60, hx, hy, CANW * .62);
-    rg.addColorStop(0, 'rgba(255,236,180,.07)');
-    rg.addColorStop(.5, 'rgba(0,0,0,0)');
-    rg.addColorStop(1, 'rgba(8,12,18,.16)');
-    g.globalCompositeOperation = 'source-atop';
-    g.fillStyle = rg;
-    g.fillRect(0, 0, CANW, CANH);
-    g.globalCompositeOperation = 'source-over';
+    if (!baked) {
+      const [hx, hy] = tileCenter(idx(CX, CY));
+      const rg = g.createRadialGradient(hx, hy, 60, hx, hy, CANW * .62);
+      rg.addColorStop(0, 'rgba(255,236,180,.07)');
+      rg.addColorStop(.5, 'rgba(0,0,0,0)');
+      rg.addColorStop(1, 'rgba(8,12,18,.16)');
+      g.globalCompositeOperation = 'source-atop';
+      g.fillStyle = rg;
+      g.fillRect(0, 0, CANW, CANH);
+      g.globalCompositeOperation = 'source-over';
+    }
   }
 
   function render(now) {
@@ -1615,9 +1606,8 @@
             ctx.drawImage(sprites.qmark, sx + TW / 2 - 13, sy + 5 + bob, 27, 36);
           }
         } else {
-          // берег: тёмная кромка «врезает» воду в землю, у суши — камыш
+          // берег: камыш у суши, кувшинки и рыбные места на воде
           if (t.t === 'water') {
-            const cx0 = sx + TW / 2, cy0 = sy + TH / 2;
             const EDGES = [
               [-1, 0, [sx, sy + TH / 2], [sx + TW / 2, sy]],
               [0, -1, [sx + TW / 2, sy], [sx + TW, sy + TH / 2]],
@@ -1627,13 +1617,6 @@
             for (const [dx2, dy2, A, B] of EDGES) {
               const nx2 = x + dx2, ny2 = y + dy2;
               if (inMap(nx2, ny2) && S.tiles[idx(nx2, ny2)].t === 'water') continue;
-              const k2 = .08;
-              ctx.strokeStyle = 'rgba(10,20,16,.32)';
-              ctx.lineWidth = 4;
-              ctx.beginPath();
-              ctx.moveTo(A[0] + (cx0 - A[0]) * k2, A[1] + (cy0 - A[1]) * k2);
-              ctx.lineTo(B[0] + (cx0 - B[0]) * k2, B[1] + (cy0 - B[1]) * k2);
-              ctx.stroke();
               const hh = ((i * 51787) ^ (dx2 * 3 + dy2 * 7)) >>> 0;
               if (hh % 2 === 0 && sprites.reed) {
                 const f = .3 + (hh % 40) / 100;
@@ -1644,6 +1627,9 @@
             const hl = (i * 92821) >>> 0;
             if (hl % 3 === 0 && sprites.lily) {
               ctx.drawImage(sprites.lily, sx + 30 + (hl % 40), sy + 16 + ((hl >> 4) % 16));
+            }
+            if (t.c === 'fish' && sprites.fishmark) {
+              ctx.drawImage(sprites.fishmark, sx + TW / 2 - 14, sy + TH / 2 - 7);
             }
           }
           // микродекор: у каждого тайла суши 1-2 мелочи (камни, кочки)
@@ -1669,11 +1655,11 @@
               ctx.drawImage(pk.img, Math.round(px2 - pk.lw / 2), Math.round(py2 - pk.lh), pk.lw, pk.lh);
             }
             let pool = null, n = 0;
-            if (t.t === 'forest') { pool = PIMG; n = 3 + h1 % 2; }
+            if (t.t === 'forest') { pool = PIMG; n = 6 + h1 % 2; }
             else if (t.t === 'mountain' && MOUNT.length) { pool = MOUNT; n = 1 + h1 % 2; }
             else if (t.t === 'grass' && nearTown) {
               if (VILLAGE.length && (h1 % 3) === 0) { pool = VILLAGE; n = 1; }
-            } else if (t.t === 'grass' && MEADOW.length && (h1 % 3) === 0) {
+            } else if (t.t === 'grass' && MEADOW.length && (h1 % 4) === 0) {
               pool = MEADOW; n = 1;
             }
             if (t.c || t.d) n = Math.min(n, 1);
@@ -1685,6 +1671,7 @@
               const pr = pool[hh % pool.length];
               picks.push([pr, sx + 8 + (hh % 84), sy + 6 + ((hh >> 6) % 40)]);
             }
+            picks.sort((a, b) => a[2] - b[2]);  // задние деревья — первыми
             const shA = t.t === 'forest' ? .12 : .18;
             for (const [pr, bx, by] of picks) {
               groundShadow(bx, by - 1, pr.lw * .34, pr.lw * .13, shA);
@@ -2022,12 +2009,23 @@
   let walkers = [];
 
   function landTiles() {
+    // жители держатся поселения: суша не дальше 3 клеток от построек
+    const blds = [];
+    for (let j = 0; j < S.tiles.length; j++) {
+      if (S.tiles[j].b) blds.push([j % W, (j / W) | 0]);
+    }
     const out = [];
+    const near = [];
     for (let i = 0; i < S.tiles.length; i++) {
       const t = S.tiles[i];
-      if (t.vis === 2 && t.t !== 'water') out.push(i);
+      if (t.vis !== 2 || t.t === 'water') continue;
+      out.push(i);
+      const x = i % W, y = (i / W) | 0;
+      if (blds.some(([bx, by]) => Math.max(Math.abs(x - bx), Math.abs(y - by)) <= 3)) {
+        near.push(i);
+      }
     }
-    return out;
+    return near.length > 4 ? near : out;
   }
 
   function tileCenter(i) {
