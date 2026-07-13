@@ -215,10 +215,10 @@
     for (const t of tiles) {
       if (t.t !== 'grass') continue;
       const r = Math.random();
-      if (r < .16) t.d = 'pen';
-      else if (r < .28) t.d = 'hay';
-      else if (r < .36) t.d = 'rocks';
-      else if (r < .52) t.d = 'flowers';
+      if (r < .05) t.d = 'pen';
+      else if (r < .10) t.d = 'hay';
+      else if (r < .14) t.d = 'rocks';
+      else if (r < .24) t.d = 'flowers';
     }
     return tiles;
   }
@@ -914,14 +914,25 @@
   }
 
   // Тайл кладётся в мир 1:1 (никакого масштабирования): середина ромба
-  // ассета (самая широкая строка) совмещается с серединой ромба сетки.
+  // ассета совмещается с серединой ромба сетки. Середина — ПЕРВАЯ строка
+  // почти полной ширины: самая широкая строка может оказаться кроной
+  // деревьев, и тогда тайл «проседает» относительно соседей.
   function prepTile(key) {
     const im = RAW[key];
     if (!im || !im.width) return null;
     const c = document.createElement('canvas');
     c.width = im.width; c.height = im.height;
     c.getContext('2d').drawImage(im, 0, 0);
-    const top = widestRow(c); // середина ромба в пикселях исходника
+    const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
+    let top = -1;
+    for (let y = 0; y < c.height && top < 0; y++) {
+      let x0 = -1, x1 = -1;
+      for (let x = 0; x < c.width; x++) {
+        if (d[(y * c.width + x) * 4 + 3] > 40) { if (x0 < 0) x0 = x; x1 = x; }
+      }
+      if (x1 - x0 + 1 >= c.width - 3) top = y;
+    }
+    if (top < 0) top = widestRow(c);
     return { c, fog: darken(c, .55), hidden: darken(c, .8), top };
   }
 
@@ -1231,12 +1242,6 @@
     dctx.drawImage(world, 0, 0, canvas.width, canvas.height);
   }
 
-  // блики на воде (два кадра)
-  const SPARKS = [
-    [[20, 12], [40, 18], [30, 22]],
-    [[24, 14], [44, 16], [34, 24]],
-  ];
-
   // --- Дороги между постройками (дерево кратчайших связей от ратуши) ---
   let PATHS = [];
 
@@ -1404,14 +1409,6 @@
               ctx.globalAlpha = .7;
               ctx.drawImage(sprites.smoke[f], sx + TW / 2 + 14, by - 26 - rise, 30, 33);
               ctx.globalAlpha = 1;
-            }
-          }
-          // блики на воде
-          if (t.t === 'water' && !t.b && !reduceMotion) {
-            const f = Math.floor(now / 650) % 2;
-            ctx.fillStyle = 'rgba(150,200,235,.8)';
-            for (const [ox, oy] of SPARKS[(f + i) % 2]) {
-              ctx.fillRect(sx + ox * 1.5, sy + oy * 1.5, 3, 3);
             }
           }
         }
