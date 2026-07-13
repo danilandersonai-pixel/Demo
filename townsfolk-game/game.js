@@ -936,11 +936,17 @@
 
   const OVERSCAN = 6; // тайлы чуть шире ромба, чтобы не было швов
 
+  // Тайлы храним в НАТИВНОМ разрешении и растягиваем на экран одним
+  // шагом без сглаживания — так резкость максимальна на любом зуме.
   function prepTile(key) {
     const im = RAW[key];
     if (!im || !im.width) return null;
-    const c = scaleToWidth(im, (TW + OVERSCAN) * Z);
-    const top = widestRow(c) - (TH * Z) / 2;
+    const c = document.createElement('canvas');
+    c.width = im.width; c.height = im.height;
+    c.getContext('2d').drawImage(im, 0, 0);
+    // смещение вершины ромба в долях высоты исходника
+    const thNative = TH * im.width / (TW + OVERSCAN);
+    const top = widestRow(c) - thNative / 2;
     return { c, fog: darken(c, .55), hidden: darken(c, .8), top };
   }
 
@@ -959,12 +965,13 @@
     }
   }
 
-  // Запасной ромб, если ассет не загрузился
+  // Запасной ромб, если ассет не загрузился (в «нативном» разрешении 2×)
   function fallbackTile(colTop, colSide) {
+    const K = 2;
     const c = document.createElement('canvas');
-    c.width = TW * Z; c.height = (TH + 14) * Z;
+    c.width = (TW + OVERSCAN) * K; c.height = (TH + 14) * K;
     const g = c.getContext('2d');
-    const w = TW * Z, h = TH * Z, d = 14 * Z;
+    const w = c.width, h = TH * (c.width / (TW + OVERSCAN)), d = 14 * K;
     g.fillStyle = colSide;
     g.beginPath();
     g.moveTo(0, h / 2); g.lineTo(w / 2, h); g.lineTo(w, h / 2);
@@ -1007,17 +1014,22 @@
       const t = prepTile(DEPOSIT_ASSET[c]);
       if (t) TIMG[c] = t;
     }
+    // спрайты храним нативно + логический размер на карте {img, lw, lh}
+    const fitLogical = (im, maxW, maxH) => {
+      const s = Math.min(maxW / im.width, maxH / im.height);
+      return { img: im, lw: im.width * s, lh: im.height * s };
+    };
     for (const key in BUILD_ASSET) {
       const im = RAW[BUILD_ASSET[key]];
-      if (im && im.width) BIMG[key] = fitCanvas(im, 58 * Z, 64 * Z);
+      if (im && im.width) BIMG[key] = fitLogical(im, 58, 64);
     }
-    if (RAW.a_wolf && RAW.a_wolf.width) CIMG.beast = fitCanvas(RAW.a_wolf, 30 * Z, 30 * Z);
-    if (RAW.a_deer && RAW.a_deer.width) CIMG.tamed = fitCanvas(RAW.a_deer, 30 * Z, 30 * Z);
+    if (RAW.a_wolf && RAW.a_wolf.width) CIMG.beast = fitLogical(RAW.a_wolf, 30, 30);
+    if (RAW.a_deer && RAW.a_deer.width) CIMG.tamed = fitLogical(RAW.a_deer, 30, 30);
     // одиночные деревья, кусты и валуны для рассева по ландшафту
     const PROP_KEYS = ['p_pine2', 'p_pine', 'p_pine3', 'p_bush', 'p_rock'];
     PIMG.length = 0;
     for (const k of PROP_KEYS) {
-      if (RAW[k] && RAW[k].width) PIMG.push(fitCanvas(RAW[k], 26 * Z, 38 * Z));
+      if (RAW[k] && RAW[k].width) PIMG.push(fitLogical(RAW[k], 26, 38));
     }
     // иконки ресурсов, герб и угловые кнопки
     const hud = {
@@ -1188,6 +1200,10 @@
   canvas.height = CANH * Z;
   const ctx = canvas.getContext('2d');
   ctx.imageSmoothingEnabled = false;
+  // RS — «пикселей канваса на логическую единицу»; applyZoom подгоняет
+  // разрешение канваса под фактический размер на экране × dpr, поэтому
+  // браузер ничего не пережимает и картинка максимально резкая
+  let RS = Z;
 
   // блики на воде (два кадра)
   const SPARKS = [
@@ -1235,16 +1251,16 @@
         const xx = ax + (bx - ax) * f + j * ((by - ay) / dist);
         const yy = ay + (by - ay) * f - j * ((bx - ax) / dist) * .5;
         ctx.fillStyle = (k % 2) ? '#8a6a42' : '#7d5f3a';
-        ctx.fillRect(Math.round(xx - 1) * Z, Math.round(yy) * Z, 2 * Z, Z);
+        ctx.fillRect(Math.round(xx - 1) * RS, Math.round(yy) * RS, 2 * RS, RS);
         ctx.fillStyle = 'rgba(60,45,25,.5)';
-        ctx.fillRect(Math.round(xx - 1) * Z, Math.round(yy + 1) * Z, 2 * Z, Z);
+        ctx.fillRect(Math.round(xx - 1) * RS, Math.round(yy + 1) * RS, 2 * RS, RS);
       }
     }
   }
 
   function render(now) {
     ctx.fillStyle = '#10161a';
-    ctx.fillRect(0, 0, CANW * Z, CANH * Z);
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
     // проход 1: террейн и наземный декор (по диагоналям)
     for (let s = 0; s <= W + H - 2; s++) {
       for (let x = Math.max(0, s - H + 1); x <= Math.min(W - 1, s); x++) {
@@ -1260,11 +1276,16 @@
           td = list[t.v % list.length];
         }
         const img = t.vis === 0 ? td.hidden : (t.vis === 1 ? td.fog : td.c);
-        ctx.drawImage(img, (sx - OVERSCAN / 2) * Z, sy * Z - td.top);
+        // один шаг масштабирования: нативный спрайт → экранное разрешение
+        const dw = (TW + OVERSCAN) * RS;
+        const k = dw / img.width;
+        ctx.drawImage(img, (sx - OVERSCAN / 2) * RS, sy * RS - td.top * k, dw, img.height * k);
         if (t.vis !== 2) continue;
-        if (t.c === 'fertile' && !t.b) ctx.drawImage(sprites.fertile, sx * Z, sy * Z);
+        if (t.c === 'fertile' && !t.b) {
+          ctx.drawImage(sprites.fertile, sx * RS, sy * RS, TW * RS, TH * RS);
+        }
         if (t.d && !t.b && !t.c && sprites[DECOR_SPRITE[t.d]]) {
-          ctx.drawImage(sprites[DECOR_SPRITE[t.d]], sx * Z, sy * Z);
+          ctx.drawImage(sprites[DECOR_SPRITE[t.d]], sx * RS, sy * RS, TW * RS, TH * RS);
         }
       }
     }
@@ -1283,24 +1304,26 @@
           // неразведанное скрыто сплошной пеленой облаков
           const drift = reduceMotion ? 0 : Math.sin(now / 2600 + i * 1.7) * 2;
           const ox = ((i * 53) % 3 - 1) * 7, oy = ((i * 29) % 3 - 1) * 4;
+          const cw = 104 * RS, chh = 54 * RS;
+          const cl = (v, xx, yy) => ctx.drawImage(sprites.cloud[v % 4], xx * RS, yy * RS, cw, chh);
           ctx.globalAlpha = .94;
-          ctx.drawImage(sprites.cloud[(t.v + i) % 4], (sx - 20 + ox + drift) * Z, (sy - 12 + oy) * Z);
+          cl(t.v + i, sx - 20 + ox + drift, sy - 12 + oy);
           // крайние тайлы: дублируем облако наружу, пряча тёмный край ромба
           const gx = i % W, gy = (i / W) | 0;
-          if (gx === 0) ctx.drawImage(sprites.cloud[(t.v + 1) % 4], (sx - 52 + ox) * Z, (sy + 2) * Z);
-          if (gx === W - 1) ctx.drawImage(sprites.cloud[(t.v + 2) % 4], (sx + 14 + ox) * Z, (sy + 2) * Z);
-          if (gy === 0) ctx.drawImage(sprites.cloud[(t.v + 3) % 4], (sx + 12 + ox) * Z, (sy - 24) * Z);
-          if (gy === H - 1) ctx.drawImage(sprites.cloud[(t.v + 1) % 4], (sx - 16 + ox) * Z, (sy + 14) * Z);
+          if (gx === 0) cl(t.v + 1, sx - 52 + ox, sy + 2);
+          if (gx === W - 1) cl(t.v + 2, sx + 14 + ox, sy + 2);
+          if (gy === 0) cl(t.v + 3, sx + 12 + ox, sy - 24);
+          if (gy === H - 1) cl(t.v + 1, sx - 16 + ox, sy + 14);
           ctx.globalAlpha = 1;
           continue;
         }
 
         if (t.vis === 1) {
           if (t.explore > 0) {
-            ctx.drawImage(sprites.hourglass, (sx + TW / 2 - 4.5) * Z, (sy + 6) * Z, 9 * Z, 12 * Z);
+            ctx.drawImage(sprites.hourglass, (sx + TW / 2 - 4.5) * RS, (sy + 6) * RS, 9 * RS, 12 * RS);
           } else if (neighbors4(i).some(n => S.tiles[n].vis === 2)) {
             const bob = reduceMotion ? 0 : Math.round(Math.sin(now / 420 + i) * 2);
-            ctx.drawImage(sprites.qmark, (sx + TW / 2 - 4.5) * Z, (sy + 5 + bob) * Z, 9 * Z, 12 * Z);
+            ctx.drawImage(sprites.qmark, (sx + TW / 2 - 4.5) * RS, (sy + 5 + bob) * RS, 9 * RS, 12 * RS);
           }
         } else {
           // рассев деревьев/кустов/валунов: сшивает тайлы в единый ландшафт
@@ -1313,12 +1336,12 @@
             if (t.c || t.d === 'pen' || t.d === 'hay') n = Math.min(n, 1);
             for (let k = 0; k < n; k++) {
               const hh = ((i * 73856093) ^ ((k + 1) * 19349663)) >>> 0;
-              const im = t.t === 'mountain'
+              const pr = t.t === 'mountain'
                 ? PIMG[PIMG.length - 1]                       // на горах — валуны
                 : PIMG[hh % (t.t === 'forest' ? 3 : PIMG.length)];
               const bx = sx + 8 + (hh % 48);
               const by = sy + 6 + ((hh >> 6) % 24);
-              ctx.drawImage(im, bx * Z - im.width / 2, by * Z - im.height);
+              ctx.drawImage(pr.img, bx * RS - pr.lw * RS / 2, by * RS - pr.lh * RS, pr.lw * RS, pr.lh * RS);
             }
           }
           // масштаб «появления»
@@ -1327,21 +1350,21 @@
             scale = .6 + .4 * ((now - t.pop) / 260);
           }
           if (t.c && CIMG[t.c]) {
-            const im = CIMG[t.c];
-            const w = im.width * scale, h = im.height * scale;
-            ctx.drawImage(im, sx * Z + (TW * Z - w) / 2, (sy + TH + 2) * Z - h, w, h);
+            const cr = CIMG[t.c];
+            const w = cr.lw * RS * scale, h = cr.lh * RS * scale;
+            ctx.drawImage(cr.img, sx * RS + (TW * RS - w) / 2, (sy + TH + 2) * RS - h, w, h);
           }
           if (t.b && BIMG[t.b]) {
-            const im = BIMG[t.b];
-            const w = im.width * scale, h = im.height * scale;
-            const bx = sx * Z + (TW * Z - w) / 2;
-            const by = (sy + TH + 9) * Z - h;
-            ctx.drawImage(im, bx, by, w, h);
+            const br = BIMG[t.b];
+            const w = br.lw * RS * scale, h = br.lh * RS * scale;
+            const bx = sx * RS + (TW * RS - w) / 2;
+            const by = (sy + TH + 9) * RS - h;
+            ctx.drawImage(br.img, bx, by, w, h);
             if (SMOKE_BUILDINGS[t.b] && !reduceMotion) {
               const f = (Math.floor(now / 520) + i) % 2;
-              const rise = ((Math.floor(now / 260) + i) % 3) * Z;
+              const rise = ((Math.floor(now / 260) + i) % 3) * RS;
               ctx.globalAlpha = .7;
-              ctx.drawImage(sprites.smoke[f], sx * Z + TW * Z / 2 + 6 * Z, by - 8 * Z - rise, 10 * Z, 11 * Z);
+              ctx.drawImage(sprites.smoke[f], sx * RS + TW * RS / 2 + 6 * RS, by - 8 * RS - rise, 10 * RS, 11 * RS);
               ctx.globalAlpha = 1;
             }
           }
@@ -1350,7 +1373,7 @@
             const f = Math.floor(now / 650) % 2;
             ctx.fillStyle = 'rgba(150,200,235,.8)';
             for (const [ox, oy] of SPARKS[(f + i) % 2]) {
-              ctx.fillRect((sx + ox) * Z, (sy + oy) * Z, Z, Z);
+              ctx.fillRect((sx + ox) * RS, (sy + oy) * RS, RS, RS);
             }
           }
         }
@@ -1358,15 +1381,15 @@
         if (placing && canPlace(i, placing)) {
           ctx.globalAlpha = i === hoverTile ? 1
             : (reduceMotion ? .9 : .55 + .4 * Math.sin(now / 240 + i));
-          ctx.drawImage(sprites.place, sx * Z, sy * Z);
+          ctx.drawImage(sprites.place, sx * RS, sy * RS, TW * RS, TH * RS);
           ctx.globalAlpha = 1;
         } else if (i === selected && !placing) {
           ctx.globalAlpha = reduceMotion ? 1 : .65 + .35 * Math.sin(now / 280);
-          ctx.drawImage(sprites.select, sx * Z, sy * Z);
+          ctx.drawImage(sprites.select, sx * RS, sy * RS, TW * RS, TH * RS);
           ctx.globalAlpha = 1;
         } else if (!placing && i === hoverTile && t.vis > 0) {
           ctx.globalAlpha = .35;
-          ctx.drawImage(sprites.hover, sx * Z, sy * Z);
+          ctx.drawImage(sprites.hover, sx * RS, sy * RS, TW * RS, TH * RS);
           ctx.globalAlpha = 1;
         }
       }
@@ -1577,10 +1600,19 @@
     const h = Math.round(w * CANH / CANW);
     canvas.style.width = w + 'px';
     canvas.style.height = h + 'px';
+    // разрешение канваса = экранный размер × плотность пикселей:
+    // браузер ничего не пережимает, каждый пиксель ложится 1:1
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    const pw = Math.min(4096, Math.round(w * dpr));
+    canvas.width = pw;
+    canvas.height = Math.round(pw * CANH / CANW);
+    RS = canvas.width / CANW;
+    ctx.imageSmoothingEnabled = false; // сбрасывается при смене размера
     if (centerFrac) {
       scrollBox.scrollLeft = centerFrac[0] * w - scrollBox.clientWidth / 2;
       scrollBox.scrollTop = centerFrac[1] * h - scrollBox.clientHeight / 2;
     }
+    if (reduceMotion) render(0);
     renderMinimap();
   }
 
@@ -1666,7 +1698,7 @@
       const x = ax + (bx - ax) * k + w.off[0];
       const y = ay + (by - ay) * k + w.off[1];
       const f = w.from === w.to ? 0 : Math.floor(now / 220) % 2;
-      ctx.drawImage(sprites.walker[w.v][f], (x - 3) * Z, (y - 9) * Z, 6 * Z, 9 * Z);
+      ctx.drawImage(sprites.walker[w.v][f], (x - 3) * RS, (y - 9) * RS, 6 * RS, 9 * RS);
     }
   }
 
