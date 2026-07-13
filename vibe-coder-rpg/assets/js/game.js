@@ -552,6 +552,7 @@ function defaultState() {
     story: 0,
     steps: 0,
     mute: false,
+    musicOff: false,
   };
 }
 
@@ -1259,7 +1260,8 @@ function openMenu() {
   };
   mk('▶ Продолжить', closeMenu);
   mk('💾 Сохранить', () => { save(); sfx('confirm'); toast('Сохранено! git push успешен.'); });
-  mk(G.mute ? '🔇 Звук: выкл' : '🔊 Звук: вкл', () => { G.mute = !G.mute; save(); openMenuRefresh(); });
+  mk(G.musicOff ? '🎵 Музыка: выкл' : '🎵 Музыка: вкл', () => { G.musicOff = !G.musicOff; save(); openMenuRefresh(); });
+  mk(G.mute ? '🔇 Все звуки: выкл' : '🔊 Все звуки: вкл', () => { G.mute = !G.mute; save(); openMenuRefresh(); });
   mk('🏠 В главное меню', () => { save(); closeMenu(); showTitle(); });
 }
 function openMenuRefresh() { G.state = 'explore'; openMenu(); }

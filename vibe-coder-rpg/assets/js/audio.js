@@ -108,22 +108,29 @@ window.Music = (() => {
     const s = ac.createBufferSource(), g = ac.createGain(), f = ac.createBiquadFilter();
     s.buffer = noiseBuf;
     f.type = 'highpass'; f.frequency.value = 6000;
-    g.gain.setValueAtTime(0.02, t);
+    g.gain.setValueAtTime(0.016, t);
     g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
     s.connect(f).connect(g).connect(master);
     s.start(t); s.stop(t + dur + 0.02);
   }
 
+  // при сворачивании вкладки/приложения музыка полностью замолкает
+  document.addEventListener('visibilitychange', () => {
+    if (!ac) return;
+    if (document.hidden) ac.suspend();
+    else ac.resume();
+  });
+
   function scheduleStep(th, s, t, spb) {
-    if (window.G && G.mute) return;
+    if (window.G && (G.mute || G.musicOff)) return;
     const b = th.bass[s % th.bass.length];
-    if (b) tone(NOTE(b), t, spb * 0.85, 'square', 0.022);
+    if (b) tone(NOTE(b), t, spb * 0.85, 'square', 0.017);
     const l = th.lead[s % th.lead.length];
-    if (l) tone(NOTE(l), t, spb * 0.9, 'triangle', 0.032);
+    if (l) tone(NOTE(l), t, spb * 0.9, 'triangle', 0.026);
     if (th.hat && th.hat[s % th.hat.length]) hat(t, spb * 0.25);
     if (th.pad) {
       const p = th.pad[s % th.pad.length];
-      if (p) tone(NOTE(p), t, spb * 3.6, 'sine', 0.014);
+      if (p) tone(NOTE(p), t, spb * 3.6, 'sine', 0.011);
     }
   }
 
