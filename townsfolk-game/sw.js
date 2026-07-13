@@ -1,5 +1,5 @@
 /* Сервис-воркер «Городка»: полный офлайн после первого запуска. */
-const CACHE = 'gorodok-v1';
+const CACHE = 'gorodok-v3';
 const FILES = [
   './',
   './index.html',
