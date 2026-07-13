@@ -10,14 +10,14 @@
   // ---------- Константы ----------
   const W = 15, H = 15;               // карта 15×15 ромбов
   const CX = 7, CY = 7;               // центр — ратуша
-  const TW = 64, TH = 32;             // ромб тайла (логические px)
-  const PADX = 8, PADY = 46;          // поля (сверху — под горы и деревья)
-  const CANW = PADX * 2 + (W + H - 2) * TW / 2 + TW;      // 720
-  const CANH = PADY + (W + H - 2) * TH / 2 + TH + 30;     // 426
-  // внутренний масштаб канваса: на больших/чётких экранах рисуем в 3×,
-  // чтобы карта оставалась резкой при десктопном увеличении
-  const Z = ((window.devicePixelRatio || 1) *
-    Math.max(window.screen ? screen.width : 0, window.screen ? screen.height : 0)) >= 1900 ? 3 : 2;
+  // 1 логическая единица = 1 пиксель арта: спрайты кладутся в мир 1:1,
+  // без масштабирования — ромб в ассетах ~77 px, сетка 70×35 даёт нахлёст
+  const TW = 70, TH = 35;             // ромб сетки (= пиксели арта)
+  const PADX = 10, PADY = 54;         // поля (сверху — под горы и деревья)
+  const CANW = PADX * 2 + (W + H - 2) * TW / 2 + TW;      // 1070
+  const CANH = PADY + (W + H - 2) * TH / 2 + TH + 30;     // 609
+  // процедурные спрайты строятся 2× и кладутся в мир с точным ½-переносом
+  const Z = 2;
   const TRIBUTE_EVERY = 12;           // дань раз в 12 дней
   const TRIBUTES_TO_WIN = 5;
   const EXPLORE_TURNS_BASE = 2;
@@ -860,14 +860,16 @@
 
   /* ==========================================================
      АССЕТЫ: изометрические тайлы, месторождения, постройки.
-     Каждый тайл нормализуется к ширине ромба TW×Z, якорь —
-     верхняя вершина ромба (ищется по самой широкой строке).
+     Всё кладётся в мир 1:1 с пикселями арта; якорь тайла —
+     середина ромба (ищется по самой широкой строке).
      ========================================================== */
   const RAW = {};       // исходные Image
   const TIMG = {};      // тайлы: {c, top} + варианты fog/hidden
   const BIMG = {};      // постройки
   const CIMG = {};      // существа
-  const PIMG = [];      // пропсы-рассев: деревья, кусты, валуны
+  const PIMG = [];      // пропсы-рассев: сосны для лесных массивов
+  const WIMG = [];      // жители с ассет-листа (рисуются в ½ натива)
+  let BUSH = null;      // куст для редкого рассева на лугах
 
   const TILE_ASSET = {
     grass: ['tl_grass', 'tl_hills'],
@@ -882,30 +884,6 @@
     dock: 'harbor',
   };
   const SMOKE_BUILDINGS = { townhall: 1, house: 1, tavern: 1, lumber: 1 };
-
-  // Апскейл пиксель-арта БЕЗ сглаживания: чёткие крупные пиксели,
-  // как на референсах, вместо «мыла» от smooth-масштабирования
-  function scaleToWidth(img, w) {
-    const h = Math.max(1, Math.round(img.height * w / img.width));
-    const c = document.createElement('canvas');
-    c.width = w; c.height = h;
-    const g = c.getContext('2d');
-    g.imageSmoothingEnabled = false;
-    g.drawImage(img, 0, 0, w, h);
-    return c;
-  }
-
-  function fitCanvas(img, maxW, maxH) {
-    const s = Math.min(maxW / img.width, maxH / img.height);
-    const w = Math.max(1, Math.round(img.width * s));
-    const h = Math.max(1, Math.round(img.height * s));
-    const c = document.createElement('canvas');
-    c.width = w; c.height = h;
-    const g = c.getContext('2d');
-    g.imageSmoothingEnabled = false;
-    g.drawImage(img, 0, 0, w, h);
-    return c;
-  }
 
   // Самая широкая непрозрачная строка = середина ромба
   function widestRow(c) {
@@ -934,19 +912,15 @@
     return o;
   }
 
-  const OVERSCAN = 6; // тайлы чуть шире ромба, чтобы не было швов
-
-  // Тайлы храним в НАТИВНОМ разрешении и растягиваем на экран одним
-  // шагом без сглаживания — так резкость максимальна на любом зуме.
+  // Тайл кладётся в мир 1:1 (никакого масштабирования): середина ромба
+  // ассета (самая широкая строка) совмещается с серединой ромба сетки.
   function prepTile(key) {
     const im = RAW[key];
     if (!im || !im.width) return null;
     const c = document.createElement('canvas');
     c.width = im.width; c.height = im.height;
     c.getContext('2d').drawImage(im, 0, 0);
-    // смещение вершины ромба в долях высоты исходника
-    const thNative = TH * im.width / (TW + OVERSCAN);
-    const top = widestRow(c) - thNative / 2;
+    const top = widestRow(c); // середина ромба в пикселях исходника
     return { c, fog: darken(c, .55), hidden: darken(c, .8), top };
   }
 
@@ -965,13 +939,12 @@
     }
   }
 
-  // Запасной ромб, если ассет не загрузился (в «нативном» разрешении 2×)
+  // Запасной ромб, если ассет не загрузился (нативный размер ~как у арта)
   function fallbackTile(colTop, colSide) {
-    const K = 2;
     const c = document.createElement('canvas');
-    c.width = (TW + OVERSCAN) * K; c.height = (TH + 14) * K;
+    c.width = 77; c.height = 72;
     const g = c.getContext('2d');
-    const w = c.width, h = TH * (c.width / (TW + OVERSCAN)), d = 14 * K;
+    const w = 77, h = 38, d = 22;
     g.fillStyle = colSide;
     g.beginPath();
     g.moveTo(0, h / 2); g.lineTo(w / 2, h); g.lineTo(w, h / 2);
@@ -981,7 +954,7 @@
     g.beginPath();
     g.moveTo(w / 2, 0); g.lineTo(w, h / 2); g.lineTo(w / 2, h); g.lineTo(0, h / 2);
     g.closePath(); g.fill();
-    return { c, fog: darken(c, .62), hidden: darken(c, .86), top: 0 };
+    return { c, fog: darken(c, .62), hidden: darken(c, .86), top: h / 2 };
   }
 
   // зеркальная копия тайла — бесплатное разнообразие террейна
@@ -1014,22 +987,42 @@
       const t = prepTile(DEPOSIT_ASSET[c]);
       if (t) TIMG[c] = t;
     }
-    // спрайты храним нативно + логический размер на карте {img, lw, lh}
-    const fitLogical = (im, maxW, maxH) => {
-      const s = Math.min(maxW / im.width, maxH / im.height);
-      return { img: im, lw: im.width * s, lh: im.height * s };
-    };
+    // золотистая проплешина — редкое разнообразие лугов (как в референсе)
+    TIMG.plains = prepTile('tl_plains');
+    // спрайты кладутся в мир НАТИВНО (или целым кратным) — только так
+    // пиксель-арт остаётся ровным, без выпадающих рядов пикселей
+    const native = (im, k = 1) => ({ img: im, lw: im.width * k, lh: im.height * k });
     for (const key in BUILD_ASSET) {
       const im = RAW[BUILD_ASSET[key]];
-      if (im && im.width) BIMG[key] = fitLogical(im, 58, 64);
+      // ратуша-замок — доминанта города, 2× (как в референсе)
+      if (im && im.width) BIMG[key] = native(im, key === 'townhall' ? 2 : 1);
     }
-    if (RAW.a_wolf && RAW.a_wolf.width) CIMG.beast = fitLogical(RAW.a_wolf, 30, 30);
-    if (RAW.a_deer && RAW.a_deer.width) CIMG.tamed = fitLogical(RAW.a_deer, 30, 30);
-    // одиночные деревья, кусты и валуны для рассева по ландшафту
-    const PROP_KEYS = ['p_pine2', 'p_pine', 'p_pine3', 'p_bush', 'p_rock'];
+    // звери в ½ натива: пропорция к домам как в референсе (ровное ½-прореживание)
+    const half = (im) => ({ img: im, lw: Math.round(im.width / 2), lh: Math.round(im.height / 2) });
+    if (RAW.a_wolf && RAW.a_wolf.width) CIMG.beast = half(RAW.a_wolf);
+    if (RAW.a_deer && RAW.a_deer.width) CIMG.tamed = half(RAW.a_deer);
+    // рассев: только чистые сосны (+ зеркальные копии) и куст для лугов
+    const mirror = (im) => {
+      const c = document.createElement('canvas');
+      c.width = im.width; c.height = im.height;
+      const g = c.getContext('2d');
+      g.translate(im.width, 0);
+      g.scale(-1, 1);
+      g.drawImage(im, 0, 0);
+      return c;
+    };
     PIMG.length = 0;
-    for (const k of PROP_KEYS) {
-      if (RAW[k] && RAW[k].width) PIMG.push(fitLogical(RAW[k], 26, 38));
+    for (const k of ['p_pine2', 'p_pine']) {
+      if (RAW[k] && RAW[k].width) {
+        PIMG.push(native(RAW[k]));
+        PIMG.push({ img: mirror(RAW[k]), lw: RAW[k].width, lh: RAW[k].height });
+      }
+    }
+    BUSH = RAW.p_bush && RAW.p_bush.width ? native(RAW.p_bush) : null;
+    // жители с ассет-листа: рисуются в ½ натива (ровное прореживание)
+    WIMG.length = 0;
+    for (const k of ['v_1', 'v_2', 'v_3', 'v_4', 'v_5', 'v_6', 'w_1', 'w_2']) {
+      if (RAW[k] && RAW[k].width) WIMG.push(RAW[k]);
     }
     // иконки ресурсов, герб и угловые кнопки
     const hud = {
@@ -1195,15 +1188,25 @@
   const DECOR_SPRITE = { pen: 'decorPen', hay: 'decorHay', rocks: 'decorRocks', flowers: 'decorFlowers' };
 
   // ---------- Отрисовка ----------
+  // Мир рисуется в оффскрин-канвас 1:1 с пикселями арта (RS = 1), а затем
+  // целиком выводится на экранный канвас с ЦЕЛЫМ увеличением — браузер
+  // лишь слегка ужимает результат до экранного размера. Так каждый пиксель
+  // арта ровный: никаких выпавших/задвоенных рядов от дробных масштабов.
   const canvas = document.getElementById('map');
-  canvas.width = CANW * Z;
-  canvas.height = CANH * Z;
-  const ctx = canvas.getContext('2d');
+  const dctx = canvas.getContext('2d');
+  const world = document.createElement('canvas');
+  world.width = CANW;
+  world.height = CANH;
+  const ctx = world.getContext('2d');
   ctx.imageSmoothingEnabled = false;
-  // RS — «пикселей канваса на логическую единицу»; applyZoom подгоняет
-  // разрешение канваса под фактический размер на экране × dpr, поэтому
-  // браузер ничего не пережимает и картинка максимально резкая
-  let RS = Z;
+  canvas.width = CANW * 2;
+  canvas.height = CANH * 2;
+  const RS = 1;
+
+  function present() {
+    dctx.imageSmoothingEnabled = false;
+    dctx.drawImage(world, 0, 0, canvas.width, canvas.height);
+  }
 
   // блики на воде (два кадра)
   const SPARKS = [
@@ -1244,16 +1247,16 @@
       const [a, b] = PATHS[p];
       const [ax, ay] = tileCenter(a), [bx, by] = tileCenter(b);
       const dist = Math.hypot(bx - ax, by - ay);
-      const n = Math.max(2, Math.round(dist / 4));
+      const n = Math.max(3, Math.round(dist / 3));
       for (let k = 1; k < n; k++) {
         const f = k / n;
-        const j = ((p * 97 + k * 31) % 5) - 2;   // детерминированный изгиб
+        const j = ((p * 97 + k * 31) % 7) - 3;   // детерминированный изгиб
         const xx = ax + (bx - ax) * f + j * ((by - ay) / dist);
         const yy = ay + (by - ay) * f - j * ((bx - ax) / dist) * .5;
         ctx.fillStyle = (k % 2) ? '#8a6a42' : '#7d5f3a';
-        ctx.fillRect(Math.round(xx - 1) * RS, Math.round(yy) * RS, 2 * RS, RS);
+        ctx.fillRect(Math.round(xx - 2), Math.round(yy), 4, 2);
         ctx.fillStyle = 'rgba(60,45,25,.5)';
-        ctx.fillRect(Math.round(xx - 1) * RS, Math.round(yy + 1) * RS, 2 * RS, RS);
+        ctx.fillRect(Math.round(xx - 2), Math.round(yy + 2), 4, 1);
       }
     }
   }
@@ -1271,15 +1274,18 @@
         // тайл: месторождение (если разведано) или террейн
         let td = null;
         if (t.vis === 2 && t.c && TIMG[t.c] && TIMG[t.c].c) td = TIMG[t.c];
-        else {
+        else if (t.t === 'grass' && TIMG.plains && !t.b &&
+          (((x * 73856093) ^ (y * 19349663)) >>> 0) % 11 === 0) {
+          td = TIMG.plains;   // редкая золотистая проплешина
+        } else {
           const list = TIMG[t.t];
           td = list[t.v % list.length];
         }
         const img = t.vis === 0 ? td.hidden : (t.vis === 1 ? td.fog : td.c);
-        // один шаг масштабирования: нативный спрайт → экранное разрешение
-        const dw = (TW + OVERSCAN) * RS;
-        const k = dw / img.width;
-        ctx.drawImage(img, (sx - OVERSCAN / 2) * RS, sy * RS - td.top * k, dw, img.height * k);
+        // 1:1, без масштабирования: середина ромба арта в середину сетки
+        ctx.drawImage(img,
+          Math.round(sx + TW / 2 - img.width / 2),
+          Math.round(sy + TH / 2 - td.top));
         if (t.vis !== 2) continue;
         if (t.c === 'fertile' && !t.b) {
           ctx.drawImage(sprites.fertile, sx * RS, sy * RS, TW * RS, TH * RS);
@@ -1320,28 +1326,27 @@
 
         if (t.vis === 1) {
           if (t.explore > 0) {
-            ctx.drawImage(sprites.hourglass, (sx + TW / 2 - 4.5) * RS, (sy + 6) * RS, 9 * RS, 12 * RS);
+            ctx.drawImage(sprites.hourglass, sx + TW / 2 - 9, sy + 4, 18, 24);
           } else if (neighbors4(i).some(n => S.tiles[n].vis === 2)) {
             const bob = reduceMotion ? 0 : Math.round(Math.sin(now / 420 + i) * 2);
-            ctx.drawImage(sprites.qmark, (sx + TW / 2 - 4.5) * RS, (sy + 5 + bob) * RS, 9 * RS, 12 * RS);
+            ctx.drawImage(sprites.qmark, sx + TW / 2 - 9, sy + 3 + bob, 18, 24);
           }
         } else {
-          // рассев деревьев/кустов/валунов: сшивает тайлы в единый ландшафт
+          // рассев сосен: сшивает лесные тайлы в сплошные массивы;
+          // на лугах — редкий куст; возле построек чисто (город читается)
           if (PIMG.length && !t.b) {
             const h1 = (i * 2654435761) >>> 0;
             let n = 0;
             if (t.t === 'forest') n = 2;
-            else if (t.t === 'grass') n = h1 % 3;
-            else if (t.t === 'mountain') n = h1 % 2;
-            if (t.c || t.d === 'pen' || t.d === 'hay') n = Math.min(n, 1);
+            else if (t.t === 'grass' && BUSH && (h1 % 4) === 0) n = 1;
+            if (t.c || t.d) n = Math.min(n, 1);
+            if (n && neighbors8(i).some(nb => S.tiles[nb].b)) n = 0;
             for (let k = 0; k < n; k++) {
               const hh = ((i * 73856093) ^ ((k + 1) * 19349663)) >>> 0;
-              const pr = t.t === 'mountain'
-                ? PIMG[PIMG.length - 1]                       // на горах — валуны
-                : PIMG[hh % (t.t === 'forest' ? 3 : PIMG.length)];
+              const pr = t.t === 'forest' ? PIMG[hh % PIMG.length] : BUSH;
               const bx = sx + 8 + (hh % 48);
               const by = sy + 6 + ((hh >> 6) % 24);
-              ctx.drawImage(pr.img, bx * RS - pr.lw * RS / 2, by * RS - pr.lh * RS, pr.lw * RS, pr.lh * RS);
+              ctx.drawImage(pr.img, Math.round(bx - pr.lw / 2), Math.round(by - pr.lh), pr.lw, pr.lh);
             }
           }
           // масштаб «появления»
@@ -1362,9 +1367,9 @@
             ctx.drawImage(br.img, bx, by, w, h);
             if (SMOKE_BUILDINGS[t.b] && !reduceMotion) {
               const f = (Math.floor(now / 520) + i) % 2;
-              const rise = ((Math.floor(now / 260) + i) % 3) * RS;
+              const rise = ((Math.floor(now / 260) + i) % 3) * 2;
               ctx.globalAlpha = .7;
-              ctx.drawImage(sprites.smoke[f], sx * RS + TW * RS / 2 + 6 * RS, by - 8 * RS - rise, 10 * RS, 11 * RS);
+              ctx.drawImage(sprites.smoke[f], sx + TW / 2 + 10, by - 18 - rise, 20, 22);
               ctx.globalAlpha = 1;
             }
           }
@@ -1373,7 +1378,7 @@
             const f = Math.floor(now / 650) % 2;
             ctx.fillStyle = 'rgba(150,200,235,.8)';
             for (const [ox, oy] of SPARKS[(f + i) % 2]) {
-              ctx.fillRect((sx + ox) * RS, (sy + oy) * RS, RS, RS);
+              ctx.fillRect(sx + ox, sy + oy, 2, 2);
             }
           }
         }
@@ -1394,6 +1399,8 @@
         }
       }
     }
+    // при reduce-motion цикл анимации не идёт — выводим кадр сразу
+    if (reduceMotion) present();
   }
 
   // Постоянный цикл анимации (блики, «?», дым, жители, выделение).
@@ -1401,6 +1408,7 @@
     render(now);
     updateWalkers(now);
     drawWalkers(now);
+    present();
     requestAnimationFrame(loop);
   }
 
@@ -1596,23 +1604,27 @@
   function applyZoom(centerFrac) {
     // «cover»+: карта заполняет весь экран, углы прячутся в облака
     const base = Math.max(scrollBox.clientWidth / CANW, scrollBox.clientHeight / CANH) * 1.15;
-    const w = Math.round(CANW * base * zoom);
+    let scale = base * zoom;
+    const dpr = window.devicePixelRatio || 1;
+    // прилипание к ЦЕЛОМУ числу экранных пикселей на пиксель арта:
+    // целый множитель = идеально ровный пиксель-арт без искажений
+    const snap = Math.round(scale * dpr);
+    if (snap >= 1 && Math.abs(scale * dpr - snap) <= scale * dpr * .1) scale = snap / dpr;
+    const w = Math.round(CANW * scale);
     const h = Math.round(w * CANH / CANW);
     canvas.style.width = w + 'px';
     canvas.style.height = h + 'px';
-    // разрешение канваса = экранный размер × плотность пикселей:
-    // браузер ничего не пережимает, каждый пиксель ложится 1:1
-    const dpr = Math.min(2, window.devicePixelRatio || 1);
-    const pw = Math.min(4096, Math.round(w * dpr));
-    canvas.width = pw;
-    canvas.height = Math.round(pw * CANH / CANW);
-    RS = canvas.width / CANW;
-    ctx.imageSmoothingEnabled = false; // сбрасывается при смене размера
+    // буфер экрана — целое кратное мира (пиксель-перфект); при дробном
+    // зуме браузер лишь слегка УЖИМАЕТ уже ровную картинку — без «мыла»
+    const k = Math.max(1, Math.min(4, Math.ceil(scale * dpr - .02)));
+    canvas.width = CANW * k;
+    canvas.height = CANH * k;
+    dctx.imageSmoothingEnabled = false;
     if (centerFrac) {
       scrollBox.scrollLeft = centerFrac[0] * w - scrollBox.clientWidth / 2;
       scrollBox.scrollTop = centerFrac[1] * h - scrollBox.clientHeight / 2;
     }
-    if (reduceMotion) render(0);
+    if (reduceMotion) render(0); else present();
     renderMinimap();
   }
 
@@ -1675,7 +1687,7 @@
     const want = Math.min(12, S.pop + 2);
     while (walkers.length < want && land.length > 1) {
       const from = land[rnd(land.length)];
-      walkers.push({ from, to: from, t0: now, dur: 1, v: rnd(3), off: [rnd(17) - 8, rnd(9) - 4] });
+      walkers.push({ from, to: from, t0: now, dur: 1, v: rnd(8), off: [rnd(17) - 8, rnd(9) - 4] });
     }
     if (walkers.length > want) walkers.length = want;
     for (const w of walkers) {
@@ -1697,8 +1709,16 @@
       const [ax, ay] = tileCenter(w.from), [bx, by] = tileCenter(w.to);
       const x = ax + (bx - ax) * k + w.off[0];
       const y = ay + (by - ay) * k + w.off[1];
-      const f = w.from === w.to ? 0 : Math.floor(now / 220) % 2;
-      ctx.drawImage(sprites.walker[w.v][f], (x - 3) * RS, (y - 9) * RS, 6 * RS, 9 * RS);
+      if (WIMG.length) {
+        // спрайт жителя с листа, ½ натива + лёгкий шаг-подпрыг
+        const im = WIMG[w.v % WIMG.length];
+        const ww = im.width >> 1, wh = im.height >> 1;
+        const bob = (w.from !== w.to && !reduceMotion) ? Math.floor(now / 180) % 2 : 0;
+        ctx.drawImage(im, Math.round(x - ww / 2), Math.round(y - wh + bob), ww, wh);
+      } else {
+        const f = w.from === w.to ? 0 : Math.floor(now / 220) % 2;
+        ctx.drawImage(sprites.walker[w.v % 3][f], Math.round(x - 6), Math.round(y - 17), 12, 18);
+      }
     }
   }
 
