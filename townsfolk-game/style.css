@@ -168,6 +168,7 @@ body {
 .res:last-child { border-right: none; }
 
 .res .ico { width: 20px; height: 20px; object-fit: contain; image-rendering: pixelated; flex-shrink: 0; }
+.res .ico-hap { display: inline-flex; align-items: center; justify-content: center; font-size: 16px; }
 .res span { display: flex; flex-direction: column; line-height: 1.05; }
 .res b { font-size: 13px; font-variant-numeric: tabular-nums; }
 .res i {
@@ -502,6 +503,8 @@ body {
   to   { opacity: 1; transform: none; }
 }
 
+.modal__pic[hidden] { display: none; }
+
 .modal__pic {
   display: block;
   margin: 0 auto 10px;
@@ -545,23 +548,52 @@ body {
   }
 }
 
-/* --- Технологии в модалке --- */
-.tech-row {
+/* --- Древо технологий: ветки с узлами и стрелками --- */
+.modal.modal--wide { max-width: 640px; }
+
+.tech-branch {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  gap: 8px;
-  padding: 6px 0;
-  border-bottom: 1px dashed rgba(200, 180, 130, .25);
-  font-size: 13px;
-  text-align: left;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px dashed rgba(200, 180, 130, .2);
 }
-.tech-row:last-of-type { border-bottom: none; }
-.tech-info { display: flex; align-items: center; gap: 8px; }
-.tech-ico { width: 30px; height: 30px; object-fit: contain; image-rendering: pixelated; border-radius: 4px; flex-shrink: 0; }
-.tech-row .tech-name { color: var(--ink); font-weight: bold; }
-.tech-row .tech-desc { color: var(--ink-dim); font-size: 11px; }
-.tech-row.is-owned .tech-name { color: var(--green); }
+.tech-branch:last-of-type { border-bottom: none; }
+
+.tech-branch__name {
+  width: 96px;
+  flex-shrink: 0;
+  font-size: 10px;
+  letter-spacing: 2px;
+  color: var(--ink-dim);
+  text-align: right;
+}
+
+.tech-node {
+  font: inherit;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  width: 150px;
+  padding: 8px 6px;
+  background: var(--panel);
+  border: 1px solid var(--line-dim);
+  border-radius: 6px;
+  color: var(--ink);
+  font-size: 12px;
+  cursor: pointer;
+}
+.tech-node img { width: 32px; height: 32px; object-fit: contain; image-rendering: pixelated; border-radius: 4px; }
+.tech-node small { color: var(--gold); font-size: 10px; }
+.tech-node:hover:not(:disabled) { border-color: var(--line); }
+.tech-node:disabled { cursor: not-allowed; }
+.tech-node:disabled:not(.is-owned) { opacity: .55; }
+.tech-node.is-owned { border-color: var(--green); }
+.tech-node.is-owned small { color: var(--green); }
+.tech-node.is-locked { opacity: .4; }
+
+.tech-arrow { color: var(--line-dim); font-size: 16px; }
 
 /* --- Большие мониторы: укрупняем интерфейс --- */
 @media (min-width: 1600px) and (min-height: 860px) {

@@ -8,8 +8,8 @@
   'use strict';
 
   // ---------- Константы ----------
-  const W = 11, H = 11;               // карта 11×11 ромбов
-  const CX = 5, CY = 5;               // центр — ратуша
+  const W = 15, H = 15;               // карта 15×15 ромбов
+  const CX = 7, CY = 7;               // центр — ратуша
   const TW = 64, TH = 32;             // ромб тайла (логические px)
   const PADX = 8, PADY = 46;          // поля (сверху — под горы и деревья)
   const CANW = PADX * 2 + (W + H - 2) * TW / 2 + TW;      // 720
@@ -41,7 +41,7 @@
     mine:   { name: 'Шахта',     terr: 'mountain', cost: { prod: 24 },          desc: '+2 ⚒️ и +2 🪙 в день (жила: +1 🪙)' },
     church: { name: 'Церковь',   terr: 'grass',    cost: { prod: 24, gold: 8 }, desc: '+2 ✨ в день' },
     market: { name: 'Рынок',     terr: 'grass',    cost: { prod: 20, gold: 6 }, desc: '+3 🪙 в день' },
-    tavern: { name: 'Таверна',   terr: 'grass',    cost: { prod: 18, gold: 8 }, desc: 'Новые жители прибывают каждый день' },
+    tavern: { name: 'Таверна',   terr: 'grass',    cost: { prod: 18, gold: 8 }, desc: '+12% счастья — городок растёт каждый день' },
     dock:   { name: 'Причал',    terr: 'water',    cost: { prod: 12 },          desc: '+3 🍞 в день (рыбное место: +2)' },
   };
 
@@ -49,11 +49,19 @@
     { id: 'cartography', name: 'Картография',   desc: 'Разведка занимает 1 день вместо 2', icon: 't_education' },
     { id: 'crops',       name: 'Севооборот',    desc: 'Фермы дают +2 🍞', icon: 't_farming' },
     { id: 'hunting',     name: 'Охота',         desc: 'Бой со зверем без потерь, добыча +8 🍞', icon: 't_military' },
-    { id: 'taming',      name: 'Приручение',    desc: 'Зверей можно приручать за 10 ✨ (+2 🍞 в день)', icon: 't_gathering' },
+    { id: 'taming',      name: 'Приручение',    desc: 'Зверей можно приручать за 10 ✨ (+2 🍞 в день)', icon: 't_gathering', req: 'hunting' },
     { id: 'mining',      name: 'Горное дело',   desc: 'Шахты дают +2 ⚒️', icon: 't_engineering' },
-    { id: 'trade',       name: 'Торговые пути', desc: 'Рынки +2 🪙, дань короне −20%', icon: 't_governance' },
-    { id: 'masonry',     name: 'Каменная кладка', desc: 'Постройки дешевле на 25%', icon: 't_masonry' },
-    { id: 'theology',    name: 'Богословие',    desc: 'Церкви дают +2 ✨', icon: 't_architecture' },
+    { id: 'trade',       name: 'Торговые пути', desc: 'Рынки +2 🪙, дань короне −20%', icon: 't_governance', req: 'crops' },
+    { id: 'masonry',     name: 'Каменная кладка', desc: 'Постройки дешевле на 25%', icon: 't_masonry', req: 'mining' },
+    { id: 'theology',    name: 'Богословие',    desc: 'Церкви дают +2 ✨', icon: 't_architecture', req: 'cartography' },
+  ];
+
+  // ветки дерева технологий (как на референсном экране)
+  const TECH_BRANCHES = [
+    { name: 'ЭКОНОМИКА', ids: ['crops', 'trade'] },
+    { name: 'ПРОМЫСЕЛ',  ids: ['mining', 'masonry'] },
+    { name: 'ОХОТА',     ids: ['hunting', 'taming'] },
+    { name: 'ПОЗНАНИЕ',  ids: ['cartography', 'theology'] },
   ];
 
   // ---------- Состояние ----------
@@ -65,7 +73,7 @@
   let lastEventIdx = -1;
 
   // ---------- Сохранение партии ----------
-  const SAVE_KEY = 'gorodok-save-v1';
+  const SAVE_KEY = 'gorodok-save-v2';
   const SEEN_HELP_KEY = 'gorodok-seen-help';
 
   function saveGame() {
@@ -85,6 +93,7 @@
       if (!data || !Array.isArray(data.tiles) || data.tiles.length !== W * H || data.over) return false;
       data.tiles = data.tiles.map(t => Object.assign({ pop: 0 }, t));
       S = data;
+      if (S.hap == null) S.hap = 75;
       selected = -1;
       modalQueue = [];
       modalOpen = false;
@@ -142,7 +151,7 @@
       if (r > .85) t = 'water';
       else if (r > .70) t = 'mountain';
       else if (r > .48) t = 'forest';
-      tiles.push({ t, vis: 0, b: null, c: null, explore: 0, v: rnd(2), pop: 0, d: null });
+      tiles.push({ t, vis: 0, b: null, c: null, explore: 0, v: rnd(4), pop: 0, d: null });
     }
     // Сглаживание: клетка с 50% перенимает террейн случайного соседа
     for (let pass = 0; pass < 2; pass++) {
@@ -165,18 +174,19 @@
     if (!tiles.some(tl => tl.t === 'mountain')) {
       tiles[idx(rnd(W), rnd(3))].t = 'mountain';
     }
-    // Стартовое поселение: ратуша + соседние клетки уже освоены
-    for (const n of neighbors4(c)) tiles[n].vis = 2;
-    for (const s of [c, ...neighbors4(c)]) {
+    // Стартовое поселение: ратуша + всё кольцо вокруг уже освоено
+    for (const n of neighbors8(c)) tiles[n].vis = 2;
+    for (const s of [c, ...neighbors8(c)]) {
       for (const n of neighbors8(s)) tiles[n].vis = Math.max(tiles[n].vis, 1);
     }
-    // декор лугов: загоны с овцами, стога, валуны — оживляют деревню
+    // декор лугов: загоны с овцами, стога, валуны, цветы — оживляют деревню
     for (const t of tiles) {
       if (t.t !== 'grass') continue;
       const r = Math.random();
-      if (r < .18) t.d = 'pen';
-      else if (r < .30) t.d = 'hay';
-      else if (r < .40) t.d = 'rocks';
+      if (r < .16) t.d = 'pen';
+      else if (r < .28) t.d = 'hay';
+      else if (r < .36) t.d = 'rocks';
+      else if (r < .52) t.d = 'flowers';
     }
     return tiles;
   }
@@ -215,6 +225,7 @@
       postpones: 3,
       tributeBonus: 0,   // надбавка к дани от событий
       growth: 0,
+      hap: 75,           // счастье жителей, %
       over: false,
       won: false,
     };
@@ -365,10 +376,18 @@
       }
     }
 
-    // 5. Прирост населения
-    if (S.pop > 0 && S.pop < S.cap && S.food >= S.pop * 2) {
+    // 5. Счастье городка: таверна, церкви, сытость — против зверей и голода
+    const beastCnt = S.tiles.filter(t => t.vis === 2 && t.c === 'beast').length;
+    const churchCnt = S.tiles.filter(t => t.vis === 2 && t.b === 'church').length;
+    const hasTavern = S.tiles.some(t => t.vis === 2 && t.b === 'tavern');
+    S.hap = Math.max(20, Math.min(100,
+      62 + (hasTavern ? 12 : 0) + Math.min(10, churchCnt * 5) +
+      (S.food >= S.pop * 2 ? 8 : (S.food < S.pop ? -12 : 0)) - beastCnt * 8));
+
+    // 6. Прирост населения (счастливый городок растёт быстрее)
+    if (S.pop > 0 && S.pop < S.cap && S.food >= S.pop * 2 && S.hap >= 40) {
       S.growth++;
-      const need = S.tiles.some(t => t.vis === 2 && t.b === 'tavern') ? 1 : 2;
+      const need = S.hap >= 85 ? 1 : 2;
       if (S.growth >= need) { S.growth = 0; S.pop++; log('В городок прибыл новый житель. +1 👥', 'log--good'); }
     } else {
       S.growth = 0;
@@ -626,6 +645,8 @@
     }
     const box = document.getElementById('modal-buttons');
     box.classList.remove('is-list');
+    const mw = document.querySelector('#modal .modal');
+    if (mw) mw.classList.remove('modal--wide');
     box.innerHTML = '';
     buttons.forEach((b, bi) => {
       const btn = document.createElement('button');
@@ -646,6 +667,8 @@
   function closeModal() {
     modalOpen = false;
     document.getElementById('modal').hidden = true;
+    const m = document.querySelector('#modal .modal');
+    if (m) m.classList.remove('modal--wide');
   }
 
   function nextModal() {
@@ -662,40 +685,59 @@
     if (modalOpen) return;
     const cost = techCost();
     const box = document.getElementById('modal-buttons');
-    document.getElementById('modal-title').textContent = '🔬 Технологии';
+    document.getElementById('modal-title').textContent = '⭐ Древо технологий';
     document.getElementById('modal-text').textContent =
-      `Очков знаний: ${S.sci}. Следующее открытие стоит ${cost} 🔬 (дорожает с каждым).`;
+      `Очков знаний: ${S.sci} 🔬 · следующее открытие: ${cost} 🔬 (дорожает с каждым)`;
     const pic = document.getElementById('modal-pic');
     if (pic) pic.hidden = true;
+    document.querySelector('#modal .modal').classList.add('modal--wide');
     box.classList.add('is-list');
     box.innerHTML = '';
-    for (const t of TECHS) {
+
+    for (const branch of TECH_BRANCHES) {
       const row = document.createElement('div');
-      row.className = 'tech-row' + (S.techs[t.id] ? ' is-owned' : '');
-      const info = document.createElement('div');
-      info.className = 'tech-info';
-      const hasIcon = t.icon && typeof ASSETS !== 'undefined' && ASSETS[t.icon];
-      info.innerHTML = (hasIcon ? `<img class="tech-ico" src="${ASSETS[t.icon]}" alt="">` : '') +
-                       `<div><div class="tech-name">${S.techs[t.id] ? '✅ ' : ''}${t.name}</div>` +
-                       `<div class="tech-desc">${t.desc}</div></div>`;
-      row.appendChild(info);
-      if (!S.techs[t.id]) {
-        const btn = document.createElement('button');
-        btn.className = 'btn btn--small';
-        btn.textContent = `${cost} 🔬`;
-        btn.disabled = S.sci < cost || S.over;
-        btn.addEventListener('click', () => {
-          S.sci -= cost;
-          S.techs[t.id] = true;
-          log(`Открыта технология «${t.name}»!`, 'log--good');
-          renderAll();
-          saveGame();
-          openTechRefresh();
-        });
-        row.appendChild(btn);
-      }
+      row.className = 'tech-branch';
+      const label = document.createElement('span');
+      label.className = 'tech-branch__name';
+      label.textContent = branch.name;
+      row.appendChild(label);
+
+      branch.ids.forEach((id, k) => {
+        if (k > 0) {
+          const arrow = document.createElement('span');
+          arrow.className = 'tech-arrow';
+          arrow.textContent = '➜';
+          row.appendChild(arrow);
+        }
+        const t = TECHS.find(x => x.id === id);
+        const owned = !!S.techs[id];
+        const reqOk = !t.req || !!S.techs[t.req];
+        const node = document.createElement('button');
+        node.className = 'tech-node' +
+          (owned ? ' is-owned' : (reqOk ? '' : ' is-locked'));
+        const hasIcon = t.icon && typeof ASSETS !== 'undefined' && ASSETS[t.icon];
+        const state = owned ? '✓ изучено'
+          : (!reqOk ? `🔒 нужна: ${TECHS.find(x => x.id === t.req).name}`
+            : `${cost} 🔬`);
+        node.innerHTML = (hasIcon ? `<img src="${ASSETS[t.icon]}" alt="">` : '') +
+          `<span>${t.name}</span><small>${state}</small>`;
+        node.title = t.desc;
+        node.disabled = owned || !reqOk || S.sci < cost || S.over;
+        if (!owned && reqOk) {
+          node.addEventListener('click', () => {
+            S.sci -= cost;
+            S.techs[id] = true;
+            log(`Открыта технология «${t.name}»!`, 'log--good');
+            renderAll();
+            saveGame();
+            openTechRefresh();
+          });
+        }
+        row.appendChild(node);
+      });
       box.appendChild(row);
     }
+
     const close = document.createElement('button');
     close.className = 'btn btn--primary';
     close.textContent = 'Закрыть';
@@ -902,6 +944,20 @@
     return { c, fog: darken(c, .62), hidden: darken(c, .86), top: 0 };
   }
 
+  // зеркальная копия тайла — бесплатное разнообразие террейна
+  function flipTile(td) {
+    const flip = (c) => {
+      const o = document.createElement('canvas');
+      o.width = c.width; o.height = c.height;
+      const g = o.getContext('2d');
+      g.translate(c.width, 0);
+      g.scale(-1, 1);
+      g.drawImage(c, 0, 0);
+      return o;
+    };
+    return { c: flip(td.c), fog: flip(td.fog), hidden: flip(td.hidden), top: td.top };
+  }
+
   function prepareAssets() {
     const fallback = {
       grass: fallbackTile('#4a6b3f', '#3a2c1c'),
@@ -910,7 +966,8 @@
       water: fallbackTile('#27455c', '#16283a'),
     };
     for (const terr in TILE_ASSET) {
-      TIMG[terr] = TILE_ASSET[terr].map(k => prepTile(k) || fallback[terr]);
+      const base = TILE_ASSET[terr].map(k => prepTile(k) || fallback[terr]);
+      TIMG[terr] = base.concat(base.map(flipTile));
       if (!TIMG[terr].length) TIMG[terr] = [fallback[terr]];
     }
     for (const c in DEPOSIT_ASSET) {
@@ -1048,9 +1105,43 @@
         px(g, '#8a8577', x * Z, y * Z, (w - 1) * Z, Z);
       }
     }, TW * Z, TH * Z);
+    // полевые цветы
+    sprites.decorFlowers = makeSprite(g => {
+      const cols = ['#c9c25a', '#b56a6a', '#9a7ab5', '#d8d2c0'];
+      for (let k = 0; k < 9; k++) {
+        const x = 14 + ((k * 37) % 36), y = 8 + ((k * 23) % 16);
+        px(g, cols[k % 4], x * Z, y * Z, Z, Z);
+        px(g, '#3b5834', x * Z, (y + 1) * Z, Z, Z);
+      }
+    }, TW * Z, TH * Z);
+
+    // облака над неразведанными землями: крупные мягкие клубы,
+    // перекрывающие соседей — читаются сплошной пеленой
+    const blob = (g, cx, cy, rx, ry, color) => {
+      for (let yy = -ry; yy <= ry; yy++) {
+        const hw = Math.floor(rx * Math.sqrt(Math.max(0, 1 - (yy / ry) * (yy / ry))));
+        px(g, color, (cx - hw) * Z, (cy + yy) * Z, hw * 2 * Z, Z);
+      }
+    };
+    sprites.cloud = [0, 1, 2, 3].map(v => makeSprite(g => {
+      const o = [[0, 0], [7, 3], [-6, 2], [3, -3]][v];
+      const lo = 'rgba(140,148,162,.9)', mid = '#c3c9d3', hi = '#e2e6ec';
+      // нижний слой — широкий и плоский, стыкует соседние облака
+      blob(g, 52 + o[0], 36 + o[1], 46, 12, lo);
+      blob(g, 26 + o[0], 38 + o[1], 24, 9, lo);
+      blob(g, 80 + o[0], 38 + o[1], 22, 9, lo);
+      // тело
+      blob(g, 50 + o[0], 31 + o[1], 40, 13, mid);
+      blob(g, 24 + o[0], 34 + o[1], 20, 9, mid);
+      blob(g, 78 + o[0], 33 + o[1], 19, 9, mid);
+      // макушки
+      blob(g, 44 + o[0], 24 + o[1], 20, 8, hi);
+      blob(g, 64 + o[0], 27 + o[1], 13, 6, hi);
+      blob(g, 28 + o[0], 28 + o[1], 11, 5, hi);
+    }, 104 * Z, 54 * Z));
   }
 
-  const DECOR_SPRITE = { pen: 'decorPen', hay: 'decorHay', rocks: 'decorRocks' };
+  const DECOR_SPRITE = { pen: 'decorPen', hay: 'decorHay', rocks: 'decorRocks', flowers: 'decorFlowers' };
 
   // ---------- Отрисовка ----------
   const canvas = document.getElementById('map');
@@ -1142,14 +1233,28 @@
     // проход 1.5: дороги поверх земли, под постройками
     drawPaths();
 
-    // проход 2: маркеры, существа, постройки, эффекты
+    // проход 2: маркеры, существа, постройки, эффекты, облака
     for (let s = 0; s <= W + H - 2; s++) {
       for (let x = Math.max(0, s - H + 1); x <= Math.min(W - 1, s); x++) {
         const y = s - x;
         const i = idx(x, y);
         const t = S.tiles[i];
         const { sx, sy } = tileOrigin(i);
-        if (t.vis === 0) continue;
+        if (t.vis === 0) {
+          // неразведанное скрыто сплошной пеленой облаков
+          const drift = reduceMotion ? 0 : Math.sin(now / 2600 + i * 1.7) * 2;
+          const ox = ((i * 53) % 3 - 1) * 7, oy = ((i * 29) % 3 - 1) * 4;
+          ctx.globalAlpha = .94;
+          ctx.drawImage(sprites.cloud[(t.v + i) % 4], (sx - 20 + ox + drift) * Z, (sy - 12 + oy) * Z);
+          // крайние тайлы: дублируем облако наружу, пряча тёмный край ромба
+          const gx = i % W, gy = (i / W) | 0;
+          if (gx === 0) ctx.drawImage(sprites.cloud[(t.v + 1) % 4], (sx - 52 + ox) * Z, (sy + 2) * Z);
+          if (gx === W - 1) ctx.drawImage(sprites.cloud[(t.v + 2) % 4], (sx + 14 + ox) * Z, (sy + 2) * Z);
+          if (gy === 0) ctx.drawImage(sprites.cloud[(t.v + 3) % 4], (sx + 12 + ox) * Z, (sy - 24) * Z);
+          if (gy === H - 1) ctx.drawImage(sprites.cloud[(t.v + 1) % 4], (sx - 16 + ox) * Z, (sy + 14) * Z);
+          ctx.globalAlpha = 1;
+          continue;
+        }
 
         if (t.vis === 1) {
           if (t.explore > 0) {
@@ -1409,8 +1514,9 @@
   const scrollBox = document.getElementById('map-scroll');
 
   function applyZoom(centerFrac) {
-    const fit = Math.min(scrollBox.clientWidth / CANW, scrollBox.clientHeight / CANH);
-    const w = Math.round(CANW * fit * zoom);
+    // «cover»+: карта заполняет весь экран, углы прячутся в облака
+    const base = Math.max(scrollBox.clientWidth / CANW, scrollBox.clientHeight / CANH) * 1.15;
+    const w = Math.round(CANW * base * zoom);
     const h = Math.round(w * CANH / CANW);
     canvas.style.width = w + 'px';
     canvas.style.height = h + 'px';
@@ -1418,6 +1524,14 @@
       scrollBox.scrollLeft = centerFrac[0] * w - scrollBox.clientWidth / 2;
       scrollBox.scrollTop = centerFrac[1] * h - scrollBox.clientHeight / 2;
     }
+    renderMinimap();
+  }
+
+  // центр камеры на тайле (после applyZoom)
+  function centerOnTile(i) {
+    const { sx, sy } = tileOrigin(i);
+    scrollBox.scrollLeft = (sx + TW / 2) / CANW * canvas.clientWidth - scrollBox.clientWidth / 2;
+    scrollBox.scrollTop = (sy + TH / 2) / CANH * canvas.clientHeight - scrollBox.clientHeight / 2;
     renderMinimap();
   }
 
@@ -1520,6 +1634,13 @@
     delta('d-faith', inc.faith);
     set('r-sci', S.sci);
     delta('d-sci', 1);
+    const hapEl = document.getElementById('r-hap');
+    if (hapEl) {
+      hapEl.textContent = `${S.hap}%`;
+      hapEl.style.color = S.hap >= 70 ? '#7fb069' : (S.hap >= 40 ? '#d9a84c' : '#c95b4b');
+      const face = document.querySelector('.ico-hap');
+      if (face) face.textContent = S.hap >= 70 ? '🙂' : (S.hap >= 40 ? '😐' : '☹️');
+    }
     set('turn-label', S.turn);
     const left = S.nextTribute - S.turn;
     const tl = document.getElementById('tribute-label');
@@ -1740,7 +1861,7 @@
   document.getElementById('btn-newgame').addEventListener('click', () => {
     if (modalOpen) return;
     showModal('🔁 Новая партия', 'Начать заново на новой случайной карте?\nТекущий прогресс будет потерян.', [
-      { label: 'Да, начать заново', fn: newGame },
+      { label: 'Да, начать заново', fn: () => { newGame(); centerOnTile(idx(CX, CY)); } },
       { label: 'Отмена', fn: () => {} },
     ]);
   });
@@ -1794,6 +1915,7 @@
     if (!loadGame()) newGame();
     updateCompact();
     applyZoom();
+    centerOnTile(idx(CX, CY));
     if (!reduceMotion) requestAnimationFrame(loop);
     // обучающая подсказка при первом запуске
     let seenHelp = false;
