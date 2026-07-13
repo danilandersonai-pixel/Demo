@@ -871,8 +871,11 @@
   const MEADOW = [];    // дубы/цветы/пни — редкие акценты на лугах
   const VILLAGE = [];   // бочки/телеги/фонари — декор у построек
   const MOUNT = [];     // скальные обломки для горных тайлов
+  const MPEAK = [];     // горные пики (объекты на единой земле)
   const BP = {};        // реквизит зданий (½ натива): бочки у дома и т.п.
   const WIMG = [];      // жители с ассет-листа (рисуются в ½ натива)
+  const SURF = [];      // мягкие штампы травы для бомбинга поверхности
+  let PLAINS_SOFT = null; // золотистая проплешина с растушёванным краем
 
   const TILE_ASSET = {
     grass: ['tl_grass', 'tl_hills'],
@@ -1012,6 +1015,27 @@
     TIMG.plains = prepTile('tl_plains');
     // плодородная земля — пшеничное поле во весь тайл
     TIMG.fertile = prepTile('tl_field');
+    // мягкие эллиптические штампы травы: ими «бомбится» поверхность,
+    // чтобы сетка ромбов исчезла и земля стала непрерывной
+    const softStamp = (td, w, h) => {
+      const c = document.createElement('canvas');
+      c.width = w; c.height = h;
+      const g = c.getContext('2d');
+      g.drawImage(td.c, Math.round(w / 2 - td.c.width / 2), Math.round(h / 2 - td.top));
+      g.globalCompositeOperation = 'destination-in';
+      g.translate(w / 2, h / 2);
+      g.scale(1, h / w);
+      const m = g.createRadialGradient(0, 0, w * .12, 0, 0, w / 2);
+      m.addColorStop(0, 'rgba(0,0,0,1)');
+      m.addColorStop(.65, 'rgba(0,0,0,.92)');
+      m.addColorStop(1, 'rgba(0,0,0,0)');
+      g.fillStyle = m;
+      g.fillRect(-w / 2, -w / 2, w, w);
+      return c;
+    };
+    SURF.length = 0;
+    for (const td of TIMG.grass) SURF.push(softStamp(td, TW + 16, TH + 12));
+    PLAINS_SOFT = TIMG.plains ? softStamp(TIMG.plains, TW + 20, TH + 14) : null;
     // спрайты кладутся в мир НАТИВНО (или целым кратным) — только так
     // пиксель-арт остаётся ровным, без выпадающих рядов пикселей
     const native = (im, k = 1) => ({ img: im, lw: im.width * k, lh: im.height * k });
@@ -1079,9 +1103,10 @@
     }
     // луга: дубы, цветы, пень — редкие одиночные акценты
     MEADOW.length = 0;
-    for (const k of ['p_oak1', 'p_oak2', 'p_oak3', 'f_1', 'f_2', 'f_3', 'p_stump']) {
+    for (const k of ['p_oak1', 'p_oak2', 'p_oak3', 'f_1', 'f_2', 'f_3']) {
       if (RAW[k] && RAW[k].width) MEADOW.push(native(RAW[k]));
     }
+    if (RAW.p_stump && RAW.p_stump.width) MEADOW.push(scaledProp(RAW.p_stump, .6));
     if (RAW.p_oak2 && RAW.p_oak2.width) MEADOW.push(scaledProp(RAW.p_oak2, .8));
     // деревенский декор у построек: бочка, телега, фонарь (½ — масштаб карты)
     VILLAGE.length = 0;
@@ -1094,6 +1119,13 @@
       MOUNT.push(native(RAW.p_rocks2));
       MOUNT.push(scaledProp(RAW.p_rocks2, 1.45));
       MOUNT.push({ img: mirror(RAW.p_rocks2), lw: RAW.p_rocks2.width, lh: RAW.p_rocks2.height });
+    }
+    // горные пики: объекты, стоящие на единой земле (кластер из референса)
+    MPEAK.length = 0;
+    if (RAW.h_peak && RAW.h_peak.width) {
+      MPEAK.push(native(RAW.h_peak));
+      MPEAK.push({ img: mirror(RAW.h_peak), lw: RAW.h_peak.width, lh: RAW.h_peak.height });
+      MPEAK.push(scaledProp(RAW.h_peak, 1.3));
     }
     // реквизит зданий: у дома — бочка и цветы, у лесопилки — пень…
     for (const k of ['p_barrel', 'p_cart', 'p_lantern', 'p_stump', 'p_rocks2', 'f_1', 'f_2', 'f_3']) {
@@ -1423,32 +1455,115 @@
     ctx.drawImage(roadLayer, 0, 0);
   }
 
-  function render(now) {
-    ctx.fillStyle = '#10161a';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    // проход 1: террейн и наземный декор (по диагоналям)
+  /* ==========================================================
+     ЕДИНАЯ ПОВЕРХНОСТЬ ЗЕМЛИ. Вместо «каждый тайл — свой PNG»
+     земля собирается один раз в отдельный слой: базовая трава,
+     затем «бомбинг» мягкими пятнами поверх узлов и МЕЖДУ ними —
+     сетка ромбов исчезает; вода/поля/руды кладутся сверху.
+     Лес и горы — это уже ОБЪЕКТЫ на этой земле, не тайлы.
+     ========================================================== */
+  let ground = null;
+  let groundDirty = true;
+
+  const plainsHash = (x, y) =>
+    (((x * 73856093) ^ (y * 19349663)) >>> 0) % 11 === 0;
+
+  function pickTileArt(i, t, x, y) {
+    if (t.vis === 2 && t.c && TIMG[t.c] && TIMG[t.c].c) return TIMG[t.c];
+    if (t.t === 'grass' && TIMG.plains && !t.b && plainsHash(x, y)) return TIMG.plains;
+    const list = TIMG[t.t];
+    return list[t.v % list.length];
+  }
+
+  function stampSurf(g, hh, cx, cy) {
+    const n = 1 + (hh % 2);
+    for (let k = 0; k < n; k++) {
+      const h2 = (hh ^ ((k + 1) * 40503)) >>> 0;
+      const sp = SURF[h2 % SURF.length];
+      const jx = (h2 % 21) - 10, jy = ((h2 >> 5) % 11) - 5;
+      g.drawImage(sp, Math.round(cx + jx - sp.width / 2), Math.round(cy + jy - sp.height / 2));
+    }
+  }
+
+  function rebuildGround() {
+    if (!ground) {
+      ground = document.createElement('canvas');
+      ground.width = CANW;
+      ground.height = CANH;
+    }
+    const g = ground.getContext('2d');
+    g.clearRect(0, 0, CANW, CANH);
+    const put = (td, sx, sy) => g.drawImage(td.c,
+      Math.round(sx + TW / 2 - td.c.width / 2), Math.round(sy + TH / 2 - td.top));
+    // 1: базовая травяная сетка (боковины дают обрыв по краю карты)
+    for (let s = 0; s <= W + H - 2; s++) {
+      for (let x = Math.max(0, s - H + 1); x <= Math.min(W - 1, s); x++) {
+        const i = idx(x, s - x);
+        const { sx, sy } = tileOrigin(i);
+        put(TIMG.grass[S.tiles[i].v % TIMG.grass.length], sx, sy);
+      }
+    }
+    // 2: бомбинг — пятна травы в узлах и межузлиях стирают сетку
+    if (SURF.length) {
+      for (let y = 0; y < H; y++) {
+        for (let x = 0; x < W; x++) {
+          const i = idx(x, y);
+          const [cx, cy] = tileCenter(i);
+          const hh = (i * 2246822519) >>> 0;
+          stampSurf(g, hh, cx, cy);
+          if (x < W - 1 && y < H - 1) stampSurf(g, (hh ^ 0x9e3779b9) >>> 0, cx, cy + TH / 2);
+        }
+      }
+    }
+    // 3: фичи местности поверх ровной земли
     for (let s = 0; s <= W + H - 2; s++) {
       for (let x = Math.max(0, s - H + 1); x <= Math.min(W - 1, s); x++) {
         const y = s - x;
         const i = idx(x, y);
         const t = S.tiles[i];
         const { sx, sy } = tileOrigin(i);
-        // тайл: месторождение (если разведано) или террейн
-        let td = null;
-        if (t.vis === 2 && t.c && TIMG[t.c] && TIMG[t.c].c) td = TIMG[t.c];
-        else if (t.t === 'grass' && TIMG.plains && !t.b &&
-          (((x * 73856093) ^ (y * 19349663)) >>> 0) % 11 === 0) {
-          td = TIMG.plains;   // редкая золотистая проплешина
-        } else {
-          const list = TIMG[t.t];
-          td = list[t.v % list.length];
+        if (t.t === 'water') put(TIMG.water[t.v % TIMG.water.length], sx, sy);
+        else if (t.c && TIMG[t.c] && TIMG[t.c].c) put(TIMG[t.c], sx, sy);
+        else if (t.t === 'grass' && PLAINS_SOFT && !t.b && plainsHash(x, y)) {
+          const [cx, cy] = tileCenter(i);
+          g.drawImage(PLAINS_SOFT, Math.round(cx - PLAINS_SOFT.width / 2),
+            Math.round(cy - PLAINS_SOFT.height / 2));
         }
-        const img = t.vis === 0 ? td.hidden : (t.vis === 1 ? td.fog : td.c);
-        // 1:1, без масштабирования: середина ромба арта в середину сетки
-        ctx.drawImage(img,
-          Math.round(sx + TW / 2 - img.width / 2),
-          Math.round(sy + TH / 2 - td.top));
-        if (t.vis !== 2) continue;
+      }
+    }
+    // 4: крупный свет — центр поселения теплее, углы карты темнее
+    const [hx, hy] = tileCenter(idx(CX, CY));
+    const rg = g.createRadialGradient(hx, hy, 60, hx, hy, CANW * .62);
+    rg.addColorStop(0, 'rgba(255,236,180,.07)');
+    rg.addColorStop(.5, 'rgba(0,0,0,0)');
+    rg.addColorStop(1, 'rgba(8,12,18,.16)');
+    g.globalCompositeOperation = 'source-atop';
+    g.fillStyle = rg;
+    g.fillRect(0, 0, CANW, CANH);
+    g.globalCompositeOperation = 'source-over';
+  }
+
+  function render(now) {
+    ctx.fillStyle = '#10161a';
+    ctx.fillRect(0, 0, CANW, CANH);
+    // проход 1: единая земля, туман и наземный декор
+    if (groundDirty) { rebuildGround(); groundDirty = false; }
+    ctx.drawImage(ground, 0, 0);
+    for (let s = 0; s <= W + H - 2; s++) {
+      for (let x = Math.max(0, s - H + 1); x <= Math.min(W - 1, s); x++) {
+        const y = s - x;
+        const i = idx(x, y);
+        const t = S.tiles[i];
+        const { sx, sy } = tileOrigin(i);
+        if (t.vis < 2) {
+          // неразведанное: затемнённый арт типа местности поверх земли
+          const td = pickTileArt(i, t, x, y);
+          const img = t.vis === 0 ? td.hidden : td.fog;
+          ctx.drawImage(img,
+            Math.round(sx + TW / 2 - img.width / 2),
+            Math.round(sy + TH / 2 - td.top));
+          continue;
+        }
         if (t.d && !t.b && !t.c) {
           const di = DECOR_IMG[t.d] && RAW[DECOR_IMG[t.d]] && RAW[DECOR_IMG[t.d]].width
             ? RAW[DECOR_IMG[t.d]] : null;
@@ -1540,13 +1655,21 @@
               ctx.drawImage(m, sx + 14 + (hh % 70), sy + 10 + ((hh >> 5) % 30));
             }
           }
-          // рассев: сосны сшивают лесные массивы, на лугах — редкие
-          // дубы/цветы, у построек — деревенский декор, на горах — осыпи
+          // рассев: лес и горы — ОБЪЕКТЫ на единой земле (не тайлы);
+          // на лугах — дубы/цветы, у построек — деревенский декор
           if (PIMG.length && !t.b) {
             const h1 = (i * 2654435761) >>> 0;
             const nearTown = neighbors8(i).some(nb => S.tiles[nb].b);
+            // горный пик — доминанта горного тайла (руды не заслоняем)
+            if (t.t === 'mountain' && MPEAK.length && !t.c) {
+              const pk = MPEAK[h1 % MPEAK.length];
+              const px2 = sx + TW / 2 + ((h1 >> 8) % 13) - 6;
+              const py2 = sy + TH / 2 + 18;
+              groundShadow(px2, py2 - 3, pk.lw * .42, pk.lw * .17);
+              ctx.drawImage(pk.img, Math.round(px2 - pk.lw / 2), Math.round(py2 - pk.lh), pk.lw, pk.lh);
+            }
             let pool = null, n = 0;
-            if (t.t === 'forest') { pool = PIMG; n = 2; }
+            if (t.t === 'forest') { pool = PIMG; n = 3 + h1 % 2; }
             else if (t.t === 'mountain' && MOUNT.length) { pool = MOUNT; n = 1 + h1 % 2; }
             else if (t.t === 'grass' && nearTown) {
               if (VILLAGE.length && (h1 % 3) === 0) { pool = VILLAGE; n = 1; }
@@ -1560,12 +1683,11 @@
             for (let k = 0; k < n; k++) {
               const hh = ((i * 73856093) ^ ((k + 1) * 19349663)) >>> 0;
               const pr = pool[hh % pool.length];
-              picks.push([pr, sx + 12 + (hh % 72), sy + 8 + ((hh >> 6) % 34)]);
+              picks.push([pr, sx + 8 + (hh % 84), sy + 6 + ((hh >> 6) % 40)]);
             }
-            if (t.t !== 'forest') {
-              for (const [pr, bx, by] of picks) {
-                groundShadow(bx, by - 1, pr.lw * .36, pr.lw * .14);
-              }
+            const shA = t.t === 'forest' ? .12 : .18;
+            for (const [pr, bx, by] of picks) {
+              groundShadow(bx, by - 1, pr.lw * .34, pr.lw * .13, shA);
             }
             for (const [pr, bx, by] of picks) {
               ctx.drawImage(pr.img, Math.round(bx - pr.lw / 2), Math.round(by - pr.lh), pr.lw, pr.lh);
@@ -1995,6 +2117,7 @@
   }
 
   function renderAll() {
+    groundDirty = true;   // земля могла измениться (разведка, стройка)
     if (reduceMotion) render(0);
     renderPanel();
     renderHud();
