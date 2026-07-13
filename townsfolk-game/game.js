@@ -870,6 +870,8 @@
   const PIMG = [];      // пропсы-рассев: сосны для лесных массивов
   const MEADOW = [];    // дубы/цветы/пни — редкие акценты на лугах
   const VILLAGE = [];   // бочки/телеги/фонари — декор у построек
+  const MOUNT = [];     // скальные обломки для горных тайлов
+  const BP = {};        // реквизит зданий (½ натива): бочки у дома и т.п.
   const WIMG = [];      // жители с ассет-листа (рисуются в ½ натива)
 
   const TILE_ASSET = {
@@ -885,6 +887,13 @@
     dock: 'h_dock',
   };
   const SMOKE_BUILDINGS = { townhall: 1, house: 1, tavern: 1, lumber: 1 };
+  // «жизнь» вокруг зданий: реквизит по типу, ставится по передним углам
+  const BPROPS = {
+    house: ['p_barrel', 'f_2'], farm: ['p_cart', 'f_3'],
+    lumber: ['p_stump', 'p_barrel'], mine: ['p_rocks2', 'p_cart'],
+    market: ['p_barrel', 'p_barrel'], church: ['f_1', 'p_lantern'],
+    tavern: ['p_barrel', 'p_lantern'], townhall: ['p_lantern', 'p_lantern'],
+  };
 
   // Самая широкая непрозрачная строка = середина ромба
   function widestRow(c) {
@@ -1006,9 +1015,33 @@
     // спрайты кладутся в мир НАТИВНО (или целым кратным) — только так
     // пиксель-арт остаётся ровным, без выпадающих рядов пикселей
     const native = (im, k = 1) => ({ img: im, lw: im.width * k, lh: im.height * k });
+    // Опорная точка (ground pivot): середина СОБСТВЕННОГО основания спрайта —
+    // самая широкая строка в нижней трети. Она сажается в середину ромба
+    // тайла, поэтому все здания стоят на одной плоскости земли, а не
+    // выравниваются по нижнему краю PNG.
+    const basePivot = (im) => {
+      const c = document.createElement('canvas');
+      c.width = im.width; c.height = im.height;
+      c.getContext('2d').drawImage(im, 0, 0);
+      const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
+      let best = im.height - 1, bw = -1;
+      for (let y = Math.floor(im.height * .66); y < im.height; y++) {
+        let x0 = -1, x1 = -1;
+        for (let x = 0; x < im.width; x++) {
+          if (d[(y * im.width + x) * 4 + 3] > 40) { if (x0 < 0) x0 = x; x1 = x; }
+        }
+        if (x1 - x0 > bw) { bw = x1 - x0; best = y; }
+      }
+      return best;
+    };
+    // ручная подстройка посадки отдельных зданий (px вниз от авто-опоры)
+    const PIVOT_ADJ = { townhall: 0, dock: -4 };
     for (const key in BUILD_ASSET) {
       const im = RAW[BUILD_ASSET[key]];
-      if (im && im.width) BIMG[key] = native(im);
+      if (im && im.width) {
+        BIMG[key] = native(im);
+        BIMG[key].base = basePivot(im) + (PIVOT_ADJ[key] || 0);
+      }
     }
     // звери в ½ натива: пропорция к домам как в референсе (ровное ½-прореживание)
     const half = (im) => ({ img: im, lw: Math.round(im.width / 2), lh: Math.round(im.height / 2) });
@@ -1024,11 +1057,24 @@
       g.drawImage(im, 0, 0);
       return c;
     };
+    // прескейл-вариант пропса (для разброса размеров деревьев)
+    const scaledProp = (im, f) => {
+      const c = document.createElement('canvas');
+      c.width = Math.max(1, Math.round(im.width * f));
+      c.height = Math.max(1, Math.round(im.height * f));
+      const g = c.getContext('2d');
+      g.imageSmoothingEnabled = true;
+      g.imageSmoothingQuality = 'high';
+      g.drawImage(im, 0, 0, c.width, c.height);
+      return { img: c, lw: c.width, lh: c.height };
+    };
     PIMG.length = 0;
     for (const k of ['p_tree1', 'p_tree2', 'p_pineB']) {
       if (RAW[k] && RAW[k].width) {
         PIMG.push(native(RAW[k]));
         PIMG.push({ img: mirror(RAW[k]), lw: RAW[k].width, lh: RAW[k].height });
+        PIMG.push(scaledProp(RAW[k], .78));   // молодое дерево
+        PIMG.push(scaledProp(RAW[k], 1.18));  // старое высокое
       }
     }
     // луга: дубы, цветы, пень — редкие одиночные акценты
@@ -1036,10 +1082,22 @@
     for (const k of ['p_oak1', 'p_oak2', 'p_oak3', 'f_1', 'f_2', 'f_3', 'p_stump']) {
       if (RAW[k] && RAW[k].width) MEADOW.push(native(RAW[k]));
     }
+    if (RAW.p_oak2 && RAW.p_oak2.width) MEADOW.push(scaledProp(RAW.p_oak2, .8));
     // деревенский декор у построек: бочка, телега, фонарь (½ — масштаб карты)
     VILLAGE.length = 0;
     for (const k of ['p_barrel', 'p_cart', 'p_lantern']) {
       if (RAW[k] && RAW[k].width) VILLAGE.push(native(RAW[k], 0.5));
+    }
+    // скальные обломки — горы становятся массивом, а не одиночными пиками
+    MOUNT.length = 0;
+    if (RAW.p_rocks2 && RAW.p_rocks2.width) {
+      MOUNT.push(native(RAW.p_rocks2));
+      MOUNT.push(scaledProp(RAW.p_rocks2, 1.45));
+      MOUNT.push({ img: mirror(RAW.p_rocks2), lw: RAW.p_rocks2.width, lh: RAW.p_rocks2.height });
+    }
+    // реквизит зданий: у дома — бочка и цветы, у лесопилки — пень…
+    for (const k of ['p_barrel', 'p_cart', 'p_lantern', 'p_stump', 'p_rocks2', 'f_1', 'f_2', 'f_3']) {
+      if (RAW[k] && RAW[k].width) BP[k] = native(RAW[k], 0.5);
     }
     // жители с ассет-листа: рисуются в ½ натива (ровное прореживание)
     WIMG.length = 0;
@@ -1100,6 +1158,25 @@
       px(g, '#d9a84c', 2, 2, 5, 3); px(g, '#d9a84c', 4, 5, 1, 2); px(g, '#d9a84c', 2, 7, 5, 3);
       px(g, '#efc76e', 3, 2, 2, 1);
     }, 9, 12);
+
+    // микродекор: камешки, кочки травы, ветки, грибы (арт 2x)
+    sprites.micro = [
+      makeSprite(g => { px(g, '#8d8a7c', 0, 2, 6, 4); px(g, '#a8a493', 1, 2, 3, 2); px(g, '#5f5c50', 1, 6, 4, 1); }, 8, 8),
+      makeSprite(g => { px(g, '#83806f', 0, 3, 4, 3); px(g, '#9b9787', 4, 5, 3, 2); px(g, '#a8a493', 1, 3, 2, 1); }, 8, 8),
+      makeSprite(g => { px(g, '#3c5a30', 1, 0, 2, 5); px(g, '#466a38', 4, 1, 2, 4); px(g, '#31491f', 7, 0, 2, 5); }, 10, 6),
+      makeSprite(g => { px(g, '#466a38', 0, 1, 2, 4); px(g, '#548044', 3, 0, 2, 5); px(g, '#3c5a30', 6, 2, 2, 3); }, 9, 6),
+      makeSprite(g => { px(g, '#6b5230', 0, 2, 8, 2); px(g, '#57431f', 5, 0, 2, 3); }, 9, 5),
+      makeSprite(g => { px(g, '#b0483a', 1, 0, 4, 2); px(g, '#d8d2c0', 2, 2, 2, 3); px(g, '#c96a54', 2, 0, 2, 1); }, 6, 6),
+    ];
+    // берег: камыш и кувшинка
+    sprites.reed = [0, 1].map(v => makeSprite(g => {
+      px(g, '#2f5230', 2, 2, 2, 12); px(g, '#3f6d3a', 6, 0, 2, 14); px(g, '#2f5230', 10, 3, 2, 11);
+      px(g, '#7a6a3a', 5, 0, 4, 4);
+      if (v) { px(g, '#3f6d3a', 13, 2, 2, 10); px(g, '#7a6a3a', 12, 1, 3, 3); }
+    }, 16, 16));
+    sprites.lily = makeSprite(g => {
+      px(g, '#3f7a44', 0, 1, 8, 4); px(g, '#54924e', 1, 1, 4, 2); px(g, '#c47ba0', 5, 0, 2, 2);
+    }, 9, 6);
 
     sprites.smoke = [0, 1].map(f => makeSprite(g => {
       const a = '#b2ac9e', b = '#8f8a7d';
@@ -1242,6 +1319,18 @@
     dctx.drawImage(world, 0, 0, canvas.width, canvas.height);
   }
 
+  // Контактная тень: мягкий эллипс в точке касания объекта с землёй.
+  // Именно тени «прижимают» здания и деревья к общей плоскости.
+  function groundShadow(cx, cy, rx, ry, a = .18) {
+    ctx.save();
+    ctx.globalAlpha = a;
+    ctx.fillStyle = '#0b0f0a';
+    ctx.beginPath();
+    ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
   // --- Дороги между постройками (дерево кратчайших связей от ратуши) ---
   let PATHS = [];
 
@@ -1268,25 +1357,70 @@
       PATHS.push([ba, b]);
       connected.push(b);
     }
+    roadLayer = null; // сеть изменилась — слой дорог перерисуется
   }
 
-  function drawPaths() {
+  // Слой дорог рисуется один раз при изменении сети (кэш-канвас):
+  // широкие мягкие ленты светлее травы, с изгибом и потёртыми краями.
+  let roadLayer = null;
+
+  function rebuildRoadLayer() {
+    roadLayer = document.createElement('canvas');
+    roadLayer.width = CANW;
+    roadLayer.height = CANH;
+    const g = roadLayer.getContext('2d');
+    const CORE = ['#9c7c50', '#93744a', '#a28154'];
+    const blob = (xx, yy, r, col, a) => {
+      g.globalAlpha = a;
+      g.fillStyle = col;
+      g.beginPath();
+      g.ellipse(xx, yy, r, r * .55, 0, 0, Math.PI * 2);
+      g.fill();
+    };
+    const lane = (ax, ay, bx, by, seed) => {
+      const dist = Math.hypot(bx - ax, by - ay);
+      if (dist < 4) return;
+      // контрольная точка — плавный изгиб всей ленты
+      const bend = (((seed * 73) % 21) - 10);
+      const mx = (ax + bx) / 2 - (by - ay) / dist * bend;
+      const my = (ay + by) / 2 + (bx - ax) / dist * bend * .5;
+      const n = Math.max(6, Math.round(dist / 3));
+      for (let k = 0; k <= n; k++) {
+        const f = k / n;
+        const u = 1 - f;
+        const xx = u * u * ax + 2 * u * f * mx + f * f * bx;
+        const yy = u * u * ay + 2 * u * f * my + f * f * by;
+        const hh = ((seed * 131 + k * 37) >>> 0);
+        const jx = (hh % 5) - 2, jy = ((hh >> 3) % 3) - 1;
+        // тёмная обочина, затем светлое полотно — края «потёртые»
+        blob(xx + jx, yy + 2 + jy, 8.5, '#5d4a30', .18);
+        blob(xx + jx, yy + jy, 6.5, CORE[hh % 3], .5);
+        if (hh % 4 === 0) blob(xx - jx * 2, yy + jy, 3.5, '#b09466', .35);
+      }
+    };
     for (let p = 0; p < PATHS.length; p++) {
       const [a, b] = PATHS[p];
       const [ax, ay] = tileCenter(a), [bx, by] = tileCenter(b);
-      const dist = Math.hypot(bx - ax, by - ay);
-      const n = Math.max(3, Math.round(dist / 4));
-      for (let k = 1; k < n; k++) {
-        const f = k / n;
-        const j = ((p * 97 + k * 31) % 9) - 4;   // детерминированный изгиб
-        const xx = ax + (bx - ax) * f + j * ((by - ay) / dist);
-        const yy = ay + (by - ay) * f - j * ((bx - ax) / dist) * .5;
-        ctx.fillStyle = (k % 2) ? '#8a6a42' : '#7d5f3a';
-        ctx.fillRect(Math.round(xx - 3), Math.round(yy), 6, 3);
-        ctx.fillStyle = 'rgba(60,45,25,.5)';
-        ctx.fillRect(Math.round(xx - 3), Math.round(yy + 3), 6, 2);
+      lane(ax, ay, bx, by, p + 7);
+    }
+    // утоптанная площадь вокруг ратуши — центр поселения читается сразу
+    const hall = S && S.tiles.findIndex(t => t.b === 'townhall');
+    if (hall >= 0) {
+      const [cx, cy] = tileCenter(hall);
+      for (let k = 0; k < 26; k++) {
+        const hh = (k * 2654435761) >>> 0;
+        const ang = (hh % 628) / 100;
+        const rad = 20 + (hh >> 4) % 46;
+        blob(cx + Math.cos(ang) * rad, cy + 14 + Math.sin(ang) * rad * .5,
+          7, CORE[hh % 3], .34);
       }
     }
+    g.globalAlpha = 1;
+  }
+
+  function drawPaths() {
+    if (!roadLayer) rebuildRoadLayer();
+    ctx.drawImage(roadLayer, 0, 0);
   }
 
   function render(now) {
@@ -1366,24 +1500,74 @@
             ctx.drawImage(sprites.qmark, sx + TW / 2 - 13, sy + 5 + bob, 27, 36);
           }
         } else {
+          // берег: тёмная кромка «врезает» воду в землю, у суши — камыш
+          if (t.t === 'water') {
+            const cx0 = sx + TW / 2, cy0 = sy + TH / 2;
+            const EDGES = [
+              [-1, 0, [sx, sy + TH / 2], [sx + TW / 2, sy]],
+              [0, -1, [sx + TW / 2, sy], [sx + TW, sy + TH / 2]],
+              [1, 0, [sx + TW, sy + TH / 2], [sx + TW / 2, sy + TH]],
+              [0, 1, [sx + TW / 2, sy + TH], [sx, sy + TH / 2]],
+            ];
+            for (const [dx2, dy2, A, B] of EDGES) {
+              const nx2 = x + dx2, ny2 = y + dy2;
+              if (inMap(nx2, ny2) && S.tiles[idx(nx2, ny2)].t === 'water') continue;
+              const k2 = .08;
+              ctx.strokeStyle = 'rgba(10,20,16,.32)';
+              ctx.lineWidth = 4;
+              ctx.beginPath();
+              ctx.moveTo(A[0] + (cx0 - A[0]) * k2, A[1] + (cy0 - A[1]) * k2);
+              ctx.lineTo(B[0] + (cx0 - B[0]) * k2, B[1] + (cy0 - B[1]) * k2);
+              ctx.stroke();
+              const hh = ((i * 51787) ^ (dx2 * 3 + dy2 * 7)) >>> 0;
+              if (hh % 2 === 0 && sprites.reed) {
+                const f = .3 + (hh % 40) / 100;
+                const rx = A[0] + (B[0] - A[0]) * f, ry = A[1] + (B[1] - A[1]) * f;
+                ctx.drawImage(sprites.reed[hh % 2], Math.round(rx - 8), Math.round(ry - 14));
+              }
+            }
+            const hl = (i * 92821) >>> 0;
+            if (hl % 3 === 0 && sprites.lily) {
+              ctx.drawImage(sprites.lily, sx + 30 + (hl % 40), sy + 16 + ((hl >> 4) % 16));
+            }
+          }
+          // микродекор: у каждого тайла суши 1-2 мелочи (камни, кочки)
+          if (t.t !== 'water' && sprites.micro && !t.b) {
+            const hm = (i * 40503) >>> 0;
+            for (let k = 0; k <= hm % 2; k++) {
+              const hh = (hm ^ ((k + 1) * 84053)) >>> 0;
+              const m = sprites.micro[hh % sprites.micro.length];
+              ctx.drawImage(m, sx + 14 + (hh % 70), sy + 10 + ((hh >> 5) % 30));
+            }
+          }
           // рассев: сосны сшивают лесные массивы, на лугах — редкие
-          // дубы/цветы, у построек — деревенский декор (бочки, телеги)
+          // дубы/цветы, у построек — деревенский декор, на горах — осыпи
           if (PIMG.length && !t.b) {
             const h1 = (i * 2654435761) >>> 0;
             const nearTown = neighbors8(i).some(nb => S.tiles[nb].b);
             let pool = null, n = 0;
             if (t.t === 'forest') { pool = PIMG; n = 2; }
+            else if (t.t === 'mountain' && MOUNT.length) { pool = MOUNT; n = 1 + h1 % 2; }
             else if (t.t === 'grass' && nearTown) {
               if (VILLAGE.length && (h1 % 3) === 0) { pool = VILLAGE; n = 1; }
             } else if (t.t === 'grass' && MEADOW.length && (h1 % 3) === 0) {
               pool = MEADOW; n = 1;
             }
             if (t.c || t.d) n = Math.min(n, 1);
+            // сначала ВСЕ тени, потом спрайты — тень не ложится на кроны;
+            // на лесных тайлах земли не видно, тени там только мешают
+            const picks = [];
             for (let k = 0; k < n; k++) {
               const hh = ((i * 73856093) ^ ((k + 1) * 19349663)) >>> 0;
               const pr = pool[hh % pool.length];
-              const bx = sx + 12 + (hh % 72);
-              const by = sy + 8 + ((hh >> 6) % 34);
+              picks.push([pr, sx + 12 + (hh % 72), sy + 8 + ((hh >> 6) % 34)]);
+            }
+            if (t.t !== 'forest') {
+              for (const [pr, bx, by] of picks) {
+                groundShadow(bx, by - 1, pr.lw * .36, pr.lw * .14);
+              }
+            }
+            for (const [pr, bx, by] of picks) {
               ctx.drawImage(pr.img, Math.round(bx - pr.lw / 2), Math.round(by - pr.lh), pr.lw, pr.lh);
             }
           }
@@ -1395,13 +1579,16 @@
           if (t.c && CIMG[t.c]) {
             const cr = CIMG[t.c];
             const w = cr.lw * RS * scale, h = cr.lh * RS * scale;
-            ctx.drawImage(cr.img, sx * RS + (TW * RS - w) / 2, (sy + TH + 2) * RS - h, w, h);
+            groundShadow(sx + TW / 2, sy + TH / 2 + 10, w * .45, w * .18);
+            ctx.drawImage(cr.img, sx * RS + (TW * RS - w) / 2, (sy + TH / 2 + 12) * RS - h, w, h);
           }
           if (t.b && BIMG[t.b]) {
             const br = BIMG[t.b];
             const w = br.lw * RS * scale, h = br.lh * RS * scale;
             const bx = sx * RS + (TW * RS - w) / 2;
-            const by = (sy + TH + 12) * RS - h;
+            // опора: середина основания спрайта — в середину ромба тайла
+            const by = (sy + TH / 2) * RS - br.base * scale;
+            groundShadow(sx + TW / 2, sy + TH / 2 + 4, 38, 16, .2);
             ctx.drawImage(br.img, bx, by, w, h);
             if (SMOKE_BUILDINGS[t.b] && !reduceMotion) {
               const f = (Math.floor(now / 520) + i) % 2;
@@ -1409,6 +1596,20 @@
               ctx.globalAlpha = .7;
               ctx.drawImage(sprites.smoke[f], sx + TW / 2 + 14, by - 26 - rise, 30, 33);
               ctx.globalAlpha = 1;
+            }
+            // реквизит по типу здания: бочки у дома, пни у лесопилки…
+            const props = BPROPS[t.b];
+            if (props) {
+              const hp = (i * 60493) >>> 0;
+              const spots = [[16, TH / 2 + 16], [TW - 16, TH / 2 + 20]];
+              for (let k = 0; k < props.length; k++) {
+                if (((hp >> k) & 3) === 0) continue;  // не у каждого экземпляра всё сразу
+                const pr = BP[props[k]];
+                if (!pr) continue;
+                const bx2 = sx + spots[k][0], by2 = sy + spots[k][1];
+                groundShadow(bx2, by2 - 1, pr.lw * .4, pr.lw * .16);
+                ctx.drawImage(pr.img, Math.round(bx2 - pr.lw / 2), Math.round(by2 - pr.lh), pr.lw, pr.lh);
+              }
             }
           }
         }
