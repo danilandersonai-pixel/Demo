@@ -14,7 +14,10 @@
   const PADX = 8, PADY = 46;          // поля (сверху — под горы и деревья)
   const CANW = PADX * 2 + (W + H - 2) * TW / 2 + TW;      // 720
   const CANH = PADY + (W + H - 2) * TH / 2 + TH + 30;     // 426
-  const Z = 2;                        // внутренний масштаб канваса
+  // внутренний масштаб канваса: на больших/чётких экранах рисуем в 3×,
+  // чтобы карта оставалась резкой при десктопном увеличении
+  const Z = ((window.devicePixelRatio || 1) *
+    Math.max(window.screen ? screen.width : 0, window.screen ? screen.height : 0)) >= 1900 ? 3 : 2;
   const TRIBUTE_EVERY = 12;           // дань раз в 12 дней
   const TRIBUTES_TO_WIN = 5;
   const EXPLORE_TURNS_BASE = 2;
@@ -988,6 +991,7 @@
     }, TW * Z, TH * Z);
     sprites.select = diamondOutline('#efc76e');
     sprites.place = diamondOutline('#7fb069');
+    sprites.hover = diamondOutline('rgba(226,217,194,.85)');
 
     // плодородная земля: золотые колосья по ромбу
     sprites.fertile = makeSprite(g => {
@@ -1050,6 +1054,8 @@
 
   // ---------- Отрисовка ----------
   const canvas = document.getElementById('map');
+  canvas.width = CANW * Z;
+  canvas.height = CANH * Z;
   const ctx = canvas.getContext('2d');
   ctx.imageSmoothingEnabled = false;
 
@@ -1188,12 +1194,17 @@
         }
 
         if (placing && canPlace(i, placing)) {
-          ctx.globalAlpha = reduceMotion ? .9 : .55 + .4 * Math.sin(now / 240 + i);
+          ctx.globalAlpha = i === hoverTile ? 1
+            : (reduceMotion ? .9 : .55 + .4 * Math.sin(now / 240 + i));
           ctx.drawImage(sprites.place, sx * Z, sy * Z);
           ctx.globalAlpha = 1;
         } else if (i === selected && !placing) {
           ctx.globalAlpha = reduceMotion ? 1 : .65 + .35 * Math.sin(now / 280);
           ctx.drawImage(sprites.select, sx * Z, sy * Z);
+          ctx.globalAlpha = 1;
+        } else if (!placing && i === hoverTile && t.vis > 0) {
+          ctx.globalAlpha = .35;
+          ctx.drawImage(sprites.hover, sx * Z, sy * Z);
           ctx.globalAlpha = 1;
         }
       }
@@ -1551,11 +1562,10 @@
     document.getElementById('game').classList.toggle('compact', lh < 560);
   }
 
-  function selectAt(e) {
-    if (S.over || modalOpen) return;
+  // ближайший к курсору тайл (нормированная эллиптическая метрика)
+  function tileAt(e) {
     const [fx, fy] = localFrac(e, canvas);
     const mx = fx * CANW, my = fy * CANH;
-    // ближайший центр ромба (нормированная эллиптическая метрика)
     let best = -1, bestD = 1.4;
     for (let i = 0; i < S.tiles.length; i++) {
       const { sx, sy } = tileOrigin(i);
@@ -1564,6 +1574,12 @@
       const d = dx * dx + dy * dy;
       if (d < bestD) { bestD = d; best = i; }
     }
+    return best;
+  }
+
+  function selectAt(e) {
+    if (S.over || modalOpen) return;
+    const best = tileAt(e);
 
     // режим размещения: тап по подсвеченному тайлу строит, мимо — отмена
     if (placing) {
@@ -1599,9 +1615,18 @@
     scrollBox.setPointerCapture(e.pointerId);
   });
   scrollBox.addEventListener('pointermove', (e) => {
-    if (!drag) return;
+    if (!drag) {
+      if (canHover) {
+        const h = tileAt(e);
+        if (h !== hoverTile) { hoverTile = h; if (reduceMotion) render(0); }
+      }
+      return;
+    }
     const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
-    if (Math.abs(dx) + Math.abs(dy) > 8) drag.moved = true;
+    if (Math.abs(dx) + Math.abs(dy) > 8) {
+      drag.moved = true;
+      scrollBox.classList.add('dragging');
+    }
     if (!drag.moved) return;
     const lx = isRotated() ? dy : dx;
     const ly = isRotated() ? -dx : dy;
@@ -1609,10 +1634,96 @@
     scrollBox.scrollTop = drag.st - ly;
   });
   scrollBox.addEventListener('pointerup', (e) => {
-    if (drag && !drag.moved) selectAt(e);
+    // только основная кнопка: правая — для отмены (contextmenu)
+    if (drag && !drag.moved && e.button === 0) selectAt(e);
     drag = null;
+    scrollBox.classList.remove('dragging');
   });
-  scrollBox.addEventListener('pointercancel', () => { drag = null; });
+  scrollBox.addEventListener('pointercancel', () => {
+    drag = null;
+    scrollBox.classList.remove('dragging');
+  });
+  scrollBox.addEventListener('pointerleave', () => {
+    hoverTile = -1;
+    if (reduceMotion) render(0);
+  });
+
+  // подсветка тайла под курсором (только устройства с мышью)
+  const canHover = window.matchMedia('(hover: hover)').matches;
+  let hoverTile = -1;
+
+  // колесо мыши: зум к точке под курсором
+  scrollBox.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    const factor = e.deltaY < 0 ? 1.18 : 1 / 1.18;
+    const next = Math.min(2.6, Math.max(1, zoom * factor));
+    if (next === zoom) return;
+    const [fx, fy] = localFrac(e, canvas);   // точка карты под курсором
+    zoom = next;
+    applyZoom();
+    const r = scrollBox.getBoundingClientRect();
+    const px = isRotated() ? e.clientY - r.top : e.clientX - r.left;
+    const py = isRotated() ? r.right - e.clientX : e.clientY - r.top;
+    scrollBox.scrollLeft = fx * canvas.clientWidth - px;
+    scrollBox.scrollTop = fy * canvas.clientHeight - py;
+  }, { passive: false });
+
+  // правая кнопка — отмена размещения/выбора
+  scrollBox.addEventListener('contextmenu', (e) => {
+    e.preventDefault();
+    if (placing || selected >= 0) {
+      placing = null;
+      selected = -1;
+      renderAll();
+    }
+  });
+
+  // ---------- Горячие клавиши ----------
+  window.addEventListener('keydown', (e) => {
+    if (modalOpen) return; // модальные окна — мышью
+    if (e.ctrlKey || e.metaKey || e.altKey) return; // не мешаем шорткатам браузера
+    const pan = 70;
+    switch (e.code) {
+      case 'Space':
+      case 'Enter':
+        e.preventDefault();
+        endDay();
+        break;
+      case 'Escape':
+        placing = null;
+        selected = -1;
+        renderAll();
+        break;
+      case 'Digit1': case 'Digit2': case 'Digit3': {
+        const tb = BUILD_TABS[+e.code.slice(-1) - 1];
+        if (tb) { activeTab = tb.id; renderTabs(); renderCards(); }
+        break;
+      }
+      case 'Equal': case 'NumpadAdd':
+        document.getElementById('z-in').click();
+        break;
+      case 'Minus': case 'NumpadSubtract':
+        document.getElementById('z-out').click();
+        break;
+      case 'ArrowLeft': case 'KeyA': scrollBox.scrollLeft -= pan; e.preventDefault(); break;
+      case 'ArrowRight': case 'KeyD': scrollBox.scrollLeft += pan; e.preventDefault(); break;
+      case 'ArrowUp': case 'KeyW': scrollBox.scrollTop -= pan; e.preventDefault(); break;
+      case 'ArrowDown': case 'KeyS': scrollBox.scrollTop += pan; e.preventDefault(); break;
+      case 'KeyT': document.getElementById('btn-tech').click(); break;
+      case 'KeyL': document.getElementById('btn-log').click(); break;
+      case 'KeyH': document.getElementById('btn-help').click(); break;
+    }
+  });
+
+  // колесо над карточками — горизонтальная прокрутка
+  const cardsBox = document.getElementById('build-cards');
+  cardsBox.addEventListener('wheel', (e) => {
+    if (!e.deltaY) return;
+    e.preventDefault();
+    // deltaMode: 1 — строки (Firefox), 2 — страницы
+    const k = e.deltaMode === 1 ? 40 : (e.deltaMode === 2 ? cardsBox.clientWidth : 1);
+    cardsBox.scrollLeft += e.deltaY * k;
+  }, { passive: false });
 
   function skipDays(n) {
     for (let k = 0; k < n; k++) {
@@ -1669,6 +1780,9 @@
       '• Очки знаний 🔬 открывают технологии — с каждым открытием дороже.\n' +
       '• Раз в 12 дней король требует дань. Не заплатите — потеряете колонию. ' +
       `Выплатите ${TRIBUTES_TO_WIN} даней — победа!\n\n` +
+      '⌨️ На компьютере: Пробел — новый день, колесо мыши — зум, ' +
+      'стрелки/WASD — карта, 1–3 — вкладки, Esc — отмена, правая кнопка — сброс, ' +
+      'T — технологии, L — летопись, H — эта справка.\n\n' +
       'Фанатская веб-версия по мотивам TownsFolk (Short Circuit Studio / MWM).',
       [{ label: 'Понятно', fn: () => {} }]);
   });

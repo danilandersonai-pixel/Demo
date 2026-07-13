@@ -64,18 +64,25 @@ body {
 
 .map-inner {
   position: relative;
+  display: flex;
   min-width: 100%;
   min-height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  /* растём вместе с канвасом: при зуме весь край карты достижим прокруткой */
+  width: max-content;
+  height: max-content;
 }
 
 #map {
   image-rendering: pixelated;
   image-rendering: crisp-edges;
-  cursor: pointer;
   flex-shrink: 0;
+  /* центрирует, когда карта меньше окна, и не съедает край при зуме */
+  margin: auto;
+}
+
+@media (hover: hover) {
+  #map-scroll { cursor: grab; }
+  #map-scroll.dragging { cursor: grabbing; }
 }
 
 /* --- Общий стиль панелей: тёмные с латунной рамкой --- */
@@ -555,6 +562,45 @@ body {
 .tech-row .tech-name { color: var(--ink); font-weight: bold; }
 .tech-row .tech-desc { color: var(--ink-dim); font-size: 11px; }
 .tech-row.is-owned .tech-name { color: var(--green); }
+
+/* --- Большие мониторы: укрупняем интерфейс --- */
+@media (min-width: 1600px) and (min-height: 860px) {
+  .hud-day__label { font-size: 18px; }
+  .hud-day__label b { font-size: 20px; }
+  .hud-day__tribute { font-size: 13px; }
+  .hud-day__crest { width: 42px; height: 42px; }
+  .mini-btn { width: 36px; height: 36px; font-size: 15px; }
+  .icon-btn { width: 48px; height: 48px; font-size: 21px; }
+  .icon-btn img { width: 30px; height: 30px; }
+  .res { padding: 3px 12px; gap: 7px; }
+  .res .ico { width: 26px; height: 26px; }
+  .res b { font-size: 16px; }
+  .res i { font-size: 12px; }
+  .panel h4 { font-size: 15px; }
+  .objectives { width: 236px; font-size: 14px; }
+  .side-btn { width: 82px; font-size: 11px; padding: 9px 5px; }
+  .side-btn__ico { font-size: 26px; }
+  #minimap { width: 196px; }
+  .buildbar { width: min(860px, calc(100% - 240px)); }
+  .tab { font-size: 13px; padding: 7px 18px 5px; }
+  .card { flex: 0 0 104px; }
+  .card img { width: 58px; height: 50px; }
+  .card__name { font-size: 12px; }
+  .card__cost { font-size: 12px; }
+  .card__cost img { width: 15px; height: 15px; }
+  .big-day { width: 132px; height: 116px; font-size: 16px; }
+  .big-day__ico { width: 42px; height: 42px; }
+  .tile-info { font-size: 15px; min-width: 300px; bottom: 132px; }
+  .tile-info h3 { font-size: 16px; }
+  .tile-info p { font-size: 14px; }
+  .btn { font-size: 15px; }
+  .btn--small { font-size: 14px; }
+  .log-overlay { width: 420px; }
+  .log { font-size: 14px; max-height: 320px; }
+  .modal { max-width: 440px; }
+  .modal h2 { font-size: 18px; }
+  .modal p { font-size: 15px; }
+}
 
 /* --- Компактная горизонталь (телефон): класс ставит JS по локальной высоте --- */
 #game.compact .hud-day { padding: 4px 8px; gap: 6px; }
