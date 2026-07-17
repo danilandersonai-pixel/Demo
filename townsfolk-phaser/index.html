@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="ru-RU">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Городок · Phaser</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #10161a;
+    font-family: Georgia, 'Times New Roman', serif; }
+  #stage { position: absolute; inset: 0; }
+  #stage canvas { display: block; }
+  .panel {
+    position: absolute; background: rgba(16,20,28,.92); color: #e2d9c2;
+    border: 2px solid #c8b482; border-radius: 10px; z-index: 10;
+  }
+  .hud-top { top: 10px; left: 50%; transform: translateX(-50%);
+    padding: 8px 18px; display: flex; gap: 22px; align-items: center; font-size: 17px; }
+  .hud-top b { color: #fff; }
+  .hud-top img { width: 26px; height: 26px; object-fit: contain; vertical-align: -6px; image-rendering: pixelated; }
+  .hud-top .res i { font-style: normal; color: #8fbc72; font-size: 12px; margin-left: 4px; }
+  .engine-tag { position: absolute; top: 10px; left: 10px; padding: 6px 12px; font-size: 13px;
+    color: #ffd76e; z-index: 10; background: rgba(16,20,28,.92); border: 2px solid #c8b482; border-radius: 8px; }
+  .buildbar { bottom: 12px; left: 50%; transform: translateX(-50%);
+    padding: 10px; display: flex; gap: 10px; }
+  .card { width: 92px; background: #1b212c; border: 2px solid #5a5138; border-radius: 8px;
+    color: #e2d9c2; text-align: center; padding: 6px 4px; cursor: pointer; font-size: 13px; }
+  .card img { width: 58px; height: 52px; object-fit: contain; image-rendering: pixelated; }
+  .card .cost { color: #d9a84c; font-size: 12px; }
+  .card:hover { border-color: #c8b482; }
+  .card.is-active { border-color: #7fb069; box-shadow: 0 0 12px rgba(127,176,105,.5); }
+  .card.is-off { opacity: .45; cursor: default; }
+  .big-day { position: absolute; right: 16px; bottom: 16px; z-index: 10;
+    background: #2a2416; color: #ffd76e; border: 2px solid #c8b482; border-radius: 12px;
+    font-family: inherit; font-size: 17px; font-weight: bold; padding: 16px 22px; cursor: pointer; }
+  .big-day:hover { background: #3a3320; }
+  #hint { top: 64px; left: 50%; transform: translateX(-50%); padding: 6px 14px; font-size: 14px;
+    color: #ffd76e; display: none; }
+</style>
+</head>
+<body>
+<div id="stage"></div>
+<div class="engine-tag">⚙ Phaser 3 — прототип движка</div>
+<div class="panel hud-top">
+  <span>ДЕНЬ <b id="r-day">1</b></span>
+  <span class="res"><img id="i-food" alt="🍞"><b id="r-food">30</b><i id="d-food"></i></span>
+  <span class="res"><img id="i-prod" alt="⚒"><b id="r-prod">30</b><i id="d-prod"></i></span>
+  <span class="res"><img id="i-gold" alt="🪙"><b id="r-gold">12</b><i id="d-gold"></i></span>
+  <span class="res">👥 <b id="r-pop">4</b></span>
+</div>
+<div class="panel" id="hint">Кликните по подсвеченной клетке, чтобы построить. Клик мимо — отмена.</div>
+<div class="panel buildbar" id="cards"></div>
+<button class="big-day" id="endday">🌙 НОВЫЙ<br>ДЕНЬ</button>
+<script src="phaser.min.js"></script>
+<script src="assets.js"></script>
+<script src="pgame.js"></script>
+</body>
+</html>
