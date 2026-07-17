@@ -137,6 +137,8 @@
 
     build() {
       scene = this;
+      const boot = document.getElementById('boot');
+      if (boot) boot.remove();
       // процедурные текстуры: клуб дыма и светлячок
       const g1 = this.make.graphics({ x: 0, y: 0, add: false });
       g1.fillStyle(0xe8e4da, 1); g1.fillCircle(8, 8, 7);
@@ -411,16 +413,27 @@
   }
 
   /* ---------- запуск ---------- */
-  makeCards();
-  const game = new Phaser.Game({
-    type: Phaser.AUTO,
-    parent: 'stage',
-    backgroundColor: '#10161a',
-    scale: { mode: Phaser.Scale.RESIZE, width: '100%', height: '100%' },
-    render: { pixelArt: false, antialias: true },
-    scene: Town,
+  // ошибки — на экран, чтобы «не запускается» всегда объясняло себя
+  window.addEventListener('error', (e) => {
+    const el = document.getElementById('boot');
+    if (el) el.textContent = 'Ошибка: ' + (e.message || e.error || e);
   });
-  document.getElementById('endday').addEventListener('click', () => {
-    scene && scene.endDay();
-  });
+
+  function start() {
+    makeCards();
+    new Phaser.Game({
+      // CANVAS: работает и там, где WebGL недоступен (песочницы, iframe)
+      type: Phaser.CANVAS,
+      parent: 'stage',
+      backgroundColor: '#10161a',
+      scale: { mode: Phaser.Scale.RESIZE, width: '100%', height: '100%' },
+      render: { pixelArt: false, antialias: true },
+      scene: Town,
+    });
+    document.getElementById('endday').addEventListener('click', () => {
+      scene && scene.endDay();
+    });
+  }
+  if (document.readyState === 'complete' || document.readyState === 'interactive') start();
+  else window.addEventListener('DOMContentLoaded', start);
 })();
