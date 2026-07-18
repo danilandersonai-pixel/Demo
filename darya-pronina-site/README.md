@@ -20,6 +20,8 @@ cd darya-pronina-site && python3 -m http.server   # → http://localhost:8000
 - `assets/js/main.js` — один IIFE: переключение темы (localStorage
   `daria-theme`), фильтр раздела «Мои работы», год в футере
 - `assets/photos/` — фотографии из макета
+- `assets/materials/` — PDF-презентации; `covers/` — JPEG-обложки из первых
+  слайдов (карточки раздела «Мои работы», категория «Презентации»)
 - `favicon.svg` — логотип-галочка
 
 ## Что осталось заглушками (по макету)
