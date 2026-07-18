@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="ru-RU">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Дарья Пронина — учитель начальных классов</title>
+  <meta name="description" content="Дарья Сергеевна Пронина — учитель начальных классов и английского языка. Материалы к урокам, интерактивные методики и цифровые инструменты для живых уроков.">
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;0,600;0,700;1,400;1,600&family=Golos+Text:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/css/styles.css">
+  <script>
+    /* Ранняя установка темы — до отрисовки, чтобы не мигало */
+    (function () {
+      try {
+        var t = localStorage.getItem('daria-theme');
+        if (t === 'dark') document.documentElement.setAttribute('data-th', 'dark');
+      } catch (e) {}
+    })();
+  </script>
+</head>
+<body data-tex="on">
+
+  <!-- Шапка -->
+  <header class="site-header">
+    <div class="container header-inner">
+      <a href="#top" class="logo">
+        <span class="logo-mark" aria-hidden="true">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2.5 7.5 L5.5 10.5 L11.5 3.5" stroke="var(--red)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+        </span>
+        <span class="logo-name">Дарья Пронина</span>
+      </a>
+      <nav class="nav" aria-label="Основная навигация">
+        <a href="#works" class="nav__link">Мои работы</a>
+        <a href="#about" class="nav__link">Обо мне</a>
+        <a href="#reviews" class="nav__link">Отзывы</a>
+        <a href="#tvoyurok" class="nav__link nav__link--accent">Твой урок<span class="badge-soon">СКОРО</span></a>
+        <button type="button" class="theme-toggle" id="theme-toggle" aria-label="Сменить тему">
+          <svg class="icon-moon" width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M20 13.5 A8.5 8.5 0 1 1 10.5 4 A7 7 0 0 0 20 13.5 Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"></path></svg>
+          <svg class="icon-sun" width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="4.2" stroke="currentColor" stroke-width="1.8"></circle><path d="M12 3v2.4M12 18.6V21M3 12h2.4M18.6 12H21M5.6 5.6l1.7 1.7M16.7 16.7l1.7 1.7M18.4 5.6l-1.7 1.7M7.3 16.7l-1.7 1.7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path></svg>
+        </button>
+      </nav>
+    </div>
+  </header>
+
+  <!-- Герой -->
+  <section id="top" class="section section--bordered">
+    <div class="container hero">
+      <div class="hero__text">
+        <div class="tag-row">
+          <span class="tag tag--red">НАЧАЛЬНЫЕ КЛАССЫ</span>
+          <span class="tag tag--blue">АНГЛИЙСКИЙ ЯЗЫК</span>
+          <span class="tag tag--green">ЦИФРОВОЙ КЛАСС</span>
+        </div>
+        <h1 class="hero__title">Учиться —<br>это интересно</h1>
+        <p class="hero__lead">Я Дарья Сергеевна Пронина, учитель начальных классов и английского языка. Семь лет делаю уроки живыми: цифровые технологии, интерактивные методики и современные платформы обучения.</p>
+        <div class="hero__actions">
+          <a href="#works" class="btn btn--primary">Мои работы</a>
+          <a href="#about" class="btn btn--ghost">Мой путь</a>
+        </div>
+        <div class="honors">
+          <span class="honors__label">ПРИЗНАНИЕ</span>
+          <span class="honors__item">«Учитель года – 2023»</span>
+          <span class="honors__item">«Педагогическая олимпиада» · I степень</span>
+          <span class="honors__item">Конкурс воспитательных практик · 2024</span>
+        </div>
+      </div>
+      <div class="hero__photo">
+        <div class="float-note" aria-hidden="true">
+          <span class="float-note__margin"></span>
+          <span class="write-line write-line--accent" style="width:70%; animation-delay:0s"></span>
+          <span class="write-line" style="width:100%; animation-delay:.3s"></span>
+          <span class="write-line" style="width:85%; animation-delay:.6s"></span>
+          <span class="write-line" style="width:64%; animation-delay:.9s; margin-bottom:0"></span>
+        </div>
+        <figure class="polaroid">
+          <span class="polaroid__tape" aria-hidden="true"></span>
+          <img src="assets/photos/daria-flowers.jpg" alt="Дарья Сергеевна Пронина с цветами в классе">
+          <figcaption class="polaroid__caption">Дарья Сергеевна · учитель начальных классов</figcaption>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <!-- Мои работы -->
+  <section id="works" class="section section--bordered">
+    <div class="container">
+      <div class="section-head">
+        <div class="section-head__title">
+          <div class="kicker">МОИ РАБОТЫ</div>
+          <h2>Материалы к урокам</h2>
+        </div>
+        <p class="section-lead">Четыре направления: оформление кабинета, наглядно-учебные материалы, интерактивные игры и полезные материалы. Всё это я делаю для своих учеников — раздел пополняется. Больше работ — в <a href="https://vk.ru/club237183078" target="_blank" rel="noopener">группе ВКонтакте</a>.</p>
+      </div>
+      <div class="chips" role="group" aria-label="Фильтр по направлениям">
+        <button type="button" class="chip is-active" data-cat="Все">Все</button>
+        <button type="button" class="chip" data-cat="Оформление кабинета">Оформление кабинета</button>
+        <button type="button" class="chip" data-cat="Наглядно-учебный материал">Наглядно-учебный материал</button>
+        <button type="button" class="chip" data-cat="Интерактивные игры">Интерактивные игры</button>
+        <button type="button" class="chip" data-cat="Полезные материалы">Полезные материалы</button>
+      </div>
+      <div class="works-grid" id="works-grid">
+        <article class="work-card" data-cat="Оформление кабинета">
+          <div class="work-card__media"><div class="slot">Обложка / фото работы</div></div>
+          <div class="work-card__body">
+            <div class="work-card__badges"><span class="pill pill--red">ОФОРМЛЕНИЕ КАБИНЕТА</span><span class="pill pill--green">БЕСПЛАТНО</span></div>
+            <div class="work-card__name">Уголок читателя</div>
+            <div class="work-card__desc">Комплект плакатов для оформления классного уголка</div>
+            <div class="work-card__meta">Плакаты · формат A3 · PDF</div>
+          </div>
+        </article>
+        <article class="work-card" data-cat="Оформление кабинета">
+          <div class="work-card__media"><div class="slot">Обложка / фото работы</div></div>
+          <div class="work-card__body">
+            <div class="work-card__badges"><span class="pill pill--red">ОФОРМЛЕНИЕ КАБИНЕТА</span><span class="pill pill--green">БЕСПЛАТНО</span></div>
+            <div class="work-card__name">Календарь природы</div>
+            <div class="work-card__desc">Настенный календарь наблюдений за погодой и сезонами</div>
+            <div class="work-card__meta">Плакат · 1–2 класс · PDF</div>
+          </div>
+        </article>
+        <article class="work-card" data-cat="Наглядно-учебный материал">
+          <div class="work-card__media"><div class="slot">Обложка / фото работы</div></div>
+          <div class="work-card__body">
+            <div class="work-card__badges"><span class="pill pill--red">НАГЛЯДНО-УЧЕБНЫЙ МАТЕРИАЛ</span><span class="pill pill--green">БЕСПЛАТНО</span></div>
+            <div class="work-card__name">Словарные слова. Осень</div>
+            <div class="work-card__desc">Карточки для отработки словарных слов с самопроверкой</div>
+            <div class="work-card__meta">Русский язык · 2 класс · PDF</div>
+          </div>
+        </article>
+        <article class="work-card" data-cat="Наглядно-учебный материал">
+          <div class="work-card__media"><div class="slot">Обложка / фото работы</div></div>
+          <div class="work-card__body">
+            <div class="work-card__badges"><span class="pill pill--red">НАГЛЯДНО-УЧЕБНЫЙ МАТЕРИАЛ</span><span class="pill pill--green">БЕСПЛАТНО</span></div>
+            <div class="work-card__name">Таблица умножения на 6–9</div>
+            <div class="work-card__desc">Тренировочные карточки для устного счёта дома и в классе</div>
+            <div class="work-card__meta">Математика · 3 класс · PDF</div>
+          </div>
+        </article>
+        <article class="work-card" data-cat="Интерактивные игры">
+          <div class="work-card__media"><div class="slot">Обложка / фото работы</div></div>
+          <div class="work-card__body">
+            <div class="work-card__badges"><span class="pill pill--red">ИНТЕРАКТИВНЫЕ ИГРЫ</span><span class="pill pill--green">БЕСПЛАТНО</span></div>
+            <div class="work-card__name">My Family</div>
+            <div class="work-card__desc">Игровой набор для первых диалогов на английском</div>
+            <div class="work-card__meta">Английский язык · 2 класс</div>
+          </div>
+        </article>
+        <article class="work-card" data-cat="Интерактивные игры">
+          <div class="work-card__media"><div class="slot">Обложка / фото работы</div></div>
+          <div class="work-card__body">
+            <div class="work-card__badges"><span class="pill pill--red">ИНТЕРАКТИВНЫЕ ИГРЫ</span><span class="pill pill--green">БЕСПЛАТНО</span></div>
+            <div class="work-card__name">Слоговые дорожки</div>
+            <div class="work-card__desc">Игра-тренажёр по чтению для первоклассников</div>
+            <div class="work-card__meta">Обучение грамоте · 1 класс</div>
+          </div>
+        </article>
+        <article class="work-card" data-cat="Полезные материалы">
+          <div class="work-card__media"><div class="slot">Обложка / фото работы</div></div>
+          <div class="work-card__body">
+            <div class="work-card__badges"><span class="pill pill--red">ПОЛЕЗНЫЕ МАТЕРИАЛЫ</span><span class="pill pill--green">БЕСПЛАТНО</span></div>
+            <div class="work-card__name">Части речи</div>
+            <div class="work-card__desc">Проверочный тест с двумя вариантами и ключами</div>
+            <div class="work-card__meta">Русский язык · 4 класс · PDF</div>
+          </div>
+        </article>
+        <article class="work-card" data-cat="Полезные материалы">
+          <div class="work-card__media"><div class="slot">Обложка / фото работы</div></div>
+          <div class="work-card__body">
+            <div class="work-card__badges"><span class="pill pill--red">ПОЛЕЗНЫЕ МАТЕРИАЛЫ</span><span class="pill pill--green">БЕСПЛАТНО</span></div>
+            <div class="work-card__name">Чек-лист родителя первоклассника</div>
+            <div class="work-card__desc">Памятка: что подготовить к 1 сентября</div>
+            <div class="work-card__meta">Памятка · PDF</div>
+          </div>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <!-- Обо мне -->
+  <section id="about" class="section section--bordered">
+    <div class="container">
+      <div class="kicker">ОБО МНЕ</div>
+      <h2>Привет, я Дарья Сергеевна!</h2>
+      <p class="about-intro">Учитель начальных классов с 7-летним стажем. Преподаю начальные классы и английский язык, активно внедряю цифровые технологии, интерактивные методики и современные платформы обучения.</p>
+      <div class="about-cols">
+        <div class="about-col">
+          <div class="col-label">МОЙ ПУТЬ</div>
+          <div class="timeline">
+            <div class="timeline__item">
+              <span class="timeline__dot" aria-hidden="true"></span>
+              <div class="timeline__year">2023</div>
+              <div class="timeline__text">Лауреат муниципального этапа Всероссийского конкурса «Учитель года – 2023» в номинации «Педагогический дебют».</div>
+            </div>
+            <div class="timeline__item">
+              <span class="timeline__dot" aria-hidden="true"></span>
+              <div class="timeline__year">2023</div>
+              <div class="timeline__text">Победитель межрегиональной «Педагогической олимпиады» — диплом I степени.</div>
+            </div>
+            <div class="timeline__item">
+              <span class="timeline__dot" aria-hidden="true"></span>
+              <div class="timeline__year">2024</div>
+              <div class="timeline__text">Дипломант регионального конкурса лучших воспитательных практик. Благодарственные письма за профессионализм и вклад в образовательные проекты.</div>
+            </div>
+            <div class="timeline__item">
+              <span class="timeline__dot" aria-hidden="true"></span>
+              <div class="timeline__year">Сегодня</div>
+              <div class="timeline__text">Преподаю начальные классы и английский язык, внедряю цифровые технологии, интерактивные методики и современные платформы обучения.</div>
+            </div>
+          </div>
+        </div>
+        <div class="about-col about-col--stack">
+          <div class="col-label">КАК Я РАБОТАЮ</div>
+          <div class="method-card">
+            <div class="method-card__head"><div class="method-card__name">Цифровой класс</div><span class="pill pill--amber">SMART-ПОДХОД</span></div>
+            <div class="method-card__desc">Современные платформы и интерактивные сервисы — в ежедневных уроках, а не по праздникам.</div>
+          </div>
+          <div class="method-card">
+            <div class="method-card__head"><div class="method-card__name">Интерактивные методики</div><span class="pill pill--amber">ВОВЛЕЧЁННОСТЬ</span></div>
+            <div class="method-card__desc">Игровые и деятельностные форматы, которые удерживают внимание с 1 класса.</div>
+          </div>
+          <div class="method-card">
+            <div class="method-card__head"><div class="method-card__name">Английский язык</div><span class="pill pill--amber">1–4 КЛАССЫ</span></div>
+            <div class="method-card__desc">Второй предмет: от первых звуков до уверенных коротких диалогов.</div>
+          </div>
+          <div class="stats-card">
+            <div class="stats-card__title">Коротко в цифрах</div>
+            <div class="stats-card__row">
+              <div class="stat"><div class="stat__num">7 лет</div><div class="stat__label">СТАЖА</div></div>
+              <div class="stat"><div class="stat__num">2</div><div class="stat__label">ПРЕДМЕТА</div></div>
+              <div class="stat"><div class="stat__num">3</div><div class="stat__label">КОНКУРСНЫЕ НАГРАДЫ</div></div>
+            </div>
+            <div class="stats-card__note">И благодарственные письма — за профессионализм и вклад в образовательные проекты.</div>
+            <a href="https://vk.ru/club237183078" target="_blank" rel="noopener" class="stats-card__btn">Группа ВКонтакте →</a>
+          </div>
+        </div>
+      </div>
+      <div class="gallery-block">
+        <div class="col-label">ФОТО С УРОКОВ И КОНКУРСОВ</div>
+        <div class="gallery">
+          <div class="gallery__card gallery__card--r1">
+            <img src="assets/photos/daria-class.jpg" alt="Дарья Сергеевна в классе">
+          </div>
+          <div class="gallery__ph gallery__ph--r2"><div class="slot slot--rounded">Фото с урока</div></div>
+          <div class="gallery__ph gallery__ph--r3"><div class="slot slot--rounded">Фото с конкурса</div></div>
+          <div class="gallery__ph gallery__ph--r4"><div class="slot slot--rounded">Фото класса</div></div>
+        </div>
+        <div class="gallery-note">Остальные фотографии добавим вместе с материалами — место уже готово.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Отзывы -->
+  <section id="reviews" class="section section--bordered">
+    <div class="container">
+      <div class="section-head">
+        <div class="section-head__title">
+          <div class="kicker">ОТЗЫВЫ</div>
+          <h2>Отзывы родителей и коллег</h2>
+        </div>
+        <p class="section-lead">Скриншоты отзывов добавим вместе с остальными материалами — место уже готово.</p>
+      </div>
+      <div class="reviews-grid">
+        <div class="review-card review-card--r1"><div class="slot slot--rounded">Скриншот отзыва</div></div>
+        <div class="review-card review-card--r2"><div class="slot slot--rounded">Скриншот отзыва</div></div>
+        <div class="review-card review-card--r3"><div class="slot slot--rounded">Скриншот отзыва</div></div>
+        <div class="review-card review-card--r4"><div class="slot slot--rounded">Скриншот отзыва</div></div>
+        <div class="review-card review-card--r5"><div class="slot slot--rounded">Скриншот отзыва</div></div>
+        <div class="review-card review-card--r6"><div class="slot slot--rounded">Скриншот отзыва</div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Твой урок — скоро -->
+  <section id="tvoyurok" class="section">
+    <div class="container">
+      <div class="teaser">
+        <div class="teaser__ribbon" aria-hidden="true">СКОРО</div>
+        <div class="teaser__text">
+          <div class="teaser__brand">
+            <span class="logo-mark logo-mark--sm" aria-hidden="true">
+              <svg width="12" height="12" viewBox="0 0 14 14" fill="none"><path d="M2.5 7.5 L5.5 10.5 L11.5 3.5" stroke="var(--red)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+            </span>
+            <span class="teaser__brand-name">Твой урок</span>
+            <span class="pill pill--amber">В РАЗРАБОТКЕ</span>
+          </div>
+          <h2 class="teaser__title">ИИ-генератор учебных материалов</h2>
+          <p class="teaser__desc">Рабочие листы, тесты и презентации по вашей теме — за минуту, с проверкой ИИ-судьёй и выгрузкой в PDF. Сервис, который мы готовим вместе с этим сайтом: рабочая ссылка появится здесь сразу после запуска.</p>
+          <div class="teaser__features">
+            <span class="feature-pill">Рабочие листы</span>
+            <span class="feature-pill">Тесты</span>
+            <span class="feature-pill">Презентации</span>
+            <span class="feature-pill">Проверка работ по фото</span>
+          </div>
+          <div class="teaser__actions">
+            <a href="#" class="btn btn--primary" aria-disabled="true" title="Прототип откроется здесь после запуска сервиса">Посмотреть прототип →</a>
+            <span class="teaser__launch">Запуск — осень 2026</span>
+          </div>
+        </div>
+        <div class="teaser__visual" aria-hidden="true">
+          <div class="notebook">
+            <div class="notebook__margin"></div>
+            <div class="notebook__head"><span></span><span></span></div>
+            <span class="write-line write-line--accent write-line--thick" style="width:72%; animation-delay:0s"></span>
+            <span class="write-line write-line--md" style="width:100%; animation-delay:.3s"></span>
+            <span class="write-line write-line--md" style="width:86%; animation-delay:.6s"></span>
+            <span class="write-line write-line--md" style="width:93%; animation-delay:.9s"></span>
+            <span class="write-line write-line--md" style="width:70%; animation-delay:1.2s"></span>
+            <span class="write-line write-line--md" style="width:55%; animation-delay:1.5s; margin-bottom:0"></span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Футер -->
+  <footer class="site-footer">
+    <div class="container footer-cols">
+      <div class="footer-col footer-col--brand">
+        <div class="footer-brand">
+          <span class="logo-mark logo-mark--footer" aria-hidden="true">
+            <svg width="12" height="12" viewBox="0 0 14 14" fill="none"><path d="M2.5 7.5 L5.5 10.5 L11.5 3.5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+          </span>
+          <span class="footer-brand__name">Дарья Пронина</span>
+        </div>
+        <p class="footer-about">Учитель начальных классов и английского языка. Материалы, методики и цифровые инструменты для живых уроков.</p>
+      </div>
+      <div class="footer-col">
+        <div class="footer-col__label">СВЯЗАТЬСЯ</div>
+        <div class="footer-links">
+          <a href="https://vk.ru/club237183078" target="_blank" rel="noopener">ВКонтакте · группа учителя</a>
+          <a href="#" aria-disabled="true">Telegram</a>
+          <span class="footer-note">Telegram добавим вместе с контактами</span>
+        </div>
+      </div>
+      <div class="footer-col">
+        <div class="footer-col__label">РАЗДЕЛЫ</div>
+        <div class="footer-links">
+          <a href="#works">Мои работы</a>
+          <a href="#about">Обо мне</a>
+          <a href="#reviews">Отзывы</a>
+          <a href="#tvoyurok">Твой урок — скоро</a>
+        </div>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <div class="container footer-bottom__inner">
+        <span>© <span id="footer-year">2026</span> Дарья Пронина</span>
+        <a href="#" aria-disabled="true" title="Кабинет учителя появится вместе с сервисом «Твой урок»">Вход для учителя</a>
+      </div>
+    </div>
+  </footer>
+
+  <script src="assets/js/main.js"></script>
+</body>
+</html>
