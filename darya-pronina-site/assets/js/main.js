@@ -25,19 +25,54 @@
     });
   }
 
-  /* ---------- Фильтр «Мои работы» по направлениям ---------- */
+  /* ---------- Фильтр «Мои работы» + «Показать ещё» ---------- */
+  var WORKS_LIMIT = 4; // сколько карточек видно до раскрытия
   var chips = Array.prototype.slice.call(document.querySelectorAll('.chip[data-cat]'));
   var cards = Array.prototype.slice.call(document.querySelectorAll('.work-card[data-cat]'));
+  var moreWrap = document.getElementById('works-more');
+  var moreBtn = document.getElementById('works-more-btn');
+  var activeCat = 'Все';
+  var expanded = false;
+
+  function worksPlural(n) {
+    var d10 = n % 10, d100 = n % 100;
+    if (d10 === 1 && d100 !== 11) return 'работу';
+    if (d10 >= 2 && d10 <= 4 && (d100 < 12 || d100 > 14)) return 'работы';
+    return 'работ';
+  }
+
+  function applyWorksFilter() {
+    var matched = cards.filter(function (card) {
+      return activeCat === 'Все' || card.getAttribute('data-cat') === activeCat;
+    });
+    cards.forEach(function (card) { card.classList.add('is-hidden'); });
+    matched.forEach(function (card, i) {
+      card.classList.toggle('is-hidden', !expanded && i >= WORKS_LIMIT);
+    });
+    var hiddenCount = expanded ? 0 : Math.max(0, matched.length - WORKS_LIMIT);
+    if (moreWrap) moreWrap.classList.toggle('is-hidden', hiddenCount === 0);
+    if (moreBtn && hiddenCount > 0) {
+      moreBtn.textContent = 'Показать ещё ' + hiddenCount + ' ' + worksPlural(hiddenCount);
+    }
+  }
 
   chips.forEach(function (chip) {
     chip.addEventListener('click', function () {
-      var cat = chip.getAttribute('data-cat');
+      activeCat = chip.getAttribute('data-cat');
+      expanded = false;
       chips.forEach(function (c) { c.classList.toggle('is-active', c === chip); });
-      cards.forEach(function (card) {
-        card.classList.toggle('is-hidden', cat !== 'Все' && card.getAttribute('data-cat') !== cat);
-      });
+      applyWorksFilter();
     });
   });
+
+  if (moreBtn) {
+    moreBtn.addEventListener('click', function () {
+      expanded = true;
+      applyWorksFilter();
+    });
+  }
+
+  applyWorksFilter();
 
   /* ---------- Текущий год в футере ---------- */
   var yearEl = document.getElementById('footer-year');

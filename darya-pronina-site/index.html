@@ -34,8 +34,8 @@
       <nav class="nav" aria-label="Основная навигация">
         <a href="#works" class="nav__link">Мои работы</a>
         <a href="#about" class="nav__link">Обо мне</a>
-        <a href="#reviews" class="nav__link">Отзывы</a>
         <a href="#tvoyurok" class="nav__link nav__link--accent">Твой урок<span class="badge-soon">СКОРО</span></a>
+        <a href="#reviews" class="nav__link">Отзывы</a>
         <button type="button" class="theme-toggle" id="theme-toggle" aria-label="Сменить тему">
           <svg class="icon-moon" width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M20 13.5 A8.5 8.5 0 1 1 10.5 4 A7 7 0 0 0 20 13.5 Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"></path></svg>
           <svg class="icon-sun" width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="4.2" stroke="currentColor" stroke-width="1.8"></circle><path d="M12 3v2.4M12 18.6V21M3 12h2.4M18.6 12H21M5.6 5.6l1.7 1.7M16.7 16.7l1.7 1.7M18.4 5.6l-1.7 1.7M7.3 16.7l-1.7 1.7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path></svg>
@@ -50,8 +50,13 @@
       <div class="hero__text">
         <div class="tag-row">
           <span class="tag tag--red">НАЧАЛЬНЫЕ КЛАССЫ</span>
+          <span class="tag tag--blue">РУССКИЙ ЯЗЫК</span>
+          <span class="tag tag--green">МАТЕМАТИКА</span>
+          <span class="tag tag--amber">ОКРУЖАЮЩИЙ МИР</span>
+          <span class="tag tag--red">ЛИТЕРАТУРНОЕ ЧТЕНИЕ</span>
           <span class="tag tag--blue">АНГЛИЙСКИЙ ЯЗЫК</span>
-          <span class="tag tag--green">ЦИФРОВОЙ КЛАСС</span>
+          <span class="tag tag--green">ФИНАНСОВАЯ ГРАМОТНОСТЬ</span>
+          <span class="tag tag--amber">ВНЕУРОЧНАЯ ДЕЯТЕЛЬНОСТЬ</span>
         </div>
         <h1 class="hero__title">Учиться —<br>это интересно</h1>
         <p class="hero__lead">Я Дарья Сергеевна Пронина, учитель начальных классов и английского языка. Семь лет делаю уроки живыми: цифровые технологии, интерактивные методики и современные платформы обучения.</p>
@@ -91,17 +96,61 @@
           <div class="kicker">МОИ РАБОТЫ</div>
           <h2>Материалы к урокам</h2>
         </div>
-        <p class="section-lead">Пять направлений: оформление кабинета, наглядно-учебные материалы, интерактивные игры, презентации и полезные материалы. Всё это я делаю для своих учеников — раздел пополняется. Больше работ — в <a href="https://vk.ru/club237183078" target="_blank" rel="noopener">группе ВКонтакте</a>.</p>
+        <p class="section-lead">Четыре направления: оформление кабинета, наглядно-учебные материалы к урокам, интерактивные игры и полезные материалы. Всё это я делаю для своих учеников — раздел пополняется. Больше работ — в <a href="https://vk.ru/club237183078" target="_blank" rel="noopener">группе ВКонтакте</a>.</p>
       </div>
       <div class="chips" role="group" aria-label="Фильтр по направлениям">
         <button type="button" class="chip is-active" data-cat="Все">Все</button>
         <button type="button" class="chip" data-cat="Оформление кабинета">Оформление кабинета</button>
-        <button type="button" class="chip" data-cat="Наглядно-учебный материал">Наглядно-учебный материал</button>
+        <button type="button" class="chip" data-cat="Наглядно-учебный материал к урокам">Наглядно-учебный материал к урокам</button>
         <button type="button" class="chip" data-cat="Интерактивные игры">Интерактивные игры</button>
-        <button type="button" class="chip" data-cat="Презентации">Презентации</button>
         <button type="button" class="chip" data-cat="Полезные материалы">Полезные материалы</button>
       </div>
       <div class="works-grid" id="works-grid">
+        <a class="work-card work-card--link" data-cat="Наглядно-учебный материал к урокам" href="assets/materials/tayny-solnechnoy-sistemy.pdf" target="_blank" rel="noopener">
+          <div class="work-card__media"><img src="assets/materials/covers/tayny-solnechnoy-sistemy.jpg" alt="Первый слайд презентации «Тайны нашей солнечной системы»" loading="lazy"></div>
+          <div class="work-card__body">
+            <div class="work-card__badges"><span class="pill pill--red">ПРЕЗЕНТАЦИЯ К УРОКУ</span><span class="pill pill--green">БЕСПЛАТНО</span></div>
+            <div class="work-card__name">Тайны нашей солнечной системы</div>
+            <div class="work-card__desc">От Меркурия до Плутона: путешествие по планетам для младших школьников</div>
+            <div class="work-card__meta">Окружающий мир · 9 слайдов · PDF</div>
+          </div>
+        </a>
+        <a class="work-card work-card--link" data-cat="Наглядно-учебный материал к урокам" href="assets/materials/prirodnoe-soobshchestvo.pdf" target="_blank" rel="noopener">
+          <div class="work-card__media"><img src="assets/materials/covers/prirodnoe-soobshchestvo.jpg" alt="Первый слайд презентации «Природное сообщество»" loading="lazy"></div>
+          <div class="work-card__body">
+            <div class="work-card__badges"><span class="pill pill--red">ПРЕЗЕНТАЦИЯ К УРОКУ</span><span class="pill pill--green">БЕСПЛАТНО</span></div>
+            <div class="work-card__name">Природное сообщество</div>
+            <div class="work-card__desc">Как устроена жизнь в лесу, на лугу и в озере</div>
+            <div class="work-card__meta">Биология · 5 класс · 10 слайдов · PDF</div>
+          </div>
+        </a>
+        <a class="work-card work-card--link" data-cat="Наглядно-учебный материал к урокам" href="assets/materials/tver-i-moskva.pdf" target="_blank" rel="noopener">
+          <div class="work-card__media"><img src="assets/materials/covers/tver-i-moskva.jpg" alt="Первый слайд презентации «Северо-Восточная Русь в конце XIII — начале XIV в.»" loading="lazy"></div>
+          <div class="work-card__body">
+            <div class="work-card__badges"><span class="pill pill--red">ПРЕЗЕНТАЦИЯ К УРОКУ</span><span class="pill pill--green">БЕСПЛАТНО</span></div>
+            <div class="work-card__name">Северо-Восточная Русь в конце XIII — начале XIV в.</div>
+            <div class="work-card__desc">Стратегическое соперничество Твери и Москвы</div>
+            <div class="work-card__meta">История России · 6 класс · 14 слайдов · PDF</div>
+          </div>
+        </a>
+        <a class="work-card work-card--link" data-cat="Наглядно-учебный материал к урокам" href="assets/materials/rossiyskoe-gosudarstvo-xv-vek.pdf" target="_blank" rel="noopener">
+          <div class="work-card__media"><img src="assets/materials/covers/rossiyskoe-gosudarstvo-xv-vek.jpg" alt="Первый слайд презентации «Российское государство и общество во второй половине XV в.»" loading="lazy"></div>
+          <div class="work-card__body">
+            <div class="work-card__badges"><span class="pill pill--red">ПРЕЗЕНТАЦИЯ К УРОКУ</span><span class="pill pill--green">БЕСПЛАТНО</span></div>
+            <div class="work-card__name">Российское государство и общество во второй половине XV в.</div>
+            <div class="work-card__desc">Устройство власти и общества при Иване III</div>
+            <div class="work-card__meta">История России · 6 класс · 8 слайдов · PDF</div>
+          </div>
+        </a>
+        <a class="work-card work-card--link" data-cat="Наглядно-учебный материал к урокам" href="assets/materials/pravlenie-vasiliya-iii.pdf" target="_blank" rel="noopener">
+          <div class="work-card__media"><img src="assets/materials/covers/pravlenie-vasiliya-iii.jpg" alt="Первый слайд презентации «Правление Василия III»" loading="lazy"></div>
+          <div class="work-card__body">
+            <div class="work-card__badges"><span class="pill pill--red">ПРЕЗЕНТАЦИЯ К УРОКУ</span><span class="pill pill--green">БЕСПЛАТНО</span></div>
+            <div class="work-card__name">Правление Василия III</div>
+            <div class="work-card__desc">Завершение объединения русских земель вокруг Москвы</div>
+            <div class="work-card__meta">История России · 6 класс · 12 слайдов · PDF</div>
+          </div>
+        </a>
         <article class="work-card" data-cat="Оформление кабинета">
           <div class="work-card__media"><div class="slot">Обложка / фото работы</div></div>
           <div class="work-card__body">
@@ -120,7 +169,7 @@
             <div class="work-card__meta">Плакат · 1–2 класс · PDF</div>
           </div>
         </article>
-        <article class="work-card" data-cat="Наглядно-учебный материал">
+        <article class="work-card" data-cat="Наглядно-учебный материал к урокам">
           <div class="work-card__media"><div class="slot">Обложка / фото работы</div></div>
           <div class="work-card__body">
             <div class="work-card__badges"><span class="pill pill--red">НАГЛЯДНО-УЧЕБНЫЙ МАТЕРИАЛ</span><span class="pill pill--green">БЕСПЛАТНО</span></div>
@@ -129,7 +178,7 @@
             <div class="work-card__meta">Русский язык · 2 класс · PDF</div>
           </div>
         </article>
-        <article class="work-card" data-cat="Наглядно-учебный материал">
+        <article class="work-card" data-cat="Наглядно-учебный материал к урокам">
           <div class="work-card__media"><div class="slot">Обложка / фото работы</div></div>
           <div class="work-card__body">
             <div class="work-card__badges"><span class="pill pill--red">НАГЛЯДНО-УЧЕБНЫЙ МАТЕРИАЛ</span><span class="pill pill--green">БЕСПЛАТНО</span></div>
@@ -156,51 +205,6 @@
             <div class="work-card__meta">Обучение грамоте · 1 класс</div>
           </div>
         </article>
-        <a class="work-card work-card--link" data-cat="Презентации" href="assets/materials/tayny-solnechnoy-sistemy.pdf" target="_blank" rel="noopener">
-          <div class="work-card__media"><img src="assets/materials/covers/tayny-solnechnoy-sistemy.jpg" alt="Первый слайд презентации «Тайны нашей солнечной системы»" loading="lazy"></div>
-          <div class="work-card__body">
-            <div class="work-card__badges"><span class="pill pill--red">ПРЕЗЕНТАЦИИ</span><span class="pill pill--green">БЕСПЛАТНО</span></div>
-            <div class="work-card__name">Тайны нашей солнечной системы</div>
-            <div class="work-card__desc">От Меркурия до Плутона: путешествие по планетам для младших школьников</div>
-            <div class="work-card__meta">Окружающий мир · 9 слайдов · PDF</div>
-          </div>
-        </a>
-        <a class="work-card work-card--link" data-cat="Презентации" href="assets/materials/prirodnoe-soobshchestvo.pdf" target="_blank" rel="noopener">
-          <div class="work-card__media"><img src="assets/materials/covers/prirodnoe-soobshchestvo.jpg" alt="Первый слайд презентации «Природное сообщество»" loading="lazy"></div>
-          <div class="work-card__body">
-            <div class="work-card__badges"><span class="pill pill--red">ПРЕЗЕНТАЦИИ</span><span class="pill pill--green">БЕСПЛАТНО</span></div>
-            <div class="work-card__name">Природное сообщество</div>
-            <div class="work-card__desc">Как устроена жизнь в лесу, на лугу и в озере</div>
-            <div class="work-card__meta">Биология · 5 класс · 10 слайдов · PDF</div>
-          </div>
-        </a>
-        <a class="work-card work-card--link" data-cat="Презентации" href="assets/materials/tver-i-moskva.pdf" target="_blank" rel="noopener">
-          <div class="work-card__media"><img src="assets/materials/covers/tver-i-moskva.jpg" alt="Первый слайд презентации «Северо-Восточная Русь в конце XIII — начале XIV в.»" loading="lazy"></div>
-          <div class="work-card__body">
-            <div class="work-card__badges"><span class="pill pill--red">ПРЕЗЕНТАЦИИ</span><span class="pill pill--green">БЕСПЛАТНО</span></div>
-            <div class="work-card__name">Северо-Восточная Русь в конце XIII — начале XIV в.</div>
-            <div class="work-card__desc">Стратегическое соперничество Твери и Москвы</div>
-            <div class="work-card__meta">История России · 6 класс · 14 слайдов · PDF</div>
-          </div>
-        </a>
-        <a class="work-card work-card--link" data-cat="Презентации" href="assets/materials/rossiyskoe-gosudarstvo-xv-vek.pdf" target="_blank" rel="noopener">
-          <div class="work-card__media"><img src="assets/materials/covers/rossiyskoe-gosudarstvo-xv-vek.jpg" alt="Первый слайд презентации «Российское государство и общество во второй половине XV в.»" loading="lazy"></div>
-          <div class="work-card__body">
-            <div class="work-card__badges"><span class="pill pill--red">ПРЕЗЕНТАЦИИ</span><span class="pill pill--green">БЕСПЛАТНО</span></div>
-            <div class="work-card__name">Российское государство и общество во второй половине XV в.</div>
-            <div class="work-card__desc">Устройство власти и общества при Иване III</div>
-            <div class="work-card__meta">История России · 6 класс · 8 слайдов · PDF</div>
-          </div>
-        </a>
-        <a class="work-card work-card--link" data-cat="Презентации" href="assets/materials/pravlenie-vasiliya-iii.pdf" target="_blank" rel="noopener">
-          <div class="work-card__media"><img src="assets/materials/covers/pravlenie-vasiliya-iii.jpg" alt="Первый слайд презентации «Правление Василия III»" loading="lazy"></div>
-          <div class="work-card__body">
-            <div class="work-card__badges"><span class="pill pill--red">ПРЕЗЕНТАЦИИ</span><span class="pill pill--green">БЕСПЛАТНО</span></div>
-            <div class="work-card__name">Правление Василия III</div>
-            <div class="work-card__desc">Завершение объединения русских земель вокруг Москвы</div>
-            <div class="work-card__meta">История России · 6 класс · 12 слайдов · PDF</div>
-          </div>
-        </a>
         <article class="work-card" data-cat="Полезные материалы">
           <div class="work-card__media"><div class="slot">Обложка / фото работы</div></div>
           <div class="work-card__body">
@@ -219,6 +223,9 @@
             <div class="work-card__meta">Памятка · PDF</div>
           </div>
         </article>
+      </div>
+      <div class="works-more" id="works-more">
+        <button type="button" class="btn btn--ghost" id="works-more-btn">Показать ещё</button>
       </div>
     </div>
   </section>
@@ -273,52 +280,19 @@
             <div class="stats-card__title">Коротко в цифрах</div>
             <div class="stats-card__row">
               <div class="stat"><div class="stat__num">7 лет</div><div class="stat__label">СТАЖА</div></div>
-              <div class="stat"><div class="stat__num">2</div><div class="stat__label">ПРЕДМЕТА</div></div>
-              <div class="stat"><div class="stat__num">3</div><div class="stat__label">КОНКУРСНЫЕ НАГРАДЫ</div></div>
+              <div class="stat"><div class="stat__num">4</div><div class="stat__label">КЛАССА</div></div>
+              <div class="stat"><div class="stat__num">120+</div><div class="stat__label">УЧЕНИКОВ</div></div>
             </div>
-            <div class="stats-card__note">И благодарственные письма — за профессионализм и вклад в образовательные проекты.</div>
+            <div class="stats-card__note">А ещё — конкурсные награды и благодарственные письма за профессионализм и вклад в образовательные проекты.</div>
             <a href="https://vk.ru/club237183078" target="_blank" rel="noopener" class="stats-card__btn">Группа ВКонтакте →</a>
           </div>
         </div>
-      </div>
-      <div class="gallery-block">
-        <div class="col-label">ФОТО С УРОКОВ И КОНКУРСОВ</div>
-        <div class="gallery">
-          <div class="gallery__card gallery__card--r1">
-            <img src="assets/photos/daria-class.jpg" alt="Дарья Сергеевна в классе">
-          </div>
-          <div class="gallery__ph gallery__ph--r2"><div class="slot slot--rounded">Фото с урока</div></div>
-          <div class="gallery__ph gallery__ph--r3"><div class="slot slot--rounded">Фото с конкурса</div></div>
-          <div class="gallery__ph gallery__ph--r4"><div class="slot slot--rounded">Фото класса</div></div>
-        </div>
-        <div class="gallery-note">Остальные фотографии добавим вместе с материалами — место уже готово.</div>
-      </div>
-    </div>
-  </section>
-
-  <!-- Отзывы -->
-  <section id="reviews" class="section section--bordered">
-    <div class="container">
-      <div class="section-head">
-        <div class="section-head__title">
-          <div class="kicker">ОТЗЫВЫ</div>
-          <h2>Отзывы родителей и коллег</h2>
-        </div>
-        <p class="section-lead">Скриншоты отзывов добавим вместе с остальными материалами — место уже готово.</p>
-      </div>
-      <div class="reviews-grid">
-        <div class="review-card review-card--r1"><div class="slot slot--rounded">Скриншот отзыва</div></div>
-        <div class="review-card review-card--r2"><div class="slot slot--rounded">Скриншот отзыва</div></div>
-        <div class="review-card review-card--r3"><div class="slot slot--rounded">Скриншот отзыва</div></div>
-        <div class="review-card review-card--r4"><div class="slot slot--rounded">Скриншот отзыва</div></div>
-        <div class="review-card review-card--r5"><div class="slot slot--rounded">Скриншот отзыва</div></div>
-        <div class="review-card review-card--r6"><div class="slot slot--rounded">Скриншот отзыва</div></div>
       </div>
     </div>
   </section>
 
   <!-- Твой урок — скоро -->
-  <section id="tvoyurok" class="section">
+  <section id="tvoyurok" class="section section--bordered">
     <div class="container">
       <div class="teaser">
         <div class="teaser__ribbon" aria-hidden="true">СКОРО</div>
@@ -359,6 +333,27 @@
     </div>
   </section>
 
+  <!-- Отзывы -->
+  <section id="reviews" class="section">
+    <div class="container">
+      <div class="section-head">
+        <div class="section-head__title">
+          <div class="kicker">ОТЗЫВЫ</div>
+          <h2>Отзывы родителей и коллег</h2>
+        </div>
+        <p class="section-lead">Скриншоты отзывов добавим вместе с остальными материалами — место уже готово.</p>
+      </div>
+      <div class="reviews-grid">
+        <div class="review-card review-card--r1"><div class="slot slot--rounded">Скриншот отзыва</div></div>
+        <div class="review-card review-card--r2"><div class="slot slot--rounded">Скриншот отзыва</div></div>
+        <div class="review-card review-card--r3"><div class="slot slot--rounded">Скриншот отзыва</div></div>
+        <div class="review-card review-card--r4"><div class="slot slot--rounded">Скриншот отзыва</div></div>
+        <div class="review-card review-card--r5"><div class="slot slot--rounded">Скриншот отзыва</div></div>
+        <div class="review-card review-card--r6"><div class="slot slot--rounded">Скриншот отзыва</div></div>
+      </div>
+    </div>
+  </section>
+
   <!-- Футер -->
   <footer class="site-footer">
     <div class="container footer-cols">
@@ -384,8 +379,8 @@
         <div class="footer-links">
           <a href="#works">Мои работы</a>
           <a href="#about">Обо мне</a>
-          <a href="#reviews">Отзывы</a>
           <a href="#tvoyurok">Твой урок — скоро</a>
+          <a href="#reviews">Отзывы</a>
         </div>
       </div>
     </div>
