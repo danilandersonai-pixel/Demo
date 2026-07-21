@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="ru-RU">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>АМАРАНТ — студия свадебной флористики. Ботанический люкс</title>
+  <meta name="description" content="Студия свадебной флористики АМАРАНТ: букет невесты, оформление церемонии и банкета в единой концепции. Ботанический люкс, фиксация сметы, монтаж под ключ.">
+  <link rel="preload" href="assets/css/styles.css" as="style">
+  <link rel="stylesheet" href="assets/css/styles.css">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='15' fill='%231c2a20'/%3E%3Ctext x='16' y='22' font-family='Georgia' font-size='16' fill='%23c9a566' text-anchor='middle'%3EА%3C/text%3E%3C/svg%3E">
+</head>
+<body>
+
+  <a class="skip-link" href="#main">Перейти к содержанию</a>
+
+  <!-- ===== Навигация ===== -->
+  <header class="nav" id="top">
+    <nav class="nav__inner" aria-label="Основная навигация">
+      <a class="nav__brand" href="#top">
+        <span class="nav__mark" aria-hidden="true">✦</span>
+        АМАРАНТ
+      </a>
+      <button class="nav__toggle" aria-expanded="false" aria-controls="nav-menu" aria-label="Открыть меню">
+        <span aria-hidden="true"></span>
+      </button>
+      <ul class="nav__menu" id="nav-menu">
+        <li><a href="#services">Услуги</a></li>
+        <li><a href="#process">Как мы работаем</a></li>
+        <li><a href="#palettes">Палитры</a></li>
+        <li><a href="#reviews">Отзывы</a></li>
+        <li><a href="#faq">Вопросы</a></li>
+        <li><a class="nav__cta" href="#request">Оставить заявку</a></li>
+      </ul>
+    </nav>
+  </header>
+
+  <main id="main">
+
+    <!-- ===== Hero ===== -->
+    <section class="hero" aria-labelledby="hero-title">
+      <svg class="hero__branch hero__branch--left" viewBox="0 0 200 520" aria-hidden="true" focusable="false">
+        <g fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round">
+          <path d="M100 520 C 96 400, 88 280, 96 160 C 100 100, 108 60, 118 20"/>
+          <path d="M97 430 C 70 415, 48 390, 40 356"/><ellipse cx="38" cy="350" rx="16" ry="9" transform="rotate(-38 38 350)"/>
+          <path d="M95 360 C 122 348, 142 326, 150 294"/><ellipse cx="152" cy="288" rx="16" ry="9" transform="rotate(42 152 288)"/>
+          <path d="M95 300 C 70 288, 52 264, 46 232"/><ellipse cx="44" cy="226" rx="15" ry="8" transform="rotate(-40 44 226)"/>
+          <path d="M98 240 C 122 228, 138 206, 144 176"/><ellipse cx="146" cy="170" rx="15" ry="8" transform="rotate(44 146 170)"/>
+          <path d="M100 180 C 80 168, 66 148, 62 120"/><ellipse cx="60" cy="114" rx="13" ry="7" transform="rotate(-42 60 114)"/>
+          <path d="M106 120 C 124 108, 136 90, 140 66"/><ellipse cx="142" cy="60" rx="12" ry="7" transform="rotate(46 142 60)"/>
+          <circle cx="118" cy="18" r="4"/><circle cx="110" cy="34" r="3"/>
+        </g>
+      </svg>
+      <svg class="hero__branch hero__branch--right" viewBox="0 0 200 520" aria-hidden="true" focusable="false">
+        <g fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round">
+          <path d="M100 520 C 104 400, 112 280, 104 160 C 100 100, 92 60, 82 20"/>
+          <path d="M103 430 C 130 415, 152 390, 160 356"/><ellipse cx="162" cy="350" rx="16" ry="9" transform="rotate(38 162 350)"/>
+          <path d="M105 360 C 78 348, 58 326, 50 294"/><ellipse cx="48" cy="288" rx="16" ry="9" transform="rotate(-42 48 288)"/>
+          <path d="M105 300 C 130 288, 148 264, 154 232"/><ellipse cx="156" cy="226" rx="15" ry="8" transform="rotate(40 156 226)"/>
+          <path d="M102 240 C 78 228, 62 206, 56 176"/><ellipse cx="54" cy="170" rx="15" ry="8" transform="rotate(-44 54 170)"/>
+          <path d="M100 180 C 120 168, 134 148, 138 120"/><ellipse cx="140" cy="114" rx="13" ry="7" transform="rotate(42 140 114)"/>
+          <path d="M94 120 C 76 108, 64 90, 60 66"/><ellipse cx="58" cy="60" rx="12" ry="7" transform="rotate(-46 58 60)"/>
+          <circle cx="82" cy="18" r="4"/><circle cx="90" cy="34" r="3"/>
+        </g>
+      </svg>
+
+      <div class="hero__inner">
+        <p class="hero__kicker reveal">Студия свадебной флористики · ботанический люкс</p>
+        <h1 class="hero__title reveal" id="hero-title">
+          Цветы, о&nbsp;которых говорят<br>
+          <em>дольше, чем длится свадьба</em>
+        </h1>
+        <p class="hero__lead reveal">
+          Букет невесты, церемония и банкет — одна флористическая концепция,
+          собранная под вас: от первого эскиза до последнего лепестка в день монтажа.
+        </p>
+        <div class="hero__actions reveal">
+          <a class="btn btn--gold" href="#request">Обсудить свадьбу</a>
+          <a class="btn btn--ghost" href="#services">Услуги и цены</a>
+        </div>
+        <ul class="hero__trust reveal" aria-label="Факты о студии">
+          <li><strong>9 лет</strong><span>в свадебной флористике</span></li>
+          <li><strong>400+</strong><span>оформленных свадеб</span></li>
+          <li><strong>Смета</strong><span>фиксируется в договоре</span></li>
+        </ul>
+      </div>
+      <div class="hero__scroll" aria-hidden="true"><span></span></div>
+    </section>
+
+    <!-- ===== Манифест ===== -->
+    <section class="manifesto" aria-label="Манифест студии">
+      <div class="container manifesto__inner reveal">
+        <svg class="manifesto__seal" viewBox="0 0 120 120" aria-hidden="true" focusable="false">
+          <circle cx="60" cy="60" r="56" fill="none" stroke="currentColor" stroke-width="1"/>
+          <circle cx="60" cy="60" r="46" fill="none" stroke="currentColor" stroke-width=".6" stroke-dasharray="2 4"/>
+          <path d="M60 34 C 52 46, 50 58, 60 86 C 70 58, 68 46, 60 34 Z" fill="none" stroke="currentColor" stroke-width="1.2"/>
+          <path d="M60 86 C 48 74, 38 70, 30 70 C 40 84, 52 88, 60 86 Z M60 86 C 72 74, 82 70, 90 70 C 80 84, 68 88, 60 86 Z" fill="none" stroke="currentColor" stroke-width="1.2"/>
+        </svg>
+        <blockquote class="manifesto__quote">
+          <p>Амарант — цветок, который не увядает. Мы делаем флористику так,
+          чтобы она осталась в памяти гостей, на фотографиях и в вашей истории —
+          а не только в смете.</p>
+          <footer>— Мария Ветрова, основатель студии</footer>
+        </blockquote>
+      </div>
+    </section>
+
+    <!-- ===== Услуги ===== -->
+    <section class="services section" id="services" aria-labelledby="services-title">
+      <div class="container">
+        <header class="section__head reveal">
+          <p class="section__kicker">Услуги</p>
+          <h2 class="section__title" id="services-title">Три опоры вашего дня</h2>
+          <p class="section__lead">Берём как отдельное направление, так и свадьбу целиком.
+          Цены «от» — честная нижняя граница, финальная смета фиксируется до подписания договора.</p>
+        </header>
+
+        <div class="services__grid">
+          <article class="card reveal" style="--reveal-delay:0ms">
+            <svg class="card__icon" viewBox="0 0 64 64" aria-hidden="true" focusable="false">
+              <g fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+                <path d="M32 56 V34"/><path d="M26 56 h12"/>
+                <circle cx="32" cy="22" r="7"/><circle cx="22" cy="26" r="6"/><circle cx="42" cy="26" r="6"/><circle cx="27" cy="15" r="5"/><circle cx="37" cy="15" r="5"/>
+                <path d="M24 34 C 28 38, 36 38, 40 34"/>
+              </g>
+            </svg>
+            <h3 class="card__title">Букет невесты</h3>
+            <p class="card__price">от 12 000 ₽</p>
+            <p class="card__text">Интервью о вас, три эскиза на выбор, стойкие цветы под сезон
+            и длительность дня. Дублёр букета для броска — в подарок.</p>
+            <ul class="card__list">
+              <li>Эскизы за 3 дня</li>
+              <li>Бутоньерка жениха в комплекте</li>
+              <li>Доставка утром в день свадьбы</li>
+            </ul>
+            <a class="card__link" href="#request">Хочу такой букет<span aria-hidden="true"> →</span></a>
+          </article>
+
+          <article class="card card--feature reveal" style="--reveal-delay:120ms">
+            <p class="card__badge">Чаще всего выбирают</p>
+            <svg class="card__icon" viewBox="0 0 64 64" aria-hidden="true" focusable="false">
+              <g fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+                <path d="M12 56 C 12 30, 24 14, 32 12 C 40 14, 52 30, 52 56"/>
+                <path d="M18 40 C 22 36, 26 36, 28 38 M46 40 C 42 36, 38 36, 36 38"/>
+                <circle cx="16" cy="48" r="3.4"/><circle cx="48" cy="48" r="3.4"/><circle cx="14" cy="55" r="2.6"/><circle cx="50" cy="55" r="2.6"/>
+              </g>
+            </svg>
+            <h3 class="card__title">Церемония</h3>
+            <p class="card__price">от 90 000 ₽</p>
+            <p class="card__text">Арка или композиция-акцент, оформление прохода, welcome-зона.
+            Проектируем под площадку и свет — приезжаем на осмотр заранее.</p>
+            <ul class="card__list">
+              <li>3D-раскладка зоны церемонии</li>
+              <li>Монтаж и демонтаж силами студии</li>
+              <li>План Б для открытой площадки</li>
+            </ul>
+            <a class="card__link" href="#request">Обсудить церемонию<span aria-hidden="true"> →</span></a>
+          </article>
+
+          <article class="card reveal" style="--reveal-delay:240ms">
+            <svg class="card__icon" viewBox="0 0 64 64" aria-hidden="true" focusable="false">
+              <g fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+                <path d="M10 44 h44 M14 44 C 14 36, 22 30, 32 30 C 42 30, 50 36, 50 44"/>
+                <path d="M32 30 V24"/><circle cx="32" cy="19" r="4"/><circle cx="25" cy="22" r="3"/><circle cx="39" cy="22" r="3"/>
+                <path d="M18 52 h28 M22 44 v8 M42 44 v8"/>
+              </g>
+            </svg>
+            <h3 class="card__title">Банкет</h3>
+            <p class="card__price">от 150 000 ₽</p>
+            <p class="card__text">Композиции на столы гостей, президиум, флористика на торт
+            и фотозону. Работаем в связке с декоратором, светом и текстилем.</p>
+            <ul class="card__list">
+              <li>Пробная композиция до свадьбы</li>
+              <li>Согласование с рестораном берём на себя</li>
+              <li>Цветы гостям с собой после банкета</li>
+            </ul>
+            <a class="card__link" href="#request">Рассчитать банкет<span aria-hidden="true"> →</span></a>
+          </article>
+        </div>
+
+        <p class="services__note reveal">Свадьба целиком (букет + церемония + банкет) — единая концепция
+        и <strong>скидка 10%</strong> на монтаж. Минимальный бюджет полного оформления — от 220 000 ₽.</p>
+      </div>
+    </section>
+
+    <!-- ===== Процесс ===== -->
+    <section class="process section section--alt" id="process" aria-labelledby="process-title">
+      <div class="container">
+        <header class="section__head reveal">
+          <p class="section__kicker">Как мы работаем</p>
+          <h2 class="section__title" id="process-title">От знакомства до монтажа — четыре шага</h2>
+        </header>
+        <ol class="process__steps">
+          <li class="process__step reveal" style="--reveal-delay:0ms">
+            <span class="process__num" aria-hidden="true">01</span>
+            <h3>Встреча и мудборд</h3>
+            <p>Бесплатная встреча в студии или онлайн. Слушаем вашу историю, смотрим площадку,
+            собираем настроение будущей свадьбы в мудборд.</p>
+          </li>
+          <li class="process__step reveal" style="--reveal-delay:100ms">
+            <span class="process__num" aria-hidden="true">02</span>
+            <h3>Эскизы и смета</h3>
+            <p>Через 3 дня — эскизы всех зон и детальная смета по позициям.
+            Две бесплатные итерации правок, никаких «примерно».</p>
+          </li>
+          <li class="process__step reveal" style="--reveal-delay:200ms">
+            <span class="process__num" aria-hidden="true">03</span>
+            <h3>Договор с фиксацией цены</h3>
+            <p>Смета фиксируется в договоре и не растёт «по погоде рынка».
+            Дата закрепляется за вами предоплатой 30%.</p>
+          </li>
+          <li class="process__step reveal" style="--reveal-delay:300ms">
+            <span class="process__num" aria-hidden="true">04</span>
+            <h3>Монтаж в день свадьбы</h3>
+            <p>Команда приезжает за 6–8 часов до церемонии. К приходу гостей — всё готово,
+            флорист остаётся на подхвате до конца банкета.</p>
+          </li>
+        </ol>
+      </div>
+    </section>
+
+    <!-- ===== Палитры сезона ===== -->
+    <section class="palettes section" id="palettes" aria-labelledby="palettes-title">
+      <div class="container">
+        <header class="section__head reveal">
+          <p class="section__kicker">Вместо каталога — характер</p>
+          <h2 class="section__title" id="palettes-title">Палитры сезона 2026</h2>
+          <p class="section__lead">Мы не повторяем чужие свадьбы, поэтому вместо шаблонных пакетов —
+          три направления, от которых начинается ваша собственная концепция.</p>
+        </header>
+
+        <div class="palettes__grid">
+          <article class="palette reveal" style="--reveal-delay:0ms">
+            <div class="palette__swatches" aria-hidden="true">
+              <span style="--c:#e8d5cf"></span><span style="--c:#d9a79c"></span><span style="--c:#b46a5e"></span><span style="--c:#7b4a41"></span><span style="--c:#e9e2d5"></span>
+            </div>
+            <h3 class="palette__title">Пудровый рассвет</h3>
+            <p class="palette__text">Пионы, ранункулюсы, кустовая роза, пыльный эвкалипт.
+            Нежность без сахара — для дневных церемоний на воздухе.</p>
+            <p class="palette__season">Сезон: май — сентябрь</p>
+          </article>
+
+          <article class="palette palette--dark reveal" style="--reveal-delay:120ms">
+            <div class="palette__swatches" aria-hidden="true">
+              <span style="--c:#3c2430"></span><span style="--c:#6d2f3f"></span><span style="--c:#20301f"></span><span style="--c:#c9a566"></span><span style="--c:#efe7d8"></span>
+            </div>
+            <h3 class="palette__title">Тёмный сад</h3>
+            <p class="palette__text">Бордовые далии, скабиоза, виноградная лоза, амарант.
+            Глубокий вечерний люкс — для лофтов, усадеб и банкетов при свечах.</p>
+            <p class="palette__season">Сезон: круглый год</p>
+          </article>
+
+          <article class="palette reveal" style="--reveal-delay:240ms">
+            <div class="palette__swatches" aria-hidden="true">
+              <span style="--c:#f7f4ec"></span><span style="--c:#ece7da"></span><span style="--c:#d8d6c8"></span><span style="--c:#aab3a2"></span><span style="--c:#5f6d5c"></span>
+            </div>
+            <h3 class="palette__title">Белое на белом</h3>
+            <p class="palette__text">Гортензия, орхидея фаленопсис, белая сирень, олива.
+            Тотал-уайт с фактурой — классика, которая не стареет на фотографиях.</p>
+            <p class="palette__season">Сезон: круглый год</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== Отзывы ===== -->
+    <section class="reviews section section--alt" id="reviews" aria-labelledby="reviews-title">
+      <div class="container">
+        <header class="section__head reveal">
+          <p class="section__kicker">Отзывы</p>
+          <h2 class="section__title" id="reviews-title">Слова, ради которых мы работаем</h2>
+        </header>
+        <div class="reviews__grid">
+          <blockquote class="review reveal" style="--reveal-delay:0ms">
+            <p>«Гости до сих пор присылают фото арки. Мария предложила заменить розы на далии —
+            и это было лучшее решение всей свадьбы. Смета не изменилась ни на рубль».</p>
+            <footer><cite>Анна и Сергей</cite><span>церемония + банкет, усадьба «Марьино»</span></footer>
+          </blockquote>
+          <blockquote class="review reveal" style="--reveal-delay:120ms">
+            <p>«Букет пережил 14 часов съёмки, жару и танцы — а дублёр улетел в толпу подружек.
+            Отдельное спасибо за то, что забрали на себя все переговоры с рестораном».</p>
+            <footer><cite>Ксения</cite><span>букет невесты + банкет на 80 гостей</span></footer>
+          </blockquote>
+          <blockquote class="review reveal" style="--reveal-delay:240ms">
+            <p>«Мы пришли со словами „не знаем, чего хотим, но точно не как у всех“.
+            Ушли с концепцией „Тёмный сад“, которую потом копировали знакомые».</p>
+            <footer><cite>Полина и Артём</cite><span>полное оформление свадьбы</span></footer>
+          </blockquote>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== FAQ ===== -->
+    <section class="faq section" id="faq" aria-labelledby="faq-title">
+      <div class="container container--narrow">
+        <header class="section__head reveal">
+          <p class="section__kicker">Вопросы</p>
+          <h2 class="section__title" id="faq-title">Что спрашивают до заявки</h2>
+        </header>
+
+        <details class="faq__item reveal">
+          <summary>За сколько месяцев бронировать дату?</summary>
+          <p>На высокий сезон (июнь — сентябрь) — за 6–9 месяцев, на остальные даты — за 3–4.
+          Одна дата — одна свадьба: мы не берём две команды параллельно, поэтому календарь закрывается быстро.</p>
+        </details>
+        <details class="faq__item reveal">
+          <summary>Что будет, если мой цветок не в сезон?</summary>
+          <p>Предложим замену с той же ролью в композиции — по фактуре, оттенку и стойкости —
+          и покажем её на пробной сборке до свадьбы. Внезапных замен «в день Х» у нас не бывает.</p>
+        </details>
+        <details class="faq__item reveal">
+          <summary>Из чего складывается цена «от»?</summary>
+          <p>Нижняя граница — это реальная минимальная комплектация, а не рекламная цифра.
+          Смета раскладывается по позициям: цветы, флористическая работа, конструкции, логистика, монтаж.
+          Вы видите каждую строку до подписания договора.</p>
+        </details>
+        <details class="faq__item reveal">
+          <summary>Работаете ли вы на выезде, в других городах?</summary>
+          <p>Да. Логистика и проживание команды считаются отдельной строкой сметы —
+          заранее и без сюрпризов. За 9 лет мы оформили свадьбы в 14 городах.</p>
+        </details>
+        <details class="faq__item reveal">
+          <summary>Что если погода испортится на открытой площадке?</summary>
+          <p>Для каждой открытой церемонии готовим план Б: запасную схему монтажа под навесом
+          или в зале. Решение о переносе принимаем вместе с координатором за 3 часа — без потери вида композиций.</p>
+        </details>
+      </div>
+    </section>
+
+    <!-- ===== Заявка ===== -->
+    <section class="request section section--deep" id="request" aria-labelledby="request-title">
+      <div class="container request__grid">
+        <div class="request__intro reveal">
+          <p class="section__kicker">Заявка</p>
+          <h2 class="section__title" id="request-title">Расскажите о вашей свадьбе</h2>
+          <p class="section__lead">Это ни к чему не обязывает: в ответ вы получите
+          предварительную оценку бюджета и 2–3 идеи под вашу площадку. Отвечаем в течение рабочего дня.</p>
+          <ul class="request__facts">
+            <li>Бесплатная первая встреча и мудборд</li>
+            <li>Эскизы и смета — за 3 дня</li>
+            <li>Цена фиксируется договором</li>
+          </ul>
+          <p class="request__alt">Удобнее голосом? Позвоните: <a href="tel:+78120000000">+7 (812) 000-00-00</a></p>
+        </div>
+
+        <form class="form reveal" id="rsvp-form" novalidate>
+          <div class="form__row">
+            <label class="form__field">
+              <span>Ваше имя *</span>
+              <input type="text" name="name" autocomplete="name" required>
+            </label>
+            <label class="form__field">
+              <span>Телефон *</span>
+              <input type="tel" name="phone" autocomplete="tel" inputmode="tel" placeholder="+7" required>
+            </label>
+          </div>
+          <div class="form__row">
+            <label class="form__field">
+              <span>Дата свадьбы</span>
+              <input type="date" name="date">
+            </label>
+            <label class="form__field">
+              <span>Бюджет на флористику</span>
+              <select name="budget">
+                <option value="" selected>Пока не решили</option>
+                <option>до 100 000 ₽</option>
+                <option>100 — 250 тыс. ₽</option>
+                <option>250 — 500 тыс. ₽</option>
+                <option>свыше 500 тыс. ₽</option>
+              </select>
+            </label>
+          </div>
+          <label class="form__field">
+            <span>Пара слов о вашей свадьбе</span>
+            <textarea name="message" rows="4" placeholder="Площадка, число гостей, настроение — всё, что уже известно"></textarea>
+          </label>
+          <!-- honeypot -->
+          <label class="form__hp" aria-hidden="true">Не заполняйте это поле
+            <input type="text" name="website" tabindex="-1" autocomplete="off">
+          </label>
+          <button class="btn btn--gold form__submit" type="submit">Получить оценку бюджета</button>
+          <p class="form__status" role="status" aria-live="polite"></p>
+          <p class="form__privacy">Нажимая кнопку, вы соглашаетесь с обработкой персональных данных.
+          Никаких рассылок — только ответ по вашей свадьбе.</p>
+        </form>
+      </div>
+    </section>
+  </main>
+
+  <!-- ===== Футер ===== -->
+  <footer class="footer">
+    <div class="container footer__inner">
+      <p class="footer__brand">АМАРАНТ<span> — студия свадебной флористики</span></p>
+      <p class="footer__contacts">
+        Санкт-Петербург, наб. реки Мойки, 12 ·
+        <a href="tel:+78120000000">+7 (812) 000-00-00</a> ·
+        <a href="mailto:hello@amarant.studio">hello@amarant.studio</a>
+      </p>
+      <p class="footer__note">Работаем по всей России · © 2026</p>
+    </div>
+  </footer>
+
+  <!-- ===== Мобильный sticky CTA ===== -->
+  <div class="sticky-cta" id="sticky-cta">
+    <a class="btn btn--gold" href="#request">Обсудить свадьбу</a>
+  </div>
+
+  <script src="assets/js/main.js" defer></script>
+</body>
+</html>
