@@ -39,6 +39,7 @@
         <li><a href="#collections">Коллекции</a></li>
         <li><a href="#process">Как мы работаем</a></li>
         <li><a href="#packages">Пакеты</a></li>
+        <li><a href="#calculator">Калькулятор</a></li>
         <li><a href="#faq">Вопросы</a></li>
         <li><a class="nav__cta" href="#request">Оставить заявку</a></li>
       </ul>
@@ -246,7 +247,74 @@
           <a class="btn btn--ghost" href="#request">Обсудить «Кутюр»</a>
         </article>
       </div>
-      <p class="packages__note reveal">Не подошёл ни один пакет? Соберём индивидуальную смету под вашу площадку и бюджет — это бесплатно.</p>
+      <p class="packages__note reveal">Не подошёл ни один пакет? <a href="#calculator">Рассчитайте свою вилку бюджета за минуту</a> — или соберём индивидуальную смету под вашу площадку. Это бесплатно.</p>
+    </section>
+
+    <!-- ===== Калькулятор сметы ===== -->
+    <section class="calc section" id="calculator" aria-labelledby="calcTitle">
+      <header class="section__head reveal">
+        <p class="eyebrow">Калькулятор сметы</p>
+        <h2 id="calcTitle">Ваша вилка бюджета — за три вопроса</h2>
+        <p class="section__sub">Честный предварительный расчёт без звонка менеджера и «оставьте телефон, мы перезвоним». Точную смету зафиксируем в договоре — и она не вырастет ни на рубль.</p>
+      </header>
+
+      <form class="calc__card reveal" id="calcForm" aria-describedby="calcStepStatus">
+        <p class="calc__progress" aria-hidden="true">
+          <span class="calc__dot is-active"></span><span class="calc__dot"></span><span class="calc__dot"></span>
+        </p>
+        <p class="visually-hidden" id="calcStepStatus" role="status" aria-live="polite">Шаг 1 из 3</p>
+
+        <fieldset class="calc__step">
+          <legend>Какая у вас свадьба?</legend>
+          <div class="calc__choices">
+            <label><input type="radio" name="calcSize" value="small" data-bouquet="1" data-zone="1" data-label="камерная, до 20 гостей">
+              <span>Камерная <small class="calc__hint">до 20 гостей</small></span></label>
+            <label><input type="radio" name="calcSize" value="mid" data-bouquet="1.25" data-zone="1.8" data-label="20–60 гостей" checked>
+              <span>Средняя <small class="calc__hint">20–60 гостей</small></span></label>
+            <label><input type="radio" name="calcSize" value="big" data-bouquet="1.5" data-zone="3.2" data-label="больше 60 гостей">
+              <span>Большая <small class="calc__hint">больше 60 гостей</small></span></label>
+          </div>
+        </fieldset>
+
+        <fieldset class="calc__step" hidden>
+          <legend>Что оформляем?</legend>
+          <div class="calc__choices">
+            <label><input type="checkbox" name="calcScope" value="Букет" data-base="12000" data-scale="bouquet" checked>
+              <span>Букет невесты <small class="calc__hint">от 12 000 ₽</small></span></label>
+            <label><input type="checkbox" name="calcScope" value="Церемония" data-base="45000" data-scale="zone" checked>
+              <span>Церемония <small class="calc__hint">от 45 000 ₽</small></span></label>
+            <label><input type="checkbox" name="calcScope" value="Банкет" data-base="70000" data-scale="zone" checked>
+              <span>Банкет <small class="calc__hint">от 70 000 ₽</small></span></label>
+          </div>
+          <p class="calc__error" id="calcError" hidden>Выберите хотя бы одно направление — иначе нам нечего считать.</p>
+        </fieldset>
+
+        <fieldset class="calc__step" hidden>
+          <legend>Какая палитра ближе?</legend>
+          <div class="calc__choices">
+            <label><input type="radio" name="calcPalette" value="Слоновая кость и золото"><span>Слоновая кость и золото</span></label>
+            <label><input type="radio" name="calcPalette" value="Белый лес"><span>Белый лес</span></label>
+            <label><input type="radio" name="calcPalette" value="Терракотовый сад"><span>Терракотовый сад</span></label>
+            <label><input type="radio" name="calcPalette" value="Северная лаванда"><span>Северная лаванда</span></label>
+            <label><input type="radio" name="calcPalette" value="Доверимся флористу" checked><span>Доверимся флористу</span></label>
+          </div>
+        </fieldset>
+
+        <div class="calc__result" tabindex="-1" hidden>
+          <p class="eyebrow">Предварительная вилка</p>
+          <p class="calc__range" id="calcRange"></p>
+          <p class="calc__note" id="calcNote"></p>
+          <div class="calc__actions">
+            <button class="btn btn--primary" type="button" id="calcToRequest">Зафиксировать вилку — обсудить</button>
+            <button class="btn btn--ghost" type="button" id="calcReset">Пересчитать</button>
+          </div>
+        </div>
+
+        <div class="calc__nav">
+          <button class="btn btn--ghost" type="button" id="calcBack" hidden>Назад</button>
+          <button class="btn btn--primary" type="button" id="calcNext">Далее</button>
+        </div>
+      </form>
     </section>
 
     <!-- ===== Отзывы ===== -->
@@ -369,8 +437,8 @@
   </footer>
 
   <!-- ===== Липкий CTA (мобильный) ===== -->
-  <div class="sticky-cta" id="stickyCta" aria-hidden="true">
-    <a class="btn btn--primary" href="#request">Оставить заявку</a>
+  <div class="sticky-cta" id="stickyCta" aria-hidden="true" inert>
+    <a class="btn btn--primary" href="#calculator">Рассчитать смету</a>
     <a class="sticky-cta__call" href="tel:+79215554017" aria-label="Позвонить в студию">Позвонить</a>
   </div>
 
