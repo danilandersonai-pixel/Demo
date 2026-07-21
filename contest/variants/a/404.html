@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="ru-RU">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Страница не найдена — Егор &amp; Диана</title>
+<meta name="robots" content="noindex">
+<style>
+  :root{
+    --wine:#4a0008; --wine-soft:#7d1019; --wine-deep:#2a0003;
+    --cream:#fbf6ec; --paper:#fffaf2; --gold:#c9a253; --gold-bright:#e8cf95;
+    --ink:#211c19; --muted:#6f665e; --line:rgba(33,28,25,.12);
+    --fast: cubic-bezier(.2,.8,.2,1);
+    --font-display:"Cormorant Garamond", Georgia, "Times New Roman", serif;
+    --font-text:"Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;height:100%;}
+  body{
+    background:
+      radial-gradient(120% 140% at 50% -10%, rgba(201,162,83,.14), transparent 60%),
+      var(--wine-deep);
+    color:var(--cream);
+    font-family:var(--font-text);
+    display:flex;align-items:center;justify-content:center;
+    min-height:100vh;
+    padding:clamp(20px,6vw,48px);
+    text-align:center;
+  }
+  .card{
+    max-width:560px;
+    width:100%;
+    padding:clamp(36px,7vw,64px) clamp(24px,6vw,52px);
+    border:1px solid rgba(232,207,149,.28);
+    border-radius:4px;
+    background:linear-gradient(180deg, rgba(255,255,255,.02), rgba(255,255,255,0));
+    position:relative;
+  }
+  .mono{
+    font-family:var(--font-display);
+    font-size:clamp(40px,8vw,64px);
+    letter-spacing:.04em;
+    color:var(--gold-bright);
+    line-height:1;
+    margin:0 0 18px;
+  }
+  .mono span{ font-size:.55em; color:var(--gold); vertical-align:middle; margin:0 .18em; }
+  .divider{
+    width:64px;height:1px;margin:0 auto 26px;
+    background:linear-gradient(90deg, transparent, var(--gold), transparent);
+    transform-origin:center;
+  }
+  h1{
+    font-family:var(--font-display);
+    font-weight:500;
+    font-size:clamp(26px,4.2vw,34px);
+    margin:0 0 14px;
+    color:var(--paper);
+    letter-spacing:.01em;
+  }
+  p.lead{
+    margin:0 0 34px;
+    color:rgba(251,246,236,.72);
+    font-size:15px;
+    line-height:1.7;
+    font-weight:300;
+  }
+  nav.links{
+    display:flex;flex-direction:column;gap:12px;
+    align-items:center;
+  }
+  nav.links a{
+    display:inline-flex;align-items:center;gap:10px;
+    color:var(--gold-bright);
+    text-decoration:none;
+    font-size:15px;
+    letter-spacing:.02em;
+    padding:10px 4px;
+    border-bottom:1px solid transparent;
+    transition:border-color .35s var(--fast), color .35s var(--fast), transform .35s var(--fast);
+  }
+  nav.links a:hover,
+  nav.links a:focus-visible{
+    color:var(--paper);
+    border-color:var(--gold);
+    transform:translateY(-1px);
+  }
+  nav.links a:focus-visible{ outline:2px solid var(--gold); outline-offset:4px; border-radius:2px; }
+  nav.links a .arr{ transition:transform .35s var(--fast); }
+  nav.links a:hover .arr, nav.links a:focus-visible .arr{ transform:translateX(3px); }
+  .primary{
+    font-family:var(--font-display);
+    font-size:19px !important;
+    color:var(--wine-deep) !important;
+    background:var(--gold-bright);
+    padding:12px 28px !important;
+    border-radius:2px;
+    margin-bottom:6px;
+  }
+  .primary:hover, .primary:focus-visible{
+    color:var(--wine-deep) !important;
+    background:var(--gold);
+    border-color:transparent !important;
+  }
+  footer{
+    margin-top:36px;
+    font-size:12px;
+    letter-spacing:.14em;
+    text-transform:uppercase;
+    color:rgba(251,246,236,.4);
+  }
+
+  @media (prefers-color-scheme: light){
+    body{ background: radial-gradient(120% 140% at 50% -10%, rgba(122,16,25,.06), transparent 60%), var(--cream); color:var(--ink); }
+    .card{ border-color:var(--line); background:rgba(255,255,255,.5); box-shadow:0 30px 90px rgba(58,42,29,.12); }
+    .mono{ color:var(--wine); }
+    .mono span{ color:var(--gold); }
+    h1{ color:var(--wine-deep); }
+    p.lead{ color:var(--muted); }
+    nav.links a{ color:var(--wine-soft); }
+    nav.links a:hover, nav.links a:focus-visible{ color:var(--wine-deep); border-color:var(--gold); }
+    .primary{ color:var(--paper) !important; background:var(--wine); }
+    .primary:hover, .primary:focus-visible{ background:var(--wine-soft); color:var(--paper) !important; }
+    footer{ color:var(--muted); }
+  }
+
+  @media (prefers-reduced-motion: no-preference){
+    .card{ animation:rise .7s var(--fast) both; }
+    .mono{ animation:fade .9s var(--fast) .1s both; }
+    .divider{ animation:grow .8s var(--fast) .25s both; }
+  }
+  @keyframes rise{ from{opacity:0; transform:translateY(14px);} to{opacity:1; transform:translateY(0);} }
+  @keyframes fade{ from{opacity:0;} to{opacity:1;} }
+  @keyframes grow{ from{transform:scaleX(0);} to{transform:scaleX(1);} }
+
+  @media (prefers-reduced-motion: reduce){
+    *{ animation:none !important; transition:none !important; }
+  }
+</style>
+</head>
+<body>
+  <main class="card" role="main">
+    <p class="mono" aria-hidden="true">Е<span>&amp;</span>Д</p>
+    <div class="divider" aria-hidden="true"></div>
+    <h1>Кажется, вы потерялись</h1>
+    <p class="lead">
+      Этой страницы не существует — но дорога к нашей свадьбе никуда не делась.
+      Выберите, куда пойти дальше.
+    </p>
+    <nav class="links" aria-label="Основная навигация">
+      <a class="primary" href="/index.html">
+        <span class="arr" aria-hidden="true">→</span> На главную
+      </a>
+      <a href="/index.html#program">
+        <span class="arr" aria-hidden="true">→</span> Программа дня
+      </a>
+      <a href="/index.html#rsvp">
+        <span class="arr" aria-hidden="true">→</span> Подтвердить присутствие
+      </a>
+    </nav>
+    <footer>26 · 08 · 2026 — Санкт-Петербург</footer>
+  </main>
+</body>
+</html>
