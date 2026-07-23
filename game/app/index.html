@@ -77,6 +77,43 @@
       <path d="M7 6l5 7-2 12zM25 6l-5 7 2 12z"/>
       <path d="M10 2l2 4-3 2zM22 2l-2 4 3 2z"/>
     </symbol>
+    <symbol id="i-tank" viewBox="0 0 32 32">
+      <rect x="3" y="18" width="26" height="8" rx="4"/>
+      <rect x="10" y="11" width="10" height="8" rx="2"/>
+      <rect x="19" y="13" width="11" height="3" rx="1.5"/>
+      <circle cx="9" cy="22" r="2.2" class="cut"/>
+      <circle cx="16" cy="22" r="2.2" class="cut"/>
+      <circle cx="23" cy="22" r="2.2" class="cut"/>
+    </symbol>
+    <symbol id="i-mortira" viewBox="0 0 32 32">
+      <rect x="4" y="24" width="24" height="4" rx="1"/>
+      <path d="M8 24 22 6l5 4-13 16z"/>
+      <circle cx="24" cy="8" r="4"/>
+      <rect x="12" y="18" width="4" height="7" rx="1"/>
+    </symbol>
+    <symbol id="i-titanc" viewBox="0 0 32 32">
+      <path d="M16 1l6 6v10H10V7z"/>
+      <rect x="8" y="14" width="16" height="9" rx="1"/>
+      <path d="M16 3v11" stroke="currentColor" stroke-width="1.6" class="cutline"/>
+      <rect x="6" y="23" width="6" height="8" rx="1"/>
+      <rect x="20" y="23" width="6" height="8" rx="1"/>
+      <rect x="1" y="15" width="6" height="3" rx="1.5"/>
+      <rect x="25" y="15" width="6" height="3" rx="1.5"/>
+    </symbol>
+    <symbol id="i-zvon" viewBox="0 0 32 32">
+      <path d="M16 2c6 0 8 6 8 12v6H8v-6C8 8 10 2 16 2z"/>
+      <circle cx="16" cy="17" r="2.4" class="cut"/>
+      <path d="M8 22 4 31h6l3-9zM24 22l4 9h-6l-3-9z"/>
+    </symbol>
+    <symbol id="i-organ" viewBox="0 0 32 32">
+      <rect x="4" y="22" width="24" height="7" rx="1"/>
+      <path d="M6 22V10l4-3v15zM13 22V6l3-3 3 3v16zM23 22V7l4 3v12z"/>
+    </symbol>
+    <symbol id="i-titanx" viewBox="0 0 32 32">
+      <path d="M16 0l5 9-5 14-5-14z"/>
+      <path d="M6 5l6 8-3 12-5-11zM26 5l-6 8 3 12 5-11z"/>
+      <path d="M9 25l-3 6h6zM23 25l3 6h-6zM16 25l-2 6h4z"/>
+    </symbol>
   </defs>
 </svg>
 
@@ -88,7 +125,8 @@
     <p class="tagline">Звезда гаснет. Свеча должна гореть.</p>
     <p class="title-lore">Система умирающей звезды Веспер-Крон. Держава Негасимой Свечи жжёт
       миры-реликвии, чтобы докормить светило, — а из тьмы остывших планет пришёл Стеклянный Хор,
-      кристаллизующий мёртвых. Шесть миров Кадильного Пояса. Один полк. Поимённая цена.</p>
+      кристаллизующий мёртвых. Планета Веспер-Прима: девять провинций, восемь под Хором.
+      Один полк, его танки, батареи и Ковчег. Поимённая цена.</p>
     <div class="title-btns">
       <button class="btn wide primary" id="btn-new">Новый поход</button>
       <button class="btn wide" id="btn-continue">Продолжить</button>
@@ -98,15 +136,16 @@
   </div>
 </section>
 
-<!-- ЭКРАН: Кампания -->
+<!-- ЭКРАН: Кампания — стратегическая карта планеты -->
 <section class="screen" id="s-campaign">
   <header class="scr-head">
-    <h2 class="scr-title">Кадильный Пояс</h2>
+    <h2 class="scr-title">Веспер-Прима</h2>
     <p class="dim" id="camp-info"></p>
   </header>
-  <div id="camp-chain"></div>
+  <div id="strat-alert"></div>
+  <div id="strat-map"></div>
+  <div id="prov-panel"></div>
   <div class="scr-actions">
-    <button class="btn wide primary" id="btn-to-brief">К брифингу ▸</button>
     <button class="btn wide" id="btn-chronicle">Летопись похода</button>
     <button class="btn wide ghost" id="btn-reset">Предать поход огню</button>
   </div>
@@ -118,8 +157,9 @@
   <div id="req-panel" class="panel-block"></div>
   <div id="hero-panel" class="panel-block"></div>
   <div class="scr-actions">
+    <p id="brief-warn" class="grim-line" style="display:none"></p>
     <button class="btn wide primary" id="btn-launch">⚔ Выступить</button>
-    <button class="btn wide ghost" id="btn-back-camp">Назад</button>
+    <button class="btn wide ghost" id="btn-back-camp">Назад к карте</button>
   </div>
 </section>
 

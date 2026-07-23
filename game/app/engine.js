@@ -34,6 +34,29 @@ var ENGINE = (function () {
     });
   }
   function isChar(u) { return (typeOf(u).wpm || 1) > 1; }
+  function isVehicle(u) { return !!typeOf(u).vehicle; }
+  function isArty(u) { return !!typeOf(u).arty; }
+  function missionOf(b) { return b.m; }
+
+  /* ---------- эффективный профиль (титаны деградируют по ранам) ---------- */
+  function titanStage(u) {
+    var t = typeOf(u);
+    if (!t.titan) return 0;
+    if (u.hp >= t.titan.hi) return 0;
+    if (u.hp >= t.titan.mid) return 1;
+    return 2;
+  }
+  function effStats(u) {
+    var t = typeOf(u);
+    var e = { mv: t.mv, rng: t.rng || 0, shootDice: t.shootDice || 1,
+              s: t.s, atk: t.atk || 1 };
+    if (t.titan) {
+      var st = t.titan.stages[titanStage(u)];
+      e.mv = st.mv; e.rng = st.rng; e.shootDice = st.shootDice;
+      e.s = st.s; e.atk = st.atk; e.stageLabel = st.label;
+    }
+    return e;
+  }
 
   function log(b, msg, cls) {
     b.log.push({ r: b.round, side: b.side, msg: msg, cls: cls || '' });
@@ -59,7 +82,8 @@ var ENGINE = (function () {
       relicAura: !!extra.relicAura, shriekImmune: !!extra.shriekImmune,
       hitAura: !!extra.hitAura, orderRange: extra.orderRange || 0,
       orderUnjammable: !!extra.orderUnjammable, orderSavePen: !!extra.orderSavePen,
-      ldPerm: extra.ldPerm || 0
+      ldPerm: extra.ldPerm || 0,
+      shield: t.shield ? t.shield.max : 0
     };
     b.units.push(u);
     return u;
@@ -107,8 +131,8 @@ var ENGINE = (function () {
 
   /* ---------- движение ---------- */
   function reachable(b, u, run) {
-    var t = typeOf(u);
-    var budget = t.mv + (run ? Math.ceil(t.mv / 2) : 0);
+    var mv = effStats(u).mv;
+    var budget = mv + (run ? Math.ceil(mv / 2) : 0);
     var res = {};
     if (u.broken || isEngaged(b, u)) return res;
     var enemySide = u.side === 'player' ? 'ai' : 'player';
@@ -148,7 +172,7 @@ var ENGINE = (function () {
     delete cost[u.x + ',' + u.y];
     /* Бег — не атака: бегущий отряд не может закончить движение вплотную к врагу. */
     if (run) {
-      var walkBudget = t.mv;
+      var walkBudget = mv;
       Object.keys(cost).forEach(function (k) {
         if (cost[k] <= walkBudget) return; // до этих клеток можно дойти и шагом
         var p = k.split(',');
@@ -193,8 +217,7 @@ var ENGINE = (function () {
     return true;
   }
   function shootRange(b, u) {
-    var t = typeOf(u);
-    var r = t.rng || 0;
+    var r = effStats(u).rng;
     if (b.night) r = Math.min(r, b.night);
     return r;
   }
@@ -213,6 +236,105 @@ var ENGINE = (function () {
     });
   }
 
+  /* ---------- артиллерия: непрямой огонь по площади ----------
+     Без LoS. Рассеивание: 3+ на д6 — снаряд в цель, иначе снос на 1 клетку
+     в случайную из 8 сторон. Накрывает 3×3 вокруг точки падения — И СВОИХ.
+     Укрытия от навеса не спасают. После движения не стреляет. */
+  var SCATTER_DIRS = [[-1,-1],[0,-1],[1,-1],[-1,0],[1,0],[-1,1],[0,1],[1,1]];
+
+  function canArtyFire(b, u) {
+    if (!isArty(u)) return false;
+    return !u.broken && !u.moved && !u.ran && !u.shot && !isEngaged(b, u);
+  }
+  function artyRangeOf(b, u) {
+    var r = typeOf(u).rng;
+    if (b.night) r = Math.min(r, b.night);
+    return r;
+  }
+  function artyCellOk(b, u, x, y) {
+    if (!inB(x, y)) return false;
+    var d = Math.max(Math.abs(u.x - x), Math.abs(u.y - y));
+    var t = typeOf(u);
+    return d >= t.arty.minRng && d <= artyRangeOf(b, u);
+  }
+  /* распределение точки падения: 4/6 в цель, по 1/24 на каждую из 8 соседних */
+  function artyImpacts(cell) {
+    var pts = [{ x: cell.x, y: cell.y, p: 4 / 6 }];
+    SCATTER_DIRS.forEach(function (d) {
+      pts.push({ x: cell.x + d[0], y: cell.y + d[1], p: (2 / 6) / 8 });
+    });
+    return pts;
+  }
+  function artyPreview(b, att, cell) {
+    var at = typeOf(att);
+    var impacts = artyImpacts(cell);
+    var rows = [];
+    b.units.forEach(function (w) {
+      if (!alive(w)) return;
+      var pBlast = 0;
+      impacts.forEach(function (ip) {
+        if (Math.max(Math.abs(w.x - ip.x), Math.abs(w.y - ip.y)) <= 1) pBlast += ip.p;
+      });
+      if (pBlast <= 0) return;
+      var wT = woundTarget(at.arty.s, typeOf(w).t);
+      /* укрытие игнорируется, бронепробитие навеса действует */
+      var sv = Math.max(2, typeOf(w).sv - (w.svBonus || 0) + Math.max(0, at.arty.s - 5));
+      var pKill = pSuccess(wT) * (sv > 6 ? 1 : Math.max(0, Math.min(1, (sv - 1) / 6)));
+      rows.push({ unit: w, pBlast: pBlast, woundT: wT, saveT: sv,
+                  exp: pBlast * at.arty.dice * pKill, friendly: w.side === att.side });
+    });
+    rows.sort(function (a, c) { return c.exp - a.exp; });
+    return { dice: at.arty.dice, s: at.arty.s, rows: rows };
+  }
+  function resolveArty(b, att, cell) {
+    var at = typeOf(att);
+    var sc = RNG.d6();
+    var impact = { x: cell.x, y: cell.y };
+    var scattered = sc < 3;
+    if (scattered) {
+      var d = SCATTER_DIRS[RNG.int(8)];
+      impact.x += d[0]; impact.y += d[1];
+    }
+    var out = { impact: impact, scattered: scattered, scRoll: sc, results: [] };
+    log(b, '☄ ' + unitLabel(att) + ' бьёт навесом (' + (cell.x + 1) + ',' + (cell.y + 1) + ')' +
+      (scattered ? ' — снос!' : ' — точно в цель.'), 'atk');
+    b.units.slice().forEach(function (w) {
+      if (!alive(w)) return;
+      if (Math.max(Math.abs(w.x - impact.x), Math.abs(w.y - impact.y)) > 1) return;
+      var wT = woundTarget(at.arty.s, typeOf(w).t);
+      var sv = Math.max(2, typeOf(w).sv - (w.svBonus || 0) + Math.max(0, at.arty.s - 5));
+      var wounds = rollPool(at.arty.dice, wT);
+      var nW = wounds.filter(function (q) { return q.ok; }).length;
+      var fails = 0, saves = [];
+      for (var i = 0; i < nW; i++) {
+        if (sv > 6) { saves.push({ r: '—', ok: false }); fails++; continue; }
+        var r = RNG.d6();
+        saves.push({ r: r, ok: r >= sv });
+        if (r < sv) fails++;
+      }
+      var dmg = applyWounds(b, w, fails);
+      if (w.side !== att.side) att.kills += dmg.modelsKilled;
+      var row = { unit: w, wounds: wounds, saves: saves, kills: dmg.modelsKilled,
+                  woundsLost: dmg.woundsLost, fallen: dmg.fallen,
+                  destroyed: dmg.destroyed, friendly: w.side === att.side, morale: null };
+      log(b, '· накрыт ' + unitLabel(w) + ': −' +
+        (isChar(w) ? dmg.woundsLost + ' ран' : dmg.modelsKilled) +
+        (dmg.destroyed ? ' (уничтожен)' : ''), dmg.modelsKilled + dmg.woundsLost > 0 ? 'grim' : '');
+      if (alive(w) && !isChar(w) && !w.broken && !w.testedPhase) {
+        var start = w.models + w.lostPhase;
+        var need = Math.ceil(start * 0.25);
+        if (w.lostPhase >= need && need > 0) {
+          row.morale = moraleTest(b, w, 0, 'навесной огонь');
+          log(b, moraleMsg(w, row.morale), row.morale.passed ? '' : 'grim');
+        }
+      }
+      out.results.push(row);
+    });
+    att.shot = true;
+    checkOutcome(b);
+    return out;
+  }
+
   /* ---------- профиль атаки (общий для превью и резолвера) ---------- */
   function woundTarget(s, t) {
     if (s >= 2 * t) return 2;
@@ -229,8 +351,10 @@ var ENGINE = (function () {
   }
   function attackProfile(b, att, def, mode) {
     var at = typeOf(att), dt = typeOf(def);
+    var ae = effStats(att);
     var notes = [];
     var p = { mode: mode, auto: false, dice: 0, hitT: 4, woundT: 4, saveT: 4, notes: notes };
+    if (at.titan && titanStage(att) > 0) notes.push('Деградация сверхтяжа: ' + ae.stageLabel);
 
     if (mode === 'shoot') {
       if (at.flamer) {
@@ -238,12 +362,12 @@ var ENGINE = (function () {
         p.dice = att.models * 2;
         notes.push('Пламя: автопопадание, игнорирует укрытие');
       } else {
-        p.dice = isChar(att) ? (at.shootDice || 1) : att.models;
+        p.dice = isChar(att) ? ae.shootDice : att.models;
         p.hitT = at.bs;
       }
       if (att.buffs.shootTwice) { p.dice *= 2; notes.push('Глас казни: двойной залп'); }
     } else {
-      p.dice = isChar(att) ? ((at.atk || 1) + (att.atkBonus || 0)) : att.models;
+      p.dice = isChar(att) ? (ae.atk + (att.atkBonus || 0)) : att.models;
       p.hitT = at.ws;
     }
 
@@ -267,9 +391,13 @@ var ENGINE = (function () {
       p.hitT = Math.min(6, Math.max(2, p.hitT + mod));
     }
 
-    p.woundT = woundTarget(at.s, dt.t);
+    p.woundT = woundTarget(ae.s, dt.t);
+    if (def.shield > 0) notes.push('Щит из звука: ' + def.shield + ' ран будут погашены');
 
     var sv = dt.sv - (def.svBonus || 0);
+    /* бронепробитие: сила 6+ портит спас-бросок цели (С6: −1, С7: −2, С8: −3) */
+    var ap = Math.max(0, ae.s - 5);
+    if (ap > 0) { sv += ap; notes.push('Пробитие брони: −' + ap + ' к спасу цели'); }
     if (!(mode === 'shoot' && at.flamer) && mode === 'shoot') {
       sv -= coverOf(b, def);
       if (coverOf(b, def) > 0) notes.push('Цель в укрытии: броня ' + '+' + coverOf(b, def));
@@ -307,7 +435,7 @@ var ENGINE = (function () {
     var pWound = pSuccess(prof.woundT);
     var pFailSave = prof.saveT > 6 ? 1 : Math.max(0, Math.min(1, (prof.saveT - 1) / 6));
     var pKill = pHit * pWound * pFailSave;
-    var pool = isChar(def) ? def.hp : def.models;
+    var pool = isChar(def) ? def.hp + (def.shield || 0) : def.models;
     var expKills = Math.min(pool, prof.dice * pKill);
     var pDestroy = binomAtLeast(prof.dice, pKill, pool);
     var pBreak = 0, moraleNeed = 0, pFailLd = 0;
@@ -341,15 +469,32 @@ var ENGINE = (function () {
   }
 
   function applyWounds(b, def, fails) {
-    var res = { modelsKilled: 0, woundsLost: 0, fallen: [], destroyed: false };
+    var res = { modelsKilled: 0, woundsLost: 0, fallen: [], destroyed: false, absorbed: 0 };
     if (fails <= 0) return res;
     if (isChar(def)) {
+      /* щит-регенерация (Стоголосый): гасит раны до корпуса */
+      if (def.shield > 0) {
+        res.absorbed = Math.min(def.shield, fails);
+        def.shield -= res.absorbed;
+        fails -= res.absorbed;
+        if (res.absorbed > 0) log(b, '⛨ Щит из звука гасит ' + res.absorbed + ' ран (' + unitLabel(def) + ').', 'grim');
+        if (fails <= 0) return res;
+      }
+      var stBefore = titanStage(def);
       res.woundsLost = Math.min(def.hp, fails);
       def.hp -= res.woundsLost;
       if (def.hp <= 0) {
         def.models = 0;
         res.destroyed = true;
         res.modelsKilled = 1;
+      } else {
+        var t0 = typeOf(def);
+        if (t0.titan) {
+          var stAfter = titanStage(def);
+          for (var sm = stBefore; sm < stAfter; sm++) {
+            log(b, t0.titan.msgs[sm], def.side === 'ai' ? 'win' : 'grim');
+          }
+        }
       }
     } else {
       var kills = Math.min(fails, def.models);
@@ -413,7 +558,7 @@ var ENGINE = (function () {
   }
 
   function onBridge(b, u) {
-    var m = DATA.MISSIONS[b.missionIdx];
+    var m = b.m;
     return m.bridgeRows && u.y >= m.bridgeRows[0] && u.y <= m.bridgeRows[1];
   }
 
@@ -711,6 +856,12 @@ var ENGINE = (function () {
     aliveUnits(b, 'ai').forEach(function (u) {
       u.moved = false; u.ran = false; u.shot = false; u.fought = false; u.charged = false;
       u.buffs = {};
+      /* щит-регенерация сверхтяжа Хора */
+      var t = typeOf(u);
+      if (t.shield && u.shield < t.shield.max) {
+        u.shield = Math.min(t.shield.max, u.shield + t.shield.regen);
+        log(b, '⛨ ' + unitLabel(u) + ': щит из звука отрастает (' + u.shield + '/' + t.shield.max + ').', 'grim');
+      }
     });
     resetPhaseCounters(b);
     missionAiStart(b);
@@ -718,7 +869,7 @@ var ENGINE = (function () {
 
   /* ---------- механика миссий ---------- */
   function missionAiStart(b) {
-    var m = DATA.MISSIONS[b.missionIdx];
+    var m = b.m;
     /* волны */
     (m.waves || []).forEach(function (w) {
       if (w.round === b.round && !b.flags['wave' + w.round]) {
@@ -795,7 +946,7 @@ var ENGINE = (function () {
   }
 
   function endAiTurn(b) {
-    var m = DATA.MISSIONS[b.missionIdx];
+    var m = b.m;
     /* удержание кадила (миссия 5) */
     if (m.win.type === 'hold') {
       var chorusOnK = aliveUnits(b, 'ai').some(function (u) { return cellChar(b, u.x, u.y) === 'K'; });
@@ -837,7 +988,7 @@ var ENGINE = (function () {
 
   function checkOutcome(b) {
     if (b.outcome) return;
-    var m = DATA.MISSIONS[b.missionIdx];
+    var m = b.m;
     var player = aliveUnits(b, 'player');
     var ai = aliveUnits(b, 'ai');
 
@@ -866,13 +1017,13 @@ var ENGINE = (function () {
       }
     }
     if (m.win.type === 'annihilate' && !ai.length) {
-      b.outcome = { win: true, reason: 'Мост очищен. Витражи снова молчат по-хорошему.' };
+      b.outcome = { win: true, reason: m.win.done || 'Хор истреблён до последней грани.' };
       return;
     }
     if (m.win.type === 'killtype') {
       var left = ai.filter(function (u) { return u.type === m.win.unitType; }).length;
       if (left === 0) {
-        b.outcome = { win: true, reason: 'Три Камертона разбиты. Город слышит собственные колокола.' };
+        b.outcome = { win: true, reason: m.win.done || 'Цель миссии истреблена. Хор отхлынул.' };
         return;
       }
     }
@@ -892,12 +1043,16 @@ var ENGINE = (function () {
     }
   }
 
-  /* ---------- сборка боя ---------- */
-  function buildBattle(missionIdx, playerUnits, campFlags) {
+  /* ---------- сборка боя ----------
+     provId — провинция; mission — объект миссии (штурм из провинции или
+     сгенерированная оборона при контратаке); хранится прямо в battle (b.m),
+     поэтому сейв самодостаточен. */
+  function buildBattle(provId, mission, playerUnits, campFlags) {
     campFlags = campFlags || {};
-    var m = DATA.MISSIONS[missionIdx];
+    var m = mission;
     var b = {
-      missionIdx: missionIdx, round: 1, side: 'player', phase: 'orders',
+      provId: provId, m: m, defense: !!m.defense,
+      round: 1, side: 'player', phase: 'orders',
       cells: m.map.join('').split(''),
       units: [], nextUid: 1, log: [], fallen: [], deserters: 0,
       flags: {}, orderUsed: {}, heroDown: {}, outcome: null,
@@ -924,10 +1079,14 @@ var ENGINE = (function () {
     W: W, H: H, idx: idx, inB: inB, cellChar: cellChar, terrainAt: terrainAt,
     typeOf: typeOf, alive: alive, dist: dist, unitAt: unitAt, aliveUnits: aliveUnits,
     isEngaged: isEngaged, adjacentEnemies: adjacentEnemies, isChar: isChar,
+    isVehicle: isVehicle, isArty: isArty, missionOf: missionOf,
+    titanStage: titanStage, effStats: effStats,
+    canArtyFire: canArtyFire, artyRangeOf: artyRangeOf, artyCellOk: artyCellOk,
+    artyPreview: artyPreview, resolveArty: resolveArty,
     effLd: effLd, reachable: reachable, moveUnit: moveUnit,
     lineOfSight: lineOfSight, shootRange: shootRange, canShoot: canShoot,
     shootTargets: shootTargets, attackProfile: attackProfile, preview: preview,
-    resolveAttack: resolveAttack, resolveFight: resolveFight,
+    resolveAttack: resolveAttack, resolveFight: resolveFight, applyWounds: applyWounds,
     moraleTest: moraleTest, moraleMsg: moraleMsg, unitLabel: unitLabel,
     giveOrder: giveOrder, orderName: orderName, jamThreat: jamThreat, orderRadius: orderRadius,
     castMiracle: castMiracle,

@@ -11,7 +11,9 @@ var AI = (function () {
     if (t.banner) return 3;       // знамя — лакомая цель
     if (t.hero) return 3;
     if (def.heroKey) return 3;
+    if (t.arty) return 2.5;       // батареи надо давить
     if (t.flamer) return 2;
+    if (t.titan) return 1.5;
     return 0;
   }
 
@@ -34,8 +36,9 @@ var AI = (function () {
     var n = 0;
     ENGINE.aliveUnits(b, 'player').forEach(function (e) {
       var t = typeOf(e);
+      if (t.arty) { n += 0.5; return; } // навес достаёт почти всюду
       if (!(t.bs > 0 || t.flamer)) return;
-      var r = t.rng;
+      var r = ENGINE.effStats(e).rng;
       if (b.night) r = Math.min(r, b.night);
       var d = Math.max(Math.abs(e.x - x), Math.abs(e.y - y));
       if (d <= r && ENGINE.lineOfSight(b, e.x, e.y, x, y)) n++;
@@ -46,7 +49,7 @@ var AI = (function () {
   function bestShootFrom(b, u, x, y) {
     var t = typeOf(u);
     if (!(t.bs > 0 || t.flamer)) return null;
-    var r = t.rng;
+    var r = ENGINE.effStats(u).rng;
     if (b.night) r = Math.min(r, b.night);
     var ghost = { x: u.x, y: u.y };
     u.x = x; u.y = y; // временно, только для расчёта LoS/дистанций
@@ -113,6 +116,16 @@ var AI = (function () {
     s += cover * 1.2;
     var nd = nearestDist(c.x, c.y, enemies);
 
+    /* артиллерия: держит дистанцию за мёртвой зоной, бережёт себя */
+    if (t.arty) {
+      var want = t.arty.minRng + 2;
+      s -= Math.abs(nd - want) * 1.4;
+      if (nd <= t.arty.minRng) s -= 8;         // в мёртвой зоне — беда
+      if (c.stay) s += 5;                       // после движения не стреляет
+      s -= exposure(b, c.x, c.y) * (cover ? 0.4 : 0.9);
+      return s + missionBias(b, u, c.x, c.y, m);
+    }
+
     /* особые роли */
     if (t.jam) { // Псаломщик: держит дистанцию, глушит из-за спин
       s -= Math.abs(nd - 4) * 1.6;
@@ -166,9 +179,17 @@ var AI = (function () {
       } else {
         s -= nd * 0.7;
       }
-      var wantD = Math.max(2, (t.rng || 4) - 1);
+      var wantD = Math.max(2, (ENGINE.effStats(u).rng || 4) - 1);
       s -= Math.abs(nd - wantD) * 0.3;
-      s -= exposure(b, c.x, c.y) * (cover ? 0.35 : 0.8);
+      /* техника прёт вперёд и не боится огня пехоты; охотно давит в упор */
+      if (t.vehicle) {
+        var chv = bestChargeAt(b, u, c.x, c.y);
+        if (chv) s += chv.score * 0.8;
+        s -= Math.max(0, nd - 2) * 0.4;
+        s -= exposure(b, c.x, c.y) * 0.15;
+      } else {
+        s -= exposure(b, c.x, c.y) * (cover ? 0.35 : 0.8);
+      }
     }
     /* связность роя */
     s -= Math.max(0, Math.max(Math.abs(chorusCtr.x - c.x), Math.abs(chorusCtr.y - c.y)) - 3) * 0.4;
@@ -187,12 +208,39 @@ var AI = (function () {
     return us;
   }
 
+  /* артиллерия: лучшая точка накрытия (та же математика, что видит игрок) */
+  function decideArty(b, u) {
+    if (!ENGINE.canArtyFire(b, u)) return null;
+    var enemies = ENGINE.aliveUnits(b, u.side === 'ai' ? 'player' : 'ai');
+    var seen = {}, best = null;
+    enemies.forEach(function (e) {
+      for (var dy = -1; dy <= 1; dy++) {
+        for (var dx = -1; dx <= 1; dx++) {
+          var x = e.x + dx, y = e.y + dy;
+          var k = x + ',' + y;
+          if (seen[k]) continue;
+          seen[k] = 1;
+          if (!ENGINE.artyCellOk(b, u, x, y)) continue;
+          var pv = ENGINE.artyPreview(b, u, { x: x, y: y });
+          var score = 0;
+          pv.rows.forEach(function (r) {
+            score += r.friendly ? -2 * r.exp : r.exp + priorityOf(r.unit) * 0.3 * r.pBlast;
+          });
+          if (!best || score > best.score) best = { cell: { x: x, y: y }, score: score };
+        }
+      }
+    });
+    return best && best.score >= 0.4 ? best : null;
+  }
+
   function decideMove(b, u) {
     if (ENGINE.isEngaged(b, u)) return null;
-    var m = DATA.MISSIONS[b.missionIdx];
+    var m = b.m;
     var enemies = ENGINE.aliveUnits(b, 'player');
     if (!enemies.length) return null;
     var t = typeOf(u);
+    /* батарея, у которой есть накрытие, не двигается — стреляет */
+    if (t.arty && decideArty(b, u)) return null;
     var chorus = ENGINE.aliveUnits(b, 'ai');
     var ctr = centroid(chorus);
     var walk = ENGINE.reachable(b, u, false);
@@ -257,5 +305,5 @@ var AI = (function () {
   }
 
   return { unitOrder: unitOrder, decideMove: decideMove, decideShot: decideShot,
-           decideFights: decideFights };
+           decideArty: decideArty, decideFights: decideFights };
 })();

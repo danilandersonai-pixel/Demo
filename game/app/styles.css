@@ -134,6 +134,59 @@ h3 { font-family: var(--serif); font-size: 17px; color: var(--bronze); margin: 1
 .camp-node-tag { font-size: 12px; color: var(--wax-dim); }
 .camp-node.current .camp-node-tag { color: var(--bronze); }
 
+/* ---------- стратегическая карта планеты ---------- */
+#strat-map { margin: 6px 0 4px; }
+#planet-svg { width: 100%; height: auto; display: block; }
+.planet-disc {
+  fill: #120c14;
+  stroke: var(--line);
+  stroke-width: 1.5;
+}
+.prov-edge { stroke: #3a2c3a; stroke-width: 2; stroke-dasharray: 4 5; }
+.prov-edge.own { stroke: var(--bronze); stroke-dasharray: none; opacity: .7; }
+.prov { cursor: pointer; }
+.prov:focus { outline: none; }
+.prov circle {
+  fill: #241a2e;
+  stroke: var(--amethyst-dim);
+  stroke-width: 1.6;
+}
+.prov use { fill: var(--amethyst); pointer-events: none; }
+.prov-own circle { fill: #241708; stroke: var(--bronze); }
+.prov-own use { fill: var(--bronze-hi); }
+.prov-frontier circle { stroke: var(--blood); stroke-width: 2.4; animation: prov-pulse 1.6s infinite; }
+.prov-defense circle { stroke: var(--blood); stroke-width: 3; fill: #2a1114; animation: prov-pulse 1.1s infinite; }
+.prov-capital circle { stroke-dasharray: 5 3; stroke-width: 2.4; }
+.prov-far { opacity: .55; }
+.prov-sel circle { stroke: var(--wax) !important; stroke-width: 3 !important; }
+.prov:focus circle { stroke: var(--wax); }
+.prov text { pointer-events: none; text-anchor: middle; }
+.prov-name { fill: var(--wax); font-size: 11.5px; font-family: var(--serif); letter-spacing: .02em; }
+.prov-inc { fill: var(--bronze-hi); font-size: 10px; }
+.prov-mark { fill: var(--blood); font-size: 14px; }
+.prov-mark.def { fill: #ff8896; }
+@keyframes prov-pulse { 0%, 100% { stroke-opacity: 1; } 50% { stroke-opacity: .45; } }
+
+.strat-alert-line {
+  background: #2a1114; border: 1px solid var(--wine); border-left: 3px solid var(--blood);
+  border-radius: 4px; padding: 8px 12px; margin: 6px 0;
+  color: #e0a8b0; font-size: 13px;
+}
+#prov-panel { min-height: 96px; margin-top: 4px; }
+.prov-card {
+  background: var(--coal); border: 1px solid var(--line); border-radius: 4px;
+  padding: 10px 12px;
+}
+.prov-card.u-candle { border-left: 3px solid var(--bronze); }
+.prov-card.u-chorus { border-left: 3px solid var(--amethyst); }
+.prov-title { font-family: var(--serif); color: var(--bronze-hi); font-size: 15px; }
+.prov-card.u-chorus .prov-title { color: #c9a2f0; }
+.prov-sub { font-size: 12.5px; color: var(--wax-dim); margin: 2px 0; }
+.prov-blurb { font-size: 13px; color: var(--wax); margin: 6px 0; }
+.prov-unlock { font-size: 12.5px; color: var(--bronze-hi); margin: 6px 0; }
+.prov-warn { font-size: 13px; color: #e0a8b0; margin: 6px 0; }
+.prov-card .btn { margin-top: 8px; }
+
 /* ---------- брифинг ---------- */
 .brief-kicker { font-size: 11px; letter-spacing: .25em; text-transform: uppercase; color: var(--wine); }
 .brief-intro { font-size: 14px; color: var(--wax); margin: 8px 0; }
@@ -219,6 +272,11 @@ h3 { font-family: var(--serif); font-size: 17px; color: var(--bronze); margin: 1
 .cell.hl-run { box-shadow: inset 0 0 0 3px rgba(232, 180, 90, .95); cursor: pointer; }
 .cell.hl-target { box-shadow: inset 0 0 0 3px var(--blood); cursor: pointer; animation: pulse-t 1.2s infinite; }
 .cell.hl-order { box-shadow: inset 0 0 0 3px var(--ice); cursor: pointer; }
+.cell.hl-arty {
+  box-shadow: inset 0 0 0 2px rgba(232, 180, 90, .55);
+  cursor: crosshair;
+  background-image: radial-gradient(circle, rgba(232, 180, 90, .1) 30%, transparent 70%);
+}
 .cell.hl-sel { box-shadow: inset 0 0 0 3px var(--wax); }
 @keyframes pulse-t { 0%, 100% { opacity: 1; } 50% { opacity: .55; } }
 
@@ -390,6 +448,7 @@ svg .cutline { stroke: var(--ink); }
   }
   .title-candle .flame, .camp-candle .flame { animation: none !important; }
   .cell.hl-target { animation: none !important; }
+  .prov-frontier circle, .prov-defense circle { animation: none !important; }
 }
 
 /* ---------- узкие экраны (360×640): гарантия клетки ≥44px ---------- */

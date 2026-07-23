@@ -1,9 +1,18 @@
-/* «Пепел Литаний» — кампания: ростер, герои, реквизиция, реликвии,
-   карточки решений, преемники, летопись, сохранения (localStorage). */
+/* «Пепел Литаний» — кампания: стратегическая карта планеты (провинции, доход,
+   контратаки), ростер, герои, реквизиция, реликвии, карточки решений,
+   преемники, летопись, сохранения (localStorage).
+
+   СЕЙВЫ: версия 2 («ash-litany-v2»). Старый линейный сейв v1 несовместим со
+   стратегическим слоем (нет карты провинций) — миграция невозможна без
+   выдумывания состояния, поэтому v1 отбрасывается и вычищается: чистый старт.
+   Это решение задокументировано здесь и в migrate(). */
 'use strict';
 var CAMPAIGN = (function () {
-  var SAVE_KEY = 'ash-litany-v1';
-  var SAVE_VER = 1;
+  var SAVE_KEY = 'ash-litany-v2';
+  var OLD_KEYS = ['ash-litany-v1'];
+  var SAVE_VER = 2;
+  /* после каких по счёту побед Хор контратакует (если есть куда) */
+  var COUNTER_AT = [2, 5];
 
   var state = null;      // состояние кампании
   var battle = null;     // текущий бой (или null)
@@ -17,7 +26,8 @@ var CAMPAIGN = (function () {
     for (var i = 0; i < t.models; i++) names.push(DATA.genSoldierName());
     return {
       id: nextSquadId++, type: typeId, models: t.models, names: names,
-      squadName: t.models > 1 ? DATA.genSquadName(typeId) : 'Хоругвь Св. Ольты',
+      squadName: t.vehicle ? DATA.genSquadName(typeId)
+        : (t.models > 1 ? DATA.genSquadName(typeId) : 'Хоругвь Св. Ольты'),
       veteran: false
     };
   }
@@ -32,31 +42,36 @@ var CAMPAIGN = (function () {
     var seed = ((Date.now() & 0x7fffffff) ^ (Math.floor(Math.random() * 1e9))) >>> 0;
     RNG.seed(seed);
     nextSquadId = 1;
+    var provinces = {};
+    DATA.PROV_ORDER.forEach(function (pid) {
+      provinces[pid] = pid === 'plats' ? 'player' : 'chorus';
+    });
     state = {
-      seed: seed, mission: 0,
+      seed: seed, turn: 1, wins: 0,
+      provinces: provinces, pendingDefense: null,
       roster: DATA.START_ROSTER.map(mkSquad),
       heroes: { exec: mkHero('exec'), deacon: mkHero('deacon') },
-      req: 20,
+      req: 30,
       relics: {},       // id -> {mode:'worn'|'burned', bearer:'exec'|'deacon'}
       miracles: {},     // miracleId -> 'ready'|'used'
       decisions: [],    // {id, choice:'a'|'b'}
-      chronicle: [],    // {mission, text}
+      chronicle: [],    // {turn, text}
       fallen: [],       // {name, squad, mission}
       flags: {}, ldPerm: {}, ldNext: 0,
-      stats: { kills: 0, losses: 0, deserters: 0, retries: 0 },
+      stats: { kills: 0, losses: 0, deserters: 0, retries: 0, lostProvinces: 0 },
       pendingDecision: null, pendingRelic: null,
       nextSquadId: 1, finished: false
     };
     state.nextSquadId = nextSquadId;
-    chron('Поход начат. ' + state.heroes.exec.name + ' принимает полк; ' +
-      state.heroes.deacon.name + ' благословляет порох.');
+    chron('Высадка на Веспер-Приму. ' + state.heroes.exec.name + ' принимает полк; ' +
+      state.heroes.deacon.name + ' благословляет порох. Впереди — восемь провинций Хора.');
     battle = null;
     snapshot = null;
     save();
   }
 
   function chron(text) {
-    state.chronicle.push({ mission: state.mission, text: text });
+    state.chronicle.push({ turn: state.turn, text: text });
   }
 
   /* ---------- сохранение ---------- */
@@ -71,12 +86,19 @@ var CAMPAIGN = (function () {
     } catch (e) { /* приватный режим — играем без сейвов */ }
   }
   function migrate(raw) {
-    /* точка миграции по версии: v1 — актуальная. Неизвестные версии — отбрасываем. */
+    /* v2 — актуальная. v1 (линейная кампания) не мигрируется: у неё нет карты
+       провинций, честная реконструкция невозможна — чистый старт. */
     if (!raw || typeof raw.ver !== 'number') return null;
     if (raw.ver === SAVE_VER) return raw;
     return null;
   }
+  function purgeOld() {
+    OLD_KEYS.forEach(function (k) {
+      try { localStorage.removeItem(k); } catch (e) {}
+    });
+  }
   function load() {
+    purgeOld();
     var raw = null;
     try { raw = JSON.parse(localStorage.getItem(SAVE_KEY)); } catch (e) { raw = null; }
     raw = migrate(raw);
@@ -94,7 +116,36 @@ var CAMPAIGN = (function () {
   }
   function wipe() {
     try { localStorage.removeItem(SAVE_KEY); } catch (e) {}
+    purgeOld();
     state = null; battle = null; snapshot = null;
+  }
+
+  /* ---------- стратегическая карта ---------- */
+  function heldBy(pid) { return state.provinces[pid]; }
+  function income() {
+    var sum = 0;
+    DATA.PROV_ORDER.forEach(function (pid) {
+      if (state.provinces[pid] === 'player') sum += DATA.PROVINCES[pid].income;
+    });
+    return sum;
+  }
+  function isFrontier(pid) { /* провинция Хора, соседняя с нашей */
+    if (state.provinces[pid] !== 'chorus') return false;
+    return DATA.PROVINCES[pid].neighbors.some(function (n) {
+      return state.provinces[n] === 'player';
+    });
+  }
+  function attackable() {
+    if (state.pendingDefense) return []; // сначала — оборона
+    return DATA.PROV_ORDER.filter(isFrontier);
+  }
+  function counterTargets() { /* наши провинции, соседние с Хором */
+    return DATA.PROV_ORDER.filter(function (pid) {
+      if (state.provinces[pid] !== 'player') return false;
+      return DATA.PROVINCES[pid].neighbors.some(function (n) {
+        return state.provinces[n] === 'chorus';
+      });
+    });
   }
 
   /* ---------- сборка боя ---------- */
@@ -120,8 +171,14 @@ var CAMPAIGN = (function () {
     return ex;
   }
 
-  function startMission() {
+  function missionFor(provId) {
+    if (state.pendingDefense === provId) return DATA.defenseMission(provId, state.wins);
+    return DATA.PROVINCES[provId].mission;
+  }
+
+  function startMission(provId) {
     snapshot = JSON.parse(JSON.stringify(state));
+    var mission = JSON.parse(JSON.stringify(missionFor(provId)));
     var specs = [];
     state.roster.forEach(function (sq) {
       if (sq.models <= 0) return;
@@ -134,31 +191,76 @@ var CAMPAIGN = (function () {
     specs.push(heroBattleExtras('exec'));
     specs.push(heroBattleExtras('deacon'));
     specs.forEach(function (s) { if (!s.type) s.type = s.heroKey === 'exec' ? 'exec' : 'deacon'; });
-    battle = ENGINE.buildBattle(state.mission, specs, state.flags);
+    battle = ENGINE.buildBattle(provId, mission, specs, state.flags);
     battle.ldGlobal = state.ldNext || 0;
     save();
     return battle;
   }
 
+  /* ---------- очередь событий (реликвии/решения) ---------- */
+  function refreshPending(capturedProv) {
+    if (!state.pendingRelic) {
+      for (var i = 0; i < DATA.RELICS.length; i++) {
+        var r = DATA.RELICS[i];
+        if (state.relics[r.id]) continue;
+        if (r.afterProv === capturedProv || state.wins >= r.afterWins) {
+          state.pendingRelic = r.id;
+          break;
+        }
+      }
+    }
+    if (!state.pendingDecision) {
+      for (var j = 0; j < DATA.DECISIONS.length; j++) {
+        var d = DATA.DECISIONS[j];
+        var taken = state.decisions.some(function (x) { return x.id === d.id; });
+        if (taken) continue;
+        if (d.afterProv === capturedProv || state.wins >= d.afterWins) {
+          state.pendingDecision = d.id;
+          break;
+        }
+      }
+    }
+  }
+
   /* ---------- итоги боя ---------- */
   function finishBattle(win) {
     var b = battle;
-    var m = DATA.MISSIONS[b.missionIdx];
+    var m = b.m;
+    var provId = b.provId;
+    var wasDefense = b.defense;
+    var prov = DATA.PROVINCES[provId];
     var report = {
-      win: win, mission: m, fallen: b.fallen.slice(), deserters: b.deserters,
-      xp: {}, req: 0, destroyedSquads: [], successors: [], sanitar: null
+      win: win, mission: m, provId: provId, defense: wasDefense,
+      fallen: b.fallen.slice(), deserters: b.deserters,
+      xp: {}, req: 0, income: 0, destroyedSquads: [], successors: [],
+      sanitar: null, unlock: null, counter: null, provLost: null
     };
 
     if (!win) {
       state.stats.retries += 1;
       var retries = state.stats.retries;
+      var lostProv = state.stats.lostProvinces;
       var chronCopy = state.chronicle.slice();
       state = JSON.parse(JSON.stringify(snapshot));
       state.stats.retries = retries;
+      state.stats.lostProvinces = lostProv;
       state.chronicle = chronCopy;
-      chron('Миссия «' + m.name + '» захлебнулась. Полк отступил и перестроился.');
       nextSquadId = state.nextSquadId || nextSquadId;
+      if (wasDefense) {
+        /* проигранная оборона: полк отходит, провинция возвращается Хору */
+        state.provinces[provId] = 'chorus';
+        state.pendingDefense = null;
+        state.stats.lostProvinces += 1;
+        state.turn += 1;
+        report.provLost = prov.name;
+        report.income = income();
+        state.req += report.income;
+        chron('⚑ ' + prov.name + ' отбита Хором. Доход провинции потерян; полк отходит с обозами.');
+      } else {
+        chron('Штурм «' + prov.name + '» захлебнулся. Полк отступил и перестроился.');
+      }
       battle = null;
+      snapshot = null;
       save();
       return report;
     }
@@ -178,7 +280,9 @@ var CAMPAIGN = (function () {
       lostModels += before - bu.models;
       sq.models = bu.models;
       sq.names = bu.names.slice();
-      if (DATA.UNITS[sq.type].wpm > 1) sq.models = 1; // одиночки (Свеченосец) выздоравливают
+      /* одиночки и техника «выздоравливают»: раны героев лечат капелланы,
+         технику чинит обряд починки. Уничтоженное — вычеркнуто выше. */
+      if (DATA.UNITS[sq.type].wpm > 1) sq.models = 1;
       if (!sq.veteran) {
         sq.veteran = true; // выжившие в бою получают ветеранскую метку (+1 Лд)
       }
@@ -209,17 +313,47 @@ var CAMPAIGN = (function () {
         h.xp = DATA.XP_LEVELS[h.level] || 0;
         report.successors.push({ key: key, old: old, next: h.name });
         chron((key === 'exec' ? 'Экзекутор ' : 'Дьякон ') + old +
-          ' догорел на «' + m.name + '». Литанию подхватывает преемник: ' + h.name + '.');
+          ' догорел в бою за «' + prov.name + '». Литанию подхватывает преемник: ' + h.name + '.');
       } else {
         h.xp += gained;
         report.xp[key] = gained;
       }
     });
 
-    /* реквизиция: награда + компенсация потерь (проигравшему больнее, но не смертельно) */
+    /* стратегический итог: захват/оборона, доход, разблокировки */
+    if (wasDefense) {
+      state.pendingDefense = null;
+      chron('Контратака на «' + prov.name + '» отбита. Провинция удержана.');
+    } else {
+      state.provinces[provId] = 'player';
+      state.wins += 1;
+      chron('Провинция «' + prov.name + '» освобождена (' + state.wins + '-я победа похода).');
+      if (prov.unlock && !state.flags[prov.unlock.flag]) {
+        state.flags[prov.unlock.flag] = true;
+        report.unlock = prov.unlock.text;
+        chron('✦ ' + prov.unlock.text);
+      }
+      if (prov.capital) state.finished = true;
+    }
+    state.turn += 1;
+
+    /* реквизиция: награда миссии + компенсация потерь + ДОХОД с провинций */
     var comp = Math.min(20, lostModels * 2);
     report.req = (m.reward.req || 0) + comp;
-    state.req += report.req;
+    report.income = income();
+    state.req += report.req + report.income;
+
+    /* контратака Хора: после ключевых побед, если есть фронтир */
+    if (!wasDefense && !prov.capital && !state.finished &&
+        COUNTER_AT.indexOf(state.wins) >= 0) {
+      var targets = counterTargets();
+      if (targets.length) {
+        var tgt = RNG.pick(targets);
+        state.pendingDefense = tgt;
+        report.counter = DATA.PROVINCES[tgt].name;
+        chron('⚠ Разведка: Хор перепевает контрнаступление на «' + DATA.PROVINCES[tgt].name + '».');
+      }
+    }
 
     /* Санитар веры: один павший возвращается */
     if (state.heroes.deacon.traits.indexOf('sanitar') >= 0 && b.fallen.length) {
@@ -242,18 +376,9 @@ var CAMPAIGN = (function () {
     chron('«' + m.name + '»: победа. Пало ' + b.fallen.length + ', дезертировало ' + b.deserters + '.');
 
     /* очередь событий после боя */
-    DATA.RELICS.forEach(function (r) {
-      if (r.after === state.mission && !state.relics[r.id]) state.pendingRelic = r.id;
-    });
-    DATA.DECISIONS.forEach(function (d) {
-      if (d.after === state.mission && !state.decisions.some(function (x) { return x.id === d.id; })) {
-        state.pendingDecision = d.id;
-      }
-    });
+    refreshPending(wasDefense ? null : provId);
 
-    state.ldNext = 0; // модификатор Лд действовал только на эту миссию
-    state.mission += 1;
-    if (state.mission >= DATA.MISSIONS.length) state.finished = true;
+    state.ldNext = 0; // модификатор Лд действовал только на этот бой
     battle = null;
     snapshot = null;
     save();
@@ -277,12 +402,13 @@ var CAMPAIGN = (function () {
       });
     }
     if (fx.flag) state.flags[fx.flag] = true;
-    if (fx.addSquad && state.roster.length < 8) state.roster.push(mkSquad(fx.addSquad));
+    if (fx.addSquad && state.roster.length < DATA.ROSTER_CAP) state.roster.push(mkSquad(fx.addSquad));
     if (fx.xp) Object.keys(fx.xp).forEach(function (k) { state.heroes[k].xp += fx.xp[k]; });
     if (fx.ldNext) state.ldNext = fx.ldNext; else if (!('ldNext' in fx)) state.ldNext = state.ldNext || 0;
     state.decisions.push({ id: cardId, choice: choice });
     chron('Решение — «' + card.title + '»: ' + opt.label + '.');
     state.pendingDecision = null;
+    refreshPending(null);
     save();
   }
 
@@ -298,6 +424,7 @@ var CAMPAIGN = (function () {
       chron('Реликвия «' + r.name + '» сожжена в жертву. Чудо «' + DATA.MIRACLES[r.burn.miracle].name + '» ждёт своего часа.');
     }
     state.pendingRelic = null;
+    refreshPending(null);
     save();
   }
 
@@ -311,7 +438,25 @@ var CAMPAIGN = (function () {
     return false;
   }
 
-  /* ---------- реквизиция ---------- */
+  /* ---------- реквизиция: покупка и восполнение ---------- */
+  function countType(typeId) {
+    return state.roster.filter(function (s) { return s.type === typeId; }).length;
+  }
+  function buyable() {
+    var list = DATA.BUYABLE.slice();
+    DATA.UNLOCKABLE.forEach(function (u) {
+      if (state.flags[u.flag]) list.push(u.unit);
+    });
+    return list;
+  }
+  function canBuy(typeId) {
+    var t = DATA.UNITS[typeId];
+    if (!t || state.roster.length >= DATA.ROSTER_CAP) return false;
+    if (state.req < t.cost) return false;
+    if ((typeId === 'svech' || t.unique) && countType(typeId) >= 1) return false;
+    if (t.arty && countType(typeId) >= 2) return false; // артиллерия не должна доминировать
+    return true;
+  }
   function replenishOne(squadId) {
     var sq = state.roster.filter(function (s) { return s.id === squadId; })[0];
     if (!sq) return false;
@@ -325,10 +470,8 @@ var CAMPAIGN = (function () {
     return true;
   }
   function buySquad(typeId) {
-    var t = DATA.UNITS[typeId];
-    if (!t || state.req < t.cost || state.roster.length >= 8) return false;
-    if (typeId === 'svech' && state.roster.some(function (s) { return s.type === 'svech'; })) return false;
-    state.req -= t.cost;
+    if (!canBuy(typeId)) return false;
+    state.req -= DATA.UNITS[typeId].cost;
     state.roster.push(mkSquad(typeId));
     save();
     return true;
@@ -359,9 +502,15 @@ var CAMPAIGN = (function () {
   function epilogue() {
     var s = state;
     var out = [];
+    var freed = DATA.PROV_ORDER.filter(function (pid) { return s.provinces[pid] === 'player'; }).length;
     out.push('Звезда Веспер-Крон не разгорелась. Она и не должна была: кадила лишь ' +
-      'докармливают её агонию, покупая столетие за столетием. Но Кадильный Пояс — устоял. ' +
-      'Хор Пояса замолк, и в этой тишине снова можно жечь свечи.');
+      'докармливают её агонию, покупая столетие за столетием. Но Веспер-Прима — свободна: ' +
+      freed + ' провинций из девяти под свечой, Осколочный Престол разбит, и в этой тишине ' +
+      'снова можно жечь свечи.');
+    if (s.stats.lostProvinces) {
+      out.push('Планета помнит и отступления: ' + s.stats.lostProvinces +
+        ' раз провинции возвращались Хору, прежде чем их отпели заново.');
+    }
     out.push('Цена записана писарем полка, поимённо: ' + s.fallen.length +
       ' павших, ' + s.stats.deserters + ' ушедших во тьму. ' +
       (s.fallen.length ? 'Первым в списке — ' + s.fallen[0].name + ' (' + s.fallen[0].squad +
@@ -395,7 +544,7 @@ var CAMPAIGN = (function () {
     });
     if (worn.length) out.push('Реликвии, что несли на груди: ' + worn.join(', ') + '.');
     if (burned.length) out.push('Реликвии, что сгорели в жертву: ' + burned.join(', ') + '. Пепел литаний — тоже литания.');
-    out.push('Полк уходит к следующему гаснущему миру. Свеча должна гореть — и кто-то должен быть фитилём.');
+    out.push('Полк грузится на транспорты — к следующему гаснущему миру. Свеча должна гореть — и кто-то должен быть фитилём.');
     return out;
   }
 
@@ -404,9 +553,12 @@ var CAMPAIGN = (function () {
     getState: function () { return state; },
     getBattle: function () { return battle; },
     setBattle: function (b) { battle = b; },
+    income: income, attackable: attackable, isFrontier: isFrontier,
+    heldBy: heldBy, missionFor: missionFor,
     startMission: startMission, finishBattle: finishBattle,
     applyDecision: applyDecision, applyRelic: applyRelic, useMiracle: useMiracle,
-    replenishOne: replenishOne, buySquad: buySquad,
+    replenishOne: replenishOne, buySquad: buySquad, buyable: buyable, canBuy: canBuy,
+    countType: countType,
     pendingLevel: pendingLevel, chooseTrait: chooseTrait,
     epilogue: epilogue, chron: chron
   };

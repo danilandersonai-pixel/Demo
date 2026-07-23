@@ -83,29 +83,125 @@ var UI = (function () {
     openModal(w);
   }
 
-  /* ================= КАМПАНИЯ ================= */
+  /* ================= КАМПАНИЯ: СТРАТЕГИЧЕСКАЯ КАРТА ================= */
+  var selProv = null;   // выбранная провинция на карте
+  var briefProv = null; // провинция, для которой открыт брифинг
+
+  function provStatus(pid) {
+    var s = st();
+    if (s.pendingDefense === pid) return 'defense';
+    if (s.provinces[pid] === 'player') return 'own';
+    if (!s.pendingDefense && CAMPAIGN.isFrontier(pid)) return 'frontier';
+    return 'far';
+  }
+
+  function renderStratMap() {
+    var s = st();
+    var box = $('strat-map');
+    var R = 34;
+    var html = '<svg id="planet-svg" viewBox="0 0 360 420" role="img" aria-label="Карта Веспер-Примы">';
+    html += '<ellipse cx="180" cy="210" rx="176" ry="206" class="planet-disc"/>';
+    /* дороги между соседями (каждое ребро один раз) */
+    var seen = {};
+    DATA.PROV_ORDER.forEach(function (pid) {
+      var p = DATA.PROVINCES[pid];
+      p.neighbors.forEach(function (n) {
+        var key = pid < n ? pid + '|' + n : n + '|' + pid;
+        if (seen[key]) return;
+        seen[key] = 1;
+        var q = DATA.PROVINCES[n];
+        var cls = (s.provinces[pid] === 'player' && s.provinces[n] === 'player') ? ' own' : '';
+        html += '<line class="prov-edge' + cls + '" x1="' + p.mx + '" y1="' + p.my +
+          '" x2="' + q.mx + '" y2="' + q.my + '"/>';
+      });
+    });
+    DATA.PROV_ORDER.forEach(function (pid) {
+      var p = DATA.PROVINCES[pid];
+      var stt = provStatus(pid);
+      var cls = 'prov prov-' + stt + (p.capital ? ' prov-capital' : '') +
+        (selProv === pid ? ' prov-sel' : '');
+      var icon = s.provinces[pid] === 'player' ? '#i-candle'
+        : (p.capital ? '#i-pervogolos' : '#i-oskolki');
+      html += '<g class="' + cls + '" data-prov="' + pid + '" role="button" tabindex="0"' +
+        ' aria-label="' + p.name + '">' +
+        '<circle cx="' + p.mx + '" cy="' + p.my + '" r="' + R + '"/>' +
+        '<use href="' + icon + '" x="' + (p.mx - 11) + '" y="' + (p.my - 16) + '" width="22" height="22"/>' +
+        '<text class="prov-name" x="' + p.mx + '" y="' + (p.my + 18) + '">' + p.short + '</text>' +
+        (s.provinces[pid] === 'player' && p.income
+          ? '<text class="prov-inc" x="' + p.mx + '" y="' + (p.my + 29) + '">+' + p.income + '</text>'
+          : '') +
+        (stt === 'frontier' ? '<text class="prov-mark" x="' + p.mx + '" y="' + (p.my - 20) + '">⚔</text>' : '') +
+        (stt === 'defense' ? '<text class="prov-mark def" x="' + p.mx + '" y="' + (p.my - 20) + '">⚠</text>' : '') +
+        '</g>';
+    });
+    html += '</svg>';
+    box.innerHTML = html;
+    box.querySelectorAll('.prov').forEach(function (g) {
+      var pick = function () { selProv = g.dataset.prov; renderCampaign(); };
+      g.addEventListener('click', pick);
+      g.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(); }
+      });
+    });
+  }
+
+  function renderProvPanel() {
+    var s = st();
+    var panel = $('prov-panel');
+    panel.innerHTML = '';
+    if (!selProv) {
+      panel.appendChild(el('p', 'panel-hint',
+        s.pendingDefense
+          ? 'Хор контратакует! Тап по провинции под знаком ⚠ — к обороне.'
+          : 'Тап по провинции со знаком ⚔ — атаковать через соседнюю границу.'));
+      return;
+    }
+    var p = DATA.PROVINCES[selProv];
+    var stt = provStatus(selProv);
+    var card = el('div', 'prov-card ' + (s.provinces[selProv] === 'player' ? 'u-candle' : 'u-chorus'));
+    card.appendChild(el('div', 'prov-title', p.name +
+      (s.provinces[selProv] === 'player' ? ' · под Свечой' : ' · под Хором')));
+    card.appendChild(el('div', 'prov-sub', p.terrain + ' · доход ' + p.income + ' р./ход'));
+    card.appendChild(el('p', 'prov-blurb', p.blurb));
+    if (p.unlock && !s.flags[p.unlock.flag] && s.provinces[selProv] !== 'player') {
+      card.appendChild(el('div', 'prov-unlock', '✦ ' + p.unlock.text));
+    }
+    if (stt === 'defense') {
+      card.appendChild(el('div', 'prov-warn', '⚠ Хор контратакует эту провинцию. Оборона обязательна.'));
+      var bd = el('button', 'btn wide grim-btn', '⚔ К обороне');
+      bd.onclick = function () { renderBrief(selProv); };
+      card.appendChild(bd);
+    } else if (stt === 'frontier') {
+      if (p.mission && p.mission.tagline) {
+        card.appendChild(el('div', 'prov-sub', 'Задача: ' + p.mission.tagline));
+      }
+      var ba = el('button', 'btn wide primary', '⚔ Атаковать провинцию');
+      ba.onclick = function () { renderBrief(selProv); };
+      card.appendChild(ba);
+    } else if (s.provinces[selProv] === 'player') {
+      card.appendChild(el('div', 'prov-sub dim', 'Провинция удержана. Гарнизон читает литании.'));
+    } else {
+      card.appendChild(el('div', 'prov-sub dim', 'Нет общей границы — сначала пробейте путь.'));
+    }
+    panel.appendChild(card);
+  }
+
   function renderCampaign() {
     var s = st();
-    var chain = $('camp-chain');
-    chain.innerHTML = '';
-    DATA.MISSIONS.forEach(function (m, i) {
-      var stCls = i < s.mission ? 'done' : (i === s.mission && !s.finished ? 'current' : 'locked');
-      var node = el('div', 'camp-node ' + stCls);
-      var flame = el('div', 'camp-candle');
-      flame.innerHTML = '<svg viewBox="0 0 24 32" aria-hidden="true"><use href="#i-candle"/></svg>';
-      node.appendChild(flame);
-      var info = el('div', 'camp-node-info');
-      info.appendChild(el('div', 'camp-node-name', (i + 1) + '. ' + m.name));
-      info.appendChild(el('div', 'camp-node-tag',
-        stCls === 'done' ? 'Литания дочитана' : (stCls === 'current' ? m.tagline : '· · ·')));
-      node.appendChild(info);
-      if (stCls === 'current') node.onclick = function () { renderBrief(); };
-      chain.appendChild(node);
-    });
+    var alert = $('strat-alert');
+    alert.innerHTML = '';
+    if (s.pendingDefense) {
+      alert.appendChild(el('div', 'strat-alert-line',
+        '⚠ Контратака Хора: ' + DATA.PROVINCES[s.pendingDefense].name +
+        '. Пока не отбита — наступление невозможно.'));
+      if (provStatus(selProv) !== 'defense') selProv = s.pendingDefense;
+    }
+    renderStratMap();
+    renderProvPanel();
     var alive = 0;
     s.roster.forEach(function (sq) { alive += sq.models; });
-    $('camp-info').textContent = 'Реквизиция: ' + s.req + ' · Штыков в полку: ' + alive +
-      ' · Павших за поход: ' + s.fallen.length;
+    $('camp-info').textContent = 'Ход ' + s.turn + ' · Реквизиция: ' + s.req +
+      ' (+' + CAMPAIGN.income() + '/ход) · Штыков: ' + alive + ' · Павших: ' + s.fallen.length;
     show('s-campaign');
   }
 
@@ -133,12 +229,27 @@ var UI = (function () {
   }
 
   /* ================= БРИФИНГ + РЕКВИЗИЦИЯ ================= */
-  function renderBrief() {
+  function briefMission() {
+    return CAMPAIGN.missionFor(briefProv);
+  }
+  function missionNeedsMissing(m) {
+    /* эскорт без Свеченосца невозможен — брифинг предупредит и не выпустит */
+    if (m.win && m.win.type === 'escort') {
+      var s = st();
+      var has = s.roster.some(function (sq) { return sq.type === m.win.unit && sq.models > 0; });
+      if (!has) return 'Для эскорта нужен Свеченосец в полку (см. «Пополнение полка»).';
+    }
+    return null;
+  }
+  function renderBrief(provId) {
+    briefProv = provId;
     var s = st();
-    var m = DATA.MISSIONS[s.mission];
+    var p = DATA.PROVINCES[provId];
+    var m = briefMission();
     var head = $('brief-head');
     head.innerHTML = '';
-    head.appendChild(el('div', 'brief-kicker', 'Миссия ' + (s.mission + 1) + ' из 6 · ' + m.world));
+    head.appendChild(el('div', 'brief-kicker',
+      (m.defense ? 'Оборона · ' : 'Стратегический ход ' + s.turn + ' · ') + p.name));
     head.appendChild(el('h2', 'scr-title', m.name));
     head.appendChild(el('p', 'brief-intro', m.intro));
     var rules = el('div', 'brief-rules');
@@ -148,6 +259,12 @@ var UI = (function () {
 
     renderReqPanel();
     renderHeroPanel();
+    var missing = missionNeedsMissing(m);
+    var launch = $('btn-launch');
+    launch.disabled = !!missing;
+    var warn = $('brief-warn');
+    warn.textContent = missing || '';
+    warn.style.display = missing ? '' : 'none';
     show('s-brief');
   }
 
@@ -182,18 +299,28 @@ var UI = (function () {
 
     panel.appendChild(el('h3', null, 'Пополнение полка'));
     var buy = el('div', 'buy-list');
-    DATA.BUYABLE.forEach(function (tid) {
+    CAMPAIGN.buyable().forEach(function (tid) {
       var t = DATA.UNITS[tid];
-      if (tid === 'svech' && s.roster.some(function (q) { return q.type === 'svech'; })) return;
-      var btn = el('button', 'btn small', t.name + ' · ' + t.cost + ' р.');
-      btn.disabled = s.req < t.cost || s.roster.length >= 8;
+      if ((tid === 'svech' || t.unique) && CAMPAIGN.countType(tid) >= 1) return;
+      if (t.arty && CAMPAIGN.countType(tid) >= 2) return;
+      var btn = el('button', 'btn small' + (t.vehicle ? ' gold' : ''),
+        t.name + ' · ' + t.cost + ' р.');
+      btn.disabled = !CAMPAIGN.canBuy(tid);
       btn.onclick = function () {
-        if (CAMPAIGN.buySquad(tid)) renderReqPanel();
+        if (CAMPAIGN.buySquad(tid)) { renderReqPanel(); toast(t.name + ' — в строю.', 'gold'); }
       };
       buy.appendChild(btn);
     });
     panel.appendChild(buy);
-    if (s.roster.length >= 8) panel.appendChild(el('p', 'dim', 'Полк полон (8 отрядов).'));
+    var locked = DATA.UNLOCKABLE.filter(function (u) { return !s.flags[u.flag]; });
+    if (locked.length) {
+      panel.appendChild(el('p', 'dim', 'Техника в трофеях провинций: ' + locked.map(function (u) {
+        return DATA.UNITS[u.unit].name;
+      }).join(', ') + ' — захватите Карьеры, Голгофан и «Север».'));
+    }
+    if (s.roster.length >= DATA.ROSTER_CAP) {
+      panel.appendChild(el('p', 'dim', 'Полк полон (' + DATA.ROSTER_CAP + ' подразделений).'));
+    }
   }
 
   function renderHeroPanel() {
@@ -268,7 +395,7 @@ var UI = (function () {
     update();
     if (b.side === 'ai') { runAiTurn(); }
     else if (b.log.length <= 1) {
-      toast(DATA.MISSIONS[b.missionIdx].name + ': ' + DATA.MISSIONS[b.missionIdx].tagline, 'gold');
+      toast(b.m.name + ': ' + b.m.tagline, 'gold');
     }
   }
 
@@ -311,7 +438,7 @@ var UI = (function () {
   }
 
   function missionStatus(b) {
-    var m = DATA.MISSIONS[b.missionIdx];
+    var m = b.m;
     var ai = ENGINE.aliveUnits(b, 'ai').length;
     switch (m.win.type) {
       case 'survive': return 'Выстоять: ход ' + Math.min(b.round, m.win.rounds) + '/' + m.win.rounds;
@@ -322,13 +449,17 @@ var UI = (function () {
       case 'annihilate': return 'Врагов: ' + ai;
       case 'killtype':
         var k = ENGINE.aliveUnits(b, 'ai').filter(function (u) { return u.type === m.win.unitType; }).length;
-        return 'Камертонов: ' + (m.win.count - k) + '/' + m.win.count;
+        return (m.win.label || 'Целей') + ': ' + (m.win.count - k) + '/' + m.win.count;
       case 'hold':
         return 'Держать: ход ' + Math.min(b.round, m.win.rounds) + '/' + m.win.rounds +
           (b.flags.holdLost ? ' · ХОР НА КАДИЛЕ ' + b.flags.holdLost + '/2' : '');
       case 'duel':
         var pg = b.units.filter(function (u) { return u.type === 'pervogolos'; })[0];
-        return pg && ENGINE.alive(pg) ? 'Первоголос: ' + pg.hp + ' ран' : 'Первоголос повержен?';
+        var tx = b.units.filter(function (u) { return u.type === 'titan_x'; })[0];
+        var parts = [];
+        parts.push(pg && ENGINE.alive(pg) ? 'Первоголос: ' + pg.hp + ' ран' : 'Первоголос повержен?');
+        if (tx && ENGINE.alive(tx)) parts.push('Стоголосый: ' + tx.hp + '⛨' + tx.shield);
+        return parts.join(' · ');
     }
     return '';
   }
@@ -382,7 +513,10 @@ var UI = (function () {
 
   function hasActed(b, u) {
     if (b.phase === 'move') return u.moved || u.broken;
-    if (b.phase === 'shoot') return u.shot || u.ran || u.broken || !ENGINE.canShoot(b, u);
+    if (b.phase === 'shoot') {
+      return u.shot || u.ran || u.broken ||
+        !(ENGINE.canShoot(b, u) || ENGINE.canArtyFire(b, u));
+    }
     if (b.phase === 'melee') return u.fought || u.broken || !ENGINE.adjacentEnemies(b, u).length;
     return false;
   }
@@ -432,12 +566,18 @@ var UI = (function () {
       (u.squadName ? u.squadName + (u.veteran ? ' ★' : '') + ' · ' + t.name : t.name);
     body.appendChild(el('div', 'ucard-name', nm));
     var ld = ENGINE.effLd(b, u);
-    var stats = 'Дв ' + t.mv + ' · ' + (t.flamer ? 'БС авто' : (t.bs ? 'БС ' + t.bs + '+' : 'БС —')) +
-      ' · РБ ' + t.ws + '+ · С ' + t.s + ' · Т ' + t.t +
-      ' · Бр ' + Math.max(2, t.sv - (u.svBonus || 0)) + '+ · Лд ' + ld;
+    var eff = ENGINE.effStats(u);
+    var bsStr = t.arty ? 'Навес ' + t.arty.minRng + '–' + eff.rng
+      : (t.flamer ? 'БС авто' : (t.bs ? 'БС ' + t.bs + '+' : 'БС —'));
+    var stats = 'Дв ' + eff.mv + ' · ' + bsStr +
+      ' · РБ ' + t.ws + '+ · С ' + eff.s + ' · Т ' + t.t +
+      ' · Бр ' + Math.max(2, t.sv - (u.svBonus || 0)) + '+ · Лд ' + (t.vehicle ? '—' : ld);
     body.appendChild(el('div', 'ucard-stats', stats));
     var status = [];
     status.push(ENGINE.isChar(u) ? 'Ран: ' + u.hp + '/' + t.wpm : 'Бойцов: ' + u.models + '/' + t.models);
+    if (u.shield > 0) status.push('щит ⛨' + u.shield);
+    if (t.titan && ENGINE.titanStage(u) > 0) status.push(eff.stageLabel.toUpperCase());
+    if (t.arty && u.moved) status.push('после движения не стреляет');
     var cov = ENGINE.terrainAt(b, u.x, u.y);
     if (cov.cover) status.push('в укрытии (+' + cov.cover + ' Бр)');
     if (cov.glass && t.faction === 'chorus') status.push('на стекле (+1 Бр)');
@@ -457,7 +597,7 @@ var UI = (function () {
     switch (b.phase) {
       case 'orders': return 'Фаза приказов: литании героев и чудеса. Или сразу «Конец фазы».';
       case 'move': return 'Тап по отряду — путь; тап по клетке — идти. Встать вплотную — атака.';
-      case 'shoot': return 'Тап по отряду, затем по цели в подсветке — предпросмотр залпа.';
+      case 'shoot': return 'Тап по отряду, затем по цели — предпросмотр. Батареи: тап по клетке в кольце навеса.';
       case 'melee': return 'Тап по связанному отряду, затем по врагу — рукопашная.';
     }
     return '';
@@ -532,7 +672,7 @@ var UI = (function () {
   function clearHl() {
     var cells = $('board').querySelectorAll('.cell');
     for (var i = 0; i < cells.length; i++) {
-      cells[i].classList.remove('hl-move', 'hl-run', 'hl-target', 'hl-order', 'hl-sel');
+      cells[i].classList.remove('hl-move', 'hl-run', 'hl-target', 'hl-order', 'hl-sel', 'hl-arty');
     }
   }
 
@@ -565,9 +705,19 @@ var UI = (function () {
         cellEl(+p[0], +p[1]).classList.add(runMode ? 'hl-run' : 'hl-move');
       });
     } else if (b.phase === 'shoot') {
-      ENGINE.shootTargets(b, u).forEach(function (t) {
-        cellEl(t.x, t.y).classList.add('hl-target');
-      });
+      if (ENGINE.isArty(u)) {
+        if (ENGINE.canArtyFire(b, u)) {
+          for (var ay = 0; ay < ENGINE.H; ay++) {
+            for (var ax = 0; ax < ENGINE.W; ax++) {
+              if (ENGINE.artyCellOk(b, u, ax, ay)) cellEl(ax, ay).classList.add('hl-arty');
+            }
+          }
+        }
+      } else {
+        ENGINE.shootTargets(b, u).forEach(function (t) {
+          cellEl(t.x, t.y).classList.add('hl-target');
+        });
+      }
     } else if (b.phase === 'melee' && !u.fought && !u.broken) {
       ENGINE.adjacentEnemies(b, u).forEach(function (t) {
         cellEl(t.x, t.y).classList.add('hl-target');
@@ -610,6 +760,14 @@ var UI = (function () {
     }
 
     var selU = sel != null ? byUid(sel) : null;
+
+    /* артиллерия: тап по клетке в кольце навеса — предпросмотр накрытия */
+    if (b.phase === 'shoot' && selU && selU.side === 'player' && ENGINE.isArty(selU) &&
+        ENGINE.canArtyFire(b, selU) && ENGINE.artyCellOk(b, selU, x, y) &&
+        !(u && u.side === 'player')) {
+      showArtyPreview(selU, { x: x, y: y });
+      return;
+    }
 
     if (b.phase === 'move' && selU && selU.side === 'player' && !selU.moved && !selU.broken && !u) {
       var reach = ENGINE.reachable(b, selU, runMode);
@@ -709,6 +867,71 @@ var UI = (function () {
     row.appendChild(no);
     w.appendChild(row);
     openModal(w);
+  }
+
+  /* ---------- артиллерия: предпросмотр и результат ---------- */
+  function showArtyPreview(att, cell) {
+    var b = bat();
+    var pv = ENGINE.artyPreview(b, att, cell);
+    var w = el('div', 'preview');
+    w.appendChild(el('h3', null, 'Навесной огонь: ' + ENGINE.unitLabel(att) +
+      ' → (' + (cell.x + 1) + ',' + (cell.y + 1) + ')'));
+    w.appendChild(el('div', 'pv-chain', pv.dice + ' снарядов С' + pv.s +
+      ' по площади 3×3 · точно в цель: 67% (иначе снос на 1 клетку) · укрытия не спасают'));
+    if (!pv.rows.length) {
+      w.appendChild(el('div', 'pv-exp', 'В зоне накрытия никого. Снаряды уйдут в пепел.'));
+    }
+    pv.rows.forEach(function (r) {
+      var line = ENGINE.unitLabel(r.unit) + ': накрытие ' + pct(r.pBlast) +
+        ' · ожидание ' + r.exp.toFixed(1) + (ENGINE.isChar(r.unit) ? ' ран' : ' убитых');
+      var e = el('div', r.friendly ? 'pv-back' : 'pv-exp',
+        (r.friendly ? '⚠ СВОИ: ' : '') + line);
+      w.appendChild(e);
+    });
+    var hasFriendly = pv.rows.some(function (r) { return r.friendly; });
+    if (hasFriendly) w.appendChild(el('div', 'pv-note', '· Навес не различает своих и чужих.'));
+    var row = el('div', 'btn-row');
+    var go = el('button', 'btn primary', '☄ Огонь');
+    go.onclick = function () {
+      closeModal();
+      var res = ENGINE.resolveArty(b, att, cell);
+      showArtyTray(att, res);
+    };
+    var no = el('button', 'btn ghost', 'Отмена');
+    no.onclick = closeModal;
+    row.appendChild(go);
+    row.appendChild(no);
+    w.appendChild(row);
+    openModal(w);
+  }
+
+  function showArtyTray(att, res) {
+    var w = el('div', 'tray');
+    w.appendChild(el('h3', null, 'Навесной огонь'));
+    w.appendChild(el('div', 'pv-chain', 'Рассеивание: ' + res.scRoll +
+      (res.scattered ? ' — снос! Падение: (' + (res.impact.x + 1) + ',' + (res.impact.y + 1) + ')'
+                     : ' — точно в цель.')));
+    if (!res.results.length) {
+      w.appendChild(el('div', 'tray-result', 'Никого не накрыло. Только пепел взлетел.'));
+    }
+    res.results.forEach(function (r) {
+      var kills = ENGINE.isChar(r.unit) ? r.woundsLost : r.kills;
+      var line = (r.friendly ? '⚠ СВОИ — ' : '') + ENGINE.unitLabel(r.unit) + ': ' +
+        (kills > 0 ? '−' + kills + (r.fallen.length ? ' (' + r.fallen.join(', ') + ')' : '')
+                   : 'без потерь');
+      if (r.destroyed) line += ' · УНИЧТОЖЕН';
+      w.appendChild(el('div', 'tray-result' + (kills > 0 ? ' grim' : ''), line));
+      if (r.morale) w.appendChild(el('div', 'tray-morale', ENGINE.moraleMsg(r.unit, r.morale)));
+    });
+    var ok = el('button', 'btn wide primary', 'Готово');
+    ok.onclick = function () {
+      closeModal();
+      CAMPAIGN.save();
+      update();
+      checkEnd();
+    };
+    w.appendChild(ok);
+    openModal(w, { noClose: true });
   }
 
   function diceRow(label, arr, invert) {
@@ -824,6 +1047,24 @@ var UI = (function () {
         for (var j = 0; j < shooters.length; j++) {
           var su = shooters[j];
           if (!ENGINE.alive(su) || b.outcome) break;
+          /* батареи Хора: навесной огонь */
+          if (ENGINE.isArty(su)) {
+            var ac = AI.decideArty(b, su);
+            if (ac) {
+              var ares = ENGINE.resolveArty(b, su, ac.cell);
+              var totKills = 0;
+              ares.results.forEach(function (r) { totKills += (r.kills || 0) + (r.woundsLost || 0); });
+              toast('☄ ' + ENGINE.unitLabel(su) + ' кроет навесом: ' +
+                (totKills > 0 ? '−' + totKills : 'мимо') +
+                (ares.scattered ? ' (снос)' : ''), totKills > 0 ? 'grim' : '');
+              ares.results.forEach(function (r) {
+                if (r.morale && !r.morale.passed) toast(ENGINE.moraleMsg(r.unit, r.morale), 'grim');
+              });
+              update();
+              await sleep(AI_DELAY * 1.5);
+            }
+            continue;
+          }
           var tgt = AI.decideShot(b, su);
           if (tgt) {
             var res = ENGINE.resolveAttack(b, su, tgt, 'shoot');
@@ -905,6 +1146,14 @@ var UI = (function () {
     }
 
     if (outcome.win) {
+      if (!report.defense) {
+        body.appendChild(el('p', 'gold-line', '⚑ Провинция «' +
+          DATA.PROVINCES[report.provId].name + '» освобождена.'));
+      } else {
+        body.appendChild(el('p', 'gold-line', '⚑ Контратака отбита: «' +
+          DATA.PROVINCES[report.provId].name + '» удержана.'));
+      }
+      if (report.unlock) body.appendChild(el('p', 'gold-line', '✦ ' + report.unlock));
       report.destroyedSquads.forEach(function (nm) {
         body.appendChild(el('p', 'grim-line', '⚑ Отряд ' + nm + ' стёрт из полковых списков.'));
       });
@@ -917,14 +1166,26 @@ var UI = (function () {
       Object.keys(report.xp).forEach(function (k) {
         xps.push((k === 'exec' ? 'Экзекутор' : 'Дьякон') + ' +' + report.xp[k] + ' ОП');
       });
-      var rew = 'Реквизиция +' + report.req + (xps.length ? ' · ' + xps.join(' · ') : '');
+      var rew = 'Реквизиция: +' + report.req + ' за бой, +' + report.income +
+        ' с провинций' + (xps.length ? ' · ' + xps.join(' · ') : '');
       body.appendChild(el('p', 'gold-line', rew));
+      if (report.counter) {
+        body.appendChild(el('p', 'grim-line', '⚠ Разведка: Хор перепевает контрнаступление — цель: ' +
+          report.counter + '. Следующий бой — оборона.'));
+      }
+    } else if (report.provLost) {
+      body.appendChild(el('p', 'grim-line', '⚑ Провинция «' + report.provLost +
+        '» возвращена Хору. Её доход потерян — отбивайте, когда будете готовы.'));
+      if (report.income) body.appendChild(el('p', 'gold-line',
+        'Обозы с уцелевших провинций: +' + report.income + ' реквизиции.'));
     }
 
-    var btn = el('button', 'btn wide primary', outcome.win ? 'Далее' : 'Собраться с силами');
+    var btn = el('button', 'btn wide primary',
+      outcome.win ? 'Далее' : (report.provLost ? 'К карте' : 'Собраться с силами'));
     btn.onclick = function () {
       if (outcome.win) proceedAfterResult();
-      else renderBrief();
+      else if (report.provLost) { selProv = null; renderCampaign(); }
+      else renderBrief(report.provId);
     };
     body.appendChild(btn);
     show('s-result');
@@ -935,6 +1196,7 @@ var UI = (function () {
     if (s.pendingRelic) { showRelic(s.pendingRelic); return; }
     if (s.pendingDecision) { showDecision(s.pendingDecision); return; }
     if (s.finished) { showEpilogue(); return; }
+    selProv = s.pendingDefense || null;
     renderCampaign();
   }
 
@@ -1088,7 +1350,6 @@ var UI = (function () {
       renderCampaign();
     };
     $('btn-rules-title').onclick = showRules;
-    $('btn-to-brief').onclick = renderBrief;
     $('btn-chronicle').onclick = function () { renderChronicle(renderCampaign); };
     $('btn-reset').onclick = function () {
       var w = el('div');
@@ -1103,7 +1364,8 @@ var UI = (function () {
     };
     $('btn-back-camp').onclick = renderCampaign;
     $('btn-launch').onclick = function () {
-      CAMPAIGN.startMission();
+      if (briefProv == null) { renderCampaign(); return; }
+      CAMPAIGN.startMission(briefProv);
       startBattleUI();
     };
     $('btn-log').onclick = showBattleLog;
