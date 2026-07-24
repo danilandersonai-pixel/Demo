@@ -1,4 +1,4 @@
-/* Дарья Пронина — сайт учителя. Вся клиентская логика: тема, фильтр работ, год. */
+/* Дарья Сергеевна — сайт учителя. Тема, фильтры разработок, карточка товара, год. */
 (function () {
   'use strict';
 
@@ -25,30 +25,50 @@
     });
   }
 
-  /* ---------- Фильтр «Мои работы» + «Показать ещё» ---------- */
+  /* ---------- Фильтр «Разработки»: категория + предмет + «Показать ещё» ---------- */
   var WORKS_LIMIT = 4; // сколько карточек видно до раскрытия
   var chips = Array.prototype.slice.call(document.querySelectorAll('.chip[data-cat]'));
   var cards = Array.prototype.slice.call(document.querySelectorAll('.work-card[data-cat]'));
+  var tags = Array.prototype.slice.call(document.querySelectorAll('.tag[data-subject]'));
   var moreWrap = document.getElementById('works-more');
   var moreBtn = document.getElementById('works-more-btn');
+  var subjectNote = document.getElementById('subject-note');
+  var subjectNoteText = document.getElementById('subject-note-text');
+  var subjectClear = document.getElementById('subject-clear');
+  var emptyNote = document.getElementById('works-empty');
   var activeCat = 'Все';
+  var activeSubject = null;
   var expanded = false;
 
   function worksPlural(n) {
     var d10 = n % 10, d100 = n % 100;
-    if (d10 === 1 && d100 !== 11) return 'работу';
-    if (d10 >= 2 && d10 <= 4 && (d100 < 12 || d100 > 14)) return 'работы';
-    return 'работ';
+    if (d10 === 1 && d100 !== 11) return 'разработку';
+    if (d10 >= 2 && d10 <= 4 && (d100 < 12 || d100 > 14)) return 'разработки';
+    return 'разработок';
+  }
+
+  function cardMatches(card) {
+    if (activeCat !== 'Все' && card.getAttribute('data-cat') !== activeCat) return false;
+    if (!activeSubject) return true;
+    var subjects = (card.getAttribute('data-subject') || '').toLowerCase().split(',');
+    return subjects.indexOf(activeSubject.toLowerCase()) !== -1;
   }
 
   function applyWorksFilter() {
-    var matched = cards.filter(function (card) {
-      return activeCat === 'Все' || card.getAttribute('data-cat') === activeCat;
-    });
+    var matched = cards.filter(cardMatches);
     cards.forEach(function (card) { card.classList.add('is-hidden'); });
     matched.forEach(function (card, i) {
       card.classList.toggle('is-hidden', !expanded && i >= WORKS_LIMIT);
     });
+
+    if (subjectNote) {
+      subjectNote.classList.toggle('is-hidden', !activeSubject);
+      if (activeSubject && subjectNoteText) {
+        subjectNoteText.textContent = 'Показаны разработки по предмету «' + activeSubject + '»';
+      }
+    }
+    if (emptyNote) emptyNote.classList.toggle('is-hidden', matched.length > 0);
+
     var hiddenCount = expanded ? 0 : Math.max(0, matched.length - WORKS_LIMIT);
     if (moreWrap) moreWrap.classList.toggle('is-hidden', hiddenCount === 0);
     if (moreBtn && hiddenCount > 0) {
@@ -65,6 +85,27 @@
     });
   });
 
+  /* Плашки предметов в герое: фильтр по предмету + переход к разработкам */
+  tags.forEach(function (tag) {
+    tag.addEventListener('click', function () {
+      activeSubject = tag.getAttribute('data-subject');
+      activeCat = 'Все';
+      expanded = false;
+      chips.forEach(function (c) { c.classList.toggle('is-active', c.getAttribute('data-cat') === 'Все'); });
+      applyWorksFilter();
+      var works = document.getElementById('works');
+      if (works) works.scrollIntoView({ behavior: 'smooth' });
+    });
+  });
+
+  if (subjectClear) {
+    subjectClear.addEventListener('click', function () {
+      activeSubject = null;
+      expanded = false;
+      applyWorksFilter();
+    });
+  }
+
   if (moreBtn) {
     moreBtn.addEventListener('click', function () {
       expanded = true;
@@ -73,6 +114,66 @@
   }
 
   applyWorksFilter();
+
+  /* ---------- Карточка товара (модальное окно) ---------- */
+  var modal = document.getElementById('product-modal');
+  var modalImg = document.getElementById('product-modal-img');
+  var modalBadges = document.getElementById('product-modal-badges');
+  var modalTitle = document.getElementById('product-modal-title');
+  var modalDesc = document.getElementById('product-modal-desc');
+  var modalMeta = document.getElementById('product-modal-meta');
+  var modalPrice = document.getElementById('product-modal-price');
+  var modalDownload = document.getElementById('product-modal-download');
+  var lastFocused = null;
+
+  function openProduct(card) {
+    if (!modal) return;
+    var img = card.querySelector('.work-card__media img');
+    var name = card.querySelector('.work-card__name');
+    var desc = card.querySelector('.work-card__desc');
+    var meta = card.querySelector('.work-card__meta');
+    var badges = card.querySelector('.work-card__badges');
+
+    if (modalImg && img) { modalImg.src = img.currentSrc || img.src; modalImg.alt = img.alt || ''; }
+    if (modalTitle && name) modalTitle.textContent = name.textContent;
+    if (modalDesc && desc) modalDesc.textContent = desc.textContent;
+    if (modalMeta && meta) modalMeta.textContent = meta.textContent;
+    if (modalBadges && badges) modalBadges.innerHTML = badges.innerHTML;
+    if (modalPrice) modalPrice.textContent = card.getAttribute('data-price') || 'Бесплатно';
+    if (modalDownload) modalDownload.href = card.getAttribute('data-pdf') || '#';
+
+    lastFocused = document.activeElement;
+    modal.classList.remove('is-hidden');
+    document.body.classList.add('modal-open');
+    var closeBtn = modal.querySelector('.product-modal__close');
+    if (closeBtn) closeBtn.focus();
+  }
+
+  function closeProduct() {
+    if (!modal || modal.classList.contains('is-hidden')) return;
+    modal.classList.add('is-hidden');
+    document.body.classList.remove('modal-open');
+    if (lastFocused && lastFocused.focus) lastFocused.focus();
+  }
+
+  Array.prototype.forEach.call(document.querySelectorAll('.work-card--product'), function (card) {
+    card.addEventListener('click', function () { openProduct(card); });
+    card.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        openProduct(card);
+      }
+    });
+  });
+
+  if (modal) {
+    Array.prototype.forEach.call(modal.querySelectorAll('[data-close]'), function (el) {
+      el.addEventListener('click', closeProduct);
+    });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') closeProduct();
+    });
+  }
 
   /* ---------- Текущий год в футере ---------- */
   var yearEl = document.getElementById('footer-year');

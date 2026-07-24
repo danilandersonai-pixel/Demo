@@ -138,7 +138,13 @@ h2 { margin: 8px 0 0; font-family: Lora, Georgia, serif; font-weight: 700; font-
 }
 .hero__text { flex: 1 1 420px; min-width: 300px; }
 .tag-row { display: flex; gap: 8px; flex-wrap: wrap; }
-.tag { padding: 5px 11px; border-radius: 99px; font-size: 11px; font-weight: 700; letter-spacing: .08em; border: 1px solid transparent; }
+.tag {
+  padding: 5px 11px; border-radius: 99px; font-size: 11px; font-weight: 700;
+  letter-spacing: .08em; border: 1px solid transparent;
+  font-family: inherit; cursor: pointer;
+  transition: transform .15s var(--tag-ease, ease), box-shadow .15s ease;
+}
+button.tag:hover { transform: translateY(-1px); box-shadow: 0 4px 10px rgba(35, 40, 48, .12); }
 .tag--red { background: var(--redtint); border-color: var(--redtintbrd); color: var(--redtinttxt); }
 .tag--blue { background: var(--bluetint); border-color: var(--bluebrd); color: var(--blue); }
 .tag--green { background: var(--greentint); border-color: var(--greenbrd); color: var(--greentxt); }
@@ -219,21 +225,67 @@ h2 { margin: 8px 0 0; font-family: Lora, Georgia, serif; font-weight: 700; font-
 .work-card__meta { margin-top: auto; padding-top: 12px; font-size: 12px; color: var(--textfaint); }
 .works-more { margin-top: 24px; display: flex; justify-content: center; }
 .works-more.is-hidden { display: none; }
+.work-card--product { cursor: pointer; }
+.work-card--product:focus-visible { outline: 2px solid var(--red); outline-offset: 2px; }
+
+/* Плашка активного предмета над сеткой */
+.subject-note {
+  margin-top: 18px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  padding: 10px 14px; background: var(--redtint); border: 1px solid var(--redtintbrd);
+  border-radius: 10px; font-size: 13px; font-weight: 600; color: var(--redtinttxt);
+}
+.subject-note.is-hidden { display: none; }
+.subject-note__clear {
+  padding: 4px 12px; background: var(--card); border: 1px solid var(--redtintbrd);
+  border-radius: 99px; font-size: 12px; font-weight: 600; color: var(--redtinttxt);
+}
+.subject-note__clear:hover { background: var(--deep); }
+
+/* Пустое состояние по предмету */
+.works-empty {
+  margin-top: 22px; padding: 28px 20px; text-align: center;
+  background: var(--field); border: 1.5px dashed var(--line3); border-radius: 12px;
+  font-size: 14px; color: var(--soft);
+}
+.works-empty.is-hidden { display: none; }
+
+/* Карточка товара (модальное окно) */
+.product-modal { position: fixed; inset: 0; z-index: 200; display: flex; align-items: center; justify-content: center; padding: 18px; }
+.product-modal.is-hidden { display: none; }
+.product-modal__backdrop { position: absolute; inset: 0; background: rgba(20, 25, 38, .55); backdrop-filter: blur(3px); }
+.product-modal__card {
+  position: relative; z-index: 1; width: min(920px, 100%); max-height: 90vh; overflow: auto;
+  background: var(--card); border: 1px solid var(--line2); border-radius: 16px;
+  box-shadow: 0 30px 80px rgba(20, 25, 38, .35);
+  display: flex; flex-wrap: wrap;
+  animation: fadeUp .25s var(--fast, ease) both;
+}
+.product-modal__close {
+  position: absolute; top: 10px; right: 10px; z-index: 2; width: 36px; height: 36px;
+  background: var(--card); border: 1px solid var(--line2); border-radius: 50%;
+  font-size: 20px; line-height: 1; color: var(--soft);
+}
+.product-modal__close:hover { background: var(--deep); color: var(--ink); }
+.product-modal__media { flex: 1 1 380px; min-width: 280px; background: var(--field); display: flex; align-items: center; justify-content: center; }
+.product-modal__media img { display: block; width: 100%; height: 100%; object-fit: cover; min-height: 240px; }
+.product-modal__body { flex: 1 1 340px; min-width: 280px; padding: clamp(20px, 3vw, 32px); display: flex; flex-direction: column; }
+.product-modal__badges { display: flex; gap: 7px; flex-wrap: wrap; }
+.product-modal__title { margin: 12px 0 0; font-family: Lora, Georgia, serif; font-weight: 700; font-size: clamp(20px, 2.4vw, 26px); line-height: 1.2; }
+.product-modal__desc { margin: 10px 0 0; font-size: 14px; line-height: 1.6; color: var(--body); }
+.product-modal__meta { margin-top: 8px; font-size: 12.5px; color: var(--textfaint); }
+.product-modal__buy {
+  margin-top: 18px; padding: 14px 16px; background: var(--field); border: 1px solid var(--line2);
+  border-radius: 12px; display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap;
+}
+.product-modal__price { font-family: Lora, Georgia, serif; font-weight: 700; font-size: 22px; color: var(--green); }
+.product-modal__note { margin-top: 14px; font-size: 12px; line-height: 1.55; color: var(--textfaint); }
+body.modal-open { overflow: hidden; }
 
 /* ===== 5. Обо мне ===== */
 .about-intro { margin: 12px 0 0; max-width: 640px; font-size: 14.5px; line-height: 1.65; color: var(--body); text-wrap: pretty; }
 .about-cols { margin-top: 28px; display: flex; gap: clamp(24px, 4vw, 56px); flex-wrap: wrap; }
 .about-col { flex: 1 1 380px; min-width: 300px; }
 .about-col--stack { display: flex; flex-direction: column; gap: 14px; }
-.timeline { margin-top: 16px; position: relative; padding-left: 26px; }
-.timeline::before { content: ''; position: absolute; left: 7px; top: 6px; bottom: 6px; width: 2px; background: var(--line2); border-radius: 2px; }
-.timeline__item { position: relative; padding-bottom: 22px; }
-.timeline__dot {
-  position: absolute; left: -26px; top: 4px; width: 16px; height: 16px;
-  background: var(--paper); border: 2.5px solid var(--red); border-radius: 50%;
-}
-.timeline__year { font-family: Lora, Georgia, serif; font-weight: 700; font-size: 19px; color: var(--red); }
-.timeline__text { margin-top: 4px; font-size: 14px; line-height: 1.6; color: var(--body); text-wrap: pretty; }
 .method-card { background: var(--card); border: 1px solid var(--line2); border-radius: 12px; padding: 16px 18px; }
 .method-card__head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 .method-card__name { font-size: 15px; font-weight: 600; }
@@ -339,8 +391,9 @@ h2 { margin: 8px 0 0; font-family: Lora, Georgia, serif; font-weight: 700; font-
   html { scroll-behavior: auto; }
   .float-note { animation: none; }
   .write-line { animation: none; transform: none; }
-  .work-card, .chip { transition: none; }
-  .work-card:hover { transform: none; }
+  .work-card, .chip, .tag { transition: none; }
+  .work-card:hover, button.tag:hover { transform: none; }
+  .product-modal__card { animation: none; }
   body { transition: none; }
 }
 

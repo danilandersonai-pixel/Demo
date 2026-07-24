@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Дарья Пронина — учитель начальных классов</title>
-  <meta name="description" content="Дарья Сергеевна Пронина — учитель начальных классов и английского языка. Материалы к урокам, интерактивные методики и цифровые инструменты для живых уроков.">
+  <title>Дарья Сергеевна — учитель начальных классов</title>
+  <meta name="description" content="Дарья Сергеевна — учитель начальных классов и английского языка. Разработки к урокам, интерактивные методики и цифровые инструменты для живых уроков.">
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -29,10 +29,10 @@
         <span class="logo-mark" aria-hidden="true">
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2.5 7.5 L5.5 10.5 L11.5 3.5" stroke="var(--red)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"></path></svg>
         </span>
-        <span class="logo-name">Дарья Пронина</span>
+        <span class="logo-name">Дарья Сергеевна</span>
       </a>
       <nav class="nav" aria-label="Основная навигация">
-        <a href="#works" class="nav__link">Мои работы</a>
+        <a href="#works" class="nav__link">Разработки</a>
         <a href="#about" class="nav__link">Обо мне</a>
         <a href="#tvoyurok" class="nav__link nav__link--accent">Твой урок<span class="badge-soon">СКОРО</span></a>
         <a href="#reviews" class="nav__link">Отзывы</a>
@@ -49,20 +49,19 @@
     <div class="container hero">
       <div class="hero__text">
         <div class="tag-row">
-          <span class="tag tag--red">НАЧАЛЬНЫЕ КЛАССЫ</span>
-          <span class="tag tag--blue">РУССКИЙ ЯЗЫК</span>
-          <span class="tag tag--green">МАТЕМАТИКА</span>
-          <span class="tag tag--amber">ОКРУЖАЮЩИЙ МИР</span>
-          <span class="tag tag--red">ЛИТЕРАТУРНОЕ ЧТЕНИЕ</span>
-          <span class="tag tag--blue">АНГЛИЙСКИЙ ЯЗЫК</span>
-          <span class="tag tag--green">ФИНАНСОВАЯ ГРАМОТНОСТЬ</span>
-          <span class="tag tag--amber">ВНЕУРОЧНАЯ ДЕЯТЕЛЬНОСТЬ</span>
+          <button type="button" class="tag tag--red" data-subject="Русский язык">РУССКИЙ ЯЗЫК</button>
+          <button type="button" class="tag tag--blue" data-subject="Математика">МАТЕМАТИКА</button>
+          <button type="button" class="tag tag--green" data-subject="Окружающий мир">ОКРУЖАЮЩИЙ МИР</button>
+          <button type="button" class="tag tag--amber" data-subject="Литературное чтение">ЛИТЕРАТУРНОЕ ЧТЕНИЕ</button>
+          <button type="button" class="tag tag--red" data-subject="Скорочтение">СКОРОЧТЕНИЕ</button>
+          <button type="button" class="tag tag--blue" data-subject="Английский язык">АНГЛИЙСКИЙ ЯЗЫК</button>
+          <button type="button" class="tag tag--green" data-subject="Праздники и мероприятия">ПРАЗДНИКИ И МЕРОПРИЯТИЯ</button>
         </div>
         <h1 class="hero__title">Учиться —<br>это интересно</h1>
-        <p class="hero__lead">Я Дарья Сергеевна Пронина, учитель начальных классов и английского языка. Семь лет делаю уроки живыми: цифровые технологии, интерактивные методики и современные платформы обучения.</p>
+        <p class="hero__lead">Я Дарья Сергеевна, учитель начальных классов и английского языка. Семь лет делаю уроки живыми: цифровые технологии, интерактивные методики и современные платформы обучения.</p>
         <div class="hero__actions">
-          <a href="#works" class="btn btn--primary">Мои работы</a>
-          <a href="#about" class="btn btn--ghost">Мой путь</a>
+          <a href="#works" class="btn btn--primary">Разработки</a>
+          <a href="#about" class="btn btn--ghost">Обо мне</a>
         </div>
         <div class="honors">
           <span class="honors__label">ПРИЗНАНИЕ</span>
@@ -81,7 +80,7 @@
         </div>
         <figure class="polaroid">
           <span class="polaroid__tape" aria-hidden="true"></span>
-          <img src="assets/photos/daria-flowers.jpg" alt="Дарья Сергеевна Пронина с цветами в классе">
+          <img src="assets/photos/daria-flowers.jpg" alt="Дарья Сергеевна с цветами в классе">
           <figcaption class="polaroid__caption">Дарья Сергеевна · учитель начальных классов</figcaption>
         </figure>
       </div>
@@ -93,7 +92,7 @@
     <div class="container">
       <div class="section-head">
         <div class="section-head__title">
-          <div class="kicker">МОИ РАБОТЫ</div>
+          <div class="kicker">РАЗРАБОТКИ</div>
           <h2>Материалы к урокам</h2>
         </div>
         <p class="section-lead">Четыре направления: оформление кабинета, наглядно-учебные материалы к урокам, интерактивные игры и полезные материалы. Всё это я делаю для своих учеников — раздел пополняется. Больше работ — в <a href="https://vk.ru/club237183078" target="_blank" rel="noopener">группе ВКонтакте</a>.</p>
@@ -105,8 +104,12 @@
         <button type="button" class="chip" data-cat="Интерактивные игры">Интерактивные игры</button>
         <button type="button" class="chip" data-cat="Полезные материалы">Полезные материалы</button>
       </div>
+      <div class="subject-note is-hidden" id="subject-note">
+        <span id="subject-note-text"></span>
+        <button type="button" class="subject-note__clear" id="subject-clear">Сбросить</button>
+      </div>
       <div class="works-grid" id="works-grid">
-        <a class="work-card work-card--link" data-cat="Наглядно-учебный материал к урокам" href="assets/materials/tayny-solnechnoy-sistemy.pdf" target="_blank" rel="noopener">
+        <article class="work-card work-card--product" data-cat="Наглядно-учебный материал к урокам" data-subject="Окружающий мир" data-pdf="assets/materials/tayny-solnechnoy-sistemy.pdf" data-price="Бесплатно" tabindex="0" role="button" aria-haspopup="dialog">
           <div class="work-card__media"><img src="assets/materials/covers/tayny-solnechnoy-sistemy.jpg" alt="Первый слайд презентации «Тайны нашей солнечной системы»" loading="lazy"></div>
           <div class="work-card__body">
             <div class="work-card__badges"><span class="pill pill--red">ПРЕЗЕНТАЦИЯ К УРОКУ</span><span class="pill pill--green">БЕСПЛАТНО</span></div>
@@ -114,8 +117,8 @@
             <div class="work-card__desc">От Меркурия до Плутона: путешествие по планетам для младших школьников</div>
             <div class="work-card__meta">Окружающий мир · 9 слайдов · PDF</div>
           </div>
-        </a>
-        <a class="work-card work-card--link" data-cat="Наглядно-учебный материал к урокам" href="assets/materials/prirodnoe-soobshchestvo.pdf" target="_blank" rel="noopener">
+        </article>
+        <article class="work-card work-card--product" data-cat="Наглядно-учебный материал к урокам" data-subject="Окружающий мир" data-pdf="assets/materials/prirodnoe-soobshchestvo.pdf" data-price="Бесплатно" tabindex="0" role="button" aria-haspopup="dialog">
           <div class="work-card__media"><img src="assets/materials/covers/prirodnoe-soobshchestvo.jpg" alt="Первый слайд презентации «Природное сообщество»" loading="lazy"></div>
           <div class="work-card__body">
             <div class="work-card__badges"><span class="pill pill--red">ПРЕЗЕНТАЦИЯ К УРОКУ</span><span class="pill pill--green">БЕСПЛАТНО</span></div>
@@ -123,8 +126,8 @@
             <div class="work-card__desc">Как устроена жизнь в лесу, на лугу и в озере</div>
             <div class="work-card__meta">Биология · 5 класс · 10 слайдов · PDF</div>
           </div>
-        </a>
-        <a class="work-card work-card--link" data-cat="Наглядно-учебный материал к урокам" href="assets/materials/tver-i-moskva.pdf" target="_blank" rel="noopener">
+        </article>
+        <article class="work-card work-card--product" data-cat="Наглядно-учебный материал к урокам" data-pdf="assets/materials/tver-i-moskva.pdf" data-price="Бесплатно" tabindex="0" role="button" aria-haspopup="dialog">
           <div class="work-card__media"><img src="assets/materials/covers/tver-i-moskva.jpg" alt="Первый слайд презентации «Северо-Восточная Русь в конце XIII — начале XIV в.»" loading="lazy"></div>
           <div class="work-card__body">
             <div class="work-card__badges"><span class="pill pill--red">ПРЕЗЕНТАЦИЯ К УРОКУ</span><span class="pill pill--green">БЕСПЛАТНО</span></div>
@@ -132,8 +135,8 @@
             <div class="work-card__desc">Стратегическое соперничество Твери и Москвы</div>
             <div class="work-card__meta">История России · 6 класс · 14 слайдов · PDF</div>
           </div>
-        </a>
-        <a class="work-card work-card--link" data-cat="Наглядно-учебный материал к урокам" href="assets/materials/rossiyskoe-gosudarstvo-xv-vek.pdf" target="_blank" rel="noopener">
+        </article>
+        <article class="work-card work-card--product" data-cat="Наглядно-учебный материал к урокам" data-pdf="assets/materials/rossiyskoe-gosudarstvo-xv-vek.pdf" data-price="Бесплатно" tabindex="0" role="button" aria-haspopup="dialog">
           <div class="work-card__media"><img src="assets/materials/covers/rossiyskoe-gosudarstvo-xv-vek.jpg" alt="Первый слайд презентации «Российское государство и общество во второй половине XV в.»" loading="lazy"></div>
           <div class="work-card__body">
             <div class="work-card__badges"><span class="pill pill--red">ПРЕЗЕНТАЦИЯ К УРОКУ</span><span class="pill pill--green">БЕСПЛАТНО</span></div>
@@ -141,8 +144,8 @@
             <div class="work-card__desc">Устройство власти и общества при Иване III</div>
             <div class="work-card__meta">История России · 6 класс · 8 слайдов · PDF</div>
           </div>
-        </a>
-        <a class="work-card work-card--link" data-cat="Наглядно-учебный материал к урокам" href="assets/materials/pravlenie-vasiliya-iii.pdf" target="_blank" rel="noopener">
+        </article>
+        <article class="work-card work-card--product" data-cat="Наглядно-учебный материал к урокам" data-pdf="assets/materials/pravlenie-vasiliya-iii.pdf" data-price="Бесплатно" tabindex="0" role="button" aria-haspopup="dialog">
           <div class="work-card__media"><img src="assets/materials/covers/pravlenie-vasiliya-iii.jpg" alt="Первый слайд презентации «Правление Василия III»" loading="lazy"></div>
           <div class="work-card__body">
             <div class="work-card__badges"><span class="pill pill--red">ПРЕЗЕНТАЦИЯ К УРОКУ</span><span class="pill pill--green">БЕСПЛАТНО</span></div>
@@ -150,7 +153,7 @@
             <div class="work-card__desc">Завершение объединения русских земель вокруг Москвы</div>
             <div class="work-card__meta">История России · 6 класс · 12 слайдов · PDF</div>
           </div>
-        </a>
+        </article>
         <article class="work-card" data-cat="Оформление кабинета">
           <div class="work-card__media"><div class="slot">Обложка / фото работы</div></div>
           <div class="work-card__body">
@@ -160,7 +163,7 @@
             <div class="work-card__meta">Плакаты · формат A3 · PDF</div>
           </div>
         </article>
-        <article class="work-card" data-cat="Оформление кабинета">
+        <article class="work-card" data-cat="Оформление кабинета" data-subject="Окружающий мир">
           <div class="work-card__media"><div class="slot">Обложка / фото работы</div></div>
           <div class="work-card__body">
             <div class="work-card__badges"><span class="pill pill--red">ОФОРМЛЕНИЕ КАБИНЕТА</span><span class="pill pill--green">БЕСПЛАТНО</span></div>
@@ -169,7 +172,7 @@
             <div class="work-card__meta">Плакат · 1–2 класс · PDF</div>
           </div>
         </article>
-        <article class="work-card" data-cat="Наглядно-учебный материал к урокам">
+        <article class="work-card" data-cat="Наглядно-учебный материал к урокам" data-subject="Русский язык">
           <div class="work-card__media"><div class="slot">Обложка / фото работы</div></div>
           <div class="work-card__body">
             <div class="work-card__badges"><span class="pill pill--red">НАГЛЯДНО-УЧЕБНЫЙ МАТЕРИАЛ</span><span class="pill pill--green">БЕСПЛАТНО</span></div>
@@ -178,7 +181,7 @@
             <div class="work-card__meta">Русский язык · 2 класс · PDF</div>
           </div>
         </article>
-        <article class="work-card" data-cat="Наглядно-учебный материал к урокам">
+        <article class="work-card" data-cat="Наглядно-учебный материал к урокам" data-subject="Математика">
           <div class="work-card__media"><div class="slot">Обложка / фото работы</div></div>
           <div class="work-card__body">
             <div class="work-card__badges"><span class="pill pill--red">НАГЛЯДНО-УЧЕБНЫЙ МАТЕРИАЛ</span><span class="pill pill--green">БЕСПЛАТНО</span></div>
@@ -187,7 +190,7 @@
             <div class="work-card__meta">Математика · 3 класс · PDF</div>
           </div>
         </article>
-        <article class="work-card" data-cat="Интерактивные игры">
+        <article class="work-card" data-cat="Интерактивные игры" data-subject="Английский язык">
           <div class="work-card__media"><div class="slot">Обложка / фото работы</div></div>
           <div class="work-card__body">
             <div class="work-card__badges"><span class="pill pill--red">ИНТЕРАКТИВНЫЕ ИГРЫ</span><span class="pill pill--green">БЕСПЛАТНО</span></div>
@@ -196,7 +199,7 @@
             <div class="work-card__meta">Английский язык · 2 класс</div>
           </div>
         </article>
-        <article class="work-card" data-cat="Интерактивные игры">
+        <article class="work-card" data-cat="Интерактивные игры" data-subject="Литературное чтение,Скорочтение">
           <div class="work-card__media"><div class="slot">Обложка / фото работы</div></div>
           <div class="work-card__body">
             <div class="work-card__badges"><span class="pill pill--red">ИНТЕРАКТИВНЫЕ ИГРЫ</span><span class="pill pill--green">БЕСПЛАТНО</span></div>
@@ -205,7 +208,7 @@
             <div class="work-card__meta">Обучение грамоте · 1 класс</div>
           </div>
         </article>
-        <article class="work-card" data-cat="Полезные материалы">
+        <article class="work-card" data-cat="Полезные материалы" data-subject="Русский язык">
           <div class="work-card__media"><div class="slot">Обложка / фото работы</div></div>
           <div class="work-card__body">
             <div class="work-card__badges"><span class="pill pill--red">ПОЛЕЗНЫЕ МАТЕРИАЛЫ</span><span class="pill pill--green">БЕСПЛАТНО</span></div>
@@ -224,6 +227,7 @@
           </div>
         </article>
       </div>
+      <div class="works-empty is-hidden" id="works-empty">Разработки по этому предмету скоро появятся — загляните позже или напишите мне в <a href="https://vk.ru/club237183078" target="_blank" rel="noopener">группе ВКонтакте</a>.</div>
       <div class="works-more" id="works-more">
         <button type="button" class="btn btn--ghost" id="works-more-btn">Показать ещё</button>
       </div>
@@ -237,31 +241,6 @@
       <h2>Привет, я Дарья Сергеевна!</h2>
       <p class="about-intro">Учитель начальных классов с 7-летним стажем. Преподаю начальные классы и английский язык, активно внедряю цифровые технологии, интерактивные методики и современные платформы обучения.</p>
       <div class="about-cols">
-        <div class="about-col">
-          <div class="col-label">МОЙ ПУТЬ</div>
-          <div class="timeline">
-            <div class="timeline__item">
-              <span class="timeline__dot" aria-hidden="true"></span>
-              <div class="timeline__year">2023</div>
-              <div class="timeline__text">Лауреат муниципального этапа Всероссийского конкурса «Учитель года – 2023» в номинации «Педагогический дебют».</div>
-            </div>
-            <div class="timeline__item">
-              <span class="timeline__dot" aria-hidden="true"></span>
-              <div class="timeline__year">2023</div>
-              <div class="timeline__text">Победитель межрегиональной «Педагогической олимпиады» — диплом I степени.</div>
-            </div>
-            <div class="timeline__item">
-              <span class="timeline__dot" aria-hidden="true"></span>
-              <div class="timeline__year">2024</div>
-              <div class="timeline__text">Дипломант регионального конкурса лучших воспитательных практик. Благодарственные письма за профессионализм и вклад в образовательные проекты.</div>
-            </div>
-            <div class="timeline__item">
-              <span class="timeline__dot" aria-hidden="true"></span>
-              <div class="timeline__year">Сегодня</div>
-              <div class="timeline__text">Преподаю начальные классы и английский язык, внедряю цифровые технологии, интерактивные методики и современные платформы обучения.</div>
-            </div>
-          </div>
-        </div>
         <div class="about-col about-col--stack">
           <div class="col-label">КАК Я РАБОТАЮ</div>
           <div class="method-card">
@@ -276,6 +255,8 @@
             <div class="method-card__head"><div class="method-card__name">Английский язык</div><span class="pill pill--amber">1–4 КЛАССЫ</span></div>
             <div class="method-card__desc">Второй предмет: от первых звуков до уверенных коротких диалогов.</div>
           </div>
+        </div>
+        <div class="about-col">
           <div class="stats-card">
             <div class="stats-card__title">Коротко в цифрах</div>
             <div class="stats-card__row">
@@ -362,7 +343,7 @@
           <span class="logo-mark logo-mark--footer" aria-hidden="true">
             <svg width="12" height="12" viewBox="0 0 14 14" fill="none"><path d="M2.5 7.5 L5.5 10.5 L11.5 3.5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"></path></svg>
           </span>
-          <span class="footer-brand__name">Дарья Пронина</span>
+          <span class="footer-brand__name">Дарья Сергеевна</span>
         </div>
         <p class="footer-about">Учитель начальных классов и английского языка. Материалы, методики и цифровые инструменты для живых уроков.</p>
       </div>
@@ -377,7 +358,7 @@
       <div class="footer-col">
         <div class="footer-col__label">РАЗДЕЛЫ</div>
         <div class="footer-links">
-          <a href="#works">Мои работы</a>
+          <a href="#works">Разработки</a>
           <a href="#about">Обо мне</a>
           <a href="#tvoyurok">Твой урок — скоро</a>
           <a href="#reviews">Отзывы</a>
@@ -386,11 +367,31 @@
     </div>
     <div class="footer-bottom">
       <div class="container footer-bottom__inner">
-        <span>© <span id="footer-year">2026</span> Дарья Пронина</span>
+        <span>© <span id="footer-year">2026</span> Дарья Сергеевна</span>
         <a href="#" aria-disabled="true" title="Кабинет учителя появится вместе с сервисом «Твой урок»">Вход для учителя</a>
       </div>
     </div>
   </footer>
+
+  <!-- Карточка товара -->
+  <div class="product-modal is-hidden" id="product-modal" role="dialog" aria-modal="true" aria-labelledby="product-modal-title">
+    <div class="product-modal__backdrop" data-close></div>
+    <div class="product-modal__card">
+      <button type="button" class="product-modal__close" data-close aria-label="Закрыть">&times;</button>
+      <div class="product-modal__media"><img id="product-modal-img" src="" alt=""></div>
+      <div class="product-modal__body">
+        <div class="product-modal__badges" id="product-modal-badges"></div>
+        <h3 class="product-modal__title" id="product-modal-title"></h3>
+        <p class="product-modal__desc" id="product-modal-desc"></p>
+        <div class="product-modal__meta" id="product-modal-meta"></div>
+        <div class="product-modal__buy">
+          <div class="product-modal__price" id="product-modal-price">Бесплатно</div>
+          <a class="btn btn--primary" id="product-modal-download" href="#" target="_blank" rel="noopener">Скачать PDF</a>
+        </div>
+        <div class="product-modal__note">Материал можно свободно использовать на уроках. Вопросы и пожелания — в <a href="https://vk.ru/club237183078" target="_blank" rel="noopener">группе ВКонтакте</a>.</div>
+      </div>
+    </div>
+  </div>
 
   <script src="assets/js/main.js"></script>
 </body>
