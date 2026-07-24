@@ -47,8 +47,19 @@
     return 'разработок';
   }
 
+  function isFree(card) {
+    var price = card.getAttribute('data-price');
+    if (price) return price.toLowerCase() === 'бесплатно';
+    var pill = card.querySelector('.pill--green');
+    return !!(pill && pill.textContent.trim().toLowerCase() === 'бесплатно');
+  }
+
   function cardMatches(card) {
-    if (activeCat !== 'Все' && card.getAttribute('data-cat') !== activeCat) return false;
+    if (activeCat === 'Бесплатно') {
+      if (!isFree(card)) return false;
+    } else if (activeCat !== 'Все' && card.getAttribute('data-cat') !== activeCat) {
+      return false;
+    }
     if (!activeSubject) return true;
     var subjects = (card.getAttribute('data-subject') || '').toLowerCase().split(',');
     return subjects.indexOf(activeSubject.toLowerCase()) !== -1;

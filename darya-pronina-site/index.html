@@ -32,9 +32,9 @@
         <span class="logo-name">Дарья Сергеевна</span>
       </a>
       <nav class="nav" aria-label="Основная навигация">
-        <a href="#works" class="nav__link">Разработки</a>
-        <a href="#about" class="nav__link">Обо мне</a>
         <a href="#tvoyurok" class="nav__link nav__link--accent">Твой урок<span class="badge-soon">СКОРО</span></a>
+        <a href="#works" class="nav__link">Авторские разработки</a>
+        <a href="#about" class="nav__link">Обо мне</a>
         <a href="#reviews" class="nav__link">Отзывы</a>
         <button type="button" class="theme-toggle" id="theme-toggle" aria-label="Сменить тему">
           <svg class="icon-moon" width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M20 13.5 A8.5 8.5 0 1 1 10.5 4 A7 7 0 0 0 20 13.5 Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"></path></svg>
@@ -60,7 +60,7 @@
         <h1 class="hero__title">Учиться —<br>это интересно</h1>
         <p class="hero__lead">Я Дарья Сергеевна, учитель начальных классов и английского языка. Семь лет делаю уроки живыми: цифровые технологии, интерактивные методики и современные платформы обучения.</p>
         <div class="hero__actions">
-          <a href="#works" class="btn btn--primary">Разработки</a>
+          <a href="#works" class="btn btn--primary">Авторские разработки</a>
           <a href="#about" class="btn btn--ghost">Обо мне</a>
         </div>
         <div class="honors">
@@ -87,18 +87,61 @@
     </div>
   </section>
 
+  <!-- Твой урок — скоро -->
+  <section id="tvoyurok" class="section section--bordered">
+    <div class="container">
+      <div class="teaser">
+        <div class="teaser__ribbon" aria-hidden="true">СКОРО</div>
+        <div class="teaser__text">
+          <div class="teaser__brand">
+            <span class="logo-mark logo-mark--sm" aria-hidden="true">
+              <svg width="12" height="12" viewBox="0 0 14 14" fill="none"><path d="M2.5 7.5 L5.5 10.5 L11.5 3.5" stroke="var(--red)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+            </span>
+            <span class="teaser__brand-name">Твой урок</span>
+            <span class="pill pill--amber">В РАЗРАБОТКЕ</span>
+          </div>
+          <h2 class="teaser__title">ИИ-генератор учебных материалов</h2>
+          <p class="teaser__desc">Рабочие листы, тесты и презентации по вашей теме — за минуту, с проверкой ИИ-судьёй и выгрузкой в PDF. Сервис, который мы готовим вместе с этим сайтом: рабочая ссылка появится здесь сразу после запуска.</p>
+          <div class="teaser__features">
+            <span class="feature-pill">Рабочие листы</span>
+            <span class="feature-pill">Тесты</span>
+            <span class="feature-pill">Презентации</span>
+            <span class="feature-pill">Проверка работ по фото</span>
+          </div>
+          <div class="teaser__actions">
+            <a href="#" class="btn btn--primary" aria-disabled="true" title="Прототип откроется здесь после запуска сервиса">Посмотреть прототип →</a>
+            <span class="teaser__launch">Запуск — осень 2026</span>
+          </div>
+        </div>
+        <div class="teaser__visual" aria-hidden="true">
+          <div class="notebook">
+            <div class="notebook__margin"></div>
+            <div class="notebook__head"><span></span><span></span></div>
+            <span class="write-line write-line--accent write-line--thick" style="width:72%; animation-delay:0s"></span>
+            <span class="write-line write-line--md" style="width:100%; animation-delay:.3s"></span>
+            <span class="write-line write-line--md" style="width:86%; animation-delay:.6s"></span>
+            <span class="write-line write-line--md" style="width:93%; animation-delay:.9s"></span>
+            <span class="write-line write-line--md" style="width:70%; animation-delay:1.2s"></span>
+            <span class="write-line write-line--md" style="width:55%; animation-delay:1.5s; margin-bottom:0"></span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <!-- Мои работы -->
   <section id="works" class="section section--bordered">
     <div class="container">
       <div class="section-head">
         <div class="section-head__title">
-          <div class="kicker">РАЗРАБОТКИ</div>
+          <div class="kicker">АВТОРСКИЕ РАЗРАБОТКИ</div>
           <h2>Материалы к урокам</h2>
         </div>
         <p class="section-lead">Четыре направления: оформление кабинета, наглядно-учебные материалы к урокам, интерактивные игры и полезные материалы. Всё это я делаю для своих учеников — раздел пополняется. Больше работ — в <a href="https://vk.ru/club237183078" target="_blank" rel="noopener">группе ВКонтакте</a>.</p>
       </div>
       <div class="chips" role="group" aria-label="Фильтр по направлениям">
         <button type="button" class="chip is-active" data-cat="Все">Все</button>
+        <button type="button" class="chip" data-cat="Бесплатно">Бесплатно</button>
         <button type="button" class="chip" data-cat="Оформление кабинета">Оформление кабинета</button>
         <button type="button" class="chip" data-cat="Наглядно-учебный материал к урокам">Наглядно-учебный материал к урокам</button>
         <button type="button" class="chip" data-cat="Интерактивные игры">Интерактивные игры</button>
@@ -272,48 +315,6 @@
     </div>
   </section>
 
-  <!-- Твой урок — скоро -->
-  <section id="tvoyurok" class="section section--bordered">
-    <div class="container">
-      <div class="teaser">
-        <div class="teaser__ribbon" aria-hidden="true">СКОРО</div>
-        <div class="teaser__text">
-          <div class="teaser__brand">
-            <span class="logo-mark logo-mark--sm" aria-hidden="true">
-              <svg width="12" height="12" viewBox="0 0 14 14" fill="none"><path d="M2.5 7.5 L5.5 10.5 L11.5 3.5" stroke="var(--red)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"></path></svg>
-            </span>
-            <span class="teaser__brand-name">Твой урок</span>
-            <span class="pill pill--amber">В РАЗРАБОТКЕ</span>
-          </div>
-          <h2 class="teaser__title">ИИ-генератор учебных материалов</h2>
-          <p class="teaser__desc">Рабочие листы, тесты и презентации по вашей теме — за минуту, с проверкой ИИ-судьёй и выгрузкой в PDF. Сервис, который мы готовим вместе с этим сайтом: рабочая ссылка появится здесь сразу после запуска.</p>
-          <div class="teaser__features">
-            <span class="feature-pill">Рабочие листы</span>
-            <span class="feature-pill">Тесты</span>
-            <span class="feature-pill">Презентации</span>
-            <span class="feature-pill">Проверка работ по фото</span>
-          </div>
-          <div class="teaser__actions">
-            <a href="#" class="btn btn--primary" aria-disabled="true" title="Прототип откроется здесь после запуска сервиса">Посмотреть прототип →</a>
-            <span class="teaser__launch">Запуск — осень 2026</span>
-          </div>
-        </div>
-        <div class="teaser__visual" aria-hidden="true">
-          <div class="notebook">
-            <div class="notebook__margin"></div>
-            <div class="notebook__head"><span></span><span></span></div>
-            <span class="write-line write-line--accent write-line--thick" style="width:72%; animation-delay:0s"></span>
-            <span class="write-line write-line--md" style="width:100%; animation-delay:.3s"></span>
-            <span class="write-line write-line--md" style="width:86%; animation-delay:.6s"></span>
-            <span class="write-line write-line--md" style="width:93%; animation-delay:.9s"></span>
-            <span class="write-line write-line--md" style="width:70%; animation-delay:1.2s"></span>
-            <span class="write-line write-line--md" style="width:55%; animation-delay:1.5s; margin-bottom:0"></span>
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
-
   <!-- Отзывы -->
   <section id="reviews" class="section">
     <div class="container">
@@ -358,9 +359,9 @@
       <div class="footer-col">
         <div class="footer-col__label">РАЗДЕЛЫ</div>
         <div class="footer-links">
-          <a href="#works">Разработки</a>
-          <a href="#about">Обо мне</a>
           <a href="#tvoyurok">Твой урок — скоро</a>
+          <a href="#works">Авторские разработки</a>
+          <a href="#about">Обо мне</a>
           <a href="#reviews">Отзывы</a>
         </div>
       </div>
