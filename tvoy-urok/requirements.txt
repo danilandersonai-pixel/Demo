@@ -1,0 +1,11 @@
+# Детерминированная половина пайплайна — без сети и ключей API.
+python-pptx==1.0.2   # сборка нативного PPTX
+Pillow==12.3.0       # замер текста по TTF (замена несуществующему autofit)
+pydantic==2.13.4     # контракт JSON-дека, валидация
+fonttools==4.62.0    # работа с метриками шрифтов (резервный путь замера)
+
+# Системные зависимости (не pip):
+#   fonts-paratype    — PT Sans / PT Serif, кириллица с настоящим bold (OFL)
+#   libreoffice-impress — конвертация PPTX -> PDF
+#   poppler-utils     — проверка результата (pdftotext / pdftoppm)
+# В продакшене PDF делает Gotenberg (stateful LibreOffice), а не прямой вызов.
