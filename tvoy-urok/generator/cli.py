@@ -65,6 +65,11 @@ def main(argv=None) -> int:
     ap.add_argument("--pdf", action="store_true", help="дополнительно собрать PDF")
     ap.add_argument("--strict", action="store_true", help="падать при ошибках валидации")
     ap.add_argument("--schema", action="store_true", help="напечатать JSON Schema и выйти")
+    ap.add_argument("--fgos", action="store_true", help="отчёт о соответствии ФГОС")
+    ap.add_argument("--fgos-brief", action="store_true",
+                    help="задание для ФГОС-инспектора (JSON) и выход")
+    ap.add_argument("--prompt-layer", action="store_true",
+                    help="напечатать слой ФГОС для промпта генерации и выйти")
     args = ap.parse_args(argv)
 
     if args.schema:
@@ -74,6 +79,34 @@ def main(argv=None) -> int:
         return 0
 
     deck = load_deck(args.deck)
+
+    if args.prompt_layer:
+        from fgos.registry import load_subject, prompt_layer
+
+        spec = load_subject(deck.meta.subject)
+        if not spec:
+            print(f"Предмет «{deck.meta.subject}» пока не покрыт реестром ФГОС",
+                  file=sys.stderr)
+            return 2
+        print(prompt_layer(spec, deck.meta.grade, deck.meta.topic))
+        return 0
+
+    if args.fgos or args.fgos_brief:
+        from fgos.check import brief, check_deck
+
+        report = check_deck(deck)
+        if report is None:
+            print(f"Предмет «{deck.meta.subject}» пока не покрыт реестром ФГОС",
+                  file=sys.stderr)
+            return 2
+        if args.fgos_brief:
+            print(json.dumps(brief(deck, report), ensure_ascii=False, indent=2))
+            return 0
+        print(report.to_text())
+        print()
+        if report.errors and args.strict:
+            print("Остановлено: несоответствие ФГОС (--strict)", file=sys.stderr)
+            return 3
 
     issues = validate_deck(deck)
     print(summarize(issues))
