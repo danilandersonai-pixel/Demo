@@ -70,6 +70,8 @@ def main(argv=None) -> int:
                     help="задание для ФГОС-инспектора (JSON) и выход")
     ap.add_argument("--prompt-layer", action="store_true",
                     help="напечатать слой ФГОС для промпта генерации и выйти")
+    ap.add_argument("--fgos-mode", choices=["full", "check", "off"], default=None,
+                    help="перекрыть режим ФГОС из дека: full | check | off")
     args = ap.parse_args(argv)
 
     if args.schema:
@@ -80,6 +82,10 @@ def main(argv=None) -> int:
 
     deck = load_deck(args.deck)
 
+    from generator.schema import FgosMode
+
+    mode = FgosMode(args.fgos_mode) if args.fgos_mode else deck.meta.fgos_mode
+
     if args.prompt_layer:
         from fgos.registry import load_subject, prompt_layer
 
@@ -88,13 +94,14 @@ def main(argv=None) -> int:
             print(f"Предмет «{deck.meta.subject}» пока не покрыт реестром ФГОС",
                   file=sys.stderr)
             return 2
-        print(prompt_layer(spec, deck.meta.grade, deck.meta.topic))
+        layer = prompt_layer(spec, deck.meta.grade, deck.meta.topic, mode.value)
+        print(layer if layer else f"(режим {mode.value}: слой ФГОС не подмешивается)")
         return 0
 
     if args.fgos or args.fgos_brief:
         from fgos.check import brief, check_deck
 
-        report = check_deck(deck)
+        report = check_deck(deck, mode)
         if report is None:
             print(f"Предмет «{deck.meta.subject}» пока не покрыт реестром ФГОС",
                   file=sys.stderr)
@@ -104,7 +111,8 @@ def main(argv=None) -> int:
             return 0
         print(report.to_text())
         print()
-        if report.errors and args.strict:
+        # В справочном режиме отчёт ничего не блокирует — так и задумано.
+        if report.errors and args.strict and not report.advisory:
             print("Остановлено: несоответствие ФГОС (--strict)", file=sys.stderr)
             return 3
 

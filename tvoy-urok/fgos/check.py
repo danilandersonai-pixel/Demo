@@ -26,7 +26,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional
 
-from generator.schema import Deck, Role
+from generator.schema import Deck, FgosMode, Role
 
 from .registry import (
     Section,
@@ -62,6 +62,7 @@ class FgosReport:
     subject: str
     grade: int
     topic: str
+    mode: FgosMode = FgosMode.FULL
     source_document: str = ""
     matched_sections: List[Section] = field(default_factory=list)
     findings: List[FgosFinding] = field(default_factory=list)
@@ -78,16 +79,38 @@ class FgosReport:
         return [f for f in self.findings if f.level == "error"]
 
     @property
+    def advisory(self) -> bool:
+        """В режиме CHECK отчёт справочный — ничего не блокирует."""
+        return self.mode == FgosMode.CHECK
+
+    @property
     def coverage_pct(self) -> int:
         total = len(self.covered_units) + len(self.missing_units)
         return round(100 * len(self.covered_units) / total) if total else 0
 
     def to_text(self) -> str:
         out: List[str] = []
+        if self.mode == FgosMode.OFF:
+            out.append("ПРОВЕРКА ДОСТОВЕРНОСТИ (без привязки к программе)")
+            out.append("=" * 46)
+            out.append(f"Предмет: {self.subject}, {self.grade} класс")
+            out.append(f"Тема: {self.topic}")
+            out.append("\nРежим «без ФГОС»: соответствие федеральной программе "
+                       "не проверялось. Проверена только фактическая достоверность.")
+            if self.findings:
+                out.append("\nЗамечания:")
+                out.extend(f"  {f}" for f in self.findings)
+            else:
+                out.append("\nЗамечаний нет.")
+            return "\n".join(out)
+
         out.append("ОТЧЁТ О СООТВЕТСТВИИ ФГОС")
         out.append("=" * 46)
         out.append(f"Предмет: {self.subject}, {self.grade} класс")
         out.append(f"Тема: {self.topic}")
+        if self.advisory:
+            out.append("Режим: справочный — программа не навязывалась генерации, "
+                       "отчёт ничего не блокирует")
         if self.source_document:
             out.append(f"Основание: {self.source_document}")
         if self.matched_sections:
@@ -171,18 +194,51 @@ def _unit_covered(unit: str, text_norm: str) -> bool:
     return hits / len(words) >= 0.6
 
 
-def check_deck(deck: Deck) -> Optional[FgosReport]:
-    """Проверить дек. None — предмет не покрыт реестром."""
+def check_deck(deck: Deck, mode: Optional[FgosMode] = None) -> Optional[FgosReport]:
+    """Проверить дек. None — предмет не покрыт реестром.
+
+    Режим берётся из `deck.meta.fgos_mode`, либо передаётся явно (аргумент
+    `mode` перекрывает — удобно для CLI и для повторной проверки уже
+    сгенерированного дека под другим режимом).
+
+    В режиме OFF проверяется ТОЛЬКО фактическая достоверность (анахронизмы,
+    границы эпохи): она не относится к стандарту и нужна всегда.
+    """
     spec: Optional[SubjectSpec] = load_subject(deck.meta.subject)
     if not spec:
         return None
 
+    mode = mode or deck.meta.fgos_mode
     report = FgosReport(
         subject=deck.meta.subject,
         grade=deck.meta.grade,
         topic=deck.meta.topic,
+        mode=mode,
         source_document=spec.source.get("document", ""),
     )
+
+    # Разделы нужны в любом режиме: в OFF из них берётся только
+    # anachronism_guard, всё остальное игнорируется.
+    text_norm = _norm(_deck_text(deck))
+    matches = match_sections(spec, deck.meta.topic)
+    if matches:
+        report.matched_sections = [s for s, _ in matches]
+
+    def add_anachronism_findings() -> None:
+        for section in report.matched_sections:
+            guard = section.anachronism_guard
+            if not guard:
+                continue
+            for bad in guard.get("forbidden_terms", []):
+                if _term_present(bad, text_norm):
+                    report.findings.append(
+                        FgosFinding("error", "anachronism",
+                                    f"анахронизм «{bad}»: {guard.get('comment', '')}")
+                    )
+
+    if mode == FgosMode.OFF:
+        add_anachronism_findings()
+        return report
 
     if spec.revision_stale():
         report.findings.append(
@@ -190,9 +246,6 @@ def check_deck(deck: Deck) -> Optional[FgosReport]:
                         "пора сверить редакцию ФРП с действующей на edsoo.ru "
                         f"({spec.source.get('edition_note', '')})")
         )
-
-    text_norm = _norm(_deck_text(deck))
-    matches = match_sections(spec, deck.meta.topic)
 
     if not matches:
         report.findings.append(
@@ -202,16 +255,16 @@ def check_deck(deck: Deck) -> Optional[FgosReport]:
         )
         return report
 
-    report.matched_sections = [s for s, _ in matches]
-
     # 1. Тема ↔ класс. Главная формальная проверка.
+    # В справочном режиме это не ошибка: учитель мог сознательно взять тему
+    # раньше или позже программы (опережение, повторение, кружок).
     best = matches[0][0]
     if best.grade != deck.meta.grade:
         gs = spec.grade_spec(best.grade)
         note = gs.boundary_note if gs else ""
         report.findings.append(
             FgosFinding(
-                "error",
+                "warn" if report.advisory else "error",
                 "grade-mismatch",
                 f"тема «{deck.meta.topic}» отнесена ФРП к {best.grade} классу "
                 f"(раздел «{best.title}»), а дек заявлен как {deck.meta.grade} класс. {note}",
@@ -246,16 +299,8 @@ def check_deck(deck: Deck) -> Optional[FgosReport]:
         )
 
     # 4. Анахронизмы — запрещённая для периода терминология.
-    for section in report.matched_sections:
-        guard = section.anachronism_guard
-        if not guard:
-            continue
-        for bad in guard.get("forbidden_terms", []):
-            if _term_present(bad, text_norm):
-                report.findings.append(
-                    FgosFinding("error", "anachronism",
-                                f"анахронизм «{bad}»: {guard.get('comment', '')}")
-                )
+    # Остаются ошибкой даже в справочном режиме: это достоверность, не стандарт.
+    add_anachronism_findings()
 
     # 5. Покрытие планируемых результатов типами слайдов.
     gs = spec.grade_spec(deck.meta.grade) or spec.grade_spec(best.grade)
@@ -314,12 +359,19 @@ def brief(deck: Deck, report: FgosReport) -> dict:
 
     Возвращает структуру, которую пайплайн отдаст модели вместе с деком.
     """
+    off = report.mode == FgosMode.OFF
     return {
-        "task": "Проверить соответствие презентации требованиям ФГОС",
+        "task": (
+            "Проверить фактическую достоверность презентации (без привязки "
+            "к федеральной программе)" if off else
+            "Проверить соответствие презентации требованиям ФГОС"
+        ),
+        "fgos_mode": report.mode.value,
+        "advisory": report.advisory,
         "subject": deck.meta.subject,
         "grade": deck.meta.grade,
         "topic": deck.meta.topic,
-        "normative_source": report.source_document,
+        "normative_source": "" if off else report.source_document,
         "checklist": {
             "sections": [
                 {"title": s.title, "grade": s.grade, "units": s.units}
@@ -333,15 +385,24 @@ def brief(deck: Deck, report: FgosReport) -> dict:
             ],
         },
         "mechanical_findings": [str(f) for f in report.findings],
-        "questions_for_model": [
-            "Раскрыта ли каждая дидактическая единица по существу (не по совпадению слов)?",
-            "Соответствует ли лексика и длина предложений заявленному классу?",
-            "Выстроен ли урок методически: общее перед частным, вывод в конце блока?",
-            "Есть ли фактические ошибки или анахронизмы в тексте?",
-            "Есть ли анахронизмы или недостоверность на изображениях "
-            "(предметы, одежда, архитектура, символика позже периода темы)?",
-            "Проверяют ли вопросы планируемые результаты, а не только память?",
-        ],
+        # В режиме OFF спрашиваем только то, что не зависит от программы:
+        # достоверность и возрастную адекватность.
+        "questions_for_model": (
+            [
+                "Есть ли фактические ошибки или анахронизмы в тексте?",
+                "Есть ли анахронизмы или недостоверность на изображениях "
+                "(предметы, одежда, архитектура, символика позже периода темы)?",
+                "Соответствует ли лексика и длина предложений заявленному классу?",
+            ] if off else [
+                "Раскрыта ли каждая дидактическая единица по существу (не по совпадению слов)?",
+                "Соответствует ли лексика и длина предложений заявленному классу?",
+                "Выстроен ли урок методически: общее перед частным, вывод в конце блока?",
+                "Есть ли фактические ошибки или анахронизмы в тексте?",
+                "Есть ли анахронизмы или недостоверность на изображениях "
+                "(предметы, одежда, архитектура, символика позже периода темы)?",
+                "Проверяют ли вопросы планируемые результаты, а не только память?",
+            ]
+        ),
         "images_to_inspect": [
             {
                 "slide": i,

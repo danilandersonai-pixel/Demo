@@ -223,17 +223,49 @@ def grade_for_topic(spec: SubjectSpec, topic: str) -> Optional[int]:
     return matches[0][0].grade if matches else None
 
 
-def prompt_layer(spec: SubjectSpec, grade: int, topic: str) -> str:
+def prompt_layer(
+    spec: SubjectSpec, grade: int, topic: str, mode: str = "full"
+) -> str:
     """Собрать «СЛОЙ 4 — ТРЕБОВАНИЯ ФГОС» для промпта генерации.
 
     Возвращает готовый текстовый блок: период курса, планируемые результаты,
     дидактические единицы темы, обязательные термины и даты, запрет
     анахронизмов. Этот блок стабилен для пары {предмет, класс} и потому
     отлично ложится в кэшируемый префикс промпта.
+
+    Режимы (см. schema.FgosMode):
+      full  — полный слой;
+      check — генерацию не ограничиваем, слой не подмешиваем (отчёт всё равно
+              будет, но справочный);
+      off   — только защита от анахронизмов, если она есть для темы: это
+              достоверность, а не требование стандарта.
     """
+    if mode == "check":
+        return ""
+
     gs = spec.grade_spec(grade)
     if not gs:
         return ""
+
+    if mode == "off":
+        guards = [
+            s.anachronism_guard
+            for s, _ in match_sections(spec, topic)
+            if s.anachronism_guard
+        ]
+        if not guards:
+            return ""
+        lines = ["[ДОСТОВЕРНОСТЬ ЭПОХИ]"]
+        for guard in guards:
+            lines.append(guard.get("comment", ""))
+            if guard.get("forbidden_terms"):
+                lines.append(f"Не употреблять: {', '.join(guard['forbidden_terms'])}")
+            if guard.get("period_end_year"):
+                lines.append(
+                    "В тексте и на иллюстрациях не должно быть реалий позже "
+                    f"{guard['period_end_year']} года."
+                )
+        return "\n".join(lines)
 
     lines: List[str] = ["[СЛОЙ 4 — ТРЕБОВАНИЯ ФГОС]"]
     lines.append(f"Источник: {spec.source.get('document', '')}.")

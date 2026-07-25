@@ -243,6 +243,80 @@ def test_brief_for_inspector() -> None:
     check("чувствительные изображения помечены", len(sensitive) >= 1, str(sensitive))
 
 
+def test_modes() -> None:
+    print("\n[6b] Режимы ФГОС: full / check / off")
+    from generator.schema import FgosMode
+
+    check("дефолт — full", load_fixture().meta.fgos_mode == FgosMode.FULL)
+
+    # Дек с анахронизмом: «царская семья» при Василии III
+    raw = json.load(open(FIXTURE, encoding="utf-8"))
+    raw["slides"][2]["paragraphs"][0]["text"] = (
+        "В царской семье Василия III не было наследника долго."
+    )
+    bad = Deck.model_validate(raw)
+
+    rep_full = check_deck(bad, FgosMode.FULL)
+    rep_check = check_deck(bad, FgosMode.CHECK)
+    rep_off = check_deck(bad, FgosMode.OFF)
+
+    # Достоверность проверяется во ВСЕХ режимах — это не требование стандарта
+    for name, rep in (("full", rep_full), ("check", rep_check), ("off", rep_off)):
+        codes = {f.code for f in rep.findings}
+        check(f"{name}: анахронизм пойман", "anachronism" in codes, str(codes))
+        check(f"{name}: анахронизм остаётся ошибкой",
+              any(f.code == "anachronism" and f.level == "error" for f in rep.findings))
+
+    # А проверки программы в OFF отключены
+    off_codes = {f.code for f in rep_off.findings}
+    check("off: охват не считается", not rep_off.covered_units and not rep_off.missing_units)
+    check("off: понятия не проверяются", not rep_off.missing_terms)
+    check("off: результаты не проверяются", not rep_off.missing_results)
+    check("off: нет программных замечаний", off_codes <= {"anachronism"}, str(off_codes))
+    check("off: в отчёте сказано, что программа не проверялась",
+          "не проверялось" in rep_off.to_text())
+
+    # В справочном режиме несоответствие класса — предупреждение, не ошибка
+    wrong = load_fixture()
+    wrong.meta.topic = "Иван Грозный и Избранная рада"
+    adv = check_deck(wrong, FgosMode.CHECK)
+    check("check: несоответствие класса — предупреждение",
+          any(f.code == "grade-mismatch" and f.level == "warn" for f in adv.findings),
+          str([str(f) for f in adv.findings]))
+    check("check: отчёт помечен справочным", adv.advisory)
+    check("check: в тексте отчёта видно, что он не блокирует",
+          "ничего не блокирует" in adv.to_text())
+    strict = check_deck(wrong, FgosMode.FULL)
+    check("full: то же самое — ошибка",
+          any(f.code == "grade-mismatch" and f.level == "error" for f in strict.findings))
+    check("full: отчёт не справочный", not strict.advisory)
+
+    # Слой промпта: полный / пустой / только достоверность
+    spec = load_subject("История России")
+    full_layer = prompt_layer(spec, 6, "Правление Василия III", "full")
+    check_layer = prompt_layer(spec, 6, "Правление Василия III", "check")
+    off_layer = prompt_layer(spec, 6, "Правление Василия III", "off")
+    check("слой full — полный", "[СЛОЙ 4" in full_layer and len(full_layer) > 1000)
+    check("слой check — пустой (генерацию не ограничиваем)", check_layer == "")
+    check("слой off — только достоверность эпохи",
+          "[ДОСТОВЕРНОСТЬ ЭПОХИ]" in off_layer and "СЛОЙ 4" not in off_layer)
+    check("слой off содержит запрет терминов", "царская семья" in off_layer)
+    check("слой off содержит границу периода", "1533" in off_layer)
+
+    # Задание инспектору отражает режим
+    b_off = brief(bad, rep_off)
+    check("brief(off): режим передан", b_off["fgos_mode"] == "off")
+    check("brief(off): нет нормативного основания", b_off["normative_source"] == "")
+    check("brief(off): вопросы только про достоверность и возраст",
+          not any("дидактическая единица" in q for q in b_off["questions_for_model"]),
+          str(b_off["questions_for_model"]))
+    check("brief(off): изображения всё равно осматриваются",
+          len(b_off["images_to_inspect"]) > 5)
+    b_full = brief(bad, rep_full)
+    check("brief(full): вопрос про дидактические единицы есть",
+          any("дидактическая единица" in q for q in b_full["questions_for_model"]))
+
+
 def test_uncovered_subject() -> None:
     print("\n[7] Непокрытый предмет не ломает пайплайн")
     deck = Deck(
@@ -260,6 +334,7 @@ def main() -> int:
     test_coverage()
     test_anachronism_and_bloom()
     test_brief_for_inspector()
+    test_modes()
     test_uncovered_subject()
     print(f"\n{'=' * 46}\nПройдено: {_passed}, провалено: {_failed}")
     return 1 if _failed else 0
