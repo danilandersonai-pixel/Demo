@@ -25,11 +25,18 @@ from typing import Dict, List, Optional, Tuple
 
 DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
 
-# Файл данных на предмет. Расширяется по мере добавления предметов.
+# Файл данных на предмет; ключи — нормализованные названия и их синонимы,
+# как учитель может назвать предмет в форме генерации.
 _SUBJECT_FILES = {
     "история": "istoriya-5-9.json",
     "история россии": "istoriya-5-9.json",
     "всеобщая история": "istoriya-5-9.json",
+    "окружающий мир": "okruzhayushchiy-mir-1-4.json",
+    "окружающиий мир": "okruzhayushchiy-mir-1-4.json",
+    "биология": "biologiya-5-9.json",
+    "обществознание": "obshchestvoznanie-6-9.json",
+    "общество": "obshchestvoznanie-6-9.json",
+    "география": "geografiya-5-9.json",
 }
 
 
@@ -57,11 +64,29 @@ class GradeSpec:
 
 
 @dataclass
+class ResultGroup:
+    """Группа планируемых результатов + признаки её покрытия в деке.
+
+    `evidence_roles` — роли слайдов, наличие которых свидетельствует, что дек
+    работает на этот результат. Хранится в данных, а не в коде: у каждого
+    предмета свои группы результатов (у истории — работа с картой и
+    источниками, у биологии — процессы и классификация).
+    """
+
+    code: str
+    title: str
+    evidence_roles: List[str] = field(default_factory=list)
+    evidence_hint: str = ""
+    evidence_source_quote: bool = False
+
+
+@dataclass
 class SubjectSpec:
     subject: str
     source: dict
     metasubject: dict
     grades: Dict[int, GradeSpec]
+    result_groups: Dict[str, ResultGroup] = field(default_factory=dict)
 
     def grade_spec(self, grade: int) -> Optional[GradeSpec]:
         return self.grades.get(grade)
@@ -87,6 +112,27 @@ class SubjectSpec:
 def _normalize(text: str) -> str:
     text = text.lower().replace("ё", "е")
     return re.sub(r"\s+", " ", text).strip()
+
+
+def stem(word: str) -> str:
+    """Грубая основа слова: отбрасываем окончание, но не короче 4 символов.
+
+    Русский язык склоняется, поэтому буквальное сравнение не работает:
+    тема «Природные сообщества» не совпадёт с ключевым словом «природное
+    сообщество», а «великокняжеская власть» — с «великокняжеской власти».
+    Полноценная морфология (pymorphy) избыточна: спорные случаи всё равно
+    смотрит ФГОС-инспектор или человек.
+    """
+    return word[: max(4, len(word) - 2)] if len(word) > 4 else word
+
+
+def term_present(term: str, text_norm: str) -> bool:
+    """Есть ли термин в тексте в любой словоформе. text_norm — нормализованный."""
+    words = re.findall(r"[а-яa-z0-9]+", _normalize(term))
+    if not words:
+        return False
+    pattern = r"\w*\s+".join(re.escape(stem(w)) for w in words) + r"\w*"
+    return re.search(pattern, text_norm) is not None
 
 
 @lru_cache(maxsize=8)
@@ -127,11 +173,23 @@ def load_subject(subject: str) -> Optional[SubjectSpec]:
             sections=sections,
         )
 
+    result_groups = {
+        rg["code"]: ResultGroup(
+            code=rg["code"],
+            title=rg.get("title", rg["code"]),
+            evidence_roles=rg.get("evidence_roles", []),
+            evidence_hint=rg.get("evidence_hint", ""),
+            evidence_source_quote=rg.get("evidence_source_quote", False),
+        )
+        for rg in raw.get("result_groups", [])
+    }
+
     return SubjectSpec(
         subject=raw.get("subject", subject),
         source=raw.get("source", {}),
         metasubject=raw.get("metasubject", {}),
         grades=grades,
+        result_groups=result_groups,
     )
 
 
@@ -145,7 +203,14 @@ def match_sections(spec: SubjectSpec, topic: str, limit: int = 3) -> List[Tuple[
     t = _normalize(topic)
     scored: List[Tuple[Section, int]] = []
     for section in spec.all_sections():
-        score = sum(1 for kw in section.keywords if _normalize(kw) in t)
+        # Вес совпадения зависит от специфичности ключа: многословный
+        # «природные зоны» должен побеждать общее «природа», иначе тема
+        # уедет не в тот класс.
+        score = sum(
+            10 * len(kw.split()) + len(kw)
+            for kw in section.keywords
+            if term_present(kw, t)
+        )
         if score:
             scored.append((section, score))
     scored.sort(key=lambda x: (-x[1], x[0].grade))
@@ -178,8 +243,10 @@ def prompt_layer(spec: SubjectSpec, grade: int, topic: str) -> str:
 
     lines.append("\nПланируемые предметные результаты (на них работает материал):")
     for group in gs.subject_results:
+        rg = spec.result_groups.get(group.get("code", ""))
+        title = rg.title if rg else group.get("code", "")
         items = "; ".join(group.get("items", []))
-        lines.append(f"  • {group.get('title')}: {items}")
+        lines.append(f"  • {title}: {items}")
 
     matches = match_sections(spec, topic)
     relevant = [s for s, _ in matches if s.grade == grade] or [s for s, _ in matches]

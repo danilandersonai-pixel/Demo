@@ -66,22 +66,57 @@ def test_registry() -> None:
     check("предмет ищется без регистра", load_subject("история") is not None)
     check("непокрытый предмет — None", load_subject("Астрономия") is None)
 
-    # Ключевая проверка: ФРП относит Василия III к 7 классу
-    check("Василий III → 7 класс", grade_for_topic(spec, "Правление Василия III") == 7,
+    # Редакция 2025: курс 6 класса доведён до первой трети XVI в., поэтому
+    # Василий III — 6 класс (в редакции 2023 был 7-м). Иван IV — 7 класс.
+    check("Василий III → 6 класс (ред. 2025)",
+          grade_for_topic(spec, "Правление Василия III") == 6,
           str(grade_for_topic(spec, "Правление Василия III")))
     check("Иван III → 6 класс", grade_for_topic(spec, "Иван III и присоединение Новгорода") == 6,
           str(grade_for_topic(spec, "Иван III и присоединение Новгорода")))
+    check("Иван IV → 7 класс",
+          grade_for_topic(spec, "Иван Грозный и Избранная рада") == 7,
+          str(grade_for_topic(spec, "Иван Грозный и Избранная рада")))
     check("неизвестная тема не матчится",
           grade_for_topic(spec, "Квантовая механика") is None)
+    check("в источнике отмечен перенос темы между редакциями",
+          "2023" in spec.source.get("edition_note", ""))
 
     matches = match_sections(spec, "Правление Василия III")
-    check("раздел найден", matches and "Василия III" in matches[0][0].title, str(matches))
+    check("раздел найден", matches and "Василий III" in matches[0][0].title, str(matches))
+
+
+def test_all_subjects() -> None:
+    print("\n[1b] Все предметы реестра")
+    cases = [
+        ("История России", "Правление Василия III", 6),
+        ("Биология", "Природные сообщества", 5),
+        ("Биология", "Фотосинтез и питание растений", 6),
+        ("Окружающий мир", "Природные зоны России", 4),
+        ("Окружающий мир", "Символы России", 1),
+        ("Обществознание", "Семейный бюджет", 6),
+        ("Обществознание", "Права и свободы гражданина", 7),
+        ("География", "Великие географические открытия", 5),
+        ("География", "Мировой океан и его части", 6),
+    ]
+    for subject, topic, expected in cases:
+        spec = load_subject(subject)
+        got = grade_for_topic(spec, topic) if spec else None
+        check(f"{subject}: «{topic}» → {expected} кл.", got == expected, f"получено {got}")
+
+    # У каждого предмета должны быть источник, УУД и группы результатов
+    for subject in ("История", "Биология", "Окружающий мир", "Обществознание", "География"):
+        spec = load_subject(subject)
+        ok = (spec is not None
+              and spec.source.get("url", "").startswith("https://edsoo.ru")
+              and spec.metasubject.get("groups")
+              and spec.result_groups)
+        check(f"{subject}: справочник заполнен", ok)
 
 
 def test_prompt_layer() -> None:
     print("\n[2] Слой ФГОС для промпта")
     spec = load_subject("История России")
-    layer = prompt_layer(spec, 7, "Правление Василия III")
+    layer = prompt_layer(spec, 6, "Правление Василия III")
     check("слой не пуст", len(layer) > 500)
     check("есть заголовок слоя", "[СЛОЙ 4" in layer)
     check("есть дидактические единицы", "Отмирание удельной системы" in layer)
@@ -92,28 +127,36 @@ def test_prompt_layer() -> None:
     check("есть планируемые результаты", "Работа с исторической картой" in layer)
     # Слой стабилен для пары {предмет, класс} — важно для кэша промпта
     check("слой детерминирован",
-          prompt_layer(spec, 7, "Правление Василия III") == layer)
+          prompt_layer(spec, 6, "Правление Василия III") == layer)
 
 
 def test_grade_mismatch() -> None:
-    print("\n[3] Несоответствие темы классу — главная формальная проверка")
+    print("\n[3] Соответствие темы классу — главная формальная проверка")
+    # Фикстура заявлена как 6 класс и по редакции 2025 это верно.
     deck = load_fixture()
     check("фикстура заявлена как 6 класс", deck.meta.grade == 6)
     report = check_deck(deck)
     check("отчёт построен", report is not None)
-    codes = {f.code for f in report.findings}
+    check("несоответствия класса нет",
+          "grade-mismatch" not in {f.code for f in report.findings},
+          str([str(f) for f in report.findings]))
+
+    # А вот тема 7 класса, заявленная как 6-й, должна ловиться.
+    wrong = load_fixture()
+    wrong.meta.topic = "Иван Грозный и Избранная рада"
+    wrong.meta.grade = 6
+    rep = check_deck(wrong)
+    codes = {f.code for f in rep.findings}
     check("ловит несоответствие класса", "grade-mismatch" in codes, str(codes))
     check("это ошибка, а не предупреждение",
-          any(f.code == "grade-mismatch" and f.level == "error" for f in report.findings))
+          any(f.code == "grade-mismatch" and f.level == "error" for f in rep.findings))
     check("в тексте указан правильный класс",
-          any("7 класс" in f.message for f in report.findings if f.code == "grade-mismatch"))
+          any("7 класс" in f.message for f in rep.findings if f.code == "grade-mismatch"))
 
-    # Тот же дек как 7 класс — несоответствия быть не должно
-    deck7 = load_fixture()
-    deck7.meta.grade = 7
-    report7 = check_deck(deck7)
+    # Тот же дек как 7 класс — несоответствия нет
+    wrong.meta.grade = 7
     check("для 7 класса несоответствия нет",
-          "grade-mismatch" not in {f.code for f in report7.findings})
+          "grade-mismatch" not in {f.code for f in check_deck(wrong).findings})
 
 
 def test_coverage() -> None:
@@ -146,7 +189,7 @@ def test_anachronism_and_bloom() -> None:
               bullets=["Псков и Смоленск вошли в состав государства."]),
     ]
     bad = Deck(
-        meta=Meta(topic="Правление Василия III", subject="История России", grade=7),
+        meta=Meta(topic="Правление Василия III", subject="История России", grade=6),
         slides=base_slides,
     )
     report = check_deck(bad)
@@ -158,7 +201,7 @@ def test_anachronism_and_bloom() -> None:
 
     # Вопросы только на воспроизведение
     recall_only = Deck(
-        meta=Meta(topic="Правление Василия III", subject="История России", grade=7),
+        meta=Meta(topic="Правление Василия III", subject="История России", grade=6),
         slides=base_slides[:1] + [
             Slide(role=Role.QUIZ, layout=Layout.QUIZ_LIST, title="Проверь себя",
                   quiz=[QuizItem(q="В каком году присоединили Псков?"),
@@ -211,6 +254,7 @@ def test_uncovered_subject() -> None:
 
 def main() -> int:
     test_registry()
+    test_all_subjects()
     test_prompt_layer()
     test_grade_mismatch()
     test_coverage()

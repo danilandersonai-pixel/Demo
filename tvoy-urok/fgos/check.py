@@ -28,36 +28,13 @@ from typing import Dict, List, Optional
 
 from generator.schema import Deck, Role
 
-from .registry import Section, SubjectSpec, load_subject, match_sections
-
-# Признаки того, что дек работает на конкретный планируемый результат.
-# Ключ — код группы предметных результатов из ФРП.
-_RESULT_EVIDENCE = {
-    "hron": {
-        "roles": {Role.TIMELINE},
-        "hint": "слайд-таймлайн с датами",
-    },
-    "fakty": {
-        "roles": {Role.CONTENT, Role.DEEPDIVE, Role.OVERVIEW},
-        "hint": "контентные слайды с фактами",
-    },
-    "istochniki": {
-        "roles": {Role.ARTIFACT},
-        "hint": "слайд с историческим источником/артефактом или цитаты источника",
-    },
-    "opisanie": {
-        "roles": {Role.CONTENT, Role.DEEPDIVE},
-        "hint": "описание событий и исторический портрет",
-    },
-    "analiz": {
-        "roles": {Role.COMPARE, Role.PROCESS, Role.SUMMARY},
-        "hint": "сравнение, причинно-следственные связи, выводы",
-    },
-    "karta": {
-        "roles": set(),
-        "hint": "слайд с исторической картой (сейчас не покрыт)",
-    },
-}
+from .registry import (
+    Section,
+    SubjectSpec,
+    load_subject,
+    match_sections,
+    term_present,
+)
 
 # Глаголы уровней познавательной деятельности (упрощённая таксономия Блума).
 _BLOOM_RECALL = ["когда", "в каком году", "кто", "как назывался", "назови", "перечисли"]
@@ -176,25 +153,8 @@ def _norm(t: str) -> str:
     return re.sub(r"\s+", " ", t.lower().replace("ё", "е")).strip()
 
 
-def _stem(word: str) -> str:
-    """Грубая основа слова: отбрасываем окончание, но не короче 4 символов.
-
-    Русский язык склоняется, поэтому буквальный поиск «царская семья» не
-    находит «в царской семье», а «великокняжеская власть» — «великокняжеской
-    власти». Полноценная морфология (pymorphy) здесь избыточна: нам нужно
-    устойчивое совпадение по основе, а спорные случаи всё равно смотрит
-    человек или ФГОС-инспектор.
-    """
-    return word[: max(4, len(word) - 2)] if len(word) > 4 else word
-
-
-def _term_present(term: str, text_norm: str) -> bool:
-    """Есть ли термин в тексте в любой словоформе."""
-    words = re.findall(r"[а-яa-z0-9]+", _norm(term))
-    if not words:
-        return False
-    pattern = r"\w*\s+".join(re.escape(_stem(w)) for w in words) + r"\w*"
-    return re.search(pattern, text_norm) is not None
+# Поиск по основам слов — общий с реестром (см. registry.stem/term_present).
+_term_present = term_present
 
 
 def _unit_covered(unit: str, text_norm: str) -> bool:
@@ -302,19 +262,19 @@ def check_deck(deck: Deck) -> Optional[FgosReport]:
     roles_present = {s.role for s in deck.slides}
     has_source_quotes = any(p.source_quote for s in deck.slides for p in s.paragraphs)
     if gs:
+        role_values = {r.value for r in roles_present}
         for group in gs.subject_results:
-            code = group.get("code")
-            evidence = _RESULT_EVIDENCE.get(code)
-            title = group.get("title", code)
-            if not evidence:
+            code = group.get("code", "")
+            rg = spec.result_groups.get(code)
+            if not rg:
                 continue
-            covered = bool(roles_present & evidence["roles"])
-            if code == "istochniki" and has_source_quotes:
+            covered = bool(role_values & set(rg.evidence_roles))
+            if rg.evidence_source_quote and has_source_quotes:
                 covered = True
             if covered:
-                report.covered_results[code] = title
+                report.covered_results[code] = rg.title
             else:
-                report.missing_results[code] = f"{title} — нет: {evidence['hint']}"
+                report.missing_results[code] = f"{rg.title} — нет: {rg.evidence_hint}"
 
     # 6. Уровни вопросов: не только «вспомнить».
     quizzes = [q.q for s in deck.slides for q in s.quiz]
