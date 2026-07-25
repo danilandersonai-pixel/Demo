@@ -204,7 +204,7 @@ def check_deck(deck: Deck, mode: Optional[FgosMode] = None) -> Optional[FgosRepo
     В режиме OFF проверяется ТОЛЬКО фактическая достоверность (анахронизмы,
     границы эпохи): она не относится к стандарту и нужна всегда.
     """
-    spec: Optional[SubjectSpec] = load_subject(deck.meta.subject)
+    spec: Optional[SubjectSpec] = load_subject(deck.meta.subject, deck.meta.grade)
     if not spec:
         return None
 

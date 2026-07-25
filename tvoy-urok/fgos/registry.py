@@ -25,18 +25,32 @@ from typing import Dict, List, Optional, Tuple
 
 DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
 
-# Файл данных на предмет; ключи — нормализованные названия и их синонимы,
-# как учитель может назвать предмет в форме генерации.
+# Файлы данных на предмет; ключи — нормализованные названия и синонимы, как
+# учитель может назвать предмет в форме генерации.
+#
+# Значение — СПИСОК файлов: у русского языка и математики курс начальной и
+# основной школы описан отдельными программами, и нужный выбирается по классу.
 _SUBJECT_FILES = {
-    "история": "istoriya-5-9.json",
-    "история россии": "istoriya-5-9.json",
-    "всеобщая история": "istoriya-5-9.json",
-    "окружающий мир": "okruzhayushchiy-mir-1-4.json",
-    "окружающиий мир": "okruzhayushchiy-mir-1-4.json",
-    "биология": "biologiya-5-9.json",
-    "обществознание": "obshchestvoznanie-6-9.json",
-    "общество": "obshchestvoznanie-6-9.json",
-    "география": "geografiya-5-9.json",
+    "история": ["istoriya-5-9.json"],
+    "история россии": ["istoriya-5-9.json"],
+    "всеобщая история": ["istoriya-5-9.json"],
+    "окружающий мир": ["okruzhayushchiy-mir-1-4.json"],
+    "биология": ["biologiya-5-9.json"],
+    "обществознание": ["obshchestvoznanie-6-9.json"],
+    "общество": ["obshchestvoznanie-6-9.json"],
+    "география": ["geografiya-5-9.json"],
+    "физика": ["fizika-7-9.json"],
+    "химия": ["himiya-8-9.json"],
+    "информатика": ["informatika-7-9.json"],
+    "русский язык": ["russkiy-yazyk-1-4.json", "russkiy-yazyk-5-9.json"],
+    "русский": ["russkiy-yazyk-1-4.json", "russkiy-yazyk-5-9.json"],
+    "литература": ["literatura-5-9.json"],
+    "литературное чтение": ["literaturnoe-chtenie-1-4.json"],
+    "чтение": ["literaturnoe-chtenie-1-4.json"],
+    "математика": ["matematika-1-4.json", "matematika-5-9.json"],
+    "алгебра": ["matematika-5-9.json"],
+    "геометрия": ["matematika-5-9.json"],
+    "вероятность и статистика": ["matematika-5-9.json"],
 }
 
 
@@ -135,14 +149,30 @@ def term_present(term: str, text_norm: str) -> bool:
     return re.search(pattern, text_norm) is not None
 
 
-@lru_cache(maxsize=8)
-def load_subject(subject: str) -> Optional[SubjectSpec]:
-    """Загрузить реестр по названию предмета. None — предмет не покрыт."""
-    fname = _SUBJECT_FILES.get(_normalize(subject).replace("е", "е"))
-    if not fname:
-        fname = _SUBJECT_FILES.get(_normalize(subject))
-    if not fname:
+@lru_cache(maxsize=32)
+def load_subject(subject: str, grade: Optional[int] = None) -> Optional[SubjectSpec]:
+    """Загрузить реестр по названию предмета. None — предмет не покрыт.
+
+    Если у предмета несколько программ (начальная и основная школа), нужная
+    выбирается по классу. Без указания класса берётся первая — этого хватает
+    для проверки «покрыт ли предмет вообще».
+    """
+    files = _SUBJECT_FILES.get(_normalize(subject))
+    if not files:
         return None
+
+    specs = [s for s in (_load_file(f) for f in files) if s]
+    if not specs:
+        return None
+    if grade is not None:
+        for spec in specs:
+            if grade in spec.grades:
+                return spec
+    return specs[0]
+
+
+@lru_cache(maxsize=32)
+def _load_file(fname: str) -> Optional[SubjectSpec]:
     path = os.path.join(DATA_DIR, fname)
     if not os.path.exists(path):
         return None
@@ -185,7 +215,7 @@ def load_subject(subject: str) -> Optional[SubjectSpec]:
     }
 
     return SubjectSpec(
-        subject=raw.get("subject", subject),
+        subject=raw.get("subject", ""),
         source=raw.get("source", {}),
         metasubject=raw.get("metasubject", {}),
         grades=grades,

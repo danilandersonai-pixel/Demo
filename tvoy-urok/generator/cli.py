@@ -89,7 +89,7 @@ def main(argv=None) -> int:
     if args.prompt_layer:
         from fgos.registry import load_subject, prompt_layer
 
-        spec = load_subject(deck.meta.subject)
+        spec = load_subject(deck.meta.subject, deck.meta.grade)
         if not spec:
             print(f"Предмет «{deck.meta.subject}» пока не покрыт реестром ФГОС",
                   file=sys.stderr)
