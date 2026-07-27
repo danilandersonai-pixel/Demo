@@ -1,4 +1,4 @@
-/* Дарья Сергеевна — сайт учителя. Тема, фильтры разработок, карточка товара, год. */
+/* Дарья Сергеевна — сайт учителя. Рендер из data/site-data.json, тема, фильтры, карточка товара. */
 (function () {
   'use strict';
 
@@ -25,172 +25,272 @@
     });
   }
 
-  /* ---------- Фильтр «Разработки»: категория + предмет + «Показать ещё» ---------- */
-  var WORKS_LIMIT = 4; // сколько карточек видно до раскрытия
-  var chips = Array.prototype.slice.call(document.querySelectorAll('.chip[data-cat]'));
-  var cards = Array.prototype.slice.call(document.querySelectorAll('.work-card[data-cat]'));
-  var tags = Array.prototype.slice.call(document.querySelectorAll('.tag[data-subject]'));
-  var moreWrap = document.getElementById('works-more');
-  var moreBtn = document.getElementById('works-more-btn');
-  var subjectNote = document.getElementById('subject-note');
-  var subjectNoteText = document.getElementById('subject-note-text');
-  var subjectClear = document.getElementById('subject-clear');
-  var emptyNote = document.getElementById('works-empty');
-  var activeCat = 'Все';
-  var activeSubject = null;
-  var expanded = false;
-
-  function worksPlural(n) {
-    var d10 = n % 10, d100 = n % 100;
-    if (d10 === 1 && d100 !== 11) return 'разработку';
-    if (d10 >= 2 && d10 <= 4 && (d100 < 12 || d100 > 14)) return 'разработки';
-    return 'разработок';
+  /* ---------- Помощник создания элементов ---------- */
+  function el(tag, cls, text) {
+    var node = document.createElement(tag);
+    if (cls) node.className = cls;
+    if (text != null) node.textContent = text;
+    return node;
   }
 
-  function isFree(card) {
-    var price = card.getAttribute('data-price');
-    if (price) return price.toLowerCase() === 'бесплатно';
-    var pill = card.querySelector('.pill--green');
-    return !!(pill && pill.textContent.trim().toLowerCase() === 'бесплатно');
-  }
+  /* ---------- Рендер карточек разработок ---------- */
+  function renderWorks(works) {
+    var grid = document.getElementById('works-grid');
+    if (!grid) return;
+    grid.innerHTML = '';
+    works.forEach(function (w) {
+      var isProduct = !!w.pdf;
+      var card = el('article', isProduct ? 'work-card work-card--product' : 'work-card');
+      card.setAttribute('data-cat', w.cat || '');
+      if (w.subjects && w.subjects.length) card.setAttribute('data-subject', w.subjects.join(','));
+      if (isProduct) {
+        card.setAttribute('data-pdf', w.pdf);
+        card.setAttribute('data-price', w.price || 'Бесплатно');
+        card.setAttribute('tabindex', '0');
+        card.setAttribute('role', 'button');
+        card.setAttribute('aria-haspopup', 'dialog');
+      }
 
-  function cardMatches(card) {
-    if (activeCat === 'Бесплатно') {
-      if (!isFree(card)) return false;
-    } else if (activeCat !== 'Все' && card.getAttribute('data-cat') !== activeCat) {
-      return false;
-    }
-    if (!activeSubject) return true;
-    var subjects = (card.getAttribute('data-subject') || '').toLowerCase().split(',');
-    return subjects.indexOf(activeSubject.toLowerCase()) !== -1;
-  }
+      var media = el('div', 'work-card__media');
+      if (w.cover) {
+        var img = el('img');
+        img.src = w.cover;
+        img.alt = 'Обложка: ' + (w.name || '');
+        img.loading = 'lazy';
+        media.appendChild(img);
+      } else {
+        media.appendChild(el('div', 'slot', 'Обложка / фото работы'));
+      }
+      card.appendChild(media);
 
-  function applyWorksFilter() {
-    var matched = cards.filter(cardMatches);
-    cards.forEach(function (card) { card.classList.add('is-hidden'); });
-    matched.forEach(function (card, i) {
-      card.classList.toggle('is-hidden', !expanded && i >= WORKS_LIMIT);
+      var body = el('div', 'work-card__body');
+      var badges = el('div', 'work-card__badges');
+      if (w.type) badges.appendChild(el('span', 'pill pill--red', w.type));
+      var free = !w.price || w.price.toLowerCase() === 'бесплатно';
+      badges.appendChild(free
+        ? el('span', 'pill pill--green', 'БЕСПЛАТНО')
+        : el('span', 'pill pill--amber', w.price));
+      body.appendChild(badges);
+      body.appendChild(el('div', 'work-card__name', w.name || ''));
+      if (w.desc) body.appendChild(el('div', 'work-card__desc', w.desc));
+      if (w.meta) body.appendChild(el('div', 'work-card__meta', w.meta));
+      card.appendChild(body);
+
+      grid.appendChild(card);
     });
+  }
 
-    if (subjectNote) {
-      subjectNote.classList.toggle('is-hidden', !activeSubject);
-      if (activeSubject && subjectNoteText) {
-        subjectNoteText.textContent = 'Показаны разработки по предмету «' + activeSubject + '»';
+  /* ---------- Рендер отзывов ---------- */
+  var REVIEW_ROTATIONS = ['r1', 'r2', 'r3', 'r4', 'r5', 'r6'];
+
+  function renderReviews(reviews) {
+    var grid = document.getElementById('reviews-grid');
+    if (!grid) return;
+    grid.innerHTML = '';
+    if (!reviews.length) {
+      // Плейсхолдеры, пока скриншотов нет
+      for (var i = 0; i < 6; i++) {
+        var ph = el('div', 'review-card review-card--' + REVIEW_ROTATIONS[i]);
+        ph.appendChild(el('div', 'slot slot--rounded', 'Скриншот отзыва'));
+        grid.appendChild(ph);
+      }
+      return;
+    }
+    reviews.forEach(function (r, i) {
+      var card = el('div', 'review-card review-card--' + REVIEW_ROTATIONS[i % 6]);
+      var img = el('img', 'review-card__img');
+      img.src = r.image;
+      img.alt = r.alt || 'Скриншот отзыва';
+      img.loading = 'lazy';
+      card.appendChild(img);
+      grid.appendChild(card);
+    });
+  }
+
+  /* ---------- Фильтры «Авторские разработки» + «Показать ещё» ---------- */
+  function initWorksUI() {
+    var WORKS_LIMIT = 4; // сколько карточек видно до раскрытия
+    var chips = Array.prototype.slice.call(document.querySelectorAll('.chip[data-cat]'));
+    var cards = Array.prototype.slice.call(document.querySelectorAll('.work-card[data-cat]'));
+    var tags = Array.prototype.slice.call(document.querySelectorAll('.tag[data-subject]'));
+    var moreWrap = document.getElementById('works-more');
+    var moreBtn = document.getElementById('works-more-btn');
+    var subjectNote = document.getElementById('subject-note');
+    var subjectNoteText = document.getElementById('subject-note-text');
+    var subjectClear = document.getElementById('subject-clear');
+    var emptyNote = document.getElementById('works-empty');
+    var activeCat = 'Все';
+    var activeSubject = null;
+    var expanded = false;
+
+    function worksPlural(n) {
+      var d10 = n % 10, d100 = n % 100;
+      if (d10 === 1 && d100 !== 11) return 'разработку';
+      if (d10 >= 2 && d10 <= 4 && (d100 < 12 || d100 > 14)) return 'разработки';
+      return 'разработок';
+    }
+
+    function isFree(card) {
+      var price = card.getAttribute('data-price');
+      if (price) return price.toLowerCase() === 'бесплатно';
+      var pill = card.querySelector('.pill--green');
+      return !!(pill && pill.textContent.trim().toLowerCase() === 'бесплатно');
+    }
+
+    function cardMatches(card) {
+      if (activeCat === 'Бесплатно') {
+        if (!isFree(card)) return false;
+      } else if (activeCat !== 'Все' && card.getAttribute('data-cat') !== activeCat) {
+        return false;
+      }
+      if (!activeSubject) return true;
+      var subjects = (card.getAttribute('data-subject') || '').toLowerCase().split(',');
+      return subjects.indexOf(activeSubject.toLowerCase()) !== -1;
+    }
+
+    function applyWorksFilter() {
+      var matched = cards.filter(cardMatches);
+      cards.forEach(function (card) { card.classList.add('is-hidden'); });
+      matched.forEach(function (card, i) {
+        card.classList.toggle('is-hidden', !expanded && i >= WORKS_LIMIT);
+      });
+
+      if (subjectNote) {
+        subjectNote.classList.toggle('is-hidden', !activeSubject);
+        if (activeSubject && subjectNoteText) {
+          subjectNoteText.textContent = 'Показаны разработки по предмету «' + activeSubject + '»';
+        }
+      }
+      if (emptyNote) emptyNote.classList.toggle('is-hidden', matched.length > 0);
+
+      var hiddenCount = expanded ? 0 : Math.max(0, matched.length - WORKS_LIMIT);
+      if (moreWrap) moreWrap.classList.toggle('is-hidden', hiddenCount === 0);
+      if (moreBtn && hiddenCount > 0) {
+        moreBtn.textContent = 'Показать ещё ' + hiddenCount + ' ' + worksPlural(hiddenCount);
       }
     }
-    if (emptyNote) emptyNote.classList.toggle('is-hidden', matched.length > 0);
 
-    var hiddenCount = expanded ? 0 : Math.max(0, matched.length - WORKS_LIMIT);
-    if (moreWrap) moreWrap.classList.toggle('is-hidden', hiddenCount === 0);
-    if (moreBtn && hiddenCount > 0) {
-      moreBtn.textContent = 'Показать ещё ' + hiddenCount + ' ' + worksPlural(hiddenCount);
+    chips.forEach(function (chip) {
+      chip.addEventListener('click', function () {
+        activeCat = chip.getAttribute('data-cat');
+        expanded = false;
+        chips.forEach(function (c) { c.classList.toggle('is-active', c === chip); });
+        applyWorksFilter();
+      });
+    });
+
+    tags.forEach(function (tag) {
+      tag.addEventListener('click', function () {
+        activeSubject = tag.getAttribute('data-subject');
+        activeCat = 'Все';
+        expanded = false;
+        chips.forEach(function (c) { c.classList.toggle('is-active', c.getAttribute('data-cat') === 'Все'); });
+        applyWorksFilter();
+        var works = document.getElementById('works');
+        if (works) works.scrollIntoView({ behavior: 'smooth' });
+      });
+    });
+
+    if (subjectClear) {
+      subjectClear.addEventListener('click', function () {
+        activeSubject = null;
+        expanded = false;
+        applyWorksFilter();
+      });
     }
+
+    if (moreBtn) {
+      moreBtn.addEventListener('click', function () {
+        expanded = true;
+        applyWorksFilter();
+      });
+    }
+
+    applyWorksFilter();
   }
-
-  chips.forEach(function (chip) {
-    chip.addEventListener('click', function () {
-      activeCat = chip.getAttribute('data-cat');
-      expanded = false;
-      chips.forEach(function (c) { c.classList.toggle('is-active', c === chip); });
-      applyWorksFilter();
-    });
-  });
-
-  /* Плашки предметов в герое: фильтр по предмету + переход к разработкам */
-  tags.forEach(function (tag) {
-    tag.addEventListener('click', function () {
-      activeSubject = tag.getAttribute('data-subject');
-      activeCat = 'Все';
-      expanded = false;
-      chips.forEach(function (c) { c.classList.toggle('is-active', c.getAttribute('data-cat') === 'Все'); });
-      applyWorksFilter();
-      var works = document.getElementById('works');
-      if (works) works.scrollIntoView({ behavior: 'smooth' });
-    });
-  });
-
-  if (subjectClear) {
-    subjectClear.addEventListener('click', function () {
-      activeSubject = null;
-      expanded = false;
-      applyWorksFilter();
-    });
-  }
-
-  if (moreBtn) {
-    moreBtn.addEventListener('click', function () {
-      expanded = true;
-      applyWorksFilter();
-    });
-  }
-
-  applyWorksFilter();
 
   /* ---------- Карточка товара (модальное окно) ---------- */
-  var modal = document.getElementById('product-modal');
-  var modalImg = document.getElementById('product-modal-img');
-  var modalBadges = document.getElementById('product-modal-badges');
-  var modalTitle = document.getElementById('product-modal-title');
-  var modalDesc = document.getElementById('product-modal-desc');
-  var modalMeta = document.getElementById('product-modal-meta');
-  var modalPrice = document.getElementById('product-modal-price');
-  var modalDownload = document.getElementById('product-modal-download');
-  var lastFocused = null;
-
-  function openProduct(card) {
+  function initProductModal() {
+    var modal = document.getElementById('product-modal');
     if (!modal) return;
-    var img = card.querySelector('.work-card__media img');
-    var name = card.querySelector('.work-card__name');
-    var desc = card.querySelector('.work-card__desc');
-    var meta = card.querySelector('.work-card__meta');
-    var badges = card.querySelector('.work-card__badges');
+    var modalImg = document.getElementById('product-modal-img');
+    var modalBadges = document.getElementById('product-modal-badges');
+    var modalTitle = document.getElementById('product-modal-title');
+    var modalDesc = document.getElementById('product-modal-desc');
+    var modalMeta = document.getElementById('product-modal-meta');
+    var modalPrice = document.getElementById('product-modal-price');
+    var modalDownload = document.getElementById('product-modal-download');
+    var lastFocused = null;
 
-    if (modalImg && img) { modalImg.src = img.currentSrc || img.src; modalImg.alt = img.alt || ''; }
-    if (modalTitle && name) modalTitle.textContent = name.textContent;
-    if (modalDesc && desc) modalDesc.textContent = desc.textContent;
-    if (modalMeta && meta) modalMeta.textContent = meta.textContent;
-    if (modalBadges && badges) modalBadges.innerHTML = badges.innerHTML;
-    if (modalPrice) modalPrice.textContent = card.getAttribute('data-price') || 'Бесплатно';
-    if (modalDownload) modalDownload.href = card.getAttribute('data-pdf') || '#';
+    function openProduct(card) {
+      var img = card.querySelector('.work-card__media img');
+      var name = card.querySelector('.work-card__name');
+      var desc = card.querySelector('.work-card__desc');
+      var meta = card.querySelector('.work-card__meta');
+      var badges = card.querySelector('.work-card__badges');
 
-    lastFocused = document.activeElement;
-    modal.classList.remove('is-hidden');
-    document.body.classList.add('modal-open');
-    var closeBtn = modal.querySelector('.product-modal__close');
-    if (closeBtn) closeBtn.focus();
-  }
+      if (modalImg && img) { modalImg.src = img.currentSrc || img.src; modalImg.alt = img.alt || ''; }
+      if (modalTitle) modalTitle.textContent = name ? name.textContent : '';
+      if (modalDesc) modalDesc.textContent = desc ? desc.textContent : '';
+      if (modalMeta) modalMeta.textContent = meta ? meta.textContent : '';
+      if (modalBadges && badges) modalBadges.innerHTML = badges.innerHTML;
+      if (modalPrice) modalPrice.textContent = card.getAttribute('data-price') || 'Бесплатно';
+      if (modalDownload) modalDownload.href = card.getAttribute('data-pdf') || '#';
 
-  function closeProduct() {
-    if (!modal || modal.classList.contains('is-hidden')) return;
-    modal.classList.add('is-hidden');
-    document.body.classList.remove('modal-open');
-    if (lastFocused && lastFocused.focus) lastFocused.focus();
-  }
+      lastFocused = document.activeElement;
+      modal.classList.remove('is-hidden');
+      document.body.classList.add('modal-open');
+      var closeBtn = modal.querySelector('.product-modal__close');
+      if (closeBtn) closeBtn.focus();
+    }
 
-  Array.prototype.forEach.call(document.querySelectorAll('.work-card--product'), function (card) {
-    card.addEventListener('click', function () { openProduct(card); });
-    card.addEventListener('keydown', function (e) {
-      if (e.key === 'Enter' || e.key === ' ') {
-        e.preventDefault();
-        openProduct(card);
-      }
+    function closeProduct() {
+      if (modal.classList.contains('is-hidden')) return;
+      modal.classList.add('is-hidden');
+      document.body.classList.remove('modal-open');
+      if (lastFocused && lastFocused.focus) lastFocused.focus();
+    }
+
+    Array.prototype.forEach.call(document.querySelectorAll('.work-card--product'), function (card) {
+      card.addEventListener('click', function () { openProduct(card); });
+      card.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          openProduct(card);
+        }
+      });
     });
-  });
 
-  if (modal) {
-    Array.prototype.forEach.call(modal.querySelectorAll('[data-close]'), function (el) {
-      el.addEventListener('click', closeProduct);
+    Array.prototype.forEach.call(modal.querySelectorAll('[data-close]'), function (elc) {
+      elc.addEventListener('click', closeProduct);
     });
     document.addEventListener('keydown', function (e) {
       if (e.key === 'Escape') closeProduct();
     });
   }
 
+  /* ---------- Инициализация с данными ---------- */
+  function initSite(data) {
+    renderWorks((data && data.works) || []);
+    renderReviews((data && data.reviews) || []);
+    initWorksUI();
+    initProductModal();
+  }
+
+  if (window.__SITE_DATA__) {
+    initSite(window.__SITE_DATA__);
+  } else {
+    fetch('data/site-data.json')
+      .then(function (r) { return r.json(); })
+      .then(initSite)
+      .catch(function () { initSite({ works: [], reviews: [] }); });
+  }
+
   /* ---------- Текущий год в футере ---------- */
   var yearEl = document.getElementById('footer-year');
   if (yearEl) yearEl.textContent = String(new Date().getFullYear());
 
-  /* ---------- Неактивные ссылки-заглушки (Telegram, прототип, кабинет) ---------- */
+  /* ---------- Неактивные ссылки-заглушки (Telegram, прототип) ---------- */
   Array.prototype.forEach.call(document.querySelectorAll('a[aria-disabled="true"]'), function (link) {
     link.addEventListener('click', function (e) { e.preventDefault(); });
   });

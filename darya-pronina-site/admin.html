@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="ru-RU">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Кабинет учителя — Дарья Сергеевна</title>
+  <meta name="robots" content="noindex">
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;0,600;0,700;1,400;1,600&family=Golos+Text:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/css/styles.css">
+  <script>
+    (function () {
+      try {
+        var t = localStorage.getItem('daria-theme');
+        if (t === 'dark') document.documentElement.setAttribute('data-th', 'dark');
+      } catch (e) {}
+    })();
+  </script>
+</head>
+<body data-tex="on">
+
+  <header class="site-header">
+    <div class="container header-inner">
+      <a href="index.html" class="logo">
+        <span class="logo-mark" aria-hidden="true">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2.5 7.5 L5.5 10.5 L11.5 3.5" stroke="var(--red)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+        </span>
+        <span class="logo-name">Дарья Сергеевна · Кабинет</span>
+      </a>
+      <nav class="nav">
+        <a href="index.html" class="nav__link">← На сайт</a>
+        <button type="button" class="theme-toggle" id="theme-toggle" aria-label="Сменить тему">
+          <svg class="icon-moon" width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M20 13.5 A8.5 8.5 0 1 1 10.5 4 A7 7 0 0 0 20 13.5 Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"></path></svg>
+          <svg class="icon-sun" width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="4.2" stroke="currentColor" stroke-width="1.8"></circle><path d="M12 3v2.4M12 18.6V21M3 12h2.4M18.6 12H21M5.6 5.6l1.7 1.7M16.7 16.7l1.7 1.7M18.4 5.6l-1.7 1.7M7.3 16.7l-1.7 1.7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path></svg>
+        </button>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container admin-main">
+
+    <!-- Вход -->
+    <section id="admin-login" class="admin-card admin-login">
+      <div class="kicker">КАБИНЕТ УЧИТЕЛЯ</div>
+      <h2>Вход для учителя</h2>
+      <p class="admin-note">Здесь вы добавляете разработки и отзывы — они публикуются на сайте автоматически. Для входа нужен ключ доступа (GitHub-токен). Он сохраняется только в этом браузере и никуда больше не передаётся.</p>
+      <details class="admin-help">
+        <summary>Как получить ключ доступа (один раз, ~2 минуты)</summary>
+        <ol>
+          <li>Войдите на github.com в аккаунт, у которого есть доступ к репозиторию сайта.</li>
+          <li>Откройте <strong>Settings → Developer settings → Fine-grained personal access tokens → Generate new token</strong>.</li>
+          <li>Repository access: <strong>Only select repositories</strong> → выберите репозиторий сайта.</li>
+          <li>Permissions → Repository permissions → <strong>Contents: Read and write</strong>.</li>
+          <li>Нажмите Generate и скопируйте ключ (начинается с <code>github_pat_</code>).</li>
+        </ol>
+      </details>
+      <div class="admin-field">
+        <label for="token-input">Ключ доступа</label>
+        <input id="token-input" type="password" autocomplete="off" placeholder="github_pat_…">
+      </div>
+      <div class="admin-row">
+        <button type="button" id="login-btn" class="btn btn--primary">Войти</button>
+        <span id="login-status" class="admin-status"></span>
+      </div>
+    </section>
+
+    <!-- Панель -->
+    <section id="admin-panel" class="is-hidden">
+      <div class="admin-toolbar">
+        <div class="chips">
+          <button type="button" class="chip is-active" data-tab="works">Разработки</button>
+          <button type="button" class="chip" data-tab="reviews">Отзывы</button>
+        </div>
+        <div class="admin-row">
+          <span id="dirty-note" class="admin-dirty is-hidden">Есть неопубликованные изменения</span>
+          <button type="button" id="publish-btn" class="btn btn--primary">Опубликовать на сайт</button>
+          <button type="button" id="logout-btn" class="btn btn--ghost">Выйти</button>
+        </div>
+      </div>
+
+      <!-- Разработки -->
+      <div id="tab-works">
+        <div class="admin-list-head">
+          <h2>Разработки</h2>
+          <button type="button" id="add-work-btn" class="btn btn--ghost">+ Добавить разработку</button>
+        </div>
+
+        <div id="work-form-wrap" class="admin-card is-hidden">
+          <h3 id="work-form-title">Новая разработка</h3>
+          <div class="admin-form-grid">
+            <div class="admin-field admin-field--wide">
+              <label for="wf-name">Название *</label>
+              <input id="wf-name" type="text" placeholder="Например: Словарные слова. Зима">
+            </div>
+            <div class="admin-field admin-field--wide">
+              <label for="wf-desc">Описание</label>
+              <textarea id="wf-desc" rows="2" placeholder="Коротко: что это и для кого"></textarea>
+            </div>
+            <div class="admin-field">
+              <label for="wf-meta">Подпись под карточкой</label>
+              <input id="wf-meta" type="text" placeholder="Русский язык · 2 класс · PDF">
+            </div>
+            <div class="admin-field">
+              <label for="wf-cat">Категория</label>
+              <select id="wf-cat">
+                <option>Наглядно-учебный материал к урокам</option>
+                <option>Оформление кабинета</option>
+                <option>Интерактивные игры</option>
+                <option>Полезные материалы</option>
+              </select>
+            </div>
+            <div class="admin-field">
+              <label for="wf-type">Бейдж на карточке</label>
+              <input id="wf-type" type="text" placeholder="ПРЕЗЕНТАЦИЯ К УРОКУ">
+            </div>
+            <div class="admin-field">
+              <label for="wf-price">Цена</label>
+              <input id="wf-price" type="text" value="Бесплатно" placeholder="Бесплатно или, например, 120 ₽">
+            </div>
+            <div class="admin-field admin-field--wide">
+              <span class="admin-field__label">Предметы (для плашек на главной)</span>
+              <div id="wf-subjects" class="admin-checks"></div>
+            </div>
+            <div class="admin-field">
+              <label for="wf-pdf">PDF-файл</label>
+              <input id="wf-pdf" type="file" accept="application/pdf">
+              <span id="wf-pdf-current" class="admin-hint"></span>
+            </div>
+            <div class="admin-field">
+              <label for="wf-cover">Обложка (JPG/PNG)</label>
+              <input id="wf-cover" type="file" accept="image/jpeg,image/png">
+              <img id="wf-cover-preview" class="admin-cover-preview is-hidden" alt="Предпросмотр обложки">
+            </div>
+          </div>
+          <div class="admin-row">
+            <button type="button" id="work-save-btn" class="btn btn--primary">Сохранить</button>
+            <button type="button" id="work-cancel-btn" class="btn btn--ghost">Отмена</button>
+            <span id="work-form-error" class="admin-error"></span>
+          </div>
+        </div>
+
+        <div id="works-admin-list" class="admin-list"></div>
+      </div>
+
+      <!-- Отзывы -->
+      <div id="tab-reviews" class="is-hidden">
+        <div class="admin-list-head">
+          <h2>Отзывы</h2>
+          <label class="btn btn--ghost admin-upload-label">+ Загрузить скриншоты
+            <input id="review-upload" type="file" accept="image/jpeg,image/png" multiple hidden>
+          </label>
+        </div>
+        <p class="admin-note">Скриншоты отзывов из мессенджеров. Появятся в разделе «Отзывы» на сайте.</p>
+        <div id="reviews-admin-list" class="admin-reviews-grid"></div>
+      </div>
+
+      <!-- Журнал публикации -->
+      <div id="publish-log" class="admin-log is-hidden"></div>
+    </section>
+  </main>
+
+  <script src="assets/js/admin.js"></script>
+</body>
+</html>
