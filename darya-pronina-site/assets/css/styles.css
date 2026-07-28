@@ -390,10 +390,15 @@ body.modal-open { overflow: hidden; }
 .admin-help code { background: var(--field); padding: 1px 5px; border-radius: 4px; }
 .admin-field { margin-top: 14px; display: flex; flex-direction: column; gap: 6px; }
 .admin-field label, .admin-field__label { font-size: 12px; font-weight: 700; letter-spacing: .04em; color: var(--soft); }
-.admin-field input[type="text"], .admin-field input[type="password"], .admin-field textarea, .admin-field select {
-  padding: 10px 12px; background: var(--field); border: 1px solid var(--line3);
-  border-radius: 9px; font-size: 14px; color: var(--ink);
+.admin-field input:not([type="file"]):not([type="checkbox"]),
+.admin-field textarea, .admin-field select {
+  width: 100%; padding: 10px 12px; background: var(--field); border: 1px solid var(--line3);
+  border-radius: 9px; font-size: 14px; color: var(--ink); font-family: inherit;
 }
+.admin-field input::placeholder, .admin-field textarea::placeholder { color: var(--textfaint); }
+/* Браузер не должен подсвечивать пустое поле как ошибочное */
+.admin-field input:invalid { box-shadow: none; }
+.admin-field input[type="file"] { font-size: 13px; color: var(--soft); }
 .admin-field input:focus, .admin-field textarea:focus, .admin-field select:focus { outline: 2px solid var(--red); outline-offset: 1px; }
 .admin-row { margin-top: 16px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .admin-status { font-size: 13px; color: var(--soft); }
