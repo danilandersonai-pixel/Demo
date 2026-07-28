@@ -322,7 +322,8 @@
   if (window.__SITE_DATA__) {
     initSite(window.__SITE_DATA__);
   } else {
-    fetch('data/site-data.json')
+    // no-store: браузер и CDN не должны показывать старый список после публикации из кабинета
+    fetch('data/site-data.json', { cache: 'no-store' })
       .then(function (r) { return r.json(); })
       .then(initSite)
       .catch(function () { initSite({ works: [], reviews: [] }); });
