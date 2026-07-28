@@ -145,6 +145,12 @@ mcp__github__list_pull_requests(owner, repo, state: "open", perPage: 10)
 {
   "owner": "danilandersonai-pixel",
   "generatedAt": "2026-07-28",
+  "current": {
+    "repo": "Demo",
+    "branch": "claude/github-repos-agent-qxj4zi",
+    "dirty": 0,
+    "note": "всё влито в главную ветку"
+  },
   "repos": [
     {
       "name": "Demo",
@@ -183,6 +189,15 @@ mcp__github__list_pull_requests(owner, repo, state: "open", perPage: 10)
   ]
 }
 ```
+
+Блок `current` — результат шага 0. Поле `dirty` — число несохранённых файлов,
+`note` — короткая приписка о состоянии ветки («отстаёт на 3 коммита», «всё влито
+в главную»). Если каталог не git-репозиторий, `current` не добавляй вовсе —
+шаблон это переживёт и просто не нарисует панель.
+
+Кроме того, у текущего репозитория ставь `"isCurrent": true`, и у текущей ветки
+внутри него — тоже `"isCurrent": true`. По этим двум флагам шаблон рисует
+отметки «вы здесь» в древе.
 
 Обязательные поля: `name`, `url`, `visibility`, `pushedAt`. Всё остальное
 шаблон переживёт без него — пустое дерево просто не отрисуется, отсутствующий
