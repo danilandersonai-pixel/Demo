@@ -3,186 +3,191 @@
 This file provides guidance to Claude Code (claude.ai/code) when working with
 code in this repository.
 
-## Что это
+## What this is
 
-Премиальный **статический** сайт-приглашение на свадьбу «Егор & Диана»
-(26.08.2026, Санкт-Петербург). Чистые HTML/CSS/JS — **без сборки, без npm,
-без бэкенда**. Весь сайт лежит в каталоге `yegor-diana-wedding/` и публикуется
-в корне GitHub Pages.
+A premium **static** wedding invitation site for "Yegor & Diana"
+(26.08.2026, Saint Petersburg). Plain HTML/CSS/JS — **no build step, no npm,
+no backend**. The whole site lives in `yegor-diana-wedding/` and is published
+at the root of GitHub Pages.
 
-> Историческая справка: репозиторий начинался как анализ продакшен-версии
-> сайта на WordPress (`https://yegor.diana.yarover.ru`). Тот анализ сохранён в
-> `yegor-diana-wedding/CLAUDE.md` как **референс** — текущий код к WordPress
-> отношения не имеет, это самостоятельный статический ребилд.
+> Background: the repository started out as an analysis of the production
+> WordPress version of the site (`https://yegor.diana.yarover.ru`). That
+> analysis is kept in `yegor-diana-wedding/CLAUDE.md` as a **reference** — the
+> current code has nothing to do with WordPress, it is an independent static
+> rebuild.
 
-Помимо сайта в репозитории живёт локальная инфраструктура Claude Code —
-каталог `.claude/` (скилл `repo-map` и allowlist разрешений). Это отдельный
-слой: правки сайта его не касаются и наоборот.
+Besides the site, the repository hosts local Claude Code infrastructure — the
+`.claude/` directory (the `repo-map` skill and a permissions allowlist). That
+is a separate layer: site changes don't touch it and vice versa.
 
-## Структура
+## Layout
 
 ```
 .
-├── CLAUDE.md                       — этот файл (актуальное руководство)
-├── .github/workflows/deploy-pages.yml  — деплой на GitHub Pages
-├── .claude/                        — инфраструктура Claude Code (не часть сайта)
-│   ├── settings.json               — allowlist read-only команд и MCP-вызовов
-│   └── skills/repo-map/            — скилл «карта репозиториев»
-│       ├── SKILL.md                — инструкция (frontmatter + сценарий)
-│       ├── README.md               — как пользоваться и ставить
-│       ├── install.sh              — однострочный установщик в другие репы
-│       ├── reference/collect.md    — как собирать данные (репы, ветки, PR)
-│       ├── reference/render.md     — как рендерить вывод
-│       └── assets/template.html    — HTML-шаблон карты
-└── yegor-diana-wedding/            — САМ САЙТ (публикуется в корень Pages)
-    ├── index.html                  — вся разметка, одна страница (~670 строк)
-    ├── favicon.svg                 — монограмма «Е&Д»
-    ├── README.md                   — превью, настройка RSVP, заметки по ассетам
-    ├── CLAUDE.md                   — референс-анализ исходного WP-сайта (НЕ трогать как код)
+├── CLAUDE.md                       — this file (the current guide)
+├── .github/workflows/deploy-pages.yml  — GitHub Pages deployment
+├── .claude/                        — Claude Code infrastructure (not part of the site)
+│   ├── settings.json               — allowlist of read-only commands and MCP calls
+│   └── skills/repo-map/            — the "repository map" skill
+│       ├── SKILL.md                — instructions (frontmatter + playbook)
+│       ├── README.md               — usage and installation
+│       ├── install.sh              — one-line installer for other repos
+│       ├── reference/collect.md    — how to collect data (repos, branches, PRs)
+│       ├── reference/render.md     — how to render the output
+│       └── assets/template.html    — HTML template for the map
+└── yegor-diana-wedding/            — THE SITE ITSELF (published at the Pages root)
+    ├── index.html                  — all markup, one page (~670 lines)
+    ├── favicon.svg                 — the "Е&Д" monogram
+    ├── README.md                   — preview, RSVP setup, notes on assets
+    ├── CLAUDE.md                   — reference analysis of the original WP site (do NOT treat as code)
     └── assets/
-        ├── css/styles.css          — дизайн-система, секции, анимации (~1990 строк)
-        └── js/main.js              — вся клиентская логика, один IIFE (~720 строк)
+        ├── css/styles.css          — design system, sections, animations (~1990 lines)
+        └── js/main.js              — all client logic, a single IIFE (~720 lines)
 ```
 
-## Команды
+## Commands
 
-Сборки/тестов нет. Рабочий цикл:
+There is no build and there are no tests. The working loop:
 
 ```bash
-# Локальное превью
+# Local preview
 cd yegor-diana-wedding && python3 -m http.server   # → http://localhost:8000
 
-# Проверка JS перед коммитом (обязательно)
+# Check the JS before committing (required)
 node --check yegor-diana-wedding/assets/js/main.js
 ```
 
-Никакого линтера/форматтера в репозитории нет — `node --check` это весь
-доступный автоматический контроль, остальное проверяется глазами в браузере.
+There is no linter or formatter in the repository — `node --check` is the only
+automated check available; everything else is verified by eye in a browser.
 
-## Деплой и ветки
+## Deployment and branches
 
-`.github/workflows/deploy-pages.yml` публикует папку `yegor-diana-wedding/`
-в корень GitHub Pages. Триггер — push **только** в ветку
-`claude/website-analysis-claude-md-kd3foj` (плюс ручной `workflow_dispatch`).
+`.github/workflows/deploy-pages.yml` publishes the `yegor-diana-wedding/`
+folder at the root of GitHub Pages. It is triggered by a push **only** to the
+`claude/website-analysis-claude-md-kd3foj` branch (plus manual
+`workflow_dispatch`).
 
-⚠️ Ветка по умолчанию у origin — `claude/create-claude-md-s7amj`, и она **не
-совпадает** с деплойной. Мерж в default-ветку сам по себе Pages не обновляет:
-чтобы выкатить изменения, нужен push в `claude/website-analysis-claude-md-kd3foj`
-либо ручной запуск workflow. Превью ветки/PR без Pages — через githack
-(raw.githack.com на `index.html`).
+⚠️ The default branch on origin is `claude/create-claude-md-s7amj`, which does
+**not** match the deploy branch. Merging into the default branch does not
+update Pages by itself: to ship changes you need a push to
+`claude/website-analysis-claude-md-kd3foj` or a manual workflow run. To preview
+a branch/PR without Pages, use githack (raw.githack.com pointed at
+`index.html`).
 
-Репозиторий используется как песочница: в origin висит два десятка
-несвязанных веток (`claude/pixel-rpg-…`, `claude/telegram-finance-bot-…` и
-т.п.). Ориентируйся только на свою рабочую ветку и на деплойную.
+The repository doubles as a sandbox: origin holds a couple dozen unrelated
+branches (`claude/pixel-rpg-…`, `claude/telegram-finance-bot-…`, and so on).
+Only your working branch and the deploy branch are relevant.
 
-## Архитектура
+## Architecture
 
-**`index.html`** — единственная страница. Порядок оверлеев по `z-index`:
-прелоадер (120) → интро-видео (100) → scroll-progress (95) → навигация (90).
-Секции с якорями по порядку: `#hero`, `#countdown`, `#gallery`, `#story`,
-`#program`, `#location`, `#details`, `#rsvp`, `#flowers`. В меню навигации
-выведены не все — только `#story`, `#program`, `#location`, `#details`,
-`#rsvp`, `#flowers`.
+**`index.html`** — a single page. Overlay stacking order by `z-index`:
+preloader (120) → intro video (100) → scroll progress (95) → navigation (90).
+Anchored sections in order: `#hero`, `#countdown`, `#gallery`, `#story`,
+`#program`, `#location`, `#details`, `#rsvp`, `#flowers`. Not all of them are
+in the nav menu — only `#story`, `#program`, `#location`, `#details`, `#rsvp`,
+`#flowers`.
 
-**`assets/js/main.js`** — один IIFE (`'use strict'`), ES5-стиль (`var`,
-`Array.prototype.slice.call`), без зависимостей. Над IIFE — единственная
-глобальная константа `RSVP_ENDPOINT` (строка 6). Внутри, первым делом, —
-`var reduceMotion` (флаг `prefers-reduced-motion`), от него ветвятся все
-анимации. Файл разбит комментарными блоками:
+**`assets/js/main.js`** — a single IIFE (`'use strict'`), ES5 style (`var`,
+`Array.prototype.slice.call`), no dependencies. Above the IIFE sits the only
+global constant, `RSVP_ENDPOINT` (line 6). Inside, the very first thing is
+`var reduceMotion` (the `prefers-reduced-motion` flag) — every animation
+branches off it. The file is divided by comment blocks:
 
-| Блок | Что делает |
+| Block | What it does |
 | --- | --- |
-| `0a` | Имена Hero: разбивка на span'ы + стаггер-проявление |
-| `0`  | Прелоадер (скрывается по `load`) |
-| `1`  | Интро-видео: Play / Skip / `ended` → fade |
-| `2`  | Навигация: фон, мобильное меню, плавный скролл, активный пункт, scroll-progress |
-| `3`  | Scroll-reveal через IntersectionObserver (`.reveal` + `.anim-draw`) |
-| `4`  | Parallax hero/галереи через rAF |
-| `5`  | Обратный отсчёт до 26.08.2026 10:00 + count-up |
-| `6`  | «Добавить в календарь»: `.ics` через Blob |
-| `7`  | Лайтбокс: галерея + Love Story (←/→/Esc, фокус-ловушка, aria) |
-| `8`  | Форма RSVP: валидация, honeypot, Formspree или демо-режим |
+| `0a` | Hero names: split into spans + staggered reveal |
+| `0`  | Preloader (hidden on `load`) |
+| `1`  | Intro video: Play / Skip / `ended` → fade |
+| `2`  | Navigation: background, mobile menu, smooth scroll, active item, scroll progress |
+| `3`  | Scroll reveal via IntersectionObserver (`.reveal` + `.anim-draw`) |
+| `4`  | Hero/gallery parallax via rAF |
+| `5`  | Countdown to 26.08.2026 10:00 + count-up |
+| `6`  | "Add to calendar": `.ics` via Blob |
+| `7`  | Lightbox: gallery + Love Story (←/→/Esc, focus trap, aria) |
+| `8`  | RSVP form: validation, honeypot, Formspree or demo mode |
 
-**`assets/css/styles.css`** — пронумерованные секции с баннерами
-`/* ===== N. … ===== */`: `:root` и база (до 284) → 1 интро-видео → 2 навигация
-→ 3 hero → 4 countdown → 5 галерея → 6 программа → 7 детали → 8 RSVP →
-9 цветы → 10 футер → 11 прелоадер → 12 флораль-разделители → 13 кнопки
-календаря → 14 Love Story → 15 карты → 16 лайтбокс → 17 адаптив новых блоков
-→ **18 анимации** → **19 reduced-motion-сбросы** (всегда в конце файла).
-Дизайн-система — CSS-переменные в `:root` (винно-бордовый / кремовый / золото,
-единый easing `--fast`).
+**`assets/css/styles.css`** — numbered sections marked by
+`/* ===== N. … ===== */` banners: `:root` and base styles (through line 284) →
+1 intro video → 2 navigation → 3 hero → 4 countdown → 5 gallery → 6 program →
+7 details → 8 RSVP → 9 flowers → 10 footer → 11 preloader → 12 floral dividers
+→ 13 calendar buttons → 14 Love Story → 15 maps → 16 lightbox → 17 responsive
+rules for the newer blocks → **18 animations** → **19 reduced-motion resets**
+(always at the end of the file). The design system lives in `:root` CSS
+variables (wine-burgundy / cream / gold, a single `--fast` easing).
 
-## Анимационная механика (важно при правках)
+## Animation machinery (important when making changes)
 
-Это «несущая конструкция» — новые эффекты вешай на неё, не дублируй:
+This is the load-bearing structure — hang new effects on it, don't duplicate it:
 
-- **`.reveal` + IntersectionObserver** — fade + подъём + blur, стаггер через
-  `--reveal-delay` (`(index % 4) * 0.08s`); ставит `.is-visible` и снимает
-  наблюдение (`threshold: 0.12`, `rootMargin: 0px 0px -8% 0px`). Модификаторы
-  `.reveal--left/--right` дают горизонтальный въезд. Конечное состояние ВСЕГДА
-  сохраняет `rotate(var(--tilt,0deg))`.
-- **`[data-parallax]`** — пишет `transform` ПРЯМО на узел через rAF (значение
-  атрибута — коэффициент, ±0.03…0.06). ⚠️ Не вешай свои transform-анимации
-  (Ken Burns, scaleX, пульс) на parallax-узлы — их затрёт. Используй
-  внутренние `img`/обёртки/отдельные элементы.
-- **`.anim-draw`** — «прорисовка» разделителей (линии `scaleX`, SVG
-  `stroke-dashoffset`); наблюдается тем же reveal-обсервером.
-- **`.photo-mask`** — обёртка фото: шторка `clip-path` на обёртке + Ken Burns
-  `scale` на внутреннем `img`.
-- **count-up таймера** — гейтируется флагом `countdownStarted`; ровно один
-  `setInterval`. Расчёт остатка — общий `getRemaining()`, не дублировать.
-- **`--fast`** — единый easing для всех переходов/анимаций.
-- При `reduceMotion` (или отсутствии `IntersectionObserver`) все `.reveal`
-  и `.anim-draw` сразу получают `.is-visible`, parallax не запускается,
-  `scrollIntoView` переключается на `behavior: 'auto'`.
+- **`.reveal` + IntersectionObserver** — fade + rise + blur, staggered via
+  `--reveal-delay` (`(index % 4) * 0.08s`); adds `.is-visible` and unobserves
+  (`threshold: 0.12`, `rootMargin: 0px 0px -8% 0px`). The `.reveal--left/--right`
+  modifiers produce a horizontal entrance. The final state ALWAYS preserves
+  `rotate(var(--tilt,0deg))`.
+- **`[data-parallax]`** — writes `transform` DIRECTLY on the node via rAF (the
+  attribute value is the coefficient, ±0.03…0.06). ⚠️ Don't attach your own
+  transform animations (Ken Burns, scaleX, pulse) to parallax nodes — they will
+  be overwritten. Use inner `img` elements, wrappers, or separate elements.
+- **`.anim-draw`** — "drawing in" the dividers (lines via `scaleX`, SVG via
+  `stroke-dashoffset`); observed by the same reveal observer.
+- **`.photo-mask`** — a photo wrapper: a `clip-path` curtain on the wrapper plus
+  a Ken Burns `scale` on the inner `img`.
+- **countdown count-up** — gated by the `countdownStarted` flag; exactly one
+  `setInterval`. The remaining time is computed by the shared `getRemaining()`
+  — do not duplicate it.
+- **`--fast`** — the single easing used by every transition and animation.
+- Under `reduceMotion` (or when `IntersectionObserver` is missing) every
+  `.reveal` and `.anim-draw` gets `.is-visible` immediately, parallax never
+  starts, and `scrollIntoView` switches to `behavior: 'auto'`.
 
-## Соглашения и ограничения
+## Conventions and constraints
 
-- Любая новая анимация ОБЯЗАНА быть выключена/мгновенна в
-  `@media (prefers-reduced-motion: reduce)` (CSS — секция 19; JS — ветки по
-  флагу `reduceMotion`). Это требование, а не пожелание.
-- Никаких внешних JS-библиотек и шагов сборки. CSS → `styles.css`,
-  JS → `main.js`, разметка → `index.html`. (Исключения — не-JS: шрифты
-  Google Fonts с `display=swap` и iframe Яндекс.Карт.)
-- Стиль JS — ES5 внутри IIFE: `var`, функции-объявления, без стрелок и
-  шаблонных строк. Держись этого при правках, чтобы файл читался однородно.
-- Цвета и easing — только из CSS-переменных дизайн-системы; не вводить хардкод
-  вне палитры.
-- Язык контента — русский, `lang="ru-RU"`, кодировка UTF-8. Сохранять
-  доступность (aria) при изменении структуры (особенно имена Hero).
-- Интро-видео — оставлять `muted` + `playsinline` (автоплей на мобильных),
-  держать оба источника (`.mp4`/`.m4v`) и постер.
-- Лайтбокс берёт изображения по селектору `.gallery__card img, .story__photo
-  img` и читает `currentSrc||src` — не ломать этот селектор при правках фото.
-- Часть ассетов (фото, видео, дресс-код, QR) грузится с живого WP-домена
-  `yegor.diana.yarover.ru`. У каждого `<img>` есть
-  `onerror="this.classList.add('img-failed')"` → CSS-плейсхолдер; у видео —
-  постер. Новые внешние картинки добавлять с тем же хуком.
-- Карты — iframe `yandex.ru/map-widget/v1/?text=…&z=16`, `loading="lazy"`,
-  без API-ключа. `.ics` содержит время в UTC (`20260826T070000Z`–
-  `20260826T200000Z` = 10:00–23:00 МСК).
-- **`CLAUDE.md` не редактировать как код** в задачах по сайту: корневой — это
-  руководство, вложенный — справочный анализ. Исключение — задача, прямо
-  посвящённая документации.
+- Every new animation MUST be disabled or made instant under
+  `@media (prefers-reduced-motion: reduce)` (CSS — section 19; JS — branches on
+  the `reduceMotion` flag). This is a requirement, not a suggestion.
+- No external JS libraries and no build steps. CSS → `styles.css`,
+  JS → `main.js`, markup → `index.html`. (The exceptions are non-JS: Google
+  Fonts with `display=swap` and the Yandex Maps iframe.)
+- JS style is ES5 inside the IIFE: `var`, function declarations, no arrow
+  functions or template literals. Stick to it so the file stays uniform.
+- Colors and easing come only from the design-system CSS variables; don't
+  hardcode anything outside the palette.
+- Content language is Russian, `lang="ru-RU"`, UTF-8. Preserve accessibility
+  (aria) when changing the structure — especially the Hero names.
+- The intro video must keep `muted` + `playsinline` (mobile autoplay) and keep
+  both sources (`.mp4`/`.m4v`) plus the poster.
+- The lightbox picks up images via the `.gallery__card img, .story__photo img`
+  selector and reads `currentSrc||src` — don't break that selector when editing
+  photos.
+- Some assets (photos, video, dress code, QR) load from the live WordPress
+  domain `yegor.diana.yarover.ru`. Every `<img>` carries
+  `onerror="this.classList.add('img-failed')"` → CSS placeholder; the video has
+  a poster. Add new external images with the same hook.
+- Maps are a `yandex.ru/map-widget/v1/?text=…&z=16` iframe with
+  `loading="lazy"`, no API key. The `.ics` file stores times in UTC
+  (`20260826T070000Z`–`20260826T200000Z` = 10:00–23:00 MSK).
+- **Don't edit `CLAUDE.md` as code** in site-related tasks: the root one is the
+  guide, the nested one is reference analysis. The exception is a task that is
+  explicitly about documentation.
 
-## Настройка RSVP
+## RSVP setup
 
-По умолчанию форма в демо-режиме: `RSVP_ENDPOINT` содержит плейсхолдер
-`YOUR_FORM_ID`, и `main.js` по подстроке `YOUR_FORM_ID` уходит в ветку
-«показать спасибо, ничего не отправлять». Чтобы включить отправку — вставить
-реальный Formspree endpoint в `RSVP_ENDPOINT` (`main.js`, строка 6). Подробно
-и про альтернативу с Telegram (и почему она хуже для публичного сайта) — в
-`yegor-diana-wedding/README.md`. Honeypot-поле `website` сохранять как
-антиспам: если оно заполнено, submit тихо прерывается.
+By default the form is in demo mode: `RSVP_ENDPOINT` holds the `YOUR_FORM_ID`
+placeholder, and `main.js` matches on the `YOUR_FORM_ID` substring to take the
+"show a thank-you, send nothing" branch. To enable submission, put a real
+Formspree endpoint in `RSVP_ENDPOINT` (`main.js`, line 6). Details — and the
+Telegram alternative, including why it is worse for a public site — are in
+`yegor-diana-wedding/README.md`. Keep the `website` honeypot field as spam
+protection: if it is filled in, submit aborts silently.
 
-## Скилл `repo-map`
+## The `repo-map` skill
 
-`.claude/skills/repo-map/` — самостоятельный скилл, к сайту отношения не
-имеет. Отвечает на «где я сейчас / что у меня в GitHub»: собирает репозитории,
-ветки, открытые PR и деревья файлов, выдаёт срез в чат **и** интерактивную
-HTML-страницу из `assets/template.html`. Логика разнесена: `SKILL.md` —
-сценарий, `reference/collect.md` — сбор данных, `reference/render.md` — вывод.
-`install.sh` ставит скилл в другие репозитории. Read-only вызовы, которые ему
-нужны (`git status/log/branch/…`, `mcp__github__*`, `list_repos`), уже
-разрешены в `.claude/settings.json` — при правках скилла держи этот allowlist
-в актуальном состоянии.
+`.claude/skills/repo-map/` is a self-contained skill unrelated to the site. It
+answers "where am I / what's in my GitHub": it collects repositories, branches,
+open PRs, and file trees, then emits a summary into the chat **and** an
+interactive HTML page built from `assets/template.html`. The logic is split
+up: `SKILL.md` is the playbook, `reference/collect.md` covers data collection,
+`reference/render.md` covers output. `install.sh` installs the skill into other
+repositories. The read-only calls it needs (`git status/log/branch/…`,
+`mcp__github__*`, `list_repos`) are already permitted in
+`.claude/settings.json` — keep that allowlist current when editing the skill.
