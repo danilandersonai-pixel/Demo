@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="ru-RU">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Вход — Дарья Сергеевна</title>
+  <meta name="robots" content="noindex">
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;0,600;0,700;1,400;1,600&family=Golos+Text:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/css/styles.css">
+  <script>
+    (function () {
+      try {
+        var t = localStorage.getItem('daria-theme');
+        if (t === 'dark') document.documentElement.setAttribute('data-th', 'dark');
+      } catch (e) {}
+    })();
+  </script>
+</head>
+<body data-tex="on">
+
+  <header class="site-header">
+    <div class="container header-inner">
+      <a href="index.html" class="logo">
+        <span class="logo-mark" aria-hidden="true">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2.5 7.5 L5.5 10.5 L11.5 3.5" stroke="var(--red)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+        </span>
+        <span class="logo-name">Дарья Сергеевна</span>
+      </a>
+      <nav class="nav">
+        <a href="index.html" class="nav__link">← На сайт</a>
+        <button type="button" class="theme-toggle" id="theme-toggle" aria-label="Сменить тему">
+          <svg class="icon-moon" width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M20 13.5 A8.5 8.5 0 1 1 10.5 4 A7 7 0 0 0 20 13.5 Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"></path></svg>
+          <svg class="icon-sun" width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="4.2" stroke="currentColor" stroke-width="1.8"></circle><path d="M12 3v2.4M12 18.6V21M3 12h2.4M18.6 12H21M5.6 5.6l1.7 1.7M16.7 16.7l1.7 1.7M18.4 5.6l-1.7 1.7M7.3 16.7l-1.7 1.7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path></svg>
+        </button>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container admin-main">
+    <section class="admin-card admin-login">
+      <div class="kicker">КАБИНЕТ УЧИТЕЛЯ</div>
+      <h2>Вход</h2>
+      <p class="admin-note">Введите почту и пароль, чтобы управлять разработками и отзывами на сайте.</p>
+      <form id="login-form">
+        <div class="admin-field">
+          <label for="email-input">Почта</label>
+          <input id="email-input" type="email" autocomplete="username" placeholder="you@example.com" required>
+        </div>
+        <div class="admin-field">
+          <label for="password-input">Пароль</label>
+          <input id="password-input" type="password" autocomplete="current-password" placeholder="••••••••" required>
+        </div>
+        <label class="admin-check admin-remember">
+          <input id="remember-input" type="checkbox"> Оставаться в системе на этом устройстве
+        </label>
+        <div class="admin-row">
+          <button type="submit" id="login-btn" class="btn btn--primary">Войти</button>
+          <span id="login-status" class="admin-error" role="alert"></span>
+        </div>
+      </form>
+    </section>
+
+    <!-- Генератор доступа (служебный, открывается по login.html?setup) -->
+    <section id="setup-card" class="admin-card admin-login is-hidden">
+      <h3>Служебный генератор доступа</h3>
+      <p class="admin-note">Создаёт содержимое <code>data/auth.json</code>: ключ GitHub шифруется паролем учителя. Всё происходит в браузере, никуда не отправляется.</p>
+      <div class="admin-field"><label for="su-email">Почта учителя</label><input id="su-email" type="email"></div>
+      <div class="admin-field"><label for="su-pass">Пароль учителя</label><input id="su-pass" type="text"></div>
+      <div class="admin-field"><label for="su-token">GitHub-токен (Contents RW)</label><input id="su-token" type="text" placeholder="github_pat_…"></div>
+      <div class="admin-row"><button type="button" id="su-btn" class="btn btn--ghost">Сгенерировать</button></div>
+      <div class="admin-field"><label for="su-out">Содержимое auth.json</label><textarea id="su-out" rows="8" readonly></textarea></div>
+    </section>
+  </main>
+
+  <script src="assets/js/login.js"></script>
+</body>
+</html>

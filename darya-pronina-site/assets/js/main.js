@@ -33,18 +33,28 @@
     return node;
   }
 
+  /* Ссылки берутся из данных сайта — разрешаем только относительные пути и http(s),
+     иначе javascript:/data: URL исполнился бы на нашем origin. */
+  function safeUrl(u) {
+    u = String(u || '').trim();
+    if (!u) return '';
+    if (/^[a-z][a-z0-9+.-]*:/i.test(u) && !/^https?:/i.test(u)) return '';
+    return u;
+  }
+
   /* ---------- Рендер карточек разработок ---------- */
   function renderWorks(works) {
     var grid = document.getElementById('works-grid');
     if (!grid) return;
     grid.innerHTML = '';
     works.forEach(function (w) {
-      var isProduct = !!w.pdf;
+      var pdf = safeUrl(w.pdf);
+      var isProduct = !!pdf;
       var card = el('article', isProduct ? 'work-card work-card--product' : 'work-card');
       card.setAttribute('data-cat', w.cat || '');
       if (w.subjects && w.subjects.length) card.setAttribute('data-subject', w.subjects.join(','));
       if (isProduct) {
-        card.setAttribute('data-pdf', w.pdf);
+        card.setAttribute('data-pdf', pdf);
         card.setAttribute('data-price', w.price || 'Бесплатно');
         card.setAttribute('tabindex', '0');
         card.setAttribute('role', 'button');
@@ -52,9 +62,10 @@
       }
 
       var media = el('div', 'work-card__media');
-      if (w.cover) {
+      var cover = safeUrl(w.cover);
+      if (cover) {
         var img = el('img');
-        img.src = w.cover;
+        img.src = cover;
         img.alt = 'Обложка: ' + (w.name || '');
         img.loading = 'lazy';
         media.appendChild(img);
@@ -99,7 +110,7 @@
     reviews.forEach(function (r, i) {
       var card = el('div', 'review-card review-card--' + REVIEW_ROTATIONS[i % 6]);
       var img = el('img', 'review-card__img');
-      img.src = r.image;
+      img.src = safeUrl(r.image);
       img.alt = r.alt || 'Скриншот отзыва';
       img.loading = 'lazy';
       card.appendChild(img);
@@ -229,13 +240,44 @@
       var meta = card.querySelector('.work-card__meta');
       var badges = card.querySelector('.work-card__badges');
 
-      if (modalImg && img) { modalImg.src = img.currentSrc || img.src; modalImg.alt = img.alt || ''; }
+      if (modalImg) {
+        // Чистим прежнюю обложку, иначе у товара без картинки останется чужая
+        if (img) {
+          modalImg.src = img.currentSrc || img.src;
+          modalImg.alt = img.alt || '';
+          modalImg.classList.remove('is-hidden');
+        } else {
+          modalImg.removeAttribute('src');
+          modalImg.alt = '';
+          modalImg.classList.add('is-hidden');
+        }
+      }
       if (modalTitle) modalTitle.textContent = name ? name.textContent : '';
       if (modalDesc) modalDesc.textContent = desc ? desc.textContent : '';
       if (modalMeta) modalMeta.textContent = meta ? meta.textContent : '';
-      if (modalBadges && badges) modalBadges.innerHTML = badges.innerHTML;
-      if (modalPrice) modalPrice.textContent = card.getAttribute('data-price') || 'Бесплатно';
-      if (modalDownload) modalDownload.href = card.getAttribute('data-pdf') || '#';
+      if (modalBadges) {
+        modalBadges.innerHTML = '';
+        if (badges) {
+          Array.prototype.forEach.call(badges.children, function (b) {
+            modalBadges.appendChild(b.cloneNode(true));
+          });
+        }
+      }
+
+      var price = card.getAttribute('data-price') || 'Бесплатно';
+      var free = price.trim().toLowerCase() === 'бесплатно';
+      if (modalPrice) modalPrice.textContent = price;
+      if (modalDownload) {
+        if (free) {
+          modalDownload.textContent = 'Скачать PDF';
+          modalDownload.href = safeUrl(card.getAttribute('data-pdf')) || '#';
+          modalDownload.removeAttribute('aria-disabled');
+        } else {
+          // Платный материал не отдаём прямой ссылкой — ведём на связь с автором
+          modalDownload.textContent = 'Как получить →';
+          modalDownload.href = 'https://vk.ru/club237183078';
+        }
+      }
 
       lastFocused = document.activeElement;
       modal.classList.remove('is-hidden');

@@ -40,6 +40,7 @@
 }
 
 * { box-sizing: border-box; }
+.is-hidden { display: none !important; }
 html { scroll-behavior: smooth; scroll-padding-top: 86px; }
 html, body { margin: 0; padding: 0; }
 body {
@@ -440,6 +441,14 @@ body.modal-open { overflow: hidden; }
   font-size: 13px; line-height: 1.7; max-height: 220px; overflow: auto;
 }
 .admin-log__line--err { color: var(--red); font-weight: 600; }
+.admin-demo {
+  margin-bottom: 18px; padding: 10px 14px;
+  background: var(--ambtint); border: 1px solid var(--ambbrd); border-radius: 10px;
+  font-size: 13px; font-weight: 600; color: var(--ambtxt);
+}
+.admin-demo.is-hidden { display: none; }
+.admin-remember { margin-top: 14px; display: flex; }
+#setup-card textarea { font-family: monospace; font-size: 12px; }
 
 /* ===== 9. Анимации / reduced motion ===== */
 @keyframes fadeUp {

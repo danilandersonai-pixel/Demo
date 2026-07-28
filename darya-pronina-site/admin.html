@@ -18,6 +18,14 @@
       } catch (e) {}
     })();
   </script>
+  <script>
+    (function () {
+      try {
+        var t = sessionStorage.getItem('daria-admin-session') || localStorage.getItem('daria-admin-session');
+        if (!t) location.replace('login.html');
+      } catch (e) { location.replace('login.html'); }
+    })();
+  </script>
 </head>
 <body data-tex="on">
 
@@ -30,7 +38,7 @@
         <span class="logo-name">Дарья Сергеевна · Кабинет</span>
       </a>
       <nav class="nav">
-        <a href="index.html" class="nav__link">← На сайт</a>
+        <a href="index.html" class="nav__link" id="to-site-link">← На сайт</a>
         <button type="button" class="theme-toggle" id="theme-toggle" aria-label="Сменить тему">
           <svg class="icon-moon" width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M20 13.5 A8.5 8.5 0 1 1 10.5 4 A7 7 0 0 0 20 13.5 Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"></path></svg>
           <svg class="icon-sun" width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="4.2" stroke="currentColor" stroke-width="1.8"></circle><path d="M12 3v2.4M12 18.6V21M3 12h2.4M18.6 12H21M5.6 5.6l1.7 1.7M16.7 16.7l1.7 1.7M18.4 5.6l-1.7 1.7M7.3 16.7l-1.7 1.7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path></svg>
@@ -41,33 +49,9 @@
 
   <main class="container admin-main">
 
-    <!-- Вход -->
-    <section id="admin-login" class="admin-card admin-login">
-      <div class="kicker">КАБИНЕТ УЧИТЕЛЯ</div>
-      <h2>Вход для учителя</h2>
-      <p class="admin-note">Здесь вы добавляете разработки и отзывы — они публикуются на сайте автоматически. Для входа нужен ключ доступа (GitHub-токен). Он сохраняется только в этом браузере и никуда больше не передаётся.</p>
-      <details class="admin-help">
-        <summary>Как получить ключ доступа (один раз, ~2 минуты)</summary>
-        <ol>
-          <li>Войдите на github.com в аккаунт, у которого есть доступ к репозиторию сайта.</li>
-          <li>Откройте <strong>Settings → Developer settings → Fine-grained personal access tokens → Generate new token</strong>.</li>
-          <li>Repository access: <strong>Only select repositories</strong> → выберите репозиторий сайта.</li>
-          <li>Permissions → Repository permissions → <strong>Contents: Read and write</strong>.</li>
-          <li>Нажмите Generate и скопируйте ключ (начинается с <code>github_pat_</code>).</li>
-        </ol>
-      </details>
-      <div class="admin-field">
-        <label for="token-input">Ключ доступа</label>
-        <input id="token-input" type="password" autocomplete="off" placeholder="github_pat_…">
-      </div>
-      <div class="admin-row">
-        <button type="button" id="login-btn" class="btn btn--primary">Войти</button>
-        <span id="login-status" class="admin-status"></span>
-      </div>
-    </section>
-
     <!-- Панель -->
-    <section id="admin-panel" class="is-hidden">
+    <section id="admin-panel">
+      <div id="demo-banner" class="admin-demo is-hidden">Демо-режим: публикация на сайт отключена, изменения не сохранятся. Реальный доступ появится после настройки данных учителя.</div>
       <div class="admin-toolbar">
         <div class="chips">
           <button type="button" class="chip is-active" data-tab="works">Разработки</button>
