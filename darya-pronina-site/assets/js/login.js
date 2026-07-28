@@ -52,7 +52,6 @@
       var status = document.getElementById('login-status');
       var email = document.getElementById('email-input').value.trim().toLowerCase();
       var password = document.getElementById('password-input').value;
-      var remember = document.getElementById('remember-input').checked;
       var btn = document.getElementById('login-btn');
       status.textContent = '';
       btn.disabled = true;
@@ -79,8 +78,8 @@
         .then(function (plainBuf) {
           var token = new TextDecoder().decode(plainBuf);
           try {
-            (remember ? localStorage : sessionStorage).setItem(SESSION_KEY, token);
-            (remember ? sessionStorage : localStorage).removeItem(SESSION_KEY);
+            localStorage.setItem(SESSION_KEY, token); // вход запоминается на этом устройстве
+            sessionStorage.removeItem(SESSION_KEY);
           } catch (e) {}
           location.replace('admin.html');
         })

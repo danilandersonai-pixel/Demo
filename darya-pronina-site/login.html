@@ -41,21 +41,16 @@
 
   <main class="container admin-main">
     <section class="admin-card admin-login">
-      <div class="kicker">КАБИНЕТ УЧИТЕЛЯ</div>
       <h2>Вход</h2>
-      <p class="admin-note">Введите почту и пароль, чтобы управлять разработками и отзывами на сайте.</p>
       <form id="login-form">
         <div class="admin-field">
           <label for="email-input">Почта</label>
-          <input id="email-input" type="email" autocomplete="username" placeholder="you@example.com" required>
+          <input id="email-input" type="email" autocomplete="username" required>
         </div>
         <div class="admin-field">
           <label for="password-input">Пароль</label>
-          <input id="password-input" type="password" autocomplete="current-password" placeholder="••••••••" required>
+          <input id="password-input" type="password" autocomplete="current-password" required>
         </div>
-        <label class="admin-check admin-remember">
-          <input id="remember-input" type="checkbox"> Оставаться в системе на этом устройстве
-        </label>
         <div class="admin-row">
           <button type="submit" id="login-btn" class="btn btn--primary">Войти</button>
           <span id="login-status" class="admin-error" role="alert"></span>
