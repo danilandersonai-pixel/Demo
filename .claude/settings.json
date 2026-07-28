@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "permissions": {
+    "allow": [
+      "Bash(git status:*)",
+      "Bash(git rev-parse:*)",
+      "Bash(git rev-list:*)",
+      "Bash(git branch:*)",
+      "Bash(git log:*)",
+      "Bash(git fetch:*)",
+      "mcp__github__get_me",
+      "mcp__github__get_file_contents",
+      "mcp__github__list_branches",
+      "mcp__github__list_pull_requests",
+      "mcp__github__list_commits",
+      "mcp__claude-code-remote__list_repos",
+      "mcp__bf7c680d-5fdc-5ef4-b4a0-abadb619bf0a__list_repos"
+    ]
+  }
+}
