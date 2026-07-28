@@ -10,7 +10,8 @@
     prefix: 'darya-pronina-site/',
     dataPath: 'data/site-data.json'
   };
-  var SESSION_KEY = 'daria-admin-session';
+  var AUTH_KEY = 'daria-admin-auth';    // отметка «вход выполнен» (ставит login.html)
+  var TOKEN_KEY = 'daria-admin-token';  // ключ GitHub — только в этом браузере
   var THEME_KEY = 'daria-theme';
   var SUBJECTS = ['Русский язык', 'Математика', 'Окружающий мир', 'Литературное чтение',
     'Скорочтение', 'Английский язык', 'Праздники и мероприятия'];
@@ -160,25 +161,22 @@
     });
   }
 
-  /* ---------- Сессия и загрузка данных ---------- */
-  function getSessionToken() {
-    try {
-      return sessionStorage.getItem(SESSION_KEY) || localStorage.getItem(SESSION_KEY);
-    } catch (e) { return null; }
+  /* ---------- Вход, ключ доступа и загрузка данных ---------- */
+  function isLoggedIn() {
+    try { return !!localStorage.getItem(AUTH_KEY); } catch (e) { return false; }
+  }
+
+  function readToken() {
+    try { return localStorage.getItem(TOKEN_KEY); } catch (e) { return null; }
   }
 
   function toLogin() {
     state.leaving = true;
-    try {
-      sessionStorage.removeItem(SESSION_KEY);
-      localStorage.removeItem(SESSION_KEY);
-    } catch (e) {}
+    try { localStorage.removeItem(AUTH_KEY); } catch (e) {}
     location.replace('login.html');
   }
 
-  function isDemo() {
-    return !!state.token && state.token.indexOf('github_pat_PLACEHOLDER') === 0;
-  }
+  function hasKey() { return !!state.token; }
 
   function normalizeData() {
     if (!state.data.works) state.data.works = [];
@@ -208,42 +206,97 @@
       });
   }
 
-  function init() {
-    state.token = getSessionToken();
-    if (!state.token) { toLogin(); return; }
+  /* Экран ввода ключа: показывается, пока ключа нет на этом устройстве */
+  function showKeyCard(show) {
+    $('key-card').classList.toggle('is-hidden', !show);
+    $('admin-panel').classList.toggle('is-hidden', show);
+  }
 
-    var ready;
-    if (isDemo()) {
-      $('demo-banner').classList.remove('is-hidden');
-      $('publish-btn').disabled = true;
-      $('publish-btn').title = 'В демо-режиме публикация отключена';
-      ready = loadDataLocal();
-    } else {
-      ready = gh('/repos/' + CFG.owner + '/' + CFG.repo)
-        .then(function (r) {
-          if (r.status === 401 || r.status === 403) throw new Error('SESSION_INVALID');
-          if (!r.ok) throw new Error('Нет доступа к репозиторию (' + r.status + ')');
-          return loadDataApi();
-        });
-    }
+  function startPanel() {
+    showKeyCard(false);
+    var noKey = !hasKey();
+    $('demo-banner').classList.toggle('is-hidden', !noKey);
+    $('publish-btn').disabled = noKey;
+    $('publish-btn').title = noKey ? 'Сначала введите ключ доступа' : '';
+    $('forget-key-btn').classList.toggle('is-hidden', noKey);
 
-    ready
+    var ready = hasKey()
+      ? gh('/repos/' + CFG.owner + '/' + CFG.repo)
+          .then(function (r) {
+            if (r.status === 401 || r.status === 403) throw new Error('KEY_INVALID');
+            if (!r.ok) throw new Error('Нет доступа к репозиторию (' + r.status + ')');
+            return loadDataApi();
+          })
+      : loadDataLocal();
+
+    return ready
       .then(function () {
         renderWorksList();
         renderReviewsList();
       })
       .catch(function (err) {
-        if (err && err.message === 'SESSION_INVALID') {
-          alert('Доступ устарел — войдите заново.');
-          toLogin();
+        if (err && err.message === 'KEY_INVALID') {
+          try { localStorage.removeItem(TOKEN_KEY); } catch (e) {}
+          state.token = null;
+          $('key-status').textContent = 'Ключ больше не действует — введите новый.';
+          showKeyCard(true);
           return;
         }
-        // Данные не загрузились (например, нет сети) — пробуем локальную копию
-        loadDataLocal()
+        // Данные не загрузились (например, нет сети) — показываем локальную копию
+        return loadDataLocal()
           .then(function () { renderWorksList(); renderReviewsList(); })
           .catch(function () { alert('Не удалось загрузить данные сайта: ' + (err.message || err)); });
       });
   }
+
+  function init() {
+    if (!isLoggedIn()) { toLogin(); return; }
+    state.token = readToken();
+    if (state.token) startPanel();
+    else showKeyCard(true);  // первый вход на этом устройстве
+  }
+
+  $('key-save-btn').addEventListener('click', function () {
+    var key = $('key-input').value.trim();
+    var status = $('key-status');
+    if (!key) { status.textContent = 'Вставьте ключ'; return; }
+    var btn = this;
+    btn.disabled = true;
+    status.textContent = 'Проверяю ключ…';
+    state.token = key;
+    gh('/repos/' + CFG.owner + '/' + CFG.repo)
+      .then(function (r) {
+        if (r.status === 401) throw new Error('Ключ не подошёл');
+        if (r.status === 403) throw new Error('У ключа нет прав на этот репозиторий');
+        if (!r.ok) throw new Error('Ошибка проверки (' + r.status + ')');
+        try { localStorage.setItem(TOKEN_KEY, key); } catch (e) {}
+        $('key-input').value = '';
+        status.textContent = '';
+        return startPanel();
+      })
+      .catch(function (err) {
+        state.token = readToken();
+        status.textContent = String(err.message || err);
+      })
+      .then(function () { btn.disabled = false; });
+  });
+
+  $('key-skip-btn').addEventListener('click', function () {
+    state.token = readToken();
+    startPanel();
+  });
+
+  $('add-key-btn').addEventListener('click', function () {
+    $('key-status').textContent = '';
+    showKeyCard(true);
+  });
+
+  $('forget-key-btn').addEventListener('click', function () {
+    if (!confirm('Удалить ключ доступа из этого браузера? Публиковать с этого устройства станет нельзя, пока не введёте его снова.')) return;
+    try { localStorage.removeItem(TOKEN_KEY); } catch (e) {}
+    state.token = null;
+    startPanel();
+  });
 
   $('logout-btn').addEventListener('click', function () {
     if (!confirmLeave('Есть неопубликованные изменения — они будут потеряны. Выйти?')) return;
@@ -527,7 +580,7 @@
   }
 
   $('publish-btn').addEventListener('click', function () {
-    if (isDemo()) { log('Демо-режим: публикация отключена.', true); return; }
+    if (!hasKey()) { log('Сначала введите ключ доступа — кнопка «Ввести ключ» вверху.', true); return; }
     if (state.publishing) return;
     if (!state.dirty) { log('Изменений нет — публиковать нечего.'); return; }
     var btn = this;

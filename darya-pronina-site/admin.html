@@ -21,8 +21,7 @@
   <script>
     (function () {
       try {
-        var t = sessionStorage.getItem('daria-admin-session') || localStorage.getItem('daria-admin-session');
-        if (!t) location.replace('login.html');
+        if (!localStorage.getItem('daria-admin-auth')) location.replace('login.html');
       } catch (e) { location.replace('login.html'); }
     })();
   </script>
@@ -49,9 +48,33 @@
 
   <main class="container admin-main">
 
+    <!-- Ключ доступа: запрашивается один раз на устройстве -->
+    <section id="key-card" class="admin-card admin-login is-hidden">
+      <h2>Ключ доступа</h2>
+      <p class="admin-note">Чтобы публиковать изменения с этого устройства, вставьте ключ GitHub. Он сохранится только в этом браузере — в интернет и в файлы сайта не попадает.</p>
+      <details class="admin-help">
+        <summary>Где взять ключ (один раз, ~2 минуты)</summary>
+        <ol>
+          <li>На github.com откройте <strong>Settings → Developer settings → Fine-grained personal access tokens → Generate new token</strong>.</li>
+          <li>Repository access: <strong>Only select repositories</strong> → репозиторий сайта.</li>
+          <li>Permissions → Repository permissions → <strong>Contents: Read and write</strong>.</li>
+          <li>Срок действия — 90 дней. Нажмите Generate и скопируйте ключ (<code>github_pat_…</code>).</li>
+        </ol>
+      </details>
+      <div class="admin-field">
+        <label for="key-input">Ключ</label>
+        <input id="key-input" type="password" autocomplete="off" placeholder="github_pat_…">
+      </div>
+      <div class="admin-row">
+        <button type="button" id="key-save-btn" class="btn btn--primary">Сохранить ключ</button>
+        <button type="button" id="key-skip-btn" class="btn btn--ghost">Пока без ключа</button>
+        <span id="key-status" class="admin-error"></span>
+      </div>
+    </section>
+
     <!-- Панель -->
-    <section id="admin-panel">
-      <div id="demo-banner" class="admin-demo is-hidden">Демо-режим: публикация на сайт отключена, изменения не сохранятся. Реальный доступ появится после настройки данных учителя.</div>
+    <section id="admin-panel" class="is-hidden">
+      <div id="demo-banner" class="admin-demo is-hidden">Ключ доступа не задан на этом устройстве — публикация отключена. <button type="button" id="add-key-btn" class="btn btn--ghost btn--sm">Ввести ключ</button></div>
       <div class="admin-toolbar">
         <div class="chips">
           <button type="button" class="chip is-active" data-tab="works">Разработки</button>
@@ -60,6 +83,7 @@
         <div class="admin-row">
           <span id="dirty-note" class="admin-dirty is-hidden">Есть неопубликованные изменения</span>
           <button type="button" id="publish-btn" class="btn btn--primary">Опубликовать на сайт</button>
+          <button type="button" id="forget-key-btn" class="btn btn--ghost">Забыть ключ</button>
           <button type="button" id="logout-btn" class="btn btn--ghost">Выйти</button>
         </div>
       </div>
