@@ -1,0 +1,396 @@
+<title>Карта репозиториев</title>
+
+<style>
+  /* Палитра: картографическая тушь — глубокий сине-зелёный по бумаге.
+     Нейтральные оттенки уведены в зелёно-серый, чтобы не читались случайными. */
+  :root {
+    --paper: #f4f6f5;
+    --card: #ffffff;
+    --ink: #16211f;
+    --ink-soft: #566360;
+    --ink-faint: #8b9794;
+    --rule: #dde3e1;
+    --rule-soft: #ebefee;
+    --accent: #0f6b5c;
+    --accent-wash: #e4efec;
+    --warn: #7d5410;
+    --warn-wash: #f6eddc;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+    --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --paper: #0f1413; --card: #161d1b; --ink: #e6ecea; --ink-soft: #9aa8a4;
+      --ink-faint: #6b7975; --rule: #263230; --rule-soft: #1d2725;
+      --accent: #5ec9b0; --accent-wash: #16302b;
+      --warn: #dcae5e; --warn-wash: #2d2517;
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper: #0f1413; --card: #161d1b; --ink: #e6ecea; --ink-soft: #9aa8a4;
+    --ink-faint: #6b7975; --rule: #263230; --rule-soft: #1d2725;
+    --accent: #5ec9b0; --accent-wash: #16302b;
+    --warn: #dcae5e; --warn-wash: #2d2517;
+  }
+  :root[data-theme="light"] {
+    --paper: #f4f6f5; --card: #ffffff; --ink: #16211f; --ink-soft: #566360;
+    --ink-faint: #8b9794; --rule: #dde3e1; --rule-soft: #ebefee;
+    --accent: #0f6b5c; --accent-wash: #e4efec;
+    --warn: #7d5410; --warn-wash: #f6eddc;
+  }
+
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 15px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 44px 20px 90px; }
+
+  /* ---------- шапка ---------- */
+  .head { display: flex; flex-direction: column; gap: 18px; margin-bottom: 26px; }
+  .title {
+    font-family: var(--mono);
+    font-size: clamp(20px, 3.6vw, 27px);
+    font-weight: 600;
+    letter-spacing: -0.015em;
+    margin: 0;
+  }
+  .title .slash { color: var(--accent); }
+
+  /* Сводка идёт до подробностей: карту сканируют, а не читают подряд. */
+  .stats { display: flex; flex-wrap: wrap; gap: 0; border-top: 1px solid var(--rule); }
+  .stat {
+    flex: 1 1 130px; padding: 12px 18px 12px 0;
+    border-right: 1px solid var(--rule-soft);
+  }
+  .stat:last-child { border-right: 0; }
+  .stat b {
+    display: block; font-family: var(--mono); font-size: 23px; font-weight: 600;
+    font-variant-numeric: tabular-nums; line-height: 1.2;
+  }
+  .stat b.flagged { color: var(--warn); }
+  .stat span {
+    font-size: 11.5px; text-transform: uppercase; letter-spacing: .07em;
+    color: var(--ink-faint);
+  }
+
+  .search {
+    width: 100%; box-sizing: border-box;
+    padding: 10px 13px; font-size: 14.5px; font-family: var(--mono);
+    color: var(--ink); background: var(--card);
+    border: 1px solid var(--rule); border-radius: 6px;
+    transition: border-color .15s ease;
+  }
+  .search:focus { outline: none; border-color: var(--accent); }
+  .search::placeholder { color: var(--ink-faint); font-family: var(--sans); }
+
+  /* ---------- карточка ---------- */
+  .card {
+    background: var(--card);
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+    padding: 18px 20px;
+    margin-bottom: 10px;
+  }
+  .card.is-hidden { display: none; }
+  .card.dormant { opacity: .6; }
+
+  .c-top { display: flex; flex-wrap: wrap; align-items: baseline; gap: 9px; }
+  .c-name {
+    font-family: var(--mono); font-size: 16.5px; font-weight: 600;
+    color: var(--ink); text-decoration: none;
+  }
+  .c-name:hover { color: var(--accent); text-decoration: underline; }
+  .badge {
+    font-size: 10.5px; text-transform: uppercase; letter-spacing: .07em;
+    padding: 2px 7px; border-radius: 3px;
+    background: var(--rule-soft); color: var(--ink-soft);
+  }
+  .badge.private { background: var(--accent-wash); color: var(--accent); }
+  .c-date {
+    margin-left: auto; font-family: var(--mono); font-size: 12px;
+    font-variant-numeric: tabular-nums; color: var(--ink-faint); white-space: nowrap;
+  }
+  .c-sum { color: var(--ink-soft); font-size: 14px; margin: 3px 0 0; max-width: 62ch; }
+
+  .flags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 11px; }
+  .flag {
+    font-size: 11.5px; padding: 2px 9px; border-radius: 3px;
+    background: var(--warn-wash); color: var(--warn);
+  }
+
+  .c-body {
+    display: grid; grid-template-columns: minmax(0, 1fr) 236px; gap: 26px;
+    margin-top: 15px; padding-top: 14px; border-top: 1px solid var(--rule-soft);
+  }
+  /* Без веток и PR правая колонка пуста — не оставляем от неё дыру. */
+  .c-body.solo { grid-template-columns: minmax(0, 1fr); }
+  @media (max-width: 700px) { .c-body { grid-template-columns: minmax(0, 1fr); gap: 18px; } }
+
+  /* ---------- дерево ---------- */
+  .tree { overflow-x: auto; font-family: var(--mono); font-size: 13px; }
+  .tree ul { list-style: none; margin: 0; padding-left: 15px; }
+  .tree > ul { padding-left: 0; }
+  .tree li { white-space: nowrap; line-height: 1.7; }
+  .tree .dir > ul { display: none; }
+  .tree .dir.open > ul { display: block; }
+  .tw { cursor: pointer; user-select: none; color: var(--ink); border-radius: 3px; }
+  .tw:hover { color: var(--accent); }
+  .tw:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .arw { display: inline-block; width: 12px; color: var(--ink-faint); }
+  .file { color: var(--ink-soft); }
+  .more { color: var(--ink-faint); font-style: italic; }
+  .hit { background: var(--accent-wash); color: var(--accent); border-radius: 2px; }
+  .empty-tree, .unreach { font-size: 13px; font-style: italic; color: var(--ink-faint); }
+  .unreach { color: var(--warn); }
+
+  /* ---------- боковая колонка ---------- */
+  .side h3 {
+    font-size: 10.5px; text-transform: uppercase; letter-spacing: .08em;
+    color: var(--ink-faint); margin: 0 0 7px; font-weight: 600;
+  }
+  .side ul { list-style: none; margin: 0 0 15px; padding: 0; }
+  .side ul:last-child { margin-bottom: 0; }
+  .side li { font-size: 13px; margin-bottom: 4px; word-break: break-word; }
+  .br { font-family: var(--mono); font-size: 12.5px; color: var(--ink-soft); }
+  .br.def { color: var(--ink); }
+  .br .tag { font-family: var(--sans); font-size: 10.5px; color: var(--ink-faint); }
+  .br .tag.loose { color: var(--warn); }
+  .more-br { font-size: 12px; color: var(--ink-faint); font-style: italic; }
+  .pr a { color: var(--accent); text-decoration: none; }
+  .pr a:hover { text-decoration: underline; }
+  .pr .meta {
+    display: block; font-size: 11.5px; color: var(--ink-faint);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .noresult { text-align: center; color: var(--ink-faint); padding: 44px 0; display: none; }
+  .noresult.on { display: block; }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; animation: none !important; }
+  }
+</style>
+
+<div class="wrap">
+  <div class="head">
+    <h1 class="title"><span id="owner"></span><span class="slash">/</span></h1>
+    <div class="stats" id="stats"></div>
+    <input class="search" id="q" type="search"
+           placeholder="Фильтр: имя репозитория, файла или папки…" autocomplete="off">
+  </div>
+  <div id="list"></div>
+  <div class="noresult" id="noresult">Ничего не найдено</div>
+</div>
+
+<script>
+  const DATA = __REPO_MAP_DATA__;
+
+  const esc = s => String(s ?? '').replace(/[&<>"]/g, c =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+  const MONTHS = ['янв','фев','мар','апр','мая','июн','июл','авг','сен','окт','ноя','дек'];
+  function human(d) {
+    if (!d) return '';
+    const p = String(d).slice(0, 10).split('-');
+    if (p.length < 3) return String(d);
+    return Number(p[2]) + ' ' + (MONTHS[Number(p[1]) - 1] || '') + ' ' + p[0];
+  }
+  function plural(n, one, few, many) {
+    const a = n % 10, b = n % 100;
+    if (a === 1 && b !== 11) return one;
+    if (a >= 2 && a <= 4 && (b < 10 || b >= 20)) return few;
+    return many;
+  }
+
+  function treeHTML(nodes, depth) {
+    if (!nodes || !nodes.length) return '';
+    let out = '<ul>';
+    for (const n of nodes) {
+      const name = esc(n.name);
+      const key = name.toLowerCase();
+      if (n.type === 'dir') {
+        const open = depth < 2 ? ' open' : '';
+        out += '<li class="dir' + open + '" data-name="' + key + '">' +
+          '<span class="tw" role="button" tabindex="0" aria-expanded="' + (open ? 'true' : 'false') + '">' +
+          '<span class="arw">' + (open ? '▾' : '▸') + '</span>' + name + '/</span>' +
+          treeHTML(n.children, depth + 1) + '</li>';
+      } else if (n.type === 'more') {
+        out += '<li class="more"><span class="arw"></span>' + name + '</li>';
+      } else {
+        out += '<li class="file" data-name="' + key + '"><span class="arw"></span>' + name + '</li>';
+      }
+    }
+    return out + '</ul>';
+  }
+
+  function sideHTML(r) {
+    let h = '';
+    const brs = r.branches || [];
+    if (brs.length) {
+      const shown = brs.slice(0, 8);
+      h += '<h3>Ветки · ' + brs.length + '</h3><ul>';
+      for (const b of shown) {
+        const tag = b.isDefault ? '<span class="tag">основная</span>'
+          : b.pr ? '<span class="tag">PR #' + esc(b.pr) + '</span>'
+          : '<span class="tag loose">без PR</span>';
+        h += '<li class="br' + (b.isDefault ? ' def' : '') + '">' +
+          esc(b.name) + ' ' + tag + '</li>';
+      }
+      if (brs.length > shown.length) {
+        const rest = brs.length - shown.length;
+        h += '<li class="more-br">+ ещё ' + rest + ' ' +
+          plural(rest, 'ветка', 'ветки', 'веток') + '</li>';
+      }
+      h += '</ul>';
+    }
+    const prs = r.pulls || [];
+    if (prs.length) {
+      h += '<h3>Открытые PR · ' + prs.length + '</h3><ul>';
+      for (const p of prs) {
+        const bits = [];
+        if (p.draft) bits.push('черновик');
+        if (p.ageDays != null) bits.push('без движения ' + p.ageDays + ' ' +
+          plural(p.ageDays, 'день', 'дня', 'дней'));
+        h += '<li class="pr"><a href="' + esc(p.url) + '" target="_blank" rel="noopener">#' +
+          esc(p.number) + ' ' + esc(p.title) + '</a>' +
+          (bits.length ? '<span class="meta">' + bits.join(' · ') + '</span>' : '') + '</li>';
+      }
+      h += '</ul>';
+    }
+    return h;
+  }
+
+  function cardHTML(r) {
+    const priv = r.visibility === 'private';
+    const dormant = (r.flags || []).some(f => f.kind === 'dormant');
+    let h = '<div class="card' + (dormant ? ' dormant' : '') +
+      '" data-repo="' + esc(r.name).toLowerCase() + '">';
+    h += '<div class="c-top">' +
+      '<a class="c-name" href="' + esc(r.url) + '" target="_blank" rel="noopener">' +
+      esc(r.name) + '</a>' +
+      '<span class="badge' + (priv ? ' private' : '') + '">' +
+      (priv ? 'приватный' : 'публичный') + '</span>' +
+      '<span class="c-date">' + esc(human(r.pushedAt)) + '</span></div>';
+    if (r.summary) h += '<p class="c-sum">' + esc(r.summary) + '</p>';
+    if ((r.flags || []).length) {
+      h += '<div class="flags">' +
+        r.flags.map(f => '<span class="flag">' + esc(f.text) + '</span>').join('') + '</div>';
+    }
+    const side = sideHTML(r);
+    h += '<div class="c-body' + (side ? '' : ' solo') + '"><div class="tree">';
+    if (r.unreachable) {
+      h += '<div class="unreach">Репозиторий не подключён к сессии — дерево файлов не читалось</div>';
+    } else if (r.tree && r.tree.length) {
+      h += treeHTML(r.tree, 0);
+    } else {
+      h += '<div class="empty-tree">дерево не собрано</div>';
+    }
+    h += '</div>' + (side ? '<div class="side">' + side + '</div>' : '') + '</div></div>';
+    return h;
+  }
+
+  // ---------- отрисовка ----------
+  const repos = (DATA.repos || []).slice().sort((a, b) =>
+    String(b.pushedAt || '').localeCompare(String(a.pushedAt || '')));
+
+  const openPRs = repos.reduce((n, r) => n + (r.pulls || []).length, 0);
+  const branches = repos.reduce((n, r) => n + (r.branches || []).length, 0);
+  const loose = repos.reduce((n, r) =>
+    n + (r.branches || []).filter(b => !b.isDefault && !b.pr).length, 0);
+
+  document.getElementById('owner').textContent = DATA.owner;
+  document.getElementById('stats').innerHTML =
+    '<div class="stat"><b>' + repos.length + '</b><span>' +
+      plural(repos.length, 'репозиторий', 'репозитория', 'репозиториев') + '</span></div>' +
+    '<div class="stat"><b>' + branches + '</b><span>' +
+      plural(branches, 'ветка', 'ветки', 'веток') + '</span></div>' +
+    '<div class="stat"><b class="' + (loose ? 'flagged' : '') + '">' + loose +
+      '</b><span>без pull request</span></div>' +
+    '<div class="stat"><b>' + openPRs + '</b><span>открытых PR</span></div>' +
+    '<div class="stat"><b>' + esc(human(DATA.generatedAt)) + '</b><span>собрано</span></div>';
+
+  const list = document.getElementById('list');
+  list.innerHTML = repos.map(cardHTML).join('');
+
+  // ---------- раскрытие ----------
+  function toggle(tw) {
+    const li = tw.parentElement;
+    const open = li.classList.toggle('open');
+    tw.querySelector('.arw').textContent = open ? '▾' : '▸';
+    tw.setAttribute('aria-expanded', open ? 'true' : 'false');
+  }
+  list.addEventListener('click', e => {
+    const tw = e.target.closest('.tw');
+    if (tw) toggle(tw);
+  });
+  list.addEventListener('keydown', e => {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    const tw = e.target.closest('.tw');
+    if (tw) { e.preventDefault(); toggle(tw); }
+  });
+
+  function setOpen(li, open) {
+    li.classList.toggle('open', open);
+    const tw = li.querySelector('.tw');
+    tw.querySelector('.arw').textContent = open ? '▾' : '▸';
+    tw.setAttribute('aria-expanded', open ? 'true' : 'false');
+  }
+
+  // ---------- фильтр ----------
+  const q = document.getElementById('q');
+  const noresult = document.getElementById('noresult');
+
+  q.addEventListener('input', () => {
+    const term = q.value.trim().toLowerCase();
+    let shown = 0;
+
+    document.querySelectorAll('.card').forEach(card => {
+      card.querySelectorAll('.hit').forEach(el =>
+        el.replaceWith(document.createTextNode(el.textContent)));
+      card.normalize();
+
+      if (!term) {
+        card.classList.remove('is-hidden');
+        card.querySelectorAll('.dir').forEach(li => {
+          const parent = li.parentElement.closest('.dir');
+          setOpen(li, !parent || !parent.parentElement.closest('.dir'));
+        });
+        shown++;
+        return;
+      }
+
+      const nameHit = card.dataset.repo.includes(term);
+      const nodes = [...card.querySelectorAll('[data-name]')]
+        .filter(li => li.dataset.name.includes(term));
+
+      if (!nameHit && !nodes.length) { card.classList.add('is-hidden'); return; }
+      card.classList.remove('is-hidden');
+      shown++;
+
+      nodes.forEach(li => {
+        const label = li.classList.contains('dir') ? li.querySelector('.tw') : li;
+        const txt = [...label.childNodes].find(n => n.nodeType === 3 && n.textContent.trim());
+        if (txt) {
+          const i = txt.textContent.toLowerCase().indexOf(term);
+          if (i > -1) {
+            const span = document.createElement('span');
+            span.className = 'hit';
+            span.textContent = txt.textContent.slice(i, i + term.length);
+            const after = txt.splitText(i);
+            after.textContent = after.textContent.slice(term.length);
+            label.insertBefore(span, after);
+          }
+        }
+        let p = li.parentElement.closest('.dir');
+        while (p) { setOpen(p, true); p = p.parentElement.closest('.dir'); }
+      });
+    });
+
+    noresult.classList.toggle('on', shown === 0);
+  });
+</script>
