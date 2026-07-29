@@ -172,6 +172,15 @@ class Slide(BaseModel):
     callout: Optional[str] = Field(
         default=None, max_length=120, description="Вывод слайда, 10–18 слов"
     )
+    notes: Optional[str] = Field(
+        default=None,
+        max_length=700,
+        description=(
+            "Заметки докладчика: что учитель говорит, пока показан слайд. "
+            "Сюда уходит проза, пояснения и вопросы классу — на слайде "
+            "остаются только опорные тезисы. Не дублировать текст слайда."
+        ),
+    )
     image: Optional[Image] = None
 
 

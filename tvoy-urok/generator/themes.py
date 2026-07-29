@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass, field
-from typing import Dict, Optional
+from typing import Dict, List, Optional, Tuple
 
 from pptx.dml.color import RGBColor
 
@@ -43,23 +43,57 @@ _FONT_FILES = {
 _FALLBACK = "DejaVuSans.ttf"
 
 
-def font_path(family: str, bold: bool = False, italic: bool = False) -> Optional[str]:
-    """Абсолютный путь к TTF для замера текста (textfit.py).
+def resolve_font(
+    family: str, bold: bool = False, italic: bool = False
+) -> Tuple[Optional[str], bool]:
+    """Путь к TTF для замера текста + признак точного совпадения.
 
-    Возвращает None, если ни основной шрифт, ни fallback не найдены — тогда
-    замер отключается и работают только пословные лимиты.
+    Возвращает `(путь, точный)`. `точный=False` означает, что запрошенного
+    начертания на машине нет и подставлен запасной шрифт.
+
+    Почему это важно различать: замер идёт по метрикам ФАЙЛА, а в PPTX
+    записывается ИМЯ семейства. Если PT Sans не установлен, мы посчитаем
+    вёрстку по метрикам DejaVu, объявим в файле «PT Sans», а LibreOffice при
+    конвертации подставит что-то третье — и расчёт разъедется с рендером
+    молча. На машине разработчика, где шрифты стоят, этого не видно.
+
+    Поэтому подмену не запрещаем (иначе сборка падала бы на любой чужой
+    машине), но делаем её заметной: `check_theme_fonts()` собирает список
+    недостающих начертаний, а рендерер выносит его в отчёт.
     """
     name = _FONT_FILES.get((family, bold, italic))
-    candidates = [name] if name else []
-    candidates.append(_FALLBACK)
-    for fname in candidates:
-        if not fname:
-            continue
+    if name:
         for d in _FONT_DIRS:
-            p = os.path.join(d, fname)
+            p = os.path.join(d, name)
             if os.path.exists(p):
-                return p
-    return None
+                return p, True
+    for d in _FONT_DIRS:
+        p = os.path.join(d, _FALLBACK)
+        if os.path.exists(p):
+            return p, False
+    return None, False
+
+
+def font_path(family: str, bold: bool = False, italic: bool = False) -> Optional[str]:
+    """Путь к TTF без признака подмены — для мест, где он не нужен."""
+    return resolve_font(family, bold, italic)[0]
+
+
+def check_theme_fonts(theme: "ThemeConfig") -> List[str]:
+    """Каких начертаний темы не хватает на этой машине.
+
+    Пустой список — всё на месте, замер и рендер сойдутся. Непустой — вёрстка
+    посчитана по чужим метрикам; в Docker-образ конвертации нужно доложить
+    шрифты (см. `requirements.txt`, пакет fonts-paratype).
+    """
+    missing: List[str] = []
+    for fam in (theme.display_font, theme.body_font):
+        for bold in (False, True):
+            _, exact = resolve_font(fam, bold=bold)
+            if not exact:
+                missing.append(f"{fam} {'Bold' if bold else 'Regular'}")
+    # Один и тот же шрифт может быть и дисплейным, и текстовым
+    return sorted(set(missing))
 
 
 def rgb(hex_str: str) -> RGBColor:
