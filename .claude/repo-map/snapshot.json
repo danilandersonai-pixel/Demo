@@ -1,0 +1,343 @@
+{
+  "owner": "danilandersonai-pixel",
+  "generatedAt": "2026-07-28",
+  "repos": [
+    {
+      "name": "Demo",
+      "url": "https://github.com/danilandersonai-pixel/Demo",
+      "visibility": "public",
+      "pushedAt": "2026-07-28",
+      "summary": "Демо-проекты на LLM. В главной ветке — свадебный сайт и агент repo-map; остальное разошлось по 14 веткам-экспериментам.",
+      "defaultBranch": "claude/create-claude-md-s7amj",
+      "unreachable": false,
+      "flags": [
+        {
+          "kind": "branch-no-pr",
+          "text": "15 веток без pull request"
+        },
+        {
+          "kind": "stale-pr",
+          "text": "2 PR без движения дольше двух недель"
+        },
+        {
+          "kind": "no-main",
+          "text": "нет ветки main — основная claude/create-claude-md-s7amj"
+        }
+      ],
+      "branches": [
+        {
+          "name": "claude/add-claude-documentation-P4YF9",
+          "isDefault": false,
+          "isCurrent": false,
+          "date": "2026-04-20",
+          "ahead": 1,
+          "behind": 21,
+          "subject": "Add comprehensive CLAUDE.md for AI assistant…"
+        },
+        {
+          "name": "claude/claude-md-docs-f1x974",
+          "isDefault": false,
+          "isCurrent": false,
+          "date": "2026-07-28",
+          "ahead": 3,
+          "behind": 0,
+          "subject": "Mark the repo-map installer executable"
+        },
+        {
+          "name": "claude/create-claude-md-s7amj",
+          "isDefault": true,
+          "isCurrent": false,
+          "date": "2026-07-28",
+          "ahead": 0,
+          "behind": 0,
+          "subject": "Merge repo-map permission settings into the …"
+        },
+        {
+          "name": "claude/daily-coding-journal-USCGU",
+          "isDefault": false,
+          "isCurrent": false,
+          "date": "2026-05-16",
+          "ahead": 2,
+          "behind": 20,
+          "subject": "Add standalone single-file build of the jour…",
+          "pr": 1
+        },
+        {
+          "name": "claude/darya-pronina-site-fitjjh",
+          "isDefault": false,
+          "isCurrent": false,
+          "date": "2026-07-28",
+          "ahead": 23,
+          "behind": 13,
+          "subject": "Fetch site data with cache: no-store"
+        },
+        {
+          "name": "claude/game-development-e8ftvf",
+          "isDefault": false,
+          "isCurrent": false,
+          "date": "2026-06-14",
+          "ahead": 4,
+          "behind": 13,
+          "subject": "Remove robot-awakening game per request"
+        },
+        {
+          "name": "claude/github-repos-agent-qxj4zi",
+          "isDefault": false,
+          "isCurrent": true,
+          "date": "2026-07-28",
+          "ahead": 0,
+          "behind": 6,
+          "subject": "Allow the read-only calls repo-map needs wit…"
+        },
+        {
+          "name": "claude/gmail-telegram-documents-O07We",
+          "isDefault": false,
+          "isCurrent": false,
+          "date": "2026-04-20",
+          "ahead": 1,
+          "behind": 20,
+          "subject": "Add Gmail → Telegram document collector scri…"
+        },
+        {
+          "name": "claude/images-svg-conversion-7la0ef",
+          "isDefault": false,
+          "isCurrent": false,
+          "date": "2026-06-29",
+          "ahead": 1,
+          "behind": 13,
+          "subject": "Add SVG vectorization of PITERKOLESA logo"
+        },
+        {
+          "name": "claude/minecraft-like-game-gq2tp9",
+          "isDefault": false,
+          "isCurrent": false,
+          "date": "2026-06-29",
+          "ahead": 7,
+          "behind": 13,
+          "subject": "Add isometric mini-Diablo dungeon crawler (d…"
+        },
+        {
+          "name": "claude/nifty-mayer-3wgep7",
+          "isDefault": false,
+          "isCurrent": false,
+          "date": "2026-06-30",
+          "ahead": 1,
+          "behind": 13,
+          "subject": "Add PITERKOLESA logo as clean production SVG"
+        },
+        {
+          "name": "claude/pixel-game-claude-vibe-a2iwv7",
+          "isDefault": false,
+          "isCurrent": false,
+          "date": "2026-07-03",
+          "ahead": 1,
+          "behind": 13,
+          "subject": "Добавить пиксельную мини-игру «Клодик и Вайб…",
+          "pr": 3
+        },
+        {
+          "name": "claude/pixel-rpg-vibe-coding-5mwc8p",
+          "isDefault": false,
+          "isCurrent": false,
+          "date": "2026-07-03",
+          "ahead": 3,
+          "behind": 13,
+          "subject": "Drop environment declaration from Pages depl…"
+        },
+        {
+          "name": "claude/pixel-rpg-vibe-coding-tsupz8",
+          "isDefault": false,
+          "isCurrent": false,
+          "date": "2026-07-13",
+          "ahead": 5,
+          "behind": 13,
+          "subject": "Добавить отдельный переключатель музыки и ав…"
+        },
+        {
+          "name": "claude/review-ag277t",
+          "isDefault": false,
+          "isCurrent": false,
+          "date": "2026-07-23",
+          "ahead": 21,
+          "behind": 13,
+          "subject": "WIP game phase 3: epic-scale revision (inter…"
+        },
+        {
+          "name": "claude/telegram-finance-bot-9pur52",
+          "isDefault": false,
+          "isCurrent": false,
+          "date": "2026-07-07",
+          "ahead": 12,
+          "behind": 13,
+          "subject": "fix(finance-bot): ретраи запросов к OpenRout…"
+        },
+        {
+          "name": "claude/townsfolk-iphone-game-hxfqcq",
+          "isDefault": false,
+          "isCurrent": false,
+          "date": "2026-07-17",
+          "ahead": 24,
+          "behind": 13,
+          "subject": "Phaser prototype: canvas renderer + boot ind…"
+        },
+        {
+          "name": "claude/website-analysis-claude-md-kd3foj",
+          "isDefault": false,
+          "isCurrent": false,
+          "date": "2026-06-29",
+          "ahead": 11,
+          "behind": 14,
+          "subject": "Remove voxel game from the published site"
+        }
+      ],
+      "pulls": [
+        {
+          "number": 3,
+          "title": "Пиксельная мини-игра «Клодик и Вайб-кодинг»",
+          "url": "https://github.com/danilandersonai-pixel/Demo/pull/3",
+          "draft": false,
+          "ageDays": 25,
+          "branch": "claude/pixel-game-claude-vibe-a2iwv7"
+        },
+        {
+          "number": 1,
+          "title": "Add vibe coding journal web app",
+          "url": "https://github.com/danilandersonai-pixel/Demo/pull/1",
+          "draft": false,
+          "ageDays": 73,
+          "branch": "claude/daily-coding-journal-USCGU"
+        }
+      ],
+      "tree": [
+        {
+          "name": ".claude",
+          "type": "dir",
+          "children": [
+            {
+              "name": "skills",
+              "type": "dir",
+              "children": [
+                {
+                  "name": "repo-map",
+                  "type": "dir",
+                  "children": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": ".github",
+          "type": "dir",
+          "children": [
+            {
+              "name": "workflows",
+              "type": "dir",
+              "children": [
+                {
+                  "name": "deploy-pages.yml",
+                  "type": "file"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "CLAUDE.md",
+          "type": "file"
+        },
+        {
+          "name": "yegor-diana-wedding",
+          "type": "dir",
+          "children": [
+            {
+              "name": "assets",
+              "type": "dir",
+              "children": [
+                {
+                  "name": "css",
+                  "type": "dir",
+                  "children": []
+                },
+                {
+                  "name": "js",
+                  "type": "dir",
+                  "children": []
+                }
+              ]
+            },
+            {
+              "name": "CLAUDE.md",
+              "type": "file"
+            },
+            {
+              "name": "README.md",
+              "type": "file"
+            },
+            {
+              "name": "favicon.svg",
+              "type": "file"
+            },
+            {
+              "name": "index.html",
+              "type": "file"
+            }
+          ]
+        }
+      ],
+      "isCurrent": true
+    },
+    {
+      "name": "claude-mcp",
+      "url": "https://github.com/danilandersonai-pixel/claude-mcp",
+      "visibility": "private",
+      "pushedAt": "2026-06-18",
+      "unreachable": true,
+      "isCurrent": false
+    },
+    {
+      "name": "claude-skills",
+      "url": "https://github.com/danilandersonai-pixel/claude-skills",
+      "visibility": "public",
+      "pushedAt": "2026-06-14",
+      "unreachable": true,
+      "isCurrent": false
+    },
+    {
+      "name": "warp-loader",
+      "url": "https://github.com/danilandersonai-pixel/warp-loader",
+      "visibility": "private",
+      "pushedAt": "2026-06-11",
+      "unreachable": true,
+      "isCurrent": false
+    },
+    {
+      "name": "vibe-coding-diary",
+      "url": "https://github.com/danilandersonai-pixel/vibe-coding-diary",
+      "visibility": "public",
+      "pushedAt": "2026-05-23",
+      "unreachable": true,
+      "isCurrent": false
+    },
+    {
+      "name": "nail",
+      "url": "https://github.com/danilandersonai-pixel/nail",
+      "visibility": "public",
+      "pushedAt": "2026-04-25",
+      "unreachable": true,
+      "flags": [
+        {
+          "kind": "dormant",
+          "text": "нет активности 3 месяца"
+        }
+      ],
+      "isCurrent": false
+    }
+  ],
+  "current": {
+    "repo": "Demo",
+    "branch": "claude/github-repos-agent-qxj4zi",
+    "dirty": 1,
+    "note": "всё влито в главную; ветка на 5 коммитов позади"
+  }
+}

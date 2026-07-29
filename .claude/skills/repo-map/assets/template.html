@@ -156,6 +156,14 @@
     background: var(--accent); color: var(--paper); font-weight: 700;
     padding: 1px 7px; border-radius: 10px; letter-spacing: .06em;
   }
+  /* Подпись ветки переносится на вторую строку узла: с датой и темой коммита
+     она длиннее имени, и в одну строку выталкивает узел за край экрана. */
+  .n.branch { flex-wrap: wrap; max-width: min(100%, 560px); }
+  .n .meta {
+    flex-basis: 100%; font-family: var(--sans); font-size: 11.5px;
+    color: var(--ink-faint); line-height: 1.35;
+  }
+  .n.cur .meta { color: var(--accent); opacity: .85; }
   .n a { color: inherit; text-decoration: none; }
   .n a:hover { text-decoration: underline; }
   .hit { background: var(--accent-wash); color: var(--accent); border-radius: 2px; }
@@ -164,10 +172,36 @@
   .noresult.on { display: block; }
   .foot { margin-top: 30px; font-size: 12.5px; color: var(--ink-faint); }
 
+  /* Снимок из памяти: пометка обязана быть заметной, иначе старые данные
+     читаются как сегодняшние и человек делает выводы по вчерашней картине. */
+  .stale {
+    border: 1px solid var(--warn); border-radius: 8px; background: var(--warn-wash);
+    color: var(--warn); padding: 12px 15px; margin-bottom: 18px; font-size: 13.5px;
+  }
+
+  /* Телефон: древо и так прокручивается вбок, но чем меньше оно уезжает,
+     тем меньше поводов туда лезть. Ужимаем отступы, не трогая геометрию связей. */
+  @media (max-width: 560px) {
+    .wrap { padding: 24px 14px 60px; }
+    .t ul { padding-left: 19px; }
+    .t li { padding-left: 15px; }
+    .t li::after { width: 11px; }
+    .n { font-size: 12px; gap: 6px; }
+    .n.box { padding: 4px 8px; }
+    .n.owner { font-size: 13.5px; padding: 6px 11px; }
+    .n.repo { font-size: 13px; }
+    .here { padding: 14px 15px; }
+    .here .rows { gap: 12px 22px; }
+    .here .row b { font-size: 13.5px; }
+    .stat { flex-basis: 92px; padding-right: 10px; }
+    .stat b { font-size: 17px; }
+  }
+
   @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
 
 <div class="wrap">
+  <div id="stale"></div>
   <div id="here"></div>
   <div class="stats" id="stats"></div>
   <input class="search" id="q" type="search"
@@ -199,6 +233,14 @@
 
   const repos = (DATA.repos || []).slice().sort((a, b) =>
     String(b.pushedAt || '').localeCompare(String(a.pushedAt || '')));
+
+  // ---------- снимок из памяти ----------
+  if (DATA.stale) {
+    document.getElementById('stale').innerHTML = '<div class="stale">' +
+      'Свежие данные собрать не удалось — показан снимок от ' +
+      esc(human(DATA.generatedAt)) +
+      (DATA.staleReason ? '. ' + esc(DATA.staleReason) : '') + '</div>';
+  }
 
   // ---------- «вы здесь» ----------
   const cur = DATA.current;
@@ -255,13 +297,26 @@
     (r.flags || []).forEach(f => kids.push({ label: f.text, kind: 'flag' }));
 
     if ((r.branches || []).length) {
+      // Основная сверху, дальше по свежести: где работали недавно — то и ищут.
+      const brs = r.branches.slice().sort((a, b) => {
+        if (a.isDefault !== b.isDefault) return a.isDefault ? -1 : 1;
+        return String(b.date || '').localeCompare(String(a.date || ''));
+      });
       kids.push({
-        label: 'ветки · ' + r.branches.length, kind: 'group', open: !!r.isCurrent,
-        children: r.branches.map(b => ({
-          label: b.name, kind: 'branch', current: !!b.isCurrent,
-          tag: b.isDefault ? 'основная' : b.pr ? 'PR #' + b.pr : 'без PR',
-          loose: !b.isDefault && !b.pr
-        }))
+        label: 'ветки · ' + brs.length, kind: 'group', open: !!r.isCurrent,
+        children: brs.map(b => {
+          const bits = [];
+          if (b.date) bits.push(human(b.date));
+          if (b.ahead) bits.push('+' + b.ahead + ' ' +
+            plural(b.ahead, 'коммит', 'коммита', 'коммитов'));
+          if (b.subject) bits.push(b.subject);
+          return {
+            label: b.name, kind: 'branch', current: !!b.isCurrent,
+            tag: b.isDefault ? 'основная' : b.pr ? 'PR #' + b.pr : 'без PR',
+            loose: !b.isDefault && !b.pr,
+            meta: bits.join(' · ')
+          };
+        })
       });
     }
     if ((r.pulls || []).length) {
@@ -310,6 +365,7 @@
       : esc(n.label);
     if (n.current) inner += '<span class="tag badge">вы здесь</span>';
     if (n.tag) inner += '<span class="tag' + (n.loose ? ' loose' : '') + '">' + esc(n.tag) + '</span>';
+    if (n.meta) inner += '<span class="meta">' + esc(n.meta) + '</span>';
 
     const attrs = has ? ' role="button" tabindex="0" aria-expanded="' + (n.open ? 'true' : 'false') + '"' : '';
     let h = '<li data-name="' + esc(n.label).toLowerCase() + '"' + (n.open ? ' class="open"' : '') + '>' +
