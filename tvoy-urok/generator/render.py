@@ -16,6 +16,7 @@
 from __future__ import annotations
 
 import os
+from dataclasses import dataclass, field
 from typing import List, Optional, Sequence, Tuple
 
 from pptx import Presentation
@@ -25,7 +26,7 @@ from pptx.util import Emu, Pt
 
 from . import textfit
 from .schema import Deck, Layout, Role, Slide
-from .themes import ThemeConfig, font_path, get_theme, rgb
+from .themes import ThemeConfig, check_theme_fonts, font_path, get_theme, rgb
 
 # --- Геометрия ------------------------------------------------------------
 SLIDE_W_PT = 960.0  # 13.333″ × 72
@@ -222,11 +223,13 @@ def _slide_bg(slide, theme: ThemeConfig):
               fill=None, line=theme.accent, line_pt=0.75, shape=MSO_SHAPE.RECTANGLE, adjust=None)
 
 
-def _slide_title(slide, theme: ThemeConfig, text: str, subtitle: Optional[str] = None) -> float:
-    """Заголовок слайда. Возвращает Y, с которого начинается контент."""
+def _slide_title(
+    slide, theme: ThemeConfig, text: str, subtitle: Optional[str] = None
+) -> Tuple[float, bool]:
+    """Заголовок слайда. Возвращает (Y начала контента, было ли переполнение)."""
     y = MARGIN_PT + 8
     font = font_path(theme.display_font, bold=True)
-    size, _ = textfit.fit_size(
+    size, over = textfit.fit_size(
         [text], font, SLIDE_W_PT - 2 * MARGIN_PT, 64,
         theme.size_slide_title, theme.size_slide_title - 8, para_gap=False,
     )
@@ -250,7 +253,7 @@ def _slide_title(slide, theme: ThemeConfig, text: str, subtitle: Optional[str] =
         _write_paragraphs(stf, [(subtitle, [])], theme.body_font, ssize, theme.accent2)
         y += sh + 8
 
-    return y
+    return y, over
 
 
 def _callout(slide, theme: ThemeConfig, text: str, y_pt: float, w_pt: float, x_pt: float = MARGIN_PT):
@@ -271,7 +274,7 @@ def _callout(slide, theme: ThemeConfig, text: str, y_pt: float, w_pt: float, x_p
 def _render_title_hero(slide, theme: ThemeConfig, s: Slide, meta):
     font = font_path(theme.display_font, bold=True)
     box_w = SLIDE_W_PT * 0.62
-    size, _ = textfit.fit_size(
+    size, over = textfit.fit_size(
         [s.title], font, box_w, 150, theme.size_title_hero,
         theme.size_title_hero - 12, para_gap=False,
     )
@@ -301,10 +304,11 @@ def _render_title_hero(slide, theme: ThemeConfig, s: Slide, meta):
         _write_paragraphs(rtf, [(ref, [])], theme.body_font, theme.size_caption, theme.accent2)
 
     _image_slot(slide, theme, _pct_w(0.66), _pct_h(0.18), _pct_w(0.26), _pct_h(0.60), s.image)
+    return over
 
 
 def _render_card_image(slide, theme: ThemeConfig, s: Slide, image_right: bool = True):
-    y0 = _slide_title(slide, theme, s.title, s.subtitle)
+    y0, over = _slide_title(slide, theme, s.title, s.subtitle)
     avail_h = SLIDE_H_PT - y0 - MARGIN_PT
 
     card_w = _pct_w(0.52)
@@ -348,19 +352,20 @@ def _render_card_image(slide, theme: ThemeConfig, s: Slide, image_right: bool = 
     if s.callout:
         _callout(slide, theme, s.callout, y + box_h + 10, card_w, card_x)
 
-    return overflow
+    return over or overflow
 
 
 def _render_definition_top(slide, theme: ThemeConfig, s: Slide):
-    y0 = _slide_title(slide, theme, s.title, s.subtitle)
+    y0, over = _slide_title(slide, theme, s.title, s.subtitle)
     d = s.definition
     if d:
         font = font_path(theme.body_font, bold=True)
         full = f"{d.term} — {d.text}"
         w = SLIDE_W_PT - 2 * MARGIN_PT
         inner = w - 32
-        size, _ = textfit.fit_size([full], font, inner, 120, theme.size_body + 2,
+        size, o = textfit.fit_size([full], font, inner, 120, theme.size_body + 2,
                                    theme.size_body_min, para_gap=False)
+        over = over or o
         lines = textfit.wrap_text(full, font, size, inner)
         h = len(lines) * textfit.line_height_pt(size) + 24
         _rect(slide, MARGIN_PT, y0, w, h, fill=theme.card_bg, line=theme.accent, line_pt=theme.border_pt)
@@ -376,8 +381,9 @@ def _render_definition_top(slide, theme: ThemeConfig, s: Slide):
         inner_w = card_w - 2 * pad
         font = font_path(theme.body_font)
         texts = [t for t, _ in items]
-        size, _ = textfit.fit_size(texts, font, inner_w,
+        size, o = textfit.fit_size(texts, font, inner_w,
                                    avail_h - 2 * pad, theme.size_body, theme.size_body_min)
+        over = over or o
         needed = textfit.block_height_pt(texts, font, size, inner_w) + 2 * pad
         dy, box_h = _fit_box(avail_h, needed, min_ratio=0.7)
         y = y0 + dy
@@ -388,14 +394,15 @@ def _render_definition_top(slide, theme: ThemeConfig, s: Slide):
         if s.image:
             _image_slot(slide, theme, MARGIN_PT + card_w + _pct_w(0.02), y,
                         _pct_w(0.30), box_h, s.image)
+    return over
 
 
 def _render_compare(slide, theme: ThemeConfig, s: Slide):
     """Сравнение — всегда слотами, никогда сплошным текстом (фикс дефекта)."""
-    y0 = _slide_title(slide, theme, s.title, s.subtitle)
+    y0, over = _slide_title(slide, theme, s.title, s.subtitle)
     c = s.compare
     if not c:
-        return
+        return over
     avail_h = SLIDE_H_PT - y0 - MARGIN_PT
     verdict_h = 52.0 if c.verdict else 0.0
     col_h_max = avail_h - verdict_h - (12 if verdict_h else 0)
@@ -410,11 +417,11 @@ def _render_compare(slide, theme: ThemeConfig, s: Slide):
 
     # Общий кегль на обе колонки — чтобы не было визуального разнобоя
     sides = (c.left, c.right)
-    size = min(
-        textfit.fit_size(sd.points, font, inner_w, col_h_max - head_h - pad,
-                         theme.size_body - 1, theme.size_body_min)[0]
-        for sd in sides
-    )
+    fits = [textfit.fit_size(sd.points, font, inner_w, col_h_max - head_h - pad,
+                             theme.size_body - 1, theme.size_body_min)
+            for sd in sides]
+    size = min(f[0] for f in fits)
+    over = over or any(f[1] for f in fits)
     needed = head_h + pad + max(
         textfit.block_height_pt(sd.points, font, size, inner_w) for sd in sides
     )
@@ -437,14 +444,15 @@ def _render_compare(slide, theme: ThemeConfig, s: Slide):
 
     if c.verdict:
         _callout(slide, theme, c.verdict, y + col_h + 12, SLIDE_W_PT - 2 * MARGIN_PT)
+    return over
 
 
 def _render_bullets_summary(slide, theme: ThemeConfig, s: Slide):
-    y0 = _slide_title(slide, theme, s.title, s.subtitle)
+    y0, over = _slide_title(slide, theme, s.title, s.subtitle)
     avail_h = SLIDE_H_PT - y0 - MARGIN_PT
     bullets = s.bullets or [p.text for p in s.paragraphs]
     if not bullets:
-        return
+        return over
     w = SLIDE_W_PT - 2 * MARGIN_PT
     if s.image:
         w = _pct_w(0.60)
@@ -453,8 +461,9 @@ def _render_bullets_summary(slide, theme: ThemeConfig, s: Slide):
     font = font_path(theme.body_font)
     # Итоговый слайд крупнее на +2 pt — приём из оригинала
     start = theme.size_body + theme.size_summary_bonus
-    size, _ = textfit.fit_size(bullets, font, inner_w, avail_h - 2 * pad, start,
+    size, o = textfit.fit_size(bullets, font, inner_w, avail_h - 2 * pad, start,
                                theme.size_body_min)
+    over = over or o
     gap_pt = size * 0.5
     needed = (
         textfit.block_height_pt(bullets, font, size, inner_w, para_gap=False)
@@ -471,14 +480,15 @@ def _render_bullets_summary(slide, theme: ThemeConfig, s: Slide):
                       space_after_pt=gap_pt, bullet_char="—")
     if s.image:
         _image_slot(slide, theme, MARGIN_PT + w + _pct_w(0.02), y, _pct_w(0.28), box_h, s.image)
+    return over
 
 
 def _render_timeline(slide, theme: ThemeConfig, s: Slide):
     """Таймлайн нативными фигурами: текст остаётся текстом, не растр."""
-    y0 = _slide_title(slide, theme, s.title, s.subtitle)
+    y0, over = _slide_title(slide, theme, s.title, s.subtitle)
     items = s.timeline_items
     if not items:
-        return
+        return over
     avail_h = SLIDE_H_PT - y0 - MARGIN_PT
     w = SLIDE_W_PT - 2 * MARGIN_PT
     if s.image:
@@ -513,13 +523,14 @@ def _render_timeline(slide, theme: ThemeConfig, s: Slide):
         ev_w = w - date_w - 32
         _, etf = _textbox(slide, ev_x, ry + 4, ev_w, row_h - 8)
         _write_paragraphs(etf, [(item.event, [])], theme.body_font, size, theme.ink)
+    return over
 
 
 def _render_quiz(slide, theme: ThemeConfig, s: Slide):
-    y0 = _slide_title(slide, theme, s.title, s.subtitle)
+    y0, over = _slide_title(slide, theme, s.title, s.subtitle)
     avail_h = SLIDE_H_PT - y0 - MARGIN_PT
     if not s.quiz:
-        return
+        return over
     w = SLIDE_W_PT - 2 * MARGIN_PT
     if s.image:
         w = _pct_w(0.62)
@@ -540,10 +551,11 @@ def _render_quiz(slide, theme: ThemeConfig, s: Slide):
                           theme.bg, align=PP_ALIGN.CENTER)
         _, qtf = _textbox(slide, MARGIN_PT + 44, ry + 2, w - 44, row_h - 8)
         _write_paragraphs(qtf, [(q.q, [])], theme.body_font, size, theme.ink)
+    return over
 
 
 def _render_wide_diagram(slide, theme: ThemeConfig, s: Slide):
-    y0 = _slide_title(slide, theme, s.title, s.subtitle)
+    y0, over = _slide_title(slide, theme, s.title, s.subtitle)
     avail_h = SLIDE_H_PT - y0 - MARGIN_PT
     w = SLIDE_W_PT - 2 * MARGIN_PT
     img_h = avail_h * 0.52
@@ -552,16 +564,18 @@ def _render_wide_diagram(slide, theme: ThemeConfig, s: Slide):
     rest_h = SLIDE_H_PT - rest_y - MARGIN_PT
     items = [(b, []) for b in s.bullets] or [(p.text, p.bold_terms) for p in s.paragraphs]
     if not items:
-        return
+        return over
     font = font_path(theme.body_font)
-    size, _ = textfit.fit_size([t for t, _ in items], font, w - 20, rest_h,
+    size, o = textfit.fit_size([t for t, _ in items], font, w - 20, rest_h,
                                theme.size_body - 1, theme.size_body_min)
+    over = over or o
     _, tf = _textbox(slide, MARGIN_PT + 14, rest_y, w - 20, rest_h)
     _write_paragraphs(tf, items, theme.body_font, size, theme.ink,
                       space_after_pt=size * 0.35, bullet_char="•")
 
 
 # --- Сборка ---------------------------------------------------------------
+    return over
 
 _DISPATCH = {
     Layout.TITLE_HERO: None,  # обрабатывается отдельно (нужен meta)
@@ -577,26 +591,71 @@ _DISPATCH = {
 }
 
 
-def render_deck(deck: Deck, out_path: str) -> str:
-    """Собрать PPTX. Возвращает путь к файлу."""
+@dataclass
+class RenderReport:
+    """Что рендерер узнал о деке, пока его собирал.
+
+    Раньше эти сигналы вычислялись и молча терялись: замерщик возвращал флаг
+    переполнения, лейауты его гасили, а сборщик игнорировал возвращаемое
+    значение. Переполнение обнаруживалось — и забывалось.
+    """
+
+    path: str = ""
+    #: (индекс слайда, заголовок) — текст не влез даже на минимальном кегле
+    overflowed: List[Tuple[int, str]] = field(default_factory=list)
+    #: начертания темы, которых нет на этой машине (вёрстка считана по чужим
+    #: метрикам — см. themes.check_theme_fonts)
+    missing_fonts: List[str] = field(default_factory=list)
+
+    def __str__(self) -> str:
+        return self.path
+
+    @property
+    def ok(self) -> bool:
+        return not self.overflowed and not self.missing_fonts
+
+    def issues(self) -> List[str]:
+        out: List[str] = []
+        for idx, title in self.overflowed:
+            out.append(
+                f"слайд {idx + 1} «{title}»: текст не помещается даже на "
+                f"минимальном кегле — сократить или разбить"
+            )
+        if self.missing_fonts:
+            out.append(
+                "нет шрифтов: " + ", ".join(self.missing_fonts)
+                + " — вёрстка посчитана по метрикам запасного шрифта, "
+                "рендер разойдётся с расчётом (доставить fonts-paratype)"
+            )
+        return out
+
+
+def render_deck(deck: Deck, out_path: str) -> RenderReport:
+    """Собрать PPTX. Возвращает отчёт (в строковом контексте — путь к файлу)."""
     theme = get_theme(deck.meta.theme.value)
+    report = RenderReport(missing_fonts=check_theme_fonts(theme))
     prs = Presentation()
     # Холст всегда 16:9
     prs.slide_width = _pt(SLIDE_W_PT)
     prs.slide_height = _pt(SLIDE_H_PT)
     blank = prs.slide_layouts[6]  # пустой лейаут
 
-    for s in deck.slides:
+    for i, s in enumerate(deck.slides):
         slide = prs.slides.add_slide(blank)
         _slide_bg(slide, theme)
         if s.layout == Layout.TITLE_HERO or s.role == Role.TITLE:
-            _render_title_hero(slide, theme, s, deck.meta)
+            over = _render_title_hero(slide, theme, s, deck.meta)
         else:
             fn = _DISPATCH.get(s.layout)
             if fn is None:
-                _render_card_image(slide, theme, s, True)
+                over = _render_card_image(slide, theme, s, True)
             else:
-                fn(slide, theme, s)
+                over = fn(slide, theme, s)
+        if over:
+            report.overflowed.append((i, s.title))
+        # Заметки докладчика: проза учителя живёт здесь, а не на слайде
+        if s.notes:
+            slide.notes_slide.notes_text_frame.text = s.notes
 
     # Гигиена метаданных: чистый title/author, без чужого наследия
     cp = prs.core_properties
@@ -608,4 +667,5 @@ def render_deck(deck: Deck, out_path: str) -> str:
 
     os.makedirs(os.path.dirname(os.path.abspath(out_path)), exist_ok=True)
     prs.save(out_path)
-    return out_path
+    report.path = out_path
+    return report

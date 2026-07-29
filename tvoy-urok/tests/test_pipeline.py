@@ -238,12 +238,95 @@ def test_bold_split() -> None:
     check("отсутствующий термин игнорируется", segs == [("Простой текст.", False)], str(segs))
 
 
+def test_render_report(deck: Deck) -> None:
+    """Сигналы рендера доходят до вызывающего, а не теряются по дороге."""
+    print("\n[6] Отчёт рендера: переполнение, шрифты, заметки")
+    from pptx import Presentation
+
+    from generator.schema import Layout, Meta, Role, Slide
+    from generator.themes import check_theme_fonts, get_theme, resolve_font
+
+    with tempfile.TemporaryDirectory() as tmp:
+        rep = render_deck(deck, os.path.join(tmp, "ok.pptx"))
+        check("отчёт возвращается", hasattr(rep, "overflowed"))
+        check("в строковом контексте — путь", str(rep).endswith("ok.pptx"))
+        check("эталонный дек без переполнений", not rep.overflowed, str(rep.overflowed))
+        check("шрифты темы на месте", not rep.missing_fonts, str(rep.missing_fonts))
+        check("дек признан чистым", rep.ok)
+        check("замечаний нет", rep.issues() == [])
+
+        # Переполнение по ШИРИНЕ: слово, которое не переносится.
+        #
+        # Почему проверяем именно этот случай, а не высоту: лимиты схемы
+        # (140 символов на тезис, ≤6 тезисов) не дают тексту перебрать по
+        # высоте ни в одном лейауте — первый эшелон защиты работает. А вот
+        # длинное неразрывное слово схема пропускает: оно укладывается в 140
+        # символов, но шире колонки. Высотный путь использует тот же флаг и
+        # проверен на уровне замерщика (тесты 3 и 7).
+        wide = "Сверхдлинноесловоизстачетырёхбуквкотороеточнонепоместитсяниводнуколонкунашегослайдаивылезетзакрай"
+        wide_deck = Deck(
+            meta=Meta(topic="Тест", subject="История", grade=6),
+            slides=[
+                Slide(role=Role.TITLE, layout=Layout.TITLE_HERO, title="Тест"),
+                Slide(role=Role.CONTENT, layout=Layout.CARD_LEFT_IMAGE_RIGHT,
+                      title="Длинное слово", paragraphs=[Paragraph(text=wide)]),
+            ],
+        )
+        rep3 = render_deck(wide_deck, os.path.join(tmp, "wide.pptx"))
+        check("переполнение поймано", bool(rep3.overflowed), str(rep3.overflowed))
+        check("в замечании назван слайд",
+              any("слайд 2" in i for i in rep3.issues()), str(rep3.issues()))
+        check("дек признан проблемным", not rep3.ok)
+
+        # Заметки докладчика попадают в файл
+        out = os.path.join(tmp, "notes.pptx")
+        render_deck(deck, out)
+        prs = Presentation(out)
+        with_notes = [
+            s for s in prs.slides
+            if s.has_notes_slide and s.notes_slide.notes_text_frame.text.strip()
+        ]
+        expected = sum(1 for s in deck.slides if s.notes)
+        check("заметки записаны в файл", len(with_notes) == expected,
+              f"{len(with_notes)} из {expected}")
+        check("в фикстуре заметки есть", expected > 0)
+        blob = "\n".join(s.notes_slide.notes_text_frame.text for s in with_notes)
+        check("заметка не на слайде, а в заметках", "Спросить" in blob)
+
+    # Подмена шрифта видна, а не молчалива
+    _, exact_ok = resolve_font("PT Sans")
+    _, exact_bad = resolve_font("Такого Шрифта Нет")
+    check("существующий шрифт — точное совпадение", exact_ok)
+    check("несуществующий помечен как подмена", not exact_bad)
+    check("проверка темы находит все начертания",
+          check_theme_fonts(get_theme("manuscript")) == [])
+
+
+def test_width_measurement() -> None:
+    print("\n[7] Замер ширины (текст, вылезающий вбок)")
+    from generator.themes import font_path
+
+    font = font_path("PT Sans")
+    check("длинное слово шире слота — поймано",
+          textfit.too_wide(["Гидрометеорологическийсупертермин"], font, 17, 60))
+    check("обычный текст — нет", not textfit.too_wide(["Короткий тезис."], font, 17, 400))
+    # fit_size учитывает обе беды сразу
+    _, over_w = textfit.fit_size(["Гидрометеорологическийсупертермин"], font, 60, 400, 17, 13)
+    _, over_h = textfit.fit_size(["слово " * 60] * 6, font, 300, 100, 17, 13)
+    _, fine = textfit.fit_size(["Обычный тезис."], font, 400, 200, 17, 13)
+    check("fit_size ловит перебор по ширине", over_w)
+    check("fit_size ловит перебор по высоте", over_h)
+    check("нормальный текст не помечен", not fine)
+
+
 def main() -> int:
     deck = test_fixture_valid()
     test_render(deck)
     test_overflow_guard()
     test_validators_catch_defects()
     test_bold_split()
+    test_render_report(deck)
+    test_width_measurement()
     print(f"\n{'=' * 46}\nПройдено: {_passed}, провалено: {_failed}")
     return 1 if _failed else 0
 

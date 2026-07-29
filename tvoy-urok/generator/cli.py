@@ -123,8 +123,21 @@ def main(argv=None) -> int:
         print("\nОстановлено: есть ошибки валидации (--strict)", file=sys.stderr)
         return 2
 
-    pptx = render_deck(deck, args.out)
-    print(f"\nPPTX: {pptx} ({os.path.getsize(pptx) // 1024} КБ, {len(deck.slides)} слайдов)")
+    report = render_deck(deck, args.out)
+    pptx = report.path
+    notes = sum(1 for s in deck.slides if s.notes)
+    print(f"\nPPTX: {pptx} ({os.path.getsize(pptx) // 1024} КБ, "
+          f"{len(deck.slides)} слайдов, заметок: {notes})")
+
+    # Сигналы рендера: переполнение и подменённые шрифты. Раньше они
+    # вычислялись и терялись — теперь доходят до вызывающего.
+    if not report.ok:
+        print("\nЗамечания рендера:")
+        for issue in report.issues():
+            print(f"  [error] {issue}")
+        if args.strict:
+            print("\nОстановлено: рендер с замечаниями (--strict)", file=sys.stderr)
+            return 4
 
     if args.pdf:
         pdf = to_pdf(pptx)

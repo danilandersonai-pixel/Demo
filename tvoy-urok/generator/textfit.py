@@ -84,6 +84,27 @@ def block_height_pt(
     return total
 
 
+def too_wide(
+    texts: Sequence[str],
+    font_file: Optional[str],
+    size_pt: float,
+    max_width_pt: float,
+) -> bool:
+    """Есть ли строка шире слота — то есть текст вылезет вбок.
+
+    Перенос жадный и рвёт только по пробелам, поэтому слово длиннее слота
+    (химическая формула, составной термин, длинный топоним) остаётся на
+    строке целиком и выходит за границу. По высоте при этом всё сходится,
+    и проверка одной высоты такой случай пропускает — а обрезанный на краю
+    текст пользователь видит сразу.
+    """
+    for t in texts:
+        for line in wrap_text(t, font_file, size_pt, max_width_pt):
+            if text_width_pt(line, font_file, size_pt) > max_width_pt + 0.5:
+                return True
+    return False
+
+
 def fit_size(
     texts: Sequence[str],
     font_file: Optional[str],
@@ -104,7 +125,8 @@ def fit_size(
     """
     size = start_pt
     while size >= min_pt:
-        if block_height_pt(texts, font_file, size, box_w_pt, para_gap) <= box_h_pt:
+        fits_h = block_height_pt(texts, font_file, size, box_w_pt, para_gap) <= box_h_pt
+        if fits_h and not too_wide(texts, font_file, size, box_w_pt):
             return size, False
         size -= 0.5
     return min_pt, True
