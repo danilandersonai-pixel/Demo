@@ -10,7 +10,7 @@
 ```bash
 cd sun-tzu-arena
 node sim/run.js --all        # прогнать эталонные сиды 7, 42, 2026 → results/ + viz/replay.js
-node --test tests/*.test.js  # 48 тестов
+node --test tests/*.test.js  # 58 тестов
 ```
 
 Третья команда — открыть `viz/arena.html` двойным кликом (данные уже вшиты

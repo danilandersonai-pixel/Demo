@@ -127,7 +127,7 @@
 <div class="wrap" id="app">
   <header>
     <h1><span class="blade">⚔</span> Арена Сунь-Цзы</h1>
-    <span class="subtitle">эволюционный турнир стратегий · дилемма заключённого · шум 5 %</span>
+    <span class="subtitle" id="subtitle">эволюционный турнир стратегий · дилемма заключённого</span>
   </header>
 
   <div class="toolbar">
@@ -164,9 +164,9 @@
   <p class="canvas-caption" id="arenaCaption">
     Каждое поколение — волна: армии (размер = доля популяции) сходятся на трёх главных фронтах поколения,
     линия фронта смещается к проигравшему, башни теряют прочность вместе с долей.
-    Числа: <b style="color:#7bd389">+3/+3</b> — взаимное сотрудничество,
-    <b style="color:#ff6b6b">+5/0</b> — предательство доверчивого,
-    <b style="color:#9aa0a6">+1/+1</b> — взаимная война.
+    Числа: <b style="color:#7bd389" id="capRR">+3/+3</b> — взаимное сотрудничество,
+    <b style="color:#ff6b6b" id="capTS">+5/0</b> — предательство доверчивого,
+    <b style="color:#9aa0a6" id="capPP">+1/+1</b> — взаимная война.
     Клавиши: <kbd>Пробел</kbd> — пауза, <kbd>←</kbd>/<kbd>→</kbd> — поколения.
   </p>
 
@@ -237,6 +237,10 @@
         !run.meta || !run.outcome || !Array.isArray(run.finalShares)) {
       fail('Прогон сида ' + s + ' повреждён: не хватает обязательных полей.');
     }
+    if (run.generations.length === 0 || run.generations.length !== run.meta.generations) {
+      fail('Прогон сида ' + s + ' повреждён: поколений ' + run.generations.length +
+        ', в meta заявлено ' + run.meta.generations + '.');
+    }
   }
 
   // ── Состояние ───────────────────────────────────────────────────────
@@ -267,6 +271,18 @@
     }
     buildChartCache();
     buildDossiers();
+    syncMetaLabels();
+  }
+
+  // Подписи с параметрами симуляции берутся из meta прогона, а не хардкода.
+  function syncMetaLabels() {
+    const m = run().meta;
+    const P = m.payoffs || { R: 3, P: 1, T: 5, S: 0 };
+    document.getElementById('subtitle').textContent =
+      'эволюционный турнир стратегий · дилемма заключённого · шум ' + (m.noise * 100) + ' %';
+    document.getElementById('capRR').textContent = '+' + P.R + '/+' + P.R;
+    document.getElementById('capTS').textContent = '+' + P.T + '/' + P.S;
+    document.getElementById('capPP').textContent = '+' + P.P + '/+' + P.P;
   }
 
   // Дуэли поколения: три самых весомых фронта (вес = произведение долей).
@@ -355,7 +371,12 @@
 
   function setPlaying(on) {
     state.playing = on;
-    if (on && state.pos >= G()) state.pos = 0; // повтор с начала
+    if (on && state.pos >= G()) {
+      // повтор с начала: сброс и счётчика границ, иначе одноразовые события
+      // (гибель фракций, доминация) не сыграют во второй раз
+      state.pos = 0;
+      state.lastWholeGen = 0;
+    }
     btnPlay.textContent = on ? '❚❚ Пауза' : '▶ Играть';
   }
   btnPlay.addEventListener('click', () => setPlaying(!state.playing));
@@ -388,6 +409,14 @@
   });
 
   document.addEventListener('keydown', (e) => {
+    if (tState.view === 'territory') {
+      // на вкладке территории клавиши управляют территорией, а не скрытой ареной
+      const sp = spatialRun();
+      if (e.code === 'Space') { e.preventDefault(); setTerritoryPlaying(!tState.playing); }
+      if (sp && e.code === 'ArrowRight') { tState.pos = Math.min(sp.meta.epochs, Math.floor(tState.pos) + 1); updateTerritoryHud(true); }
+      if (sp && e.code === 'ArrowLeft') { tState.pos = Math.max(0, Math.ceil(tState.pos) - 1); updateTerritoryHud(true); }
+      return;
+    }
     if (e.code === 'Space') { e.preventDefault(); setPlaying(!state.playing); }
     if (e.code === 'ArrowRight') { state.pos = Math.min(G(), Math.floor(state.pos) + 1); state.lastWholeGen = Math.floor(state.pos); updateHud(true); }
     if (e.code === 'ArrowLeft') { state.pos = Math.max(0, Math.ceil(state.pos) - 1); state.lastWholeGen = Math.floor(state.pos); updateHud(true); }
@@ -455,8 +484,8 @@
     ctx.closePath(); ctx.fill();
     ctx.restore();
     if (!dead) {
-      // прочность = доля к порогу доминации 60 %
-      const bw = 46, frac = Math.max(0, Math.min(1, hp / 0.6));
+      // прочность = доля к порогу доминации (из meta прогона)
+      const bw = 46, frac = Math.max(0, Math.min(1, hp / (run().meta.dominationShare || 0.6)));
       ctx.fillStyle = '#0a0c10';
       ctx.fillRect(x - bw / 2, y + 6, bw, 5);
       ctx.fillStyle = color;
@@ -599,26 +628,27 @@
           duel._acc -= every;
           const y = laneMidY + (Math.random() - 0.5) * (laneH * 0.5);
           const r = Math.random();
+          const P = run().meta.payoffs || { R: 3, P: 1, T: 5, S: 0 };
           const pCC = duel.ca * duel.cb;
           const pDC = (1 - duel.ca) * duel.cb; // a предал доверчивого b
           const pCD = duel.ca * (1 - duel.cb); // b предал доверчивого a
           if (r < pCC) {
-            floatText(frontX - 26, y, '+3', '#7bd389');
-            floatText(frontX + 26, y, '+3', '#7bd389');
+            floatText(frontX - 26, y, '+' + P.R, '#7bd389');
+            floatText(frontX + 26, y, '+' + P.R, '#7bd389');
             burst(frontX, y, '#7bd389', 4, 1.1);
           } else if (r < pCC + pDC) {
-            floatText(frontX - 26, y, '+5', '#ff6b6b');
-            floatText(frontX + 26, y, '0', '#5f6875');
+            floatText(frontX - 26, y, '+' + P.T, '#ff6b6b');
+            floatText(frontX + 26, y, String(P.S), '#5f6875');
             burst(frontX, y, sa.color, 7, 1.9);
             shake = Math.min(shake + 1.6, 7);
           } else if (r < pCC + pDC + pCD) {
-            floatText(frontX - 26, y, '0', '#5f6875');
-            floatText(frontX + 26, y, '+5', '#ff6b6b');
+            floatText(frontX - 26, y, String(P.S), '#5f6875');
+            floatText(frontX + 26, y, '+' + P.T, '#ff6b6b');
             burst(frontX, y, sb.color, 7, 1.9);
             shake = Math.min(shake + 1.6, 7);
           } else {
-            floatText(frontX - 26, y, '+1', '#9aa0a6');
-            floatText(frontX + 26, y, '+1', '#9aa0a6');
+            floatText(frontX - 26, y, '+' + P.P, '#9aa0a6');
+            floatText(frontX + 26, y, '+' + P.P, '#9aa0a6');
             burst(frontX, y, '#6b7280', 3, 0.8);
           }
         }
@@ -817,11 +847,12 @@
     const w = r.strategies[r.outcome.winner];
     document.getElementById('victoryName').textContent = w.name;
     document.getElementById('victoryName').style.color = w.color;
+    const domPct = ((r.meta.dominationShare || 0.6) * 100).toFixed(0);
     const condText = {
-      domination: 'Доминация: более 60 % популяции к поколению ' + r.outcome.conditionGen,
+      domination: 'Доминация: более ' + domPct + ' % популяции к поколению ' + r.outcome.conditionGen,
       extermination: 'Тотальная победа: все соперники истреблены к поколению ' + r.outcome.conditionGen,
       plurality: 'Победа по доле: ' + (r.outcome.winnerShare * 100).toFixed(1) + '% популяции после ' + r.meta.generations + ' поколений',
-    }[r.outcome.condition];
+    }[r.outcome.condition] || 'Кампания завершена';
     document.getElementById('victoryCond').textContent =
       condText + ' · выжило фракций: ' + r.outcome.aliveAtEnd + ' из ' + r.strategies.length;
     const podium = r.strategies
@@ -844,10 +875,30 @@
   const tLabel = document.getElementById('tLabel');
   const EPOCH_MS = 420; // длительность эпохи при ×1
 
-  const spatialRun = () => (DATA.spatial && DATA.spatial[state.seed]) || null;
+  const spatialWarned = {};
+  // Территория пригодна, только если её реестр стратегий (id по индексам)
+  // совпадает с реестром прогона — иначе цвета и легенда врали бы молча.
+  const spatialRun = () => {
+    const sp = (DATA.spatial && DATA.spatial[state.seed]) || null;
+    if (!sp) return null;
+    const ids = run().strategies;
+    if (!Array.isArray(sp.strategies) || sp.strategies.length !== ids.length ||
+        sp.strategies.some((id, i) => id !== ids[i].id)) {
+      if (!spatialWarned[state.seed]) {
+        spatialWarned[state.seed] = true;
+        console.warn('ARENA_DATA.spatial[' + state.seed + '] рассинхронизирован с реестром стратегий — территория скрыта');
+      }
+      return null;
+    }
+    return sp;
+  };
 
   function layoutTerritory() {
-    const size = Math.min(460, Math.max(300, Math.floor(W * 0.45)));
+    // Ширину берём от собственного контейнера (на вкладке «Арена» он скрыт —
+    // тогда от общего .wrap), а не от W: при resize на «Территории» W == 0.
+    const host = document.getElementById('territorySection');
+    const base = host.clientWidth || document.querySelector('.wrap').clientWidth - 32;
+    const size = Math.min(460, Math.max(300, Math.floor(base * 0.45)));
     tCanvas.width = size * DPR;
     tCanvas.height = size * DPR;
     tCanvas.style.width = size + 'px';
@@ -867,10 +918,18 @@
     updateTerritoryHud();
   });
 
-  function updateTerritoryHud() {
+  let lastHudEpoch = -1;
+  function updateTerritoryHud(force) {
     const sp = spatialRun();
-    if (!sp) return;
+    if (!sp) {
+      tLabel.textContent = '';
+      document.getElementById('tBar').innerHTML = '';
+      document.getElementById('tLegend').innerHTML = '';
+      return;
+    }
     const e = Math.min(Math.floor(tState.pos), sp.meta.epochs);
+    if (!force && e === lastHudEpoch) return; // легенда меняется только по эпохам
+    lastHudEpoch = e;
     tLabel.textContent = 'Эпоха ' + e + ' / ' + sp.meta.epochs;
     if (document.activeElement !== tSlider) tSlider.value = e;
     // легенда и стек-бар
@@ -922,8 +981,9 @@
       const y = Math.floor(i / gsize) * cell;
       tCtx.fillStyle = run().strategies[grid[i]].color;
       tCtx.fillRect(x + 0.5, y + 0.5, cell - 1, cell - 1);
-      // вспышка на свежезахваченных клетках
-      if (prev && prev[i] !== grid[i] && frac < 0.55) {
+      // вспышка на свежезахваченных клетках — только в движении (frac > 0),
+      // иначе на целых позициях слайдера вспышки «замерзают» навсегда
+      if (prev && prev[i] !== grid[i] && frac > 0 && frac < 0.55) {
         tCtx.fillStyle = 'rgba(255,255,255,' + (0.65 * (1 - frac / 0.55)) + ')';
         tCtx.fillRect(x + 0.5, y + 0.5, cell - 1, cell - 1);
       }
@@ -943,9 +1003,10 @@
     if (!arena) {
       setPlaying(false);
       layoutTerritory();
-      updateTerritoryHud();
+      updateTerritoryHud(true);
     } else {
       setTerritoryPlaying(false);
+      layout(); // канвас арены мог обнулиться, пока был скрыт (resize)
     }
   });
 
@@ -1005,8 +1066,11 @@
 
   // ── Старт ───────────────────────────────────────────────────────────
   window.addEventListener('resize', () => {
-    layout();
-    if (tState.view === 'territory') layoutTerritory();
+    if (tState.view === 'arena') {
+      layout();
+    } else {
+      layoutTerritory(); // арену пере-разметит возврат на вкладку
+    }
   });
   layout();
   layoutTerritory();

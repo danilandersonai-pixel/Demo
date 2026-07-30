@@ -17,10 +17,18 @@ const RESULTS_DIR = path.join(ROOT, 'results');
 const REPLAY_PATH = path.join(ROOT, 'viz', 'replay.js');
 
 export const CANONICAL_SEEDS = [7, 42, 2026];
-const DEFAULT_NOISE = 0.05;
+const DEFAULTS = { generations: 30, noise: 0.05, rounds: 200 };
+
+/** Проверки числовых флагов CLI: защита от NaN, дробных раундов и шума вне [0,1]. */
+export function validateCliNumbers({ seed, generations, noise, rounds }) {
+  if (seed != null && !Number.isInteger(seed)) throw new Error('--seed должен быть целым числом');
+  if (!Number.isInteger(generations) || generations < 1) throw new Error('--generations должен быть целым ≥ 1');
+  if (!Number.isInteger(rounds) || rounds < 1) throw new Error('--rounds должен быть целым ≥ 1');
+  if (!(noise >= 0 && noise <= 1)) throw new Error('--noise должен лежать в [0, 1]');
+}
 
 function parseArgs(argv) {
-  const opts = { generations: 30, noise: DEFAULT_NOISE, rounds: 200, all: false, seed: null };
+  const opts = { ...DEFAULTS, all: false, seed: null };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--all') {
@@ -36,14 +44,27 @@ function parseArgs(argv) {
       throw new Error(`Неизвестный аргумент: ${a} (доступны --seed, --generations, --noise, --rounds, --all)`);
     }
   }
+  if (opts.all && opts.seed != null) {
+    throw new Error('--all и --seed взаимоисключающие');
+  }
   if (!opts.all && opts.seed == null) {
     throw new Error('Укажите --seed <число> или --all');
   }
+  validateCliNumbers(opts);
   return opts;
 }
 
-export function resultFileName(seed, noise) {
-  return noise === DEFAULT_NOISE ? `${seed}.json` : `${seed}-noise${noise}.json`;
+/**
+ * Имя файла результата. Эталонное `<seed>.json` — только при параметрах по
+ * умолчанию; ЛЮБОЕ отклонение (noise/generations/rounds) даёт суффикс, чтобы
+ * нестандартный прогон не мог затереть канонический результат (D-09).
+ */
+export function resultFileName(seed, { noise, generations, rounds } = DEFAULTS) {
+  let name = String(seed);
+  if (noise !== DEFAULTS.noise) name += `-noise${noise}`;
+  if (generations !== DEFAULTS.generations) name += `-gen${generations}`;
+  if (rounds !== DEFAULTS.rounds) name += `-rounds${rounds}`;
+  return name + '.json';
 }
 
 /** Перегенерация viz/replay.js из имеющихся эталонных results/<seed>.json. */
@@ -101,7 +122,7 @@ function runOne(seed, opts) {
     noise: opts.noise,
   });
   if (!fs.existsSync(RESULTS_DIR)) fs.mkdirSync(RESULTS_DIR, { recursive: true });
-  const file = path.join(RESULTS_DIR, resultFileName(seed, opts.noise));
+  const file = path.join(RESULTS_DIR, resultFileName(seed, opts));
   fs.writeFileSync(file, serializeResult(result));
   printSummary(result);
   console.log(`  → ${path.relative(process.cwd(), file)}`);

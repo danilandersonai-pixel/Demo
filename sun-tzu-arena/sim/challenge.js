@@ -15,6 +15,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL, fileURLToPath } from 'node:url';
 import { playMatch, C, D } from '../engine/game.js';
+import { combineSeedAll } from '../engine/rng.js';
 import { simulate } from './simulate.js';
 import { STRATEGIES } from '../strategies/index.js';
 
@@ -43,22 +44,33 @@ function findChampion() {
   return { champion: best, meanShare: acc.get(best.id) };
 }
 
-/** Карантин претендента: интерфейс + пробные матчи. Бросает при нарушении. */
-function quarantine(strat) {
+/**
+ * Карантин претендента: интерфейс, уникальность id, пробные матчи и проверка
+ * детерминизма (два одинаковых матча обязаны совпасть ход в ход — ловит
+ * Math.random/Date и глобальное состояние между матчами). Бросает при
+ * нарушении. Оговорка: import модуля исполняет его top-level код до карантина;
+ * песочницы без зависимостей нет, поэтому претенденты — доверенный код (D-13).
+ */
+function quarantine(strat, takenIds) {
   for (const field of ['id', 'name', 'epithet', 'color']) {
     if (typeof strat[field] !== 'string' || !strat[field]) throw new Error(`нет поля ${field}`);
   }
   if (!strat.dossier || typeof strat.dossier.quote !== 'string') throw new Error('нет досье');
   if (typeof strat.create !== 'function') throw new Error('нет create()');
+  if (takenIds.has(strat.id)) throw new Error(`id «${strat.id}» уже занят`);
   const probes = [
     { id: 'probe-allc', name: 'allc', create: () => ({ move: () => C }) },
     { id: 'probe-alld', name: 'alld', create: () => ({ move: () => D }) },
     { id: 'probe-tft', name: 'tft', create: () => ({ move: (m, t) => (t.length ? t[t.length - 1] : C) }) },
   ];
   for (const probe of probes) {
-    playMatch(strat, probe, { rounds: 200, noise: 0.05, seed: 999 });
-    playMatch(strat, strat, { rounds: 200, noise: 0.05, seed: 998 });
+    const a = playMatch(strat, probe, { rounds: 200, noise: 0.05, seed: 999 });
+    const b = playMatch(strat, probe, { rounds: 200, noise: 0.05, seed: 999 });
+    if (a.movesA.join('') !== b.movesA.join('')) {
+      throw new Error('недетерминизм: два матча с одним сидом разошлись (Math.random/Date/глобальное состояние?)');
+    }
   }
+  playMatch(strat, strat, { rounds: 200, noise: 0.05, seed: 998 });
 }
 
 async function loadChallengers() {
@@ -66,12 +78,14 @@ async function loadChallengers() {
   const files = fs.readdirSync(CHALLENGERS_DIR).filter((f) => f.endsWith('.js')).sort();
   const accepted = [];
   const rejected = [];
+  const takenIds = new Set(STRATEGIES.map((s) => s.id));
   for (const f of files) {
     try {
       const mod = await import(pathToFileURL(path.join(CHALLENGERS_DIR, f)).href);
       const strat = mod.default;
       if (!strat) throw new Error('нет default-экспорта');
-      quarantine(strat);
+      quarantine(strat, takenIds);
+      takenIds.add(strat.id);
       accepted.push(strat);
     } catch (e) {
       rejected.push({ file: f, reason: e.message });
@@ -92,7 +106,7 @@ function roundRobin(participants, { rounds = 200, noise = 0.05, matchesPerPair =
         const res = playMatch(participants[i], participants[j], {
           rounds,
           noise,
-          seed: 100000 + i * 1000 + j * 37 + k,
+          seed: combineSeedAll(0xc0ffee, i, j, k),
         });
         sumA += res.avgA;
         sumB += res.avgB;

@@ -22,6 +22,19 @@ const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const RESULTS_DIR = path.join(ROOT, 'results');
 
 export const GRID = 20;
+const DEFAULTS = { epochs: 40, noise: 0.05, rounds: 200 };
+
+/**
+ * Имя файла территории: эталонное `spatial-<seed>.json` — только при параметрах
+ * по умолчанию; любое отклонение получает суффикс (та же защита, что в run.js).
+ */
+export function spatialFileName(seed, { noise, epochs, rounds } = DEFAULTS) {
+  let name = `spatial-${seed}`;
+  if (noise !== DEFAULTS.noise) name += `-noise${noise}`;
+  if (epochs !== DEFAULTS.epochs) name += `-epochs${epochs}`;
+  if (rounds !== DEFAULTS.rounds) name += `-rounds${rounds}`;
+  return name + '.json';
+}
 
 /** Индексы четырёх соседей клетки i на торе size×size: С, В, Ю, З. */
 export function neighborsOf(i, size = GRID) {
@@ -114,7 +127,7 @@ export function runSpatial(options) {
 }
 
 function parseArgs(argv) {
-  const opts = { epochs: 40, rounds: 200, noise: 0.05, all: false, seed: null };
+  const opts = { ...DEFAULTS, all: false, seed: null };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--all') {
@@ -127,7 +140,12 @@ function parseArgs(argv) {
       throw new Error(`Неизвестный аргумент: ${a} (доступны --seed, --epochs, --rounds, --noise, --all)`);
     }
   }
+  if (opts.all && opts.seed != null) throw new Error('--all и --seed взаимоисключающие');
   if (!opts.all && opts.seed == null) throw new Error('Укажите --seed <число> или --all');
+  if (opts.seed != null && !Number.isInteger(opts.seed)) throw new Error('--seed должен быть целым числом');
+  if (!Number.isInteger(opts.epochs) || opts.epochs < 1) throw new Error('--epochs должен быть целым ≥ 1');
+  if (!Number.isInteger(opts.rounds) || opts.rounds < 1) throw new Error('--rounds должен быть целым ≥ 1');
+  if (!(opts.noise >= 0 && opts.noise <= 1)) throw new Error('--noise должен лежать в [0, 1]');
   return opts;
 }
 
@@ -136,7 +154,7 @@ function main() {
   const seeds = opts.all ? CANONICAL_SEEDS : [opts.seed];
   for (const seed of seeds) {
     const result = runSpatial({ seed, epochs: opts.epochs, rounds: opts.rounds, noise: opts.noise });
-    const file = path.join(RESULTS_DIR, `spatial-${seed}.json`);
+    const file = path.join(RESULTS_DIR, spatialFileName(seed, opts));
     fs.writeFileSync(file, JSON.stringify(result) + '\n');
     const final = result.counts[result.counts.length - 1];
     const top = final

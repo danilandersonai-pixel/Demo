@@ -17,7 +17,7 @@ import feint from '../strategies/feint.js';
 import patience from '../strategies/patience.js';
 import { STRATEGIES } from '../strategies/index.js';
 
-test('реестр: 10 стратегий, у каждой id, имя, цвет, досье и create()', () => {
+test('реестр: минимум 10 стратегий, у каждой id, имя, цвет, досье и create()', () => {
   assert.ok(STRATEGIES.length >= 10);
   for (const s of STRATEGIES) {
     assert.ok(s.id && s.name && s.color && s.epithet, s.id);
