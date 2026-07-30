@@ -131,6 +131,10 @@
   </header>
 
   <div class="toolbar">
+    <div class="group" id="viewTabs">
+      <button data-view="arena" class="active">⚔ Арена</button>
+      <button data-view="territory">🗺 Территория</button>
+    </div>
     <div class="group" id="seedTabs"><label>Прогон</label></div>
     <div class="group">
       <button id="btnPlay">▶ Играть</button>
@@ -157,7 +161,7 @@
       <button id="btnReplay">⟲ Смотреть снова</button>
     </div>
   </div>
-  <p class="canvas-caption">
+  <p class="canvas-caption" id="arenaCaption">
     Каждое поколение — волна: армии (размер = доля популяции) сходятся на трёх главных фронтах поколения,
     линия фронта смещается к проигравшему, башни теряют прочность вместе с долей.
     Числа: <b style="color:#7bd389">+3/+3</b> — взаимное сотрудничество,
@@ -165,6 +169,30 @@
     <b style="color:#9aa0a6">+1/+1</b> — взаимная война.
     Клавиши: <kbd>Пробел</kbd> — пауза, <kbd>←</kbd>/<kbd>→</kbd> — поколения.
   </p>
+
+  <div id="territorySection" style="display:none">
+    <div class="panel">
+      <div class="toolbar" style="margin:0 0 12px; padding:8px 10px;">
+        <div class="group"><button id="btnTPlay">▶ Играть</button></div>
+        <div class="group" style="flex:1; min-width:220px;">
+          <input type="range" id="tSlider" min="0" max="40" step="1" value="0" style="width:100%; accent-color:var(--gold);">
+        </div>
+        <span id="tLabel" style="color:var(--ink-dim); font-variant-numeric:tabular-nums;"></span>
+      </div>
+      <div style="display:flex; gap:18px; flex-wrap:wrap; align-items:flex-start;">
+        <canvas id="territory" style="border-radius:8px;"></canvas>
+        <div style="flex:1; min-width:240px;">
+          <div id="tBar" style="display:flex; height:16px; border-radius:5px; overflow:hidden; margin-bottom:10px;"></div>
+          <div id="tLegend" style="display:grid; gap:4px; font-size:13px;"></div>
+        </div>
+      </div>
+      <p class="canvas-caption">
+        Тор 20×20: каждая клетка играет полный матч с четырьмя соседями и в конце эпохи
+        перенимает стратегию лучшего из них. Вспышка — захват клетки. В отличие от общей арены,
+        здесь кооператоры выживают кластерами: граница платит, ядро процветает.
+      </p>
+    </div>
+  </div>
 
   <div class="panels">
     <div class="panel">
@@ -315,6 +343,12 @@
       genSlider.max = G();
       rebuildRunCaches();
       updateHud(true);
+      // сброс территории под новый сид
+      tState.pos = 0;
+      setTerritoryPlaying(false);
+      const sp = (DATA.spatial && DATA.spatial[state.seed]) || null;
+      if (sp) tSlider.max = sp.meta.epochs;
+      if (tState.view === 'territory') updateTerritoryHud();
     });
     seedTabs.appendChild(b);
   }
@@ -801,6 +835,120 @@
       .join('');
   }
 
+  // ── Территория (пространственный режим) ─────────────────────────────
+  const tState = { view: 'arena', pos: 0, playing: false, lastTs: null };
+  const tCanvas = document.getElementById('territory');
+  const tCtx = tCanvas.getContext('2d');
+  const btnTPlay = document.getElementById('btnTPlay');
+  const tSlider = document.getElementById('tSlider');
+  const tLabel = document.getElementById('tLabel');
+  const EPOCH_MS = 420; // длительность эпохи при ×1
+
+  const spatialRun = () => (DATA.spatial && DATA.spatial[state.seed]) || null;
+
+  function layoutTerritory() {
+    const size = Math.min(460, Math.max(300, Math.floor(W * 0.45)));
+    tCanvas.width = size * DPR;
+    tCanvas.height = size * DPR;
+    tCanvas.style.width = size + 'px';
+    tCanvas.style.height = size + 'px';
+    tCtx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  }
+
+  function setTerritoryPlaying(on) {
+    const sp = spatialRun();
+    tState.playing = on && !!sp;
+    if (tState.playing && sp && tState.pos >= sp.meta.epochs) tState.pos = 0;
+    btnTPlay.textContent = tState.playing ? '❚❚ Пауза' : '▶ Играть';
+  }
+  btnTPlay.addEventListener('click', () => setTerritoryPlaying(!tState.playing));
+  tSlider.addEventListener('input', () => {
+    tState.pos = Number(tSlider.value);
+    updateTerritoryHud();
+  });
+
+  function updateTerritoryHud() {
+    const sp = spatialRun();
+    if (!sp) return;
+    const e = Math.min(Math.floor(tState.pos), sp.meta.epochs);
+    tLabel.textContent = 'Эпоха ' + e + ' / ' + sp.meta.epochs;
+    if (document.activeElement !== tSlider) tSlider.value = e;
+    // легенда и стек-бар
+    const counts = sp.counts[e];
+    const total = counts.reduce((a, b) => a + b, 0);
+    const rows = run().strategies
+      .map((s, i) => ({ s, c: counts[i] }))
+      .sort((a, b) => b.c - a.c);
+    document.getElementById('tBar').innerHTML = rows
+      .filter((r) => r.c > 0)
+      .map((r) => '<div style="width:' + (r.c / total) * 100 + '%;background:' + r.s.color + '"></div>')
+      .join('');
+    document.getElementById('tLegend').innerHTML = rows
+      .map((r) =>
+        '<div style="' + (r.c === 0 ? 'opacity:0.4' : '') + '"><span class="swatch" style="background:' +
+        r.s.color + '"></span>' + r.s.name + ' — ' + r.c + ' ' +
+        (r.c === 0 ? '(изгнана)' : 'клеток (' + ((r.c / total) * 100).toFixed(0) + '%)') + '</div>')
+      .join('');
+  }
+
+  function drawTerritory(dt) {
+    const sp = spatialRun();
+    const sizePx = tCanvas.width / DPR;
+    tCtx.clearRect(0, 0, sizePx, sizePx);
+    if (!sp) {
+      tCtx.fillStyle = '#9aa3b5';
+      tCtx.font = '14px ' + getComputedStyle(document.body).fontFamily;
+      tCtx.textAlign = 'center';
+      tCtx.fillText('Для этого сида нет пространственного прогона', sizePx / 2, sizePx / 2 - 10);
+      tCtx.fillText('Выполните: node sim/spatial.js --all', sizePx / 2, sizePx / 2 + 12);
+      return;
+    }
+    if (tState.playing) {
+      tState.pos += (dt * state.speed) / EPOCH_MS;
+      if (tState.pos >= sp.meta.epochs) {
+        tState.pos = sp.meta.epochs;
+        setTerritoryPlaying(false);
+      }
+      updateTerritoryHud();
+    }
+    const gsize = sp.meta.size;
+    const e = Math.min(Math.floor(tState.pos), sp.meta.epochs);
+    const frac = Math.min(tState.pos - e, 1);
+    const grid = sp.grids[e];
+    const prev = e > 0 ? sp.grids[e - 1] : null;
+    const cell = sizePx / gsize;
+    for (let i = 0; i < grid.length; i++) {
+      const x = (i % gsize) * cell;
+      const y = Math.floor(i / gsize) * cell;
+      tCtx.fillStyle = run().strategies[grid[i]].color;
+      tCtx.fillRect(x + 0.5, y + 0.5, cell - 1, cell - 1);
+      // вспышка на свежезахваченных клетках
+      if (prev && prev[i] !== grid[i] && frac < 0.55) {
+        tCtx.fillStyle = 'rgba(255,255,255,' + (0.65 * (1 - frac / 0.55)) + ')';
+        tCtx.fillRect(x + 0.5, y + 0.5, cell - 1, cell - 1);
+      }
+    }
+  }
+
+  // Переключение видов «Арена | Территория»
+  document.getElementById('viewTabs').addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-view]');
+    if (!b) return;
+    tState.view = b.dataset.view;
+    for (const el of document.querySelectorAll('#viewTabs button')) el.classList.toggle('active', el === b);
+    const arena = tState.view === 'arena';
+    document.getElementById('battleWrap').style.display = arena ? '' : 'none';
+    document.getElementById('arenaCaption').style.display = arena ? '' : 'none';
+    document.getElementById('territorySection').style.display = arena ? 'none' : '';
+    if (!arena) {
+      setPlaying(false);
+      layoutTerritory();
+      updateTerritoryHud();
+    } else {
+      setTerritoryPlaying(false);
+    }
+  });
+
   // ── HUD и главный цикл ──────────────────────────────────────────────
   function updateHud(force) {
     const gi = Math.min(Math.floor(state.pos), G());
@@ -846,15 +994,27 @@
       }
       updateHud(false);
     }
-    drawBattlefield(ts, dt);
+    if (tState.view === 'arena') {
+      drawBattlefield(ts, dt);
+    } else {
+      drawTerritory(dt);
+    }
     drawChart();
     requestAnimationFrame(tick);
   }
 
   // ── Старт ───────────────────────────────────────────────────────────
-  window.addEventListener('resize', layout);
+  window.addEventListener('resize', () => {
+    layout();
+    if (tState.view === 'territory') layoutTerritory();
+  });
   layout();
+  layoutTerritory();
   genSlider.max = G();
+  {
+    const sp = (DATA.spatial && DATA.spatial[state.seed]) || null;
+    if (sp) tSlider.max = sp.meta.epochs;
+  }
   rebuildRunCaches();
   updateHud(true);
   requestAnimationFrame(tick);

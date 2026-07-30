@@ -50,14 +50,19 @@ export function resultFileName(seed, noise) {
 export function rebuildReplay() {
   const runs = {};
   const seeds = [];
+  const spatial = {};
   for (const seed of CANONICAL_SEEDS) {
     const file = path.join(RESULTS_DIR, `${seed}.json`);
     if (fs.existsSync(file)) {
       runs[seed] = JSON.parse(fs.readFileSync(file, 'utf8'));
       seeds.push(seed);
     }
+    const spatialFile = path.join(RESULTS_DIR, `spatial-${seed}.json`);
+    if (fs.existsSync(spatialFile)) {
+      spatial[seed] = JSON.parse(fs.readFileSync(spatialFile, 'utf8'));
+    }
   }
-  const data = { version: 1, seeds, runs };
+  const data = { version: 1, seeds, runs, spatial };
   const js =
     '// Автосгенерировано sim/run.js — не редактировать вручную.\n' +
     '// Данные реплеев для viz/arena.html (файл открывается с диска, без fetch).\n' +
