@@ -946,6 +946,12 @@
           '<ul>' + s.dossier.strengths.map((t) => '<li class="plus">' + t + '</li>').join('') + '</ul>' +
           '<ul>' + s.dossier.weaknesses.map((t) => '<li class="minus">' + t + '</li>').join('') + '</ul>' +
           '<div class="targets">Цель: ' + s.dossier.targets + '</div>' +
+          (s.dossier.round2
+            ? '<div class="targets" style="margin-top:6px"><b style="color:var(--gold)">Круг 2:</b> ' + s.dossier.round2 + '</div>'
+            : '') +
+          (s.dossier.genome
+            ? '<div class="targets" style="margin-top:6px; word-break:break-all"><b style="color:var(--gold)">Геном:</b> <code>' + s.dossier.genome + '</code></div>'
+            : '') +
           '<div class="status"></div>' +
           '</div>';
       })
