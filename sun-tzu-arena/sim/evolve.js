@@ -91,6 +91,35 @@ function select(population, fitness, random, size) {
   return population[best];
 }
 
+/**
+ * Построить следующее поколение: элита без изменений, остальные — потомки
+ * турнирного отбора, кроссовера и мутации.
+ *
+ * Вынесено отдельной функцией, чтобы элитизм можно было проверить напрямую:
+ * «лучшие обязаны дословно перейти в следующее поколение» — утверждение
+ * о механизме, и мерить его косвенно, по кривой приспособленности, нельзя.
+ * Приспособленность здесь относительна к популяции, и просадка лучшего
+ * значения между поколениями — законное следствие смены среды, а не потери
+ * элиты.
+ */
+function breedNext(population, fitness, opts, generation) {
+  var order = population.map(function (g, i) { return i; }).sort(function (x, y) {
+    if (fitness[y] !== fitness[x]) return fitness[y] - fitness[x];
+    return population[x] < population[y] ? -1 : population[x] > population[y] ? 1 : 0;
+  });
+
+  var breed = rngLib.mulberry32(rngLib.hashSeed(DOMAIN, opts.seed, generation, 0xB1DE));
+  var next = [];
+  for (var e = 0; e < opts.elitism; e++) next.push(population[order[e]]);
+  while (next.length < population.length) {
+    var mum = select(population, fitness, breed, opts.tournamentSize);
+    var dad = select(population, fitness, breed, opts.tournamentSize);
+    var child = breed() < opts.crossoverRate ? genomeLib.crossover(mum, dad, breed) : mum;
+    next.push(genomeLib.mutate(child, breed, opts.mutationRate));
+  }
+  return next;
+}
+
 /** Доля различных хромосом в популяции — простая мера разнообразия. */
 function diversity(population) {
   var seen = Object.create(null);
@@ -139,17 +168,7 @@ function run(opts) {
 
     if (gen === o.generations - 1) break; // последнее поколение только оценивается
 
-    // Новое поколение: элита без изменений, остальные — потомки.
-    var breed = rngLib.mulberry32(rngLib.hashSeed(DOMAIN, o.seed, gen, 0xB1DE));
-    var next = [];
-    for (var e = 0; e < o.elitism; e++) next.push(population[order[e]]);
-    while (next.length < o.population) {
-      var mum = select(population, fitness, breed, o.tournamentSize);
-      var dad = select(population, fitness, breed, o.tournamentSize);
-      var child = breed() < o.crossoverRate ? genomeLib.crossover(mum, dad, breed) : mum;
-      next.push(genomeLib.mutate(child, breed, o.mutationRate));
-    }
-    population = next;
+    population = breedNext(population, fitness, o, gen);
   }
 
   var finalFitness = evaluate(population, o, o.generations - 1, cache);
@@ -430,6 +449,7 @@ if (require.main === module) {
 module.exports = {
   run: run,
   writeStrategy: writeStrategy,
+  breedNext: breedNext,
   evaluate: evaluate,
   select: select,
   diversity: diversity,
