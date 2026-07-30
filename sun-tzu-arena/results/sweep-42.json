@@ -1,0 +1,2134 @@
+{
+  "seed": 42,
+  "generations": 20,
+  "strategyIds": [
+    "alwaysCooperate",
+    "alwaysDefect",
+    "random",
+    "titForTat",
+    "grimTrigger",
+    "pavlov",
+    "knowTheEnemy",
+    "winWithoutFighting",
+    "feignedWeakness",
+    "patience",
+    "waterShape",
+    "reconInForce",
+    "counterIntelligence",
+    "quartermaster",
+    "resonance",
+    "windAndMountain",
+    "nameless"
+  ],
+  "matrices": [
+    {
+      "id": "classic",
+      "name": "Классическая",
+      "payoff": {
+        "R": 3,
+        "P": 1,
+        "T": 5,
+        "S": 0
+      },
+      "note": "Каноническая дилемма: взаимная война даёт хоть что-то, соблазн — +2 сверх мира."
+    },
+    {
+      "id": "attrition",
+      "name": "Затяжная война",
+      "payoff": {
+        "R": 4,
+        "P": 0,
+        "T": 5,
+        "S": 0
+      },
+      "note": "Мир богаче, война не даёт ничего, соблазн всего +1 сверх мира."
+    }
+  ],
+  "noises": [
+    0,
+    0.05,
+    0.1,
+    0.2
+  ],
+  "lengths": [
+    50,
+    200,
+    500
+  ],
+  "cells": [
+    {
+      "matrix": "classic",
+      "noise": 0,
+      "rounds": 50,
+      "winner": "titForTat",
+      "winnerShare": 0.1607,
+      "alive": 14,
+      "shares": [
+        {
+          "id": "titForTat",
+          "share": 0.1607
+        },
+        {
+          "id": "windAndMountain",
+          "share": 0.1563
+        },
+        {
+          "id": "winWithoutFighting",
+          "share": 0.1466
+        },
+        {
+          "id": "counterIntelligence",
+          "share": 0.1415
+        },
+        {
+          "id": "pavlov",
+          "share": 0.0771
+        },
+        {
+          "id": "quartermaster",
+          "share": 0.0615
+        },
+        {
+          "id": "reconInForce",
+          "share": 0.0588
+        },
+        {
+          "id": "resonance",
+          "share": 0.0479
+        },
+        {
+          "id": "feignedWeakness",
+          "share": 0.0463
+        },
+        {
+          "id": "grimTrigger",
+          "share": 0.0323
+        },
+        {
+          "id": "patience",
+          "share": 0.0309
+        },
+        {
+          "id": "waterShape",
+          "share": 0.0252
+        },
+        {
+          "id": "knowTheEnemy",
+          "share": 0.0081
+        },
+        {
+          "id": "alwaysCooperate",
+          "share": 0.0069
+        },
+        {
+          "id": "alwaysDefect",
+          "share": 0
+        },
+        {
+          "id": "nameless",
+          "share": 0
+        },
+        {
+          "id": "random",
+          "share": 0
+        }
+      ]
+    },
+    {
+      "matrix": "classic",
+      "noise": 0,
+      "rounds": 200,
+      "winner": "titForTat",
+      "winnerShare": 0.1518,
+      "alive": 11,
+      "shares": [
+        {
+          "id": "titForTat",
+          "share": 0.1518
+        },
+        {
+          "id": "counterIntelligence",
+          "share": 0.1476
+        },
+        {
+          "id": "windAndMountain",
+          "share": 0.1335
+        },
+        {
+          "id": "resonance",
+          "share": 0.0938
+        },
+        {
+          "id": "winWithoutFighting",
+          "share": 0.0915
+        },
+        {
+          "id": "pavlov",
+          "share": 0.0813
+        },
+        {
+          "id": "patience",
+          "share": 0.0799
+        },
+        {
+          "id": "quartermaster",
+          "share": 0.0773
+        },
+        {
+          "id": "reconInForce",
+          "share": 0.0741
+        },
+        {
+          "id": "feignedWeakness",
+          "share": 0.0618
+        },
+        {
+          "id": "waterShape",
+          "share": 0.0073
+        },
+        {
+          "id": "alwaysCooperate",
+          "share": 0
+        },
+        {
+          "id": "alwaysDefect",
+          "share": 0
+        },
+        {
+          "id": "grimTrigger",
+          "share": 0
+        },
+        {
+          "id": "knowTheEnemy",
+          "share": 0
+        },
+        {
+          "id": "nameless",
+          "share": 0
+        },
+        {
+          "id": "random",
+          "share": 0
+        }
+      ]
+    },
+    {
+      "matrix": "classic",
+      "noise": 0,
+      "rounds": 500,
+      "winner": "counterIntelligence",
+      "winnerShare": 0.1515,
+      "alive": 10,
+      "shares": [
+        {
+          "id": "counterIntelligence",
+          "share": 0.1515
+        },
+        {
+          "id": "titForTat",
+          "share": 0.1309
+        },
+        {
+          "id": "windAndMountain",
+          "share": 0.1261
+        },
+        {
+          "id": "resonance",
+          "share": 0.1069
+        },
+        {
+          "id": "winWithoutFighting",
+          "share": 0.1032
+        },
+        {
+          "id": "patience",
+          "share": 0.0883
+        },
+        {
+          "id": "quartermaster",
+          "share": 0.0809
+        },
+        {
+          "id": "pavlov",
+          "share": 0.0754
+        },
+        {
+          "id": "feignedWeakness",
+          "share": 0.0691
+        },
+        {
+          "id": "reconInForce",
+          "share": 0.0677
+        },
+        {
+          "id": "alwaysCooperate",
+          "share": 0
+        },
+        {
+          "id": "alwaysDefect",
+          "share": 0
+        },
+        {
+          "id": "grimTrigger",
+          "share": 0
+        },
+        {
+          "id": "knowTheEnemy",
+          "share": 0
+        },
+        {
+          "id": "nameless",
+          "share": 0
+        },
+        {
+          "id": "random",
+          "share": 0
+        },
+        {
+          "id": "waterShape",
+          "share": 0
+        }
+      ]
+    },
+    {
+      "matrix": "classic",
+      "noise": 0.05,
+      "rounds": 50,
+      "winner": "counterIntelligence",
+      "winnerShare": 0.1727,
+      "alive": 12,
+      "shares": [
+        {
+          "id": "counterIntelligence",
+          "share": 0.1727
+        },
+        {
+          "id": "windAndMountain",
+          "share": 0.1624
+        },
+        {
+          "id": "resonance",
+          "share": 0.126
+        },
+        {
+          "id": "quartermaster",
+          "share": 0.1177
+        },
+        {
+          "id": "titForTat",
+          "share": 0.114
+        },
+        {
+          "id": "winWithoutFighting",
+          "share": 0.097
+        },
+        {
+          "id": "reconInForce",
+          "share": 0.0899
+        },
+        {
+          "id": "feignedWeakness",
+          "share": 0.0568
+        },
+        {
+          "id": "waterShape",
+          "share": 0.0252
+        },
+        {
+          "id": "patience",
+          "share": 0.018
+        },
+        {
+          "id": "pavlov",
+          "share": 0.0115
+        },
+        {
+          "id": "knowTheEnemy",
+          "share": 0.009
+        },
+        {
+          "id": "alwaysCooperate",
+          "share": 0
+        },
+        {
+          "id": "alwaysDefect",
+          "share": 0
+        },
+        {
+          "id": "grimTrigger",
+          "share": 0
+        },
+        {
+          "id": "nameless",
+          "share": 0
+        },
+        {
+          "id": "random",
+          "share": 0
+        }
+      ]
+    },
+    {
+      "matrix": "classic",
+      "noise": 0.05,
+      "rounds": 200,
+      "winner": "counterIntelligence",
+      "winnerShare": 0.1961,
+      "alive": 9,
+      "shares": [
+        {
+          "id": "counterIntelligence",
+          "share": 0.1961
+        },
+        {
+          "id": "quartermaster",
+          "share": 0.1729
+        },
+        {
+          "id": "windAndMountain",
+          "share": 0.1469
+        },
+        {
+          "id": "resonance",
+          "share": 0.1429
+        },
+        {
+          "id": "titForTat",
+          "share": 0.1051
+        },
+        {
+          "id": "patience",
+          "share": 0.0831
+        },
+        {
+          "id": "winWithoutFighting",
+          "share": 0.0692
+        },
+        {
+          "id": "reconInForce",
+          "share": 0.0519
+        },
+        {
+          "id": "feignedWeakness",
+          "share": 0.0319
+        },
+        {
+          "id": "alwaysCooperate",
+          "share": 0
+        },
+        {
+          "id": "alwaysDefect",
+          "share": 0
+        },
+        {
+          "id": "grimTrigger",
+          "share": 0
+        },
+        {
+          "id": "knowTheEnemy",
+          "share": 0
+        },
+        {
+          "id": "nameless",
+          "share": 0
+        },
+        {
+          "id": "pavlov",
+          "share": 0
+        },
+        {
+          "id": "random",
+          "share": 0
+        },
+        {
+          "id": "waterShape",
+          "share": 0
+        }
+      ]
+    },
+    {
+      "matrix": "classic",
+      "noise": 0.05,
+      "rounds": 500,
+      "winner": "counterIntelligence",
+      "winnerShare": 0.2015,
+      "alive": 9,
+      "shares": [
+        {
+          "id": "counterIntelligence",
+          "share": 0.2015
+        },
+        {
+          "id": "quartermaster",
+          "share": 0.1922
+        },
+        {
+          "id": "windAndMountain",
+          "share": 0.1448
+        },
+        {
+          "id": "resonance",
+          "share": 0.1432
+        },
+        {
+          "id": "titForTat",
+          "share": 0.0986
+        },
+        {
+          "id": "patience",
+          "share": 0.0883
+        },
+        {
+          "id": "winWithoutFighting",
+          "share": 0.0703
+        },
+        {
+          "id": "reconInForce",
+          "share": 0.0386
+        },
+        {
+          "id": "feignedWeakness",
+          "share": 0.0224
+        },
+        {
+          "id": "alwaysCooperate",
+          "share": 0
+        },
+        {
+          "id": "alwaysDefect",
+          "share": 0
+        },
+        {
+          "id": "grimTrigger",
+          "share": 0
+        },
+        {
+          "id": "knowTheEnemy",
+          "share": 0
+        },
+        {
+          "id": "nameless",
+          "share": 0
+        },
+        {
+          "id": "pavlov",
+          "share": 0
+        },
+        {
+          "id": "random",
+          "share": 0
+        },
+        {
+          "id": "waterShape",
+          "share": 0
+        }
+      ]
+    },
+    {
+      "matrix": "classic",
+      "noise": 0.1,
+      "rounds": 50,
+      "winner": "windAndMountain",
+      "winnerShare": 0.1824,
+      "alive": 12,
+      "shares": [
+        {
+          "id": "windAndMountain",
+          "share": 0.1824
+        },
+        {
+          "id": "counterIntelligence",
+          "share": 0.1657
+        },
+        {
+          "id": "titForTat",
+          "share": 0.1324
+        },
+        {
+          "id": "quartermaster",
+          "share": 0.1089
+        },
+        {
+          "id": "reconInForce",
+          "share": 0.1026
+        },
+        {
+          "id": "winWithoutFighting",
+          "share": 0.0935
+        },
+        {
+          "id": "resonance",
+          "share": 0.0931
+        },
+        {
+          "id": "waterShape",
+          "share": 0.0339
+        },
+        {
+          "id": "feignedWeakness",
+          "share": 0.0338
+        },
+        {
+          "id": "patience",
+          "share": 0.0241
+        },
+        {
+          "id": "knowTheEnemy",
+          "share": 0.0208
+        },
+        {
+          "id": "pavlov",
+          "share": 0.0088
+        },
+        {
+          "id": "alwaysCooperate",
+          "share": 0
+        },
+        {
+          "id": "alwaysDefect",
+          "share": 0
+        },
+        {
+          "id": "grimTrigger",
+          "share": 0
+        },
+        {
+          "id": "nameless",
+          "share": 0
+        },
+        {
+          "id": "random",
+          "share": 0
+        }
+      ]
+    },
+    {
+      "matrix": "classic",
+      "noise": 0.1,
+      "rounds": 200,
+      "winner": "counterIntelligence",
+      "winnerShare": 0.1842,
+      "alive": 10,
+      "shares": [
+        {
+          "id": "counterIntelligence",
+          "share": 0.1842
+        },
+        {
+          "id": "quartermaster",
+          "share": 0.1559
+        },
+        {
+          "id": "windAndMountain",
+          "share": 0.1549
+        },
+        {
+          "id": "winWithoutFighting",
+          "share": 0.1128
+        },
+        {
+          "id": "resonance",
+          "share": 0.1083
+        },
+        {
+          "id": "titForTat",
+          "share": 0.1028
+        },
+        {
+          "id": "patience",
+          "share": 0.0946
+        },
+        {
+          "id": "reconInForce",
+          "share": 0.0744
+        },
+        {
+          "id": "feignedWeakness",
+          "share": 0.0071
+        },
+        {
+          "id": "waterShape",
+          "share": 0.005
+        },
+        {
+          "id": "alwaysCooperate",
+          "share": 0
+        },
+        {
+          "id": "alwaysDefect",
+          "share": 0
+        },
+        {
+          "id": "grimTrigger",
+          "share": 0
+        },
+        {
+          "id": "knowTheEnemy",
+          "share": 0
+        },
+        {
+          "id": "nameless",
+          "share": 0
+        },
+        {
+          "id": "pavlov",
+          "share": 0
+        },
+        {
+          "id": "random",
+          "share": 0
+        }
+      ]
+    },
+    {
+      "matrix": "classic",
+      "noise": 0.1,
+      "rounds": 500,
+      "winner": "counterIntelligence",
+      "winnerShare": 0.2001,
+      "alive": 8,
+      "shares": [
+        {
+          "id": "counterIntelligence",
+          "share": 0.2001
+        },
+        {
+          "id": "quartermaster",
+          "share": 0.1657
+        },
+        {
+          "id": "windAndMountain",
+          "share": 0.1554
+        },
+        {
+          "id": "winWithoutFighting",
+          "share": 0.1178
+        },
+        {
+          "id": "patience",
+          "share": 0.1103
+        },
+        {
+          "id": "resonance",
+          "share": 0.1092
+        },
+        {
+          "id": "titForTat",
+          "share": 0.0856
+        },
+        {
+          "id": "reconInForce",
+          "share": 0.056
+        },
+        {
+          "id": "alwaysCooperate",
+          "share": 0
+        },
+        {
+          "id": "alwaysDefect",
+          "share": 0
+        },
+        {
+          "id": "feignedWeakness",
+          "share": 0
+        },
+        {
+          "id": "grimTrigger",
+          "share": 0
+        },
+        {
+          "id": "knowTheEnemy",
+          "share": 0
+        },
+        {
+          "id": "nameless",
+          "share": 0
+        },
+        {
+          "id": "pavlov",
+          "share": 0
+        },
+        {
+          "id": "random",
+          "share": 0
+        },
+        {
+          "id": "waterShape",
+          "share": 0
+        }
+      ]
+    },
+    {
+      "matrix": "classic",
+      "noise": 0.2,
+      "rounds": 50,
+      "winner": "windAndMountain",
+      "winnerShare": 0.1453,
+      "alive": 17,
+      "shares": [
+        {
+          "id": "windAndMountain",
+          "share": 0.1453
+        },
+        {
+          "id": "titForTat",
+          "share": 0.1426
+        },
+        {
+          "id": "counterIntelligence",
+          "share": 0.1101
+        },
+        {
+          "id": "reconInForce",
+          "share": 0.0957
+        },
+        {
+          "id": "quartermaster",
+          "share": 0.088
+        },
+        {
+          "id": "resonance",
+          "share": 0.0767
+        },
+        {
+          "id": "winWithoutFighting",
+          "share": 0.0671
+        },
+        {
+          "id": "feignedWeakness",
+          "share": 0.05
+        },
+        {
+          "id": "knowTheEnemy",
+          "share": 0.0462
+        },
+        {
+          "id": "grimTrigger",
+          "share": 0.0358
+        },
+        {
+          "id": "waterShape",
+          "share": 0.0356
+        },
+        {
+          "id": "alwaysDefect",
+          "share": 0.0293
+        },
+        {
+          "id": "patience",
+          "share": 0.0279
+        },
+        {
+          "id": "nameless",
+          "share": 0.0194
+        },
+        {
+          "id": "pavlov",
+          "share": 0.0152
+        },
+        {
+          "id": "random",
+          "share": 0.0096
+        },
+        {
+          "id": "alwaysCooperate",
+          "share": 0.0055
+        }
+      ]
+    },
+    {
+      "matrix": "classic",
+      "noise": 0.2,
+      "rounds": 200,
+      "winner": "patience",
+      "winnerShare": 0.1431,
+      "alive": 12,
+      "shares": [
+        {
+          "id": "patience",
+          "share": 0.1431
+        },
+        {
+          "id": "windAndMountain",
+          "share": 0.142
+        },
+        {
+          "id": "counterIntelligence",
+          "share": 0.1388
+        },
+        {
+          "id": "titForTat",
+          "share": 0.1359
+        },
+        {
+          "id": "winWithoutFighting",
+          "share": 0.1193
+        },
+        {
+          "id": "reconInForce",
+          "share": 0.1158
+        },
+        {
+          "id": "quartermaster",
+          "share": 0.0987
+        },
+        {
+          "id": "resonance",
+          "share": 0.0724
+        },
+        {
+          "id": "feignedWeakness",
+          "share": 0.0104
+        },
+        {
+          "id": "knowTheEnemy",
+          "share": 0.0091
+        },
+        {
+          "id": "waterShape",
+          "share": 0.009
+        },
+        {
+          "id": "alwaysCooperate",
+          "share": 0.0054
+        },
+        {
+          "id": "alwaysDefect",
+          "share": 0
+        },
+        {
+          "id": "grimTrigger",
+          "share": 0
+        },
+        {
+          "id": "nameless",
+          "share": 0
+        },
+        {
+          "id": "pavlov",
+          "share": 0
+        },
+        {
+          "id": "random",
+          "share": 0
+        }
+      ]
+    },
+    {
+      "matrix": "classic",
+      "noise": 0.2,
+      "rounds": 500,
+      "winner": "patience",
+      "winnerShare": 0.1743,
+      "alive": 9,
+      "shares": [
+        {
+          "id": "patience",
+          "share": 0.1743
+        },
+        {
+          "id": "windAndMountain",
+          "share": 0.1506
+        },
+        {
+          "id": "counterIntelligence",
+          "share": 0.1503
+        },
+        {
+          "id": "titForTat",
+          "share": 0.1337
+        },
+        {
+          "id": "winWithoutFighting",
+          "share": 0.1254
+        },
+        {
+          "id": "reconInForce",
+          "share": 0.0943
+        },
+        {
+          "id": "quartermaster",
+          "share": 0.0938
+        },
+        {
+          "id": "resonance",
+          "share": 0.0713
+        },
+        {
+          "id": "feignedWeakness",
+          "share": 0.0064
+        },
+        {
+          "id": "alwaysCooperate",
+          "share": 0
+        },
+        {
+          "id": "alwaysDefect",
+          "share": 0
+        },
+        {
+          "id": "grimTrigger",
+          "share": 0
+        },
+        {
+          "id": "knowTheEnemy",
+          "share": 0
+        },
+        {
+          "id": "nameless",
+          "share": 0
+        },
+        {
+          "id": "pavlov",
+          "share": 0
+        },
+        {
+          "id": "random",
+          "share": 0
+        },
+        {
+          "id": "waterShape",
+          "share": 0
+        }
+      ]
+    },
+    {
+      "matrix": "attrition",
+      "noise": 0,
+      "rounds": 50,
+      "winner": "winWithoutFighting",
+      "winnerShare": 0.1714,
+      "alive": 13,
+      "shares": [
+        {
+          "id": "winWithoutFighting",
+          "share": 0.1714
+        },
+        {
+          "id": "titForTat",
+          "share": 0.1689
+        },
+        {
+          "id": "windAndMountain",
+          "share": 0.1631
+        },
+        {
+          "id": "counterIntelligence",
+          "share": 0.1568
+        },
+        {
+          "id": "pavlov",
+          "share": 0.0939
+        },
+        {
+          "id": "patience",
+          "share": 0.0622
+        },
+        {
+          "id": "quartermaster",
+          "share": 0.0517
+        },
+        {
+          "id": "alwaysCooperate",
+          "share": 0.0308
+        },
+        {
+          "id": "resonance",
+          "share": 0.0233
+        },
+        {
+          "id": "reconInForce",
+          "share": 0.0217
+        },
+        {
+          "id": "feignedWeakness",
+          "share": 0.0213
+        },
+        {
+          "id": "waterShape",
+          "share": 0.0183
+        },
+        {
+          "id": "grimTrigger",
+          "share": 0.0167
+        },
+        {
+          "id": "alwaysDefect",
+          "share": 0
+        },
+        {
+          "id": "knowTheEnemy",
+          "share": 0
+        },
+        {
+          "id": "nameless",
+          "share": 0
+        },
+        {
+          "id": "random",
+          "share": 0
+        }
+      ]
+    },
+    {
+      "matrix": "attrition",
+      "noise": 0,
+      "rounds": 200,
+      "winner": "titForTat",
+      "winnerShare": 0.1681,
+      "alive": 10,
+      "shares": [
+        {
+          "id": "titForTat",
+          "share": 0.1681
+        },
+        {
+          "id": "counterIntelligence",
+          "share": 0.1657
+        },
+        {
+          "id": "windAndMountain",
+          "share": 0.1467
+        },
+        {
+          "id": "winWithoutFighting",
+          "share": 0.1139
+        },
+        {
+          "id": "pavlov",
+          "share": 0.0971
+        },
+        {
+          "id": "patience",
+          "share": 0.0808
+        },
+        {
+          "id": "quartermaster",
+          "share": 0.0808
+        },
+        {
+          "id": "resonance",
+          "share": 0.0575
+        },
+        {
+          "id": "feignedWeakness",
+          "share": 0.0518
+        },
+        {
+          "id": "reconInForce",
+          "share": 0.0376
+        },
+        {
+          "id": "alwaysCooperate",
+          "share": 0
+        },
+        {
+          "id": "alwaysDefect",
+          "share": 0
+        },
+        {
+          "id": "grimTrigger",
+          "share": 0
+        },
+        {
+          "id": "knowTheEnemy",
+          "share": 0
+        },
+        {
+          "id": "nameless",
+          "share": 0
+        },
+        {
+          "id": "random",
+          "share": 0
+        },
+        {
+          "id": "waterShape",
+          "share": 0
+        }
+      ]
+    },
+    {
+      "matrix": "attrition",
+      "noise": 0,
+      "rounds": 500,
+      "winner": "counterIntelligence",
+      "winnerShare": 0.1555,
+      "alive": 10,
+      "shares": [
+        {
+          "id": "counterIntelligence",
+          "share": 0.1555
+        },
+        {
+          "id": "titForTat",
+          "share": 0.1432
+        },
+        {
+          "id": "windAndMountain",
+          "share": 0.1363
+        },
+        {
+          "id": "winWithoutFighting",
+          "share": 0.1175
+        },
+        {
+          "id": "pavlov",
+          "share": 0.091
+        },
+        {
+          "id": "quartermaster",
+          "share": 0.0869
+        },
+        {
+          "id": "resonance",
+          "share": 0.0855
+        },
+        {
+          "id": "patience",
+          "share": 0.083
+        },
+        {
+          "id": "feignedWeakness",
+          "share": 0.0628
+        },
+        {
+          "id": "reconInForce",
+          "share": 0.0383
+        },
+        {
+          "id": "alwaysCooperate",
+          "share": 0
+        },
+        {
+          "id": "alwaysDefect",
+          "share": 0
+        },
+        {
+          "id": "grimTrigger",
+          "share": 0
+        },
+        {
+          "id": "knowTheEnemy",
+          "share": 0
+        },
+        {
+          "id": "nameless",
+          "share": 0
+        },
+        {
+          "id": "random",
+          "share": 0
+        },
+        {
+          "id": "waterShape",
+          "share": 0
+        }
+      ]
+    },
+    {
+      "matrix": "attrition",
+      "noise": 0.05,
+      "rounds": 50,
+      "winner": "counterIntelligence",
+      "winnerShare": 0.2342,
+      "alive": 11,
+      "shares": [
+        {
+          "id": "counterIntelligence",
+          "share": 0.2342
+        },
+        {
+          "id": "quartermaster",
+          "share": 0.1742
+        },
+        {
+          "id": "windAndMountain",
+          "share": 0.1545
+        },
+        {
+          "id": "winWithoutFighting",
+          "share": 0.1269
+        },
+        {
+          "id": "resonance",
+          "share": 0.1024
+        },
+        {
+          "id": "titForTat",
+          "share": 0.0685
+        },
+        {
+          "id": "patience",
+          "share": 0.0513
+        },
+        {
+          "id": "reconInForce",
+          "share": 0.0369
+        },
+        {
+          "id": "feignedWeakness",
+          "share": 0.0241
+        },
+        {
+          "id": "alwaysCooperate",
+          "share": 0.0142
+        },
+        {
+          "id": "waterShape",
+          "share": 0.0128
+        },
+        {
+          "id": "alwaysDefect",
+          "share": 0
+        },
+        {
+          "id": "grimTrigger",
+          "share": 0
+        },
+        {
+          "id": "knowTheEnemy",
+          "share": 0
+        },
+        {
+          "id": "nameless",
+          "share": 0
+        },
+        {
+          "id": "pavlov",
+          "share": 0
+        },
+        {
+          "id": "random",
+          "share": 0
+        }
+      ]
+    },
+    {
+      "matrix": "attrition",
+      "noise": 0.05,
+      "rounds": 200,
+      "winner": "counterIntelligence",
+      "winnerShare": 0.2616,
+      "alive": 9,
+      "shares": [
+        {
+          "id": "counterIntelligence",
+          "share": 0.2616
+        },
+        {
+          "id": "quartermaster",
+          "share": 0.2054
+        },
+        {
+          "id": "windAndMountain",
+          "share": 0.1538
+        },
+        {
+          "id": "resonance",
+          "share": 0.1177
+        },
+        {
+          "id": "patience",
+          "share": 0.0955
+        },
+        {
+          "id": "winWithoutFighting",
+          "share": 0.0733
+        },
+        {
+          "id": "titForTat",
+          "share": 0.0665
+        },
+        {
+          "id": "reconInForce",
+          "share": 0.0167
+        },
+        {
+          "id": "feignedWeakness",
+          "share": 0.0095
+        },
+        {
+          "id": "alwaysCooperate",
+          "share": 0
+        },
+        {
+          "id": "alwaysDefect",
+          "share": 0
+        },
+        {
+          "id": "grimTrigger",
+          "share": 0
+        },
+        {
+          "id": "knowTheEnemy",
+          "share": 0
+        },
+        {
+          "id": "nameless",
+          "share": 0
+        },
+        {
+          "id": "pavlov",
+          "share": 0
+        },
+        {
+          "id": "random",
+          "share": 0
+        },
+        {
+          "id": "waterShape",
+          "share": 0
+        }
+      ]
+    },
+    {
+      "matrix": "attrition",
+      "noise": 0.05,
+      "rounds": 500,
+      "winner": "counterIntelligence",
+      "winnerShare": 0.2561,
+      "alive": 9,
+      "shares": [
+        {
+          "id": "counterIntelligence",
+          "share": 0.2561
+        },
+        {
+          "id": "quartermaster",
+          "share": 0.2151
+        },
+        {
+          "id": "windAndMountain",
+          "share": 0.1581
+        },
+        {
+          "id": "resonance",
+          "share": 0.1281
+        },
+        {
+          "id": "patience",
+          "share": 0.0947
+        },
+        {
+          "id": "winWithoutFighting",
+          "share": 0.0706
+        },
+        {
+          "id": "titForTat",
+          "share": 0.0598
+        },
+        {
+          "id": "reconInForce",
+          "share": 0.0114
+        },
+        {
+          "id": "feignedWeakness",
+          "share": 0.0061
+        },
+        {
+          "id": "alwaysCooperate",
+          "share": 0
+        },
+        {
+          "id": "alwaysDefect",
+          "share": 0
+        },
+        {
+          "id": "grimTrigger",
+          "share": 0
+        },
+        {
+          "id": "knowTheEnemy",
+          "share": 0
+        },
+        {
+          "id": "nameless",
+          "share": 0
+        },
+        {
+          "id": "pavlov",
+          "share": 0
+        },
+        {
+          "id": "random",
+          "share": 0
+        },
+        {
+          "id": "waterShape",
+          "share": 0
+        }
+      ]
+    },
+    {
+      "matrix": "attrition",
+      "noise": 0.1,
+      "rounds": 50,
+      "winner": "counterIntelligence",
+      "winnerShare": 0.2399,
+      "alive": 11,
+      "shares": [
+        {
+          "id": "counterIntelligence",
+          "share": 0.2399
+        },
+        {
+          "id": "windAndMountain",
+          "share": 0.1863
+        },
+        {
+          "id": "quartermaster",
+          "share": 0.1715
+        },
+        {
+          "id": "winWithoutFighting",
+          "share": 0.121
+        },
+        {
+          "id": "resonance",
+          "share": 0.0852
+        },
+        {
+          "id": "patience",
+          "share": 0.0574
+        },
+        {
+          "id": "titForTat",
+          "share": 0.056
+        },
+        {
+          "id": "reconInForce",
+          "share": 0.0398
+        },
+        {
+          "id": "alwaysCooperate",
+          "share": 0.0248
+        },
+        {
+          "id": "waterShape",
+          "share": 0.0121
+        },
+        {
+          "id": "feignedWeakness",
+          "share": 0.0059
+        },
+        {
+          "id": "alwaysDefect",
+          "share": 0
+        },
+        {
+          "id": "grimTrigger",
+          "share": 0
+        },
+        {
+          "id": "knowTheEnemy",
+          "share": 0
+        },
+        {
+          "id": "nameless",
+          "share": 0
+        },
+        {
+          "id": "pavlov",
+          "share": 0
+        },
+        {
+          "id": "random",
+          "share": 0
+        }
+      ]
+    },
+    {
+      "matrix": "attrition",
+      "noise": 0.1,
+      "rounds": 200,
+      "winner": "counterIntelligence",
+      "winnerShare": 0.2536,
+      "alive": 8,
+      "shares": [
+        {
+          "id": "counterIntelligence",
+          "share": 0.2536
+        },
+        {
+          "id": "quartermaster",
+          "share": 0.1947
+        },
+        {
+          "id": "windAndMountain",
+          "share": 0.1878
+        },
+        {
+          "id": "winWithoutFighting",
+          "share": 0.1282
+        },
+        {
+          "id": "patience",
+          "share": 0.0869
+        },
+        {
+          "id": "resonance",
+          "share": 0.0849
+        },
+        {
+          "id": "titForTat",
+          "share": 0.043
+        },
+        {
+          "id": "reconInForce",
+          "share": 0.0208
+        },
+        {
+          "id": "alwaysCooperate",
+          "share": 0
+        },
+        {
+          "id": "alwaysDefect",
+          "share": 0
+        },
+        {
+          "id": "feignedWeakness",
+          "share": 0
+        },
+        {
+          "id": "grimTrigger",
+          "share": 0
+        },
+        {
+          "id": "knowTheEnemy",
+          "share": 0
+        },
+        {
+          "id": "nameless",
+          "share": 0
+        },
+        {
+          "id": "pavlov",
+          "share": 0
+        },
+        {
+          "id": "random",
+          "share": 0
+        },
+        {
+          "id": "waterShape",
+          "share": 0
+        }
+      ]
+    },
+    {
+      "matrix": "attrition",
+      "noise": 0.1,
+      "rounds": 500,
+      "winner": "counterIntelligence",
+      "winnerShare": 0.246,
+      "alive": 8,
+      "shares": [
+        {
+          "id": "counterIntelligence",
+          "share": 0.246
+        },
+        {
+          "id": "quartermaster",
+          "share": 0.2081
+        },
+        {
+          "id": "windAndMountain",
+          "share": 0.1913
+        },
+        {
+          "id": "winWithoutFighting",
+          "share": 0.1312
+        },
+        {
+          "id": "patience",
+          "share": 0.0903
+        },
+        {
+          "id": "resonance",
+          "share": 0.0875
+        },
+        {
+          "id": "titForTat",
+          "share": 0.0324
+        },
+        {
+          "id": "reconInForce",
+          "share": 0.0132
+        },
+        {
+          "id": "alwaysCooperate",
+          "share": 0
+        },
+        {
+          "id": "alwaysDefect",
+          "share": 0
+        },
+        {
+          "id": "feignedWeakness",
+          "share": 0
+        },
+        {
+          "id": "grimTrigger",
+          "share": 0
+        },
+        {
+          "id": "knowTheEnemy",
+          "share": 0
+        },
+        {
+          "id": "nameless",
+          "share": 0
+        },
+        {
+          "id": "pavlov",
+          "share": 0
+        },
+        {
+          "id": "random",
+          "share": 0
+        },
+        {
+          "id": "waterShape",
+          "share": 0
+        }
+      ]
+    },
+    {
+      "matrix": "attrition",
+      "noise": 0.2,
+      "rounds": 50,
+      "winner": "counterIntelligence",
+      "winnerShare": 0.1882,
+      "alive": 11,
+      "shares": [
+        {
+          "id": "counterIntelligence",
+          "share": 0.1882
+        },
+        {
+          "id": "windAndMountain",
+          "share": 0.183
+        },
+        {
+          "id": "quartermaster",
+          "share": 0.1418
+        },
+        {
+          "id": "patience",
+          "share": 0.1105
+        },
+        {
+          "id": "winWithoutFighting",
+          "share": 0.1012
+        },
+        {
+          "id": "titForTat",
+          "share": 0.0746
+        },
+        {
+          "id": "alwaysCooperate",
+          "share": 0.0664
+        },
+        {
+          "id": "resonance",
+          "share": 0.0538
+        },
+        {
+          "id": "reconInForce",
+          "share": 0.0513
+        },
+        {
+          "id": "waterShape",
+          "share": 0.0198
+        },
+        {
+          "id": "feignedWeakness",
+          "share": 0.0092
+        },
+        {
+          "id": "alwaysDefect",
+          "share": 0
+        },
+        {
+          "id": "grimTrigger",
+          "share": 0
+        },
+        {
+          "id": "knowTheEnemy",
+          "share": 0
+        },
+        {
+          "id": "nameless",
+          "share": 0
+        },
+        {
+          "id": "pavlov",
+          "share": 0
+        },
+        {
+          "id": "random",
+          "share": 0
+        }
+      ]
+    },
+    {
+      "matrix": "attrition",
+      "noise": 0.2,
+      "rounds": 200,
+      "winner": "counterIntelligence",
+      "winnerShare": 0.193,
+      "alive": 9,
+      "shares": [
+        {
+          "id": "counterIntelligence",
+          "share": 0.193
+        },
+        {
+          "id": "winWithoutFighting",
+          "share": 0.1585
+        },
+        {
+          "id": "patience",
+          "share": 0.1494
+        },
+        {
+          "id": "windAndMountain",
+          "share": 0.1474
+        },
+        {
+          "id": "quartermaster",
+          "share": 0.1328
+        },
+        {
+          "id": "titForTat",
+          "share": 0.0673
+        },
+        {
+          "id": "alwaysCooperate",
+          "share": 0.0548
+        },
+        {
+          "id": "reconInForce",
+          "share": 0.0532
+        },
+        {
+          "id": "resonance",
+          "share": 0.0436
+        },
+        {
+          "id": "alwaysDefect",
+          "share": 0
+        },
+        {
+          "id": "feignedWeakness",
+          "share": 0
+        },
+        {
+          "id": "grimTrigger",
+          "share": 0
+        },
+        {
+          "id": "knowTheEnemy",
+          "share": 0
+        },
+        {
+          "id": "nameless",
+          "share": 0
+        },
+        {
+          "id": "pavlov",
+          "share": 0
+        },
+        {
+          "id": "random",
+          "share": 0
+        },
+        {
+          "id": "waterShape",
+          "share": 0
+        }
+      ]
+    },
+    {
+      "matrix": "attrition",
+      "noise": 0.2,
+      "rounds": 500,
+      "winner": "winWithoutFighting",
+      "winnerShare": 0.1909,
+      "alive": 9,
+      "shares": [
+        {
+          "id": "winWithoutFighting",
+          "share": 0.1909
+        },
+        {
+          "id": "windAndMountain",
+          "share": 0.1848
+        },
+        {
+          "id": "counterIntelligence",
+          "share": 0.1556
+        },
+        {
+          "id": "patience",
+          "share": 0.1523
+        },
+        {
+          "id": "quartermaster",
+          "share": 0.1282
+        },
+        {
+          "id": "titForTat",
+          "share": 0.0685
+        },
+        {
+          "id": "resonance",
+          "share": 0.0461
+        },
+        {
+          "id": "reconInForce",
+          "share": 0.0408
+        },
+        {
+          "id": "alwaysCooperate",
+          "share": 0.0329
+        },
+        {
+          "id": "alwaysDefect",
+          "share": 0
+        },
+        {
+          "id": "feignedWeakness",
+          "share": 0
+        },
+        {
+          "id": "grimTrigger",
+          "share": 0
+        },
+        {
+          "id": "knowTheEnemy",
+          "share": 0
+        },
+        {
+          "id": "nameless",
+          "share": 0
+        },
+        {
+          "id": "pavlov",
+          "share": 0
+        },
+        {
+          "id": "random",
+          "share": 0
+        },
+        {
+          "id": "waterShape",
+          "share": 0
+        }
+      ]
+    }
+  ],
+  "ranking": [
+    {
+      "id": "counterIntelligence",
+      "wins": 15,
+      "survivedWorlds": 24,
+      "worlds": 24,
+      "meanShare": 0.1861,
+      "bestShare": 0.2616,
+      "worstShare": 0.1101,
+      "winsIn": [
+        "classic/0/500",
+        "classic/0.05/50",
+        "classic/0.05/200",
+        "classic/0.05/500",
+        "classic/0.1/200",
+        "classic/0.1/500",
+        "attrition/0/500",
+        "attrition/0.05/50",
+        "attrition/0.05/200",
+        "attrition/0.05/500",
+        "attrition/0.1/50",
+        "attrition/0.1/200",
+        "attrition/0.1/500",
+        "attrition/0.2/50",
+        "attrition/0.2/200"
+      ]
+    },
+    {
+      "id": "windAndMountain",
+      "wins": 2,
+      "survivedWorlds": 24,
+      "worlds": 24,
+      "meanShare": 0.1581,
+      "bestShare": 0.1913,
+      "worstShare": 0.1261,
+      "winsIn": [
+        "classic/0.1/50",
+        "classic/0.2/50"
+      ]
+    },
+    {
+      "id": "quartermaster",
+      "wins": 0,
+      "survivedWorlds": 24,
+      "worlds": 24,
+      "meanShare": 0.1335,
+      "bestShare": 0.2151,
+      "worstShare": 0.0517,
+      "winsIn": []
+    },
+    {
+      "id": "winWithoutFighting",
+      "wins": 2,
+      "survivedWorlds": 24,
+      "worlds": 24,
+      "meanShare": 0.1133,
+      "bestShare": 0.1909,
+      "worstShare": 0.0671,
+      "winsIn": [
+        "attrition/0/50",
+        "attrition/0.2/500"
+      ]
+    },
+    {
+      "id": "titForTat",
+      "wins": 3,
+      "survivedWorlds": 24,
+      "worlds": 24,
+      "meanShare": 0.1046,
+      "bestShare": 0.1689,
+      "worstShare": 0.0324,
+      "winsIn": [
+        "classic/0/50",
+        "classic/0/200",
+        "attrition/0/200"
+      ]
+    },
+    {
+      "id": "resonance",
+      "wins": 0,
+      "survivedWorlds": 24,
+      "worlds": 24,
+      "meanShare": 0.0878,
+      "bestShare": 0.1432,
+      "worstShare": 0.0233,
+      "winsIn": []
+    },
+    {
+      "id": "patience",
+      "wins": 2,
+      "survivedWorlds": 24,
+      "worlds": 24,
+      "meanShare": 0.0865,
+      "bestShare": 0.1743,
+      "worstShare": 0.018,
+      "winsIn": [
+        "classic/0.2/200",
+        "classic/0.2/500"
+      ]
+    },
+    {
+      "id": "reconInForce",
+      "wins": 0,
+      "survivedWorlds": 24,
+      "worlds": 24,
+      "meanShare": 0.0542,
+      "bestShare": 0.1158,
+      "worstShare": 0.0114,
+      "winsIn": []
+    },
+    {
+      "id": "feignedWeakness",
+      "wins": 0,
+      "survivedWorlds": 19,
+      "worlds": 24,
+      "meanShare": 0.0244,
+      "bestShare": 0.0691,
+      "worstShare": 0,
+      "winsIn": []
+    },
+    {
+      "id": "waterShape",
+      "wins": 0,
+      "survivedWorlds": 11,
+      "worlds": 24,
+      "meanShare": 0.0085,
+      "bestShare": 0.0356,
+      "worstShare": 0,
+      "winsIn": []
+    },
+    {
+      "id": "pavlov",
+      "wins": 0,
+      "survivedWorlds": 9,
+      "worlds": 24,
+      "meanShare": 0.023,
+      "bestShare": 0.0971,
+      "worstShare": 0,
+      "winsIn": []
+    },
+    {
+      "id": "alwaysCooperate",
+      "wins": 0,
+      "survivedWorlds": 9,
+      "worlds": 24,
+      "meanShare": 0.0101,
+      "bestShare": 0.0664,
+      "worstShare": 0,
+      "winsIn": []
+    },
+    {
+      "id": "knowTheEnemy",
+      "wins": 0,
+      "survivedWorlds": 5,
+      "worlds": 24,
+      "meanShare": 0.0039,
+      "bestShare": 0.0462,
+      "worstShare": 0,
+      "winsIn": []
+    },
+    {
+      "id": "grimTrigger",
+      "wins": 0,
+      "survivedWorlds": 3,
+      "worlds": 24,
+      "meanShare": 0.0035,
+      "bestShare": 0.0358,
+      "worstShare": 0,
+      "winsIn": []
+    },
+    {
+      "id": "alwaysDefect",
+      "wins": 0,
+      "survivedWorlds": 1,
+      "worlds": 24,
+      "meanShare": 0.0012,
+      "bestShare": 0.0293,
+      "worstShare": 0,
+      "winsIn": []
+    },
+    {
+      "id": "nameless",
+      "wins": 0,
+      "survivedWorlds": 1,
+      "worlds": 24,
+      "meanShare": 0.0008,
+      "bestShare": 0.0194,
+      "worstShare": 0,
+      "winsIn": []
+    },
+    {
+      "id": "random",
+      "wins": 0,
+      "survivedWorlds": 1,
+      "worlds": 24,
+      "meanShare": 0.0004,
+      "bestShare": 0.0096,
+      "worstShare": 0,
+      "winsIn": []
+    }
+  ],
+  "worlds": 24
+}

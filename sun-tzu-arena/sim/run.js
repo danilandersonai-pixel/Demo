@@ -25,6 +25,8 @@ var RESULTS_DIR = path.join(ROOT, 'results');
 var REPLAY_FILE = path.join(ROOT, 'viz', 'replay.js');
 var SPATIAL_FILE = path.join(RESULTS_DIR, 'spatial.json');
 var CHALLENGERS_FILE = path.join(RESULTS_DIR, 'challengers.json');
+var SWEEP_FILE = path.join(RESULTS_DIR, 'sweep-42.json');
+var EVOLVED_FILE = path.join(RESULTS_DIR, 'evolved-42.json');
 var REFERENCE_SEEDS = [7, 42, 2026];
 
 /** Разбор аргументов вида --key value и --flag. */
@@ -217,11 +219,11 @@ function main(argv) {
     );
   }
 
-  var challengers = readJsonIfExists(CHALLENGERS_FILE);
-
   var arenaData = replayLib.buildArenaData(runs, {
     spatial: spatialData,
-    challengers: challengers
+    challengers: readJsonIfExists(CHALLENGERS_FILE),
+    sweep: readJsonIfExists(SWEEP_FILE),
+    evolved: readJsonIfExists(EVOLVED_FILE)
   });
   var bytes = replayLib.writeReplay(REPLAY_FILE, arenaData);
   console.log(

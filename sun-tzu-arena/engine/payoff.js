@@ -24,15 +24,25 @@ var PAYOFF = Object.freeze({
 
 /**
  * Очки за один раунд.
+ *
+ * Таблица передаётся параметром, а не берётся из глобальной константы. Это
+ * нужно стенду устойчивости (`sim/sweep.js`), который прогоняет лигу по
+ * нескольким матрицам: подменять замороженный `PAYOFF` на время прогона
+ * значило бы менять глобальное состояние из-под работающего движка — приём,
+ * который ломается от первой же вложенности и не выдерживает параллельных
+ * прогонов. Явный параметр не ломается ни от чего.
+ *
  * @param {'C'|'D'} a ход первого игрока
  * @param {'C'|'D'} b ход второго игрока
+ * @param {{R:number,P:number,T:number,S:number}} [table=PAYOFF]
  * @returns {[number, number]} [очки A, очки B]
  */
-function score(a, b) {
+function score(a, b, table) {
+  var p = table || PAYOFF;
   if (a === COOPERATE) {
-    return b === COOPERATE ? [PAYOFF.R, PAYOFF.R] : [PAYOFF.S, PAYOFF.T];
+    return b === COOPERATE ? [p.R, p.R] : [p.S, p.T];
   }
-  return b === COOPERATE ? [PAYOFF.T, PAYOFF.S] : [PAYOFF.P, PAYOFF.P];
+  return b === COOPERATE ? [p.T, p.S] : [p.P, p.P];
 }
 
 /** Инверсия хода — используется шумом канала связи. */

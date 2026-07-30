@@ -64,15 +64,79 @@ test('ARENA_DATA: подаётся присваиванием в window, без 
   assert.strictEqual(html.indexOf('https://'), -1, 'никаких внешних ресурсов');
 });
 
-test('ARENA_DATA: корень содержит все обязательные разделы', function () {
+test('ARENA_DATA: корень содержит все обязательные разделы версии 2', function () {
   assert.ok(data, 'ARENA_DATA не определён');
-  assert.strictEqual(data.version, 1);
+  assert.strictEqual(data.version, 2, 'второй сезон работает на схеме версии 2');
   ['meta', 'strategies', 'runs'].forEach(function (key) {
     assert.ok(data[key], 'нет раздела ' + key);
   });
   assert.ok(Array.isArray(data.runs) && data.runs.length >= 3, 'нужны все три эталонных прогона');
-  assert.ok('spatial' in data, 'ключ spatial обязан присутствовать, пусть даже равным null');
-  assert.ok('challengers' in data, 'ключ challengers обязан присутствовать, пусть даже равным null');
+  // Необязательные разделы обязаны присутствовать ключом, пусть и равным null:
+  // рендерер проверяет их наличие, а не значение.
+  ['spatial', 'challengers', 'sweep', 'evolved'].forEach(function (key) {
+    assert.ok(key in data, 'ключ ' + key + ' обязан присутствовать');
+  });
+});
+
+test('ARENA_DATA: дуэли последнего поколения полны и согласованы', function () {
+  data.runs.forEach(function (run) {
+    var n = run.strategyIds.length;
+    assert.strictEqual(run.duels.length, (n * (n + 1)) / 2,
+      'дуэлей должно быть ровно столько же, сколько пар в турнире');
+    assert.strictEqual(run.duelGeneration, run.generations - 1);
+    run.duels.forEach(function (duel) {
+      assert.ok(run.strategyIds.indexOf(duel.a) >= 0 && run.strategyIds.indexOf(duel.b) >= 0);
+      [duel.movesA, duel.movesB, duel.intendedA, duel.intendedB].forEach(function (tape) {
+        assert.strictEqual(tape.length, run.rounds, 'лента должна быть длиной в матч');
+        assert.ok(/^[CD]+$/.test(tape), 'в ленте только C и D');
+      });
+      // Средние очки обязаны сходиться с лентой, иначе инспектор дуэлей
+      // показывал бы не тот матч, который вошёл в таблицу.
+      var pay = data.meta.payoff;
+      var sumA = 0;
+      for (var i = 0; i < run.rounds; i++) {
+        var x = duel.movesA[i];
+        var y = duel.movesB[i];
+        sumA += x === 'C' ? (y === 'C' ? pay.R : pay.S) : (y === 'C' ? pay.T : pay.P);
+      }
+      assert.ok(Math.abs(sumA / run.rounds - duel.avgA) < 1e-6,
+        duel.a + ' vs ' + duel.b + ': лента не сходится со средним счётом');
+    });
+  });
+});
+
+test('ARENA_DATA: свип покрывает все заявленные миры', function () {
+  var sweep = data.sweep;
+  assert.ok(sweep, 'нет свипа — запусти node sim/sweep.js --seed 42');
+  assert.strictEqual(sweep.cells.length,
+    sweep.matrices.length * sweep.noises.length * sweep.lengths.length);
+  assert.strictEqual(sweep.worlds, sweep.cells.length);
+  sweep.cells.forEach(function (cell) {
+    assert.ok(sweep.strategyIds.indexOf(cell.winner) >= 0, 'победитель мира не из лиги');
+    assert.ok(cell.winnerShare > 0 && cell.winnerShare <= 1);
+    var total = cell.shares.reduce(function (a, b) { return a + b.share; }, 0);
+    assert.ok(Math.abs(total - 1) < 1e-3, 'доли мира не дают единицу: ' + total);
+  });
+  sweep.ranking.forEach(function (row) {
+    assert.ok(row.survivedWorlds <= row.worlds);
+    assert.strictEqual(row.worlds, sweep.worlds);
+  });
+  var totalWins = sweep.ranking.reduce(function (a, r) { return a + r.wins; }, 0);
+  assert.strictEqual(totalWins, sweep.worlds, 'у каждого мира ровно один победитель');
+});
+
+test('ARENA_DATA: генетический прогон описан целиком', function () {
+  var ev = data.evolved;
+  assert.ok(ev, 'нет генетики — запусти node sim/evolve.js --seed 42');
+  assert.strictEqual(ev.history.length, ev.generations);
+  assert.strictEqual(ev.champion.genome.length, ev.genomeLength);
+  assert.ok(/^[CD]+$/.test(ev.champion.genome));
+  assert.strictEqual(ev.champion.analysis.table.length, 16, 'память на два раунда — 16 состояний');
+  ['titForTat', 'pavlov', 'alwaysCooperate', 'alwaysDefect'].forEach(function (key) {
+    var v = ev.champion.analysis.similarity[key];
+    assert.ok(v >= 0 && v <= 1, 'сходство вне [0,1]: ' + key);
+  });
+  assert.ok(ev.champion.copies >= 1 && ev.champion.copies <= ev.populationSize);
 });
 
 test('ARENA_DATA: meta описывает условия турнира', function () {

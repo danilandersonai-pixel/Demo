@@ -4,6 +4,7 @@ var rngLib = require('../engine/rng');
 var registry = require('../strategies');
 var tournament = require('./tournament');
 var evolution = require('./evolution');
+var match = require('../engine/match');
 
 var DEFAULT_GENERATIONS = 30;
 var DEFAULT_ROUNDS = 200;
@@ -202,6 +203,41 @@ function run(opts) {
     shares = sharesAfter;
   }
 
+  /*
+   * Дуэли последнего поколения: полные ленты ходов каждой пары.
+   *
+   * Нужны инспектору дуэлей в визуализаторе — покадровому реплею конкретного
+   * матча. Переигрываются с теми же сидами, что и в турнире последнего
+   * поколения, поэтому лента описывает ровно тот матч, который вошёл
+   * в итоговую матрицу, а не похожий на него.
+   *
+   * Берётся одно поколение, а не все тридцать: тридцати поколений хватило бы
+   * на пятнадцать мегабайт реплея ради данных, которые смотрят по одной паре
+   * за раз.
+   */
+  var duelGen = generations - 1;
+  var duels = [];
+  for (var di = 0; di < n; di++) {
+    for (var dj = di; dj < n; dj++) {
+      var duel = match.playMatch(defs[di], defs[dj], {
+        rounds: rounds,
+        noise: noise,
+        seed: rngLib.hashSeed(tournament.DOMAIN, seed, duelGen, di, dj),
+        log: true
+      });
+      duels.push({
+        a: ids[di],
+        b: ids[dj],
+        avgA: duel.avgA,
+        avgB: duel.avgB,
+        movesA: duel.log.map(function (x) { return x.a; }).join(''),
+        movesB: duel.log.map(function (x) { return x.b; }).join(''),
+        intendedA: duel.log.map(function (x) { return x.intendedA; }).join(''),
+        intendedB: duel.log.map(function (x) { return x.intendedB; }).join('')
+      });
+    }
+  }
+
   var last = frames[frames.length - 1];
   var finalOrder = ids
     .map(function (id, idx) {
@@ -228,6 +264,8 @@ function run(opts) {
     outcome: outcome,
     standings: finalOrder,
     extinctions: extinctionOrder,
+    duelGeneration: duelGen,
+    duels: duels,
     totalMatches: totalMatches
   };
 }

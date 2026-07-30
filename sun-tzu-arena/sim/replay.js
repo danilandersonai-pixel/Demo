@@ -5,7 +5,7 @@ var path = require('path');
 var registry = require('../strategies');
 var payoff = require('../engine/payoff');
 
-var FORMAT_VERSION = 1;
+var FORMAT_VERSION = 2;
 
 /**
  * Сборка объекта ARENA_DATA — единственного контракта между симуляцией и
@@ -17,7 +17,7 @@ var FORMAT_VERSION = 1;
  * не имела бы смысла.
  *
  * @param {object[]} runs прогоны из sim/simulate.js
- * @param {object} [extra] {spatial, challengers, strategies}
+ * @param {object} [extra] {spatial, challengers, sweep, evolved, strategies}
  * @returns {object}
  */
 function buildArenaData(runs, extra) {
@@ -41,7 +41,9 @@ function buildArenaData(runs, extra) {
     strategies: registry.meta(defs),
     runs: runs,
     spatial: e.spatial || null,
-    challengers: e.challengers || null
+    challengers: e.challengers || null,
+    sweep: e.sweep || null,
+    evolved: e.evolved || null
   };
 }
 

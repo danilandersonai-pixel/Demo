@@ -185,6 +185,42 @@ table.board tr { cursor: pointer; }
 .bar { position: relative; height: 5px; border-radius: 3px; background: var(--panel-2); margin-top: 4px; overflow: hidden; }
 .bar i { position: absolute; inset: 0 auto 0 0; border-radius: 3px; }
 
+/* Миниатюра распределения под скраббером */
+.scrubwrap { position: relative; flex: 1 1 auto; min-width: 0; }
+.scrubwrap canvas {
+  display: block; width: 100%; height: 46px;
+  border-radius: 7px; border: 1px solid var(--line); background: #0c0f16;
+}
+.scrubwrap input[type=range] { position: absolute; inset: auto 0 -4px 0; width: 100%; }
+
+/* Инспектор дуэлей */
+.duelwrap { display: grid; grid-template-columns: minmax(0,auto) minmax(280px,1fr); gap: 18px; align-items: start; }
+@media (max-width: 900px) { .duelwrap { grid-template-columns: 1fr; } }
+#duelgrid { max-width: 100%; cursor: crosshair; border-radius: 10px; background: #0c0f16; }
+.duelpanel { font-size: 13px; }
+.duelpanel .hd { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.duelpanel .tape {
+  font-family: var(--mono); font-size: 11px; line-height: 1.9;
+  word-break: break-all; background: #0c0f16; border: 1px solid var(--line);
+  border-radius: 8px; padding: 10px; margin-bottom: 10px;
+}
+.duelpanel .tape b { font-weight: 700; }
+.duelpanel .tape .betray { background: rgba(248,113,113,.28); border-radius: 2px; }
+.duelpanel .tape .cursor { outline: 1px solid var(--gold); border-radius: 2px; }
+.duelpanel .row { display: flex; justify-content: space-between; padding: 3px 0; }
+.duelpanel .row span:last-child { font-family: var(--mono); }
+.duelpanel .empty { color: var(--ink-faint); padding: 30px 0; text-align: center; }
+
+/* Тепловая карта и генетика */
+#heatmap { display: block; width: 100%; height: auto; }
+.genome {
+  font-family: var(--mono); font-size: 13px; letter-spacing: .16em;
+  color: var(--gold-soft); word-break: break-all;
+}
+.gentable { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px; margin-top: 12px; }
+.gentable div { font-family: var(--mono); font-size: 11.5px; color: var(--ink-dim); }
+.gentable b { color: var(--ink); }
+
 /* ============================================================================
    5. Досье
    ========================================================================= */
@@ -321,12 +357,24 @@ table.board tr { cursor: pointer; }
         <span id="speedbtns"></span>
       </div>
       <div class="scrub">
-        <input type="range" id="scrub" min="0" max="29" value="0" step="0.001"
-               aria-label="Перемотка по поколениям">
+        <div class="scrubwrap">
+          <canvas id="thumb" width="900" height="46" aria-hidden="true"></canvas>
+          <input type="range" id="scrub" min="0" max="29" value="0" step="0.001"
+                 aria-label="Перемотка по поколениям">
+        </div>
         <span class="genread" id="genread">0 / 29</span>
+      </div>
+      <div class="group">
+        <button id="btnMute" aria-pressed="false" title="Звук синтезируется на лету, файлов нет">
+          🔇 Звук выкл.
+        </button>
       </div>
     </div>
 
+  </section>
+
+  <!-- ==================== АНАЛИТИКА ==================== -->
+  <section class="tabpage" id="page-analytics" role="tabpanel">
     <div class="grid2">
       <div class="card">
         <h2>Доли популяции <span>репликаторная динамика</span></h2>
@@ -344,6 +392,33 @@ table.board tr { cursor: pointer; }
         </table>
       </div>
     </div>
+
+    <div class="card" style="margin-top:18px">
+      <h2>Инспектор дуэлей <span>покадровый реплей матча</span></h2>
+      <p class="note">Клик по клетке — матч этой пары в последнем поколении, ход за ходом.
+        Строка — кто ходит, столбец — против кого. Цвет клетки: чем зеленее, тем больше
+        очков берёт строка; красный — берёт меньше соперника.</p>
+      <div class="duelwrap">
+        <canvas id="duelgrid" width="720" height="720"></canvas>
+        <div id="duelpanel" class="duelpanel"></div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:18px" id="heatCard">
+      <h2>Стенд устойчивости <span>условия × стратегии</span></h2>
+      <p class="note" id="heatNote"></p>
+      <canvas id="heatmap" width="900" height="420"></canvas>
+    </div>
+
+    <div class="card" style="margin-top:18px" id="genCard">
+      <h2>Генетический режим <span>«Безымянный»</span></h2>
+      <div id="genBody"></div>
+    </div>
+
+    <div id="chWrap" style="margin-top:18px"></div>
+
+    <h2 style="font-family:var(--serif);font-size:19px;margin:26px 0 14px">Досье фракций</h2>
+    <div class="dossiers" id="dossiers"></div>
   </section>
 
   <!-- ==================== ТЕРРИТОРИЯ ==================== -->
@@ -368,16 +443,6 @@ table.board tr { cursor: pointer; }
         </div>
       </div>
     </div>
-  </section>
-
-  <!-- ==================== ДОСЬЕ ==================== -->
-  <section class="tabpage" id="page-dossier" role="tabpanel">
-    <div class="dossiers" id="dossiers"></div>
-  </section>
-
-  <!-- ==================== ПРЕТЕНДЕНТЫ ==================== -->
-  <section class="tabpage" id="page-challengers" role="tabpanel">
-    <div id="chWrap"></div>
   </section>
 
 </div>
@@ -435,10 +500,15 @@ var SPEEDS = [1, 4, 16];
 /* Справочник стратегий по id: лига плюс, если есть, претенденты. */
 var byId = {};
 if (data) {
-  data.strategies.forEach(function (st) { byId[st.id] = st; });
+  // Порядок важен. Претендент, принятый в лигу, встречается дважды: в
+  // data.strategies с назначенным при приёме цветом и в challengers.entrants
+  // с авторским. На экране должен побеждать цвет лиги — по нему фракция
+  // опознаётся на всех вкладках, — поэтому сначала кладём претендентов,
+  // а сверху перекрываем лигой.
   if (data.challengers && data.challengers.entrants) {
     data.challengers.entrants.forEach(function (st) { byId[st.id] = st; });
   }
+  data.strategies.forEach(function (st) { byId[st.id] = st; });
 }
 
 function currentRun() { return data.runs[state.runIndex]; }
@@ -862,6 +932,104 @@ function drawClash(g, fx, cy, lane, stL, stR, clash, laneIdx, laneH) {
 }
 
 /* ============================================================================
+   3a. ЗВУК — синтез через WebAudio, ни одного файла
+
+   Файлов нет принципиально: страница обязана открываться с диска, а любой
+   внешний ресурс при file:// либо блокируется, либо тащит за собой каталог
+   ассетов. Всё, что звучит, собирается из осцилляторов и шумового буфера
+   на лету. По умолчанию выключено — звук, включающийся сам, это грубость.
+   Контекст создаётся лениво, при первом включении: браузер всё равно не даст
+   ему зазвучать до жеста пользователя.
+   ========================================================================= */
+var audio = { on: false, ctx: null, master: null, noise: null };
+
+function audioEnsure() {
+  if (audio.ctx) return audio.ctx;
+  var Ctx = window.AudioContext || window.webkitAudioContext;
+  if (!Ctx) return null;
+  audio.ctx = new Ctx();
+  audio.master = audio.ctx.createGain();
+  audio.master.gain.value = 0.22;
+  audio.master.connect(audio.ctx.destination);
+
+  // Шумовой буфер на две секунды — основа лязга и обвала башни.
+  var len = audio.ctx.sampleRate * 2;
+  audio.noise = audio.ctx.createBuffer(1, len, audio.ctx.sampleRate);
+  var data = audio.noise.getChannelData(0);
+  var seedv = 1;
+  for (var i = 0; i < len; i++) {
+    // Свой ГПСЧ, а не Math.random: звук тоже должен быть одинаковым.
+    seedv = (seedv * 1103515245 + 12345) & 0x7fffffff;
+    data[i] = (seedv / 0x3fffffff) - 1;
+  }
+  return audio.ctx;
+}
+
+/** Короткий тон. */
+function tone(freq, when, dur, type, gain) {
+  if (!audio.on || !audio.ctx) return;
+  var t = audio.ctx.currentTime + when;
+  var osc = audio.ctx.createOscillator();
+  var env = audio.ctx.createGain();
+  osc.type = type || 'sine';
+  osc.frequency.setValueAtTime(freq, t);
+  env.gain.setValueAtTime(0, t);
+  env.gain.linearRampToValueAtTime(gain === undefined ? 0.5 : gain, t + 0.012);
+  env.gain.exponentialRampToValueAtTime(0.0008, t + dur);
+  osc.connect(env); env.connect(audio.master);
+  osc.start(t); osc.stop(t + dur + 0.02);
+}
+
+/** Шумовой удар с полосовым фильтром. */
+function burst(freq, when, dur, q, gain) {
+  if (!audio.on || !audio.ctx) return;
+  var t = audio.ctx.currentTime + when;
+  var src = audio.ctx.createBufferSource();
+  src.buffer = audio.noise;
+  var flt = audio.ctx.createBiquadFilter();
+  flt.type = 'bandpass';
+  flt.frequency.setValueAtTime(freq, t);
+  flt.Q.value = q || 1.2;
+  var env = audio.ctx.createGain();
+  env.gain.setValueAtTime(0, t);
+  env.gain.linearRampToValueAtTime(gain === undefined ? 0.4 : gain, t + 0.008);
+  env.gain.exponentialRampToValueAtTime(0.0008, t + dur);
+  src.connect(flt); flt.connect(env); env.connect(audio.master);
+  src.start(t); src.stop(t + dur + 0.02);
+}
+
+/** Сшибка: лязг тем ниже и гуще, чем сильнее накал. */
+function soundClash(intensity) {
+  burst(900 - 300 * intensity, 0, 0.10 + 0.12 * intensity, 1.1, 0.10 + 0.30 * intensity);
+  tone(150 - 40 * intensity, 0, 0.09, 'triangle', 0.10 + 0.2 * intensity);
+}
+
+/** Падение башни: обвал вниз. */
+function soundTowerFall() {
+  burst(320, 0, 0.5, 0.7, 0.45);
+  if (!audio.on || !audio.ctx) return;
+  var t = audio.ctx.currentTime;
+  var osc = audio.ctx.createOscillator();
+  var env = audio.ctx.createGain();
+  osc.type = 'sawtooth';
+  osc.frequency.setValueAtTime(180, t);
+  osc.frequency.exponentialRampToValueAtTime(38, t + 0.55);
+  env.gain.setValueAtTime(0.34, t);
+  env.gain.exponentialRampToValueAtTime(0.0008, t + 0.6);
+  osc.connect(env); env.connect(audio.master);
+  osc.start(t); osc.stop(t + 0.62);
+}
+
+/** Фанфары победы: пентатоника, чтобы не звучало как сирена. */
+function soundVictory() {
+  [0, 0.13, 0.26, 0.42].forEach(function (when, i) {
+    var freq = [392, 523.25, 659.25, 783.99][i];
+    tone(freq, when, 0.5, 'triangle', 0.4);
+    tone(freq * 2, when, 0.32, 'sine', 0.14);
+  });
+}
+
+/* ============================================================================
    4. AREA-ГРАФИК ДОЛЕЙ (рисуется вручную, без библиотек)
    ========================================================================= */
 var chart = document.getElementById('chart');
@@ -968,6 +1136,60 @@ function drawChart() {
 }
 
 /* ============================================================================
+   4a. МИНИАТЮРА РАСПРЕДЕЛЕНИЯ ПОД СКРАББЕРОМ
+
+   Тот же стек долей, что и на большом графике, но без осей и подписей: её
+   задача — показать пальцу, куда он тащит ползунок, а не быть читаемой.
+   ========================================================================= */
+var thumb = document.getElementById('thumb');
+var tctx = null;
+
+function drawThumb() {
+  var run = currentRun();
+  var cssW = thumb.clientWidth || 600;
+  var cssH = 46;
+  if (!tctx || thumb.dataset.w !== String(cssW)) {
+    tctx = fitCanvas(thumb, cssW, cssH);
+    thumb.dataset.w = String(cssW);
+  }
+  var g = tctx;
+  g.clearRect(0, 0, cssW, cssH);
+
+  var points = run.frames.length + 1;
+  var px = function (i) { return (cssW * i) / (points - 1); };
+  var shareAt = function (i, t) {
+    return t === 0 ? run.frames[0].shares[i] : run.frames[t - 1].sharesAfter[i];
+  };
+
+  var base = new Array(points).fill(0);
+  for (var sIdx = 0; sIdx < run.strategyIds.length; sIdx++) {
+    var st = strat(run.strategyIds[sIdx]);
+    var tops = new Array(points);
+    var any = false;
+    for (var t = 0; t < points; t++) {
+      var v = shareAt(sIdx, t);
+      if (v > 0) any = true;
+      tops[t] = base[t] + v;
+    }
+    if (any) {
+      g.beginPath();
+      g.moveTo(px(0), cssH * (1 - base[0]));
+      for (t = 0; t < points; t++) g.lineTo(px(t), cssH * (1 - tops[t]));
+      for (t = points - 1; t >= 0; t--) g.lineTo(px(t), cssH * (1 - base[t]));
+      g.closePath();
+      g.fillStyle = rgba(st.color, 0.8);
+      g.fill();
+    }
+    base = tops;
+  }
+
+  var head = clamp(state.gen + 1, 0, points - 1);
+  g.strokeStyle = 'rgba(255,255,255,.85)';
+  g.lineWidth = 1.5;
+  g.beginPath(); g.moveTo(px(head), 0); g.lineTo(px(head), cssH); g.stroke();
+}
+
+/* ============================================================================
    5. ТАБЛИЦА ЛИДЕРОВ
    ========================================================================= */
 function drawBoard() {
@@ -1015,16 +1237,23 @@ function drawBoard() {
 function buildDossiers() {
   var run = currentRun();
   var host = document.getElementById('dossiers');
+  // Претенденты, принятые в лигу, уже есть в data.strategies — добавляем
+  // только тех, кто в неё не вошёл, иначе карточки задваиваются.
   var list = data.strategies.slice();
+  var have = {};
+  list.forEach(function (st) { have[st.id] = true; });
   if (data.challengers && data.challengers.entrants) {
-    list = list.concat(data.challengers.entrants);
+    data.challengers.entrants.forEach(function (st) {
+      if (!have[st.id]) list.push(st);
+    });
   }
   host.innerHTML = list.map(function (st) {
     var idx = run.strategyIds.indexOf(st.id);
     var last = run.frames[run.frames.length - 1];
     var share = idx >= 0 ? last.sharesAfter[idx] : -1;
     var fam = st.family === 'classic' ? 'классика'
-      : st.family === 'authored' ? 'авторская' : 'претендент';
+      : st.family === 'authored' ? 'авторская'
+        : st.family === 'evolved' ? 'выведена эволюцией' : 'претендент';
     return '<article class="dos" id="dos-' + st.id + '" style="border-top-color:' + st.color + '">' +
       '<div class="hd">' +
       '<div class="gl" style="color:' + st.color + '">' + st.glyph + '</div>' +
@@ -1045,8 +1274,18 @@ function buildDossiers() {
   }).join('');
 }
 
+/** Перерисовать всё, что живёт на вкладке аналитики. */
+function drawAnalytics() {
+  drawChart();
+  drawBoard();
+  drawDuelGrid();
+  renderDuelPanel();
+  drawHeatmap();
+  drawGenetics();
+}
+
 function flashDossier(id) {
-  showTab('dossier');
+  showTab('analytics');
   var el = document.getElementById('dos-' + id);
   if (!el) return;
   el.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -1100,6 +1339,279 @@ function drawTerrain() {
     ' · средние очки за раунд: ' + spFrame.meanScore.toFixed(3);
   document.getElementById('terrRead').textContent = state.terrGen + ' / ' + (sp.frames.length - 1);
   document.getElementById('terrScrub').value = String(state.terrGen);
+}
+
+/* ============================================================================
+   7a. ИНСПЕКТОР ДУЭЛЕЙ
+
+   Сетка «все против всех» по последнему поколению: клик по клетке разворачивает
+   ленту конкретного матча. Ленты приходят готовыми из симуляции (run.duels) —
+   переиграть матч в браузере нельзя, стратегии живут в Node.
+   ========================================================================= */
+var duelGrid = document.getElementById('duelgrid');
+var duelSel = null; // {a, b}
+var duelStep = 0;
+var duelPlaying = false;
+var duelTick = 0;
+
+function duelBetween(a, b) {
+  var run = currentRun();
+  for (var i = 0; i < run.duels.length; i++) {
+    var d = run.duels[i];
+    if ((d.a === a && d.b === b) || (d.a === b && d.b === a)) return d;
+  }
+  return null;
+}
+
+function drawDuelGrid() {
+  var run = currentRun();
+  var ids = run.strategyIds;
+  var n = ids.length;
+  var host = document.getElementById('page-analytics');
+  var side = Math.min(720, Math.max(320, (host.clientWidth || 720) * 0.52));
+  var pad = 92;
+  var ctx = fitCanvas(duelGrid, side, side);
+  // fitCanvas задаёт только высоту в CSS: у остальных холстов ширину даёт
+  // правило width:100%, а этот квадратный и живёт в сетке. Без явной ширины
+  // элемент раскладывается по атрибуту width (в физических пикселях), и
+  // координаты клика перестают сходиться с рисунком.
+  duelGrid.style.width = side + 'px';
+  var cell = (side - pad) / n;
+
+  ctx.clearRect(0, 0, side, side);
+  ctx.font = '9px ' + UI_FONT;
+  ctx.textBaseline = 'middle';
+
+  for (var i = 0; i < n; i++) {
+    var stRow = strat(ids[i]);
+    ctx.fillStyle = stRow.color;
+    ctx.textAlign = 'right';
+    ctx.fillText(stRow.name.slice(0, 13), pad - 6, pad + i * cell + cell / 2);
+
+    ctx.save();
+    ctx.translate(pad + i * cell + cell / 2, pad - 6);
+    ctx.rotate(-Math.PI / 2);
+    ctx.textAlign = 'left';
+    ctx.fillText(stRow.name.slice(0, 13), 0, 0);
+    ctx.restore();
+
+    for (var j = 0; j < n; j++) {
+      var d = duelBetween(ids[i], ids[j]);
+      if (!d) continue;
+      var mine = d.a === ids[i] ? d.avgA : d.avgB;
+      var theirs = d.a === ids[i] ? d.avgB : d.avgA;
+      var edge = clamp((mine - theirs) / 2 + 0.5, 0, 1);
+      var r = Math.round(90 + 140 * (1 - edge));
+      var gch = Math.round(90 + 140 * edge);
+      ctx.fillStyle = 'rgb(' + r + ',' + gch + ',96)';
+      ctx.fillRect(pad + j * cell + 0.5, pad + i * cell + 0.5, cell - 1, cell - 1);
+      if (duelSel && duelSel.a === ids[i] && duelSel.b === ids[j]) {
+        ctx.strokeStyle = '#c9a227';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(pad + j * cell + 1, pad + i * cell + 1, cell - 2, cell - 2);
+      }
+    }
+  }
+  duelGrid.dataset.cell = String(cell);
+  duelGrid.dataset.pad = String(pad);
+}
+
+function renderDuelPanel() {
+  var host = document.getElementById('duelpanel');
+  if (!duelSel) {
+    host.innerHTML = '<div class="empty">Выбери клетку — здесь развернётся матч.</div>';
+    return;
+  }
+  var d = duelBetween(duelSel.a, duelSel.b);
+  if (!d) { host.innerHTML = '<div class="empty">Нет данных по этой паре.</div>'; return; }
+
+  var flip = d.a !== duelSel.a;
+  var stA = strat(duelSel.a);
+  var stB = strat(duelSel.b);
+  var movesA = flip ? d.movesB : d.movesA;
+  var movesB = flip ? d.movesA : d.movesB;
+  var wantA = flip ? d.intendedB : d.intendedA;
+  var wantB = flip ? d.intendedA : d.intendedB;
+  var pay = data.meta.payoff;
+
+  var upto = clamp(duelStep, 1, movesA.length);
+  var scoreA = 0;
+  var scoreB = 0;
+  for (var i = 0; i < upto; i++) {
+    var x = movesA[i];
+    var y = movesB[i];
+    scoreA += x === 'C' ? (y === 'C' ? pay.R : pay.S) : (y === 'C' ? pay.T : pay.P);
+    scoreB += y === 'C' ? (x === 'C' ? pay.R : pay.S) : (x === 'C' ? pay.T : pay.P);
+  }
+
+  function tape(moves, want) {
+    var out = '';
+    for (var k = 0; k < moves.length; k++) {
+      var cls = [];
+      if (moves[k] === 'D') cls.push('betray');
+      if (k === upto - 1) cls.push('cursor');
+      var glitch = moves[k] !== want[k] ? '<b title="ход искажён шумом">' + moves[k] + '</b>' : moves[k];
+      out += cls.length ? '<span class="' + cls.join(' ') + '">' + glitch + '</span>' : glitch;
+    }
+    return out;
+  }
+
+  host.innerHTML =
+    '<div class="hd"><span class="sw" style="background:' + stA.color + '"></span>' +
+    '<b>' + stA.name + '</b> против <span class="sw" style="background:' + stB.color + '"></span>' +
+    '<b>' + stB.name + '</b></div>' +
+    '<div class="row"><span>очки за раунд по всему матчу</span><span>' +
+    (flip ? d.avgB : d.avgA).toFixed(3) + ' / ' + (flip ? d.avgA : d.avgB).toFixed(3) + '</span></div>' +
+    '<div class="row"><span>счёт к раунду ' + upto + '</span><span>' +
+    scoreA + ' / ' + scoreB + '</span></div>' +
+    '<div class="row"><span>предательств</span><span>' +
+    (movesA.split('D').length - 1) + ' / ' + (movesB.split('D').length - 1) + '</span></div>' +
+    '<p class="note" style="margin:10px 0 6px">' + stA.name + ' — жирным помечены ходы, ' +
+    'искажённые шумом, красным — предательства:</p>' +
+    '<div class="tape" style="color:' + stA.color + '">' + tape(movesA, wantA) + '</div>' +
+    '<p class="note" style="margin:0 0 6px">' + stB.name + ':</p>' +
+    '<div class="tape" style="color:' + stB.color + '">' + tape(movesB, wantB) + '</div>' +
+    '<div class="group" style="display:flex;gap:8px;align-items:center">' +
+    '<button id="duelPlay">' + (duelPlaying ? '❚❚ Пауза' : '▶ Проиграть') + '</button>' +
+    '<input type="range" id="duelScrub" min="1" max="' + movesA.length + '" value="' + upto +
+    '" style="flex:1" aria-label="Раунд матча">' +
+    '<span class="genread">' + upto + ' / ' + movesA.length + '</span></div>';
+
+  document.getElementById('duelPlay').onclick = function () {
+    duelPlaying = !duelPlaying;
+    if (duelPlaying && duelStep >= movesA.length) duelStep = 1;
+    duelTick = 0;
+    renderDuelPanel();
+  };
+  document.getElementById('duelScrub').oninput = function (e) {
+    duelStep = Number(e.target.value);
+    duelPlaying = false;
+    renderDuelPanel();
+  };
+}
+
+function bindDuelGrid() {
+  duelGrid.addEventListener('click', function (e) {
+    var run = currentRun();
+    var rect = duelGrid.getBoundingClientRect();
+    var cell = Number(duelGrid.dataset.cell);
+    var pad = Number(duelGrid.dataset.pad);
+    var x = e.clientX - rect.left;
+    var y = e.clientY - rect.top;
+    var j = Math.floor((x - pad) / cell);
+    var i = Math.floor((y - pad) / cell);
+    if (i < 0 || j < 0 || i >= run.strategyIds.length || j >= run.strategyIds.length) return;
+    duelSel = { a: run.strategyIds[i], b: run.strategyIds[j] };
+    duelStep = currentRun().rounds;
+    duelPlaying = false;
+    drawDuelGrid();
+    renderDuelPanel();
+  });
+}
+
+/* ============================================================================
+   7b. ТЕПЛОВАЯ КАРТА СТЕНДА УСТОЙЧИВОСТИ
+   ========================================================================= */
+function drawHeatmap() {
+  var sweep = data.sweep;
+  if (!sweep) {
+    document.getElementById('heatCard').innerHTML =
+      '<div class="miss"><p><b>Стенд устойчивости не считан.</b></p>' +
+      '<p>Запусти <code>node sim/sweep.js --seed 42</code> и пересобери реплей.</p></div>';
+    return;
+  }
+
+  var cv = document.getElementById('heatmap');
+  var cols = sweep.cells.length / sweep.matrices.length / sweep.noises.length;
+  var host = document.getElementById('page-analytics');
+  var cssW = Math.max(420, Math.min(980, (host.clientWidth || 900) - 40));
+  var rows = sweep.matrices.length * sweep.noises.length;
+  var padL = 128;
+  var padT = 30;
+  var cellW = (cssW - padL - 10) / (cols * sweep.matrices.length);
+  var cellH = 34;
+  var cssH = padT + sweep.noises.length * cellH + 34;
+  var g = fitCanvas(cv, cssW, cssH);
+  g.clearRect(0, 0, cssW, cssH);
+  g.font = '10px ' + UI_FONT;
+  g.textBaseline = 'middle';
+
+  var colIndex = 0;
+  sweep.matrices.forEach(function (matrix, mi) {
+    sweep.lengths.forEach(function (len) {
+      var x = padL + colIndex * cellW;
+      g.fillStyle = mi === 0 ? '#8b93a7' : '#c9a227';
+      g.textAlign = 'center';
+      g.fillText(len + 'р', x + cellW / 2, padT - 16);
+      sweep.noises.forEach(function (noise, ni) {
+        var cell = sweep.cells.filter(function (c) {
+          return c.matrix === matrix.id && c.noise === noise && c.rounds === len;
+        })[0];
+        var st = strat(cell.winner);
+        var y = padT + ni * cellH;
+        g.fillStyle = rgba(st.color, 0.25 + 0.75 * clamp(cell.winnerShare / 0.3, 0, 1));
+        g.fillRect(x + 1, y + 1, cellW - 2, cellH - 2);
+        g.fillStyle = 'rgba(8,10,14,.85)';
+        g.textAlign = 'center';
+        g.fillText(Math.round(cell.winnerShare * 100) + '%', x + cellW / 2, y + cellH / 2);
+      });
+      colIndex += 1;
+    });
+    g.fillStyle = mi === 0 ? '#8b93a7' : '#c9a227';
+    g.textAlign = 'center';
+    g.fillText(matrix.name, padL + (colIndex - sweep.lengths.length / 2) * cellW, cssH - 12);
+  });
+
+  g.textAlign = 'right';
+  g.fillStyle = '#8b93a7';
+  sweep.noises.forEach(function (noise, ni) {
+    g.fillText('шум ' + Math.round(noise * 100) + '%', padL - 8, padT + ni * cellH + cellH / 2);
+  });
+
+  var legend = sweep.ranking.slice(0, 6).map(function (row) {
+    var st = strat(row.id);
+    return '<span class="sw" style="background:' + st.color + '"></span>' + st.name +
+      ' — выжил в ' + row.survivedWorlds + '/' + row.worlds + ', побед ' + row.wins;
+  }).join(' &nbsp;·&nbsp; ');
+
+  document.getElementById('heatNote').innerHTML =
+    'Каждая клетка — отдельный эволюционный прогон в своих условиях (' + sweep.worlds +
+    ' миров, по ' + sweep.generations + ' поколений). Цвет — победитель, число — его ' +
+    'итоговая доля. ' + legend;
+}
+
+/* ============================================================================
+   7c. ГЕНЕТИЧЕСКИЙ РЕЖИМ
+   ========================================================================= */
+function drawGenetics() {
+  var ev = data.evolved;
+  var host = document.getElementById('genBody');
+  if (!ev) {
+    document.getElementById('genCard').innerHTML =
+      '<div class="miss"><p><b>Генетический режим не считан.</b></p>' +
+      '<p>Запусти <code>node sim/evolve.js --seed 42</code> и пересобери реплей.</p></div>';
+    return;
+  }
+  var a = ev.champion.analysis;
+  var sim = a.similarity;
+  var st = strat('nameless');
+
+  host.innerHTML =
+    '<p class="note">Популяция из ' + ev.populationSize + ' хромосом, ' + ev.generations +
+    ' поколений, отбор турнирный (' + ev.params.tournamentSize + '), кроссовер ' +
+    ev.params.crossoverRate + ', мутация ' + ev.params.mutationRate + ', элита ' +
+    ev.params.elitism + '. Рукописных стратегий в среде отбора не было.</p>' +
+    '<div class="row" style="margin:12px 0 6px"><span class="sw" style="background:' +
+    st.color + '"></span> <b>' + st.name + '</b> — занял ' + ev.champion.copies + ' мест из ' +
+    ev.populationSize + ' в последнем поколении</div>' +
+    '<div class="genome">' + ev.champion.genome + '</div>' +
+    '<p class="note" style="margin-top:10px">Сходство: TitForTat ' +
+    Math.round(sim.titForTat * 100) + '%, Pavlov ' + Math.round(sim.pavlov * 100) +
+    '%, AlwaysCooperate ' + Math.round(sim.alwaysCooperate * 100) + '%, AlwaysDefect ' +
+    Math.round(sim.alwaysDefect * 100) + '%. Первый ход: ' + a.firstMove + '.</p>' +
+    '<div class="gentable">' + a.table.map(function (row) {
+      return '<div>' + row.state + ' → <b>' + row.answer + '</b></div>';
+    }).join('') + '</div>';
 }
 
 /* ============================================================================
@@ -1205,7 +1717,9 @@ function buildRunButtons() {
       state.runIndex = Number(b.getAttribute('data-run'));
       state.gen = 0; state.shown = false;
       hideVictory();
+      duelSel = null; duelPlaying = false;
       buildRunButtons(); buildDossiers(); syncScrubBounds(); renderAll();
+      if (document.getElementById('page-analytics').classList.contains('live')) drawAnalytics();
     });
   });
 }
@@ -1225,8 +1739,7 @@ function buildSpeedButtons() {
 var TABS = [
   { id: 'battle', label: 'Битва' },
   { id: 'territory', label: 'Территория' },
-  { id: 'dossier', label: 'Досье' },
-  { id: 'challengers', label: 'Претенденты' }
+  { id: 'analytics', label: 'Аналитика' }
 ];
 
 function buildTabs() {
@@ -1247,6 +1760,7 @@ function showTab(id) {
   });
   if (id === 'territory') drawTerrain();
   if (id === 'battle') renderAll();
+  if (id === 'analytics') drawAnalytics();
 }
 
 function syncPlayButton() {
@@ -1307,6 +1821,17 @@ function bindControls() {
     state.terrTick = 0;
   });
 
+  document.getElementById('btnMute').addEventListener('click', function () {
+    audio.on = !audio.on;
+    if (audio.on) {
+      audioEnsure();
+      if (audio.ctx && audio.ctx.state === 'suspended') audio.ctx.resume();
+      tone(523.25, 0, 0.12, 'sine', 0.3);
+    }
+    this.textContent = audio.on ? '🔊 Звук вкл.' : '🔇 Звук выкл.';
+    this.setAttribute('aria-pressed', String(audio.on));
+  });
+
   document.addEventListener('keydown', function (e) {
     if (e.target.tagName === 'INPUT') return;
     if (e.code === 'Space') { e.preventDefault(); document.getElementById('btnPlay').click(); }
@@ -1314,7 +1839,11 @@ function bindControls() {
     else if (e.code === 'ArrowRight') document.getElementById('btnFwd').click();
     else if (e.code === 'Escape') hideVictory();
   });
-  window.addEventListener('resize', function () { renderAll(); drawTerrain(); });
+  window.addEventListener('resize', function () {
+    renderAll();
+    drawTerrain();
+    if (document.getElementById('page-analytics').classList.contains('live')) drawAnalytics();
+  });
 }
 
 /* ============================================================================
@@ -1323,8 +1852,13 @@ function bindControls() {
 function renderAll() {
   idle = false;
   drawField();
-  drawChart();
-  drawBoard();
+  drawThumb();
+  // График и таблица живут на вкладке аналитики: рисовать их на каждом кадре
+  // битвы значило бы тратить кадровый бюджет на то, чего не видно.
+  if (document.getElementById('page-analytics').classList.contains('live')) {
+    drawChart();
+    drawBoard();
+  }
   var run = currentRun();
   document.getElementById('scrub').value = String(state.gen);
   document.getElementById('genread').textContent =
@@ -1343,12 +1877,19 @@ function tick(now) {
     if (!state.lastTick) state.lastTick = now;
     var dt = Math.min(120, now - state.lastTick);
     state.lastTick = now;
+    var beforeGen = Math.floor(state.gen);
     state.gen += (dt / GEN_MS) * state.speed;
+    var afterGen = Math.floor(state.gen);
+    if (afterGen !== beforeGen && afterGen < run.frames.length) {
+      var frame = run.frames[afterGen];
+      soundClash(frame.battle.intensity);
+      if (frame.extinct.length) soundTowerFall();
+    }
     if (state.gen >= run.frames.length - 1) {
       state.gen = run.frames.length - 1;
       state.playing = false;
       syncPlayButton();
-      if (!state.shown) { state.shown = true; showVictory(); }
+      if (!state.shown) { state.shown = true; soundVictory(); showVictory(); }
     }
     renderAll();
     idle = false;
@@ -1361,6 +1902,16 @@ function tick(now) {
     // изменение размера окна).
     drawField();
     idle = true;
+  }
+
+  if (duelPlaying && duelSel) {
+    if (!duelTick) duelTick = now;
+    if (now - duelTick > 45) {
+      duelTick = now;
+      duelStep += 1;
+      if (duelStep >= currentRun().rounds) { duelStep = currentRun().rounds; duelPlaying = false; }
+      renderDuelPanel();
+    }
   }
 
   if (state.terrPlaying && data.spatial) {
@@ -1389,6 +1940,7 @@ if (data) {
   buildChallengers();
   syncScrubBounds();
   bindControls();
+  bindDuelGrid();
   var sp = data.spatial;
   if (sp) {
     document.getElementById('terrScrub').max = String(sp.frames.length - 1);
@@ -1404,6 +1956,7 @@ if (data) {
       '<p>Запусти <code>node sim/run.js --all</code>.</p></div>';
   }
   renderAll();
+  drawAnalytics();
   requestAnimationFrame(tick);
 }
 </script>

@@ -28,6 +28,7 @@ var DEFAULT_NOISE = 0.05;
  * @param {number} [opts.rounds=200]
  * @param {number} [opts.noise=0.05]
  * @param {number} [opts.seed=1]
+ * @param {object} [opts.payoff] матрица выплат (по умолчанию каноническая)
  * @param {boolean} [opts.log=false] сохранить пораундовый лог (для тестов)
  * @returns {object} итоги матча
  */
@@ -36,6 +37,7 @@ function playMatch(defA, defB, opts) {
   var rounds = typeof o.rounds === 'number' ? o.rounds : DEFAULT_ROUNDS;
   var noise = typeof o.noise === 'number' ? o.noise : DEFAULT_NOISE;
   var seed = typeof o.seed === 'number' ? o.seed : 1;
+  var table = o.payoff || payoff.PAYOFF;
   var keepLog = !!o.log;
 
   // Четыре независимых потока: шум A, шум B, монета A, монета B.
@@ -82,7 +84,7 @@ function playMatch(defA, defB, opts) {
       }
     }
 
-    var points = payoff.score(actualA, actualB);
+    var points = payoff.score(actualA, actualB, table);
     scoreA += points[0];
     scoreB += points[1];
     if (actualA === C) coopA++;

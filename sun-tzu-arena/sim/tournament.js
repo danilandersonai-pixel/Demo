@@ -46,6 +46,7 @@ function roundRobin(defs, opts) {
       var r = match.playMatch(defs[i], defs[j], {
         rounds: rounds,
         noise: noise,
+        payoff: opts.payoff,
         seed: rngLib.hashSeed(DOMAIN, seed, generation, i, j)
       });
       matrix[i][j] = r.avgA;
