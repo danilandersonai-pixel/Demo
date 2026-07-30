@@ -1,0 +1,1129 @@
+{
+  "base": 1500,
+  "k": 16,
+  "modes": [
+    {
+      "id": "league",
+      "label": "Лига",
+      "games": 12240
+    },
+    {
+      "id": "challengers",
+      "label": "Претенденты",
+      "games": 600
+    },
+    {
+      "id": "spatial",
+      "label": "Территория",
+      "games": 516
+    },
+    {
+      "id": "sweep",
+      "label": "Стенд",
+      "games": 65280
+    }
+  ],
+  "games": 78636,
+  "strategyIds": [
+    "alwaysCooperate",
+    "alwaysDefect",
+    "random",
+    "titForTat",
+    "grimTrigger",
+    "pavlov",
+    "knowTheEnemy",
+    "winWithoutFighting",
+    "feignedWeakness",
+    "patience",
+    "waterShape",
+    "reconInForce",
+    "counterIntelligence",
+    "quartermaster",
+    "resonance",
+    "windAndMountain",
+    "nameless"
+  ],
+  "ranking": [
+    {
+      "id": "alwaysDefect",
+      "rating": 2013.6,
+      "peak": 2340.5,
+      "low": 1500,
+      "games": 9145,
+      "wins": 8662,
+      "draws": 112,
+      "losses": 371,
+      "winRate": 0.9533,
+      "byMode": {
+        "league": {
+          "games": 1440,
+          "wins": 1337,
+          "draws": 30,
+          "losses": 73,
+          "delta": 551.7
+        },
+        "spatial": {
+          "games": 25,
+          "wins": 25,
+          "draws": 0,
+          "losses": 0,
+          "delta": 25.9
+        },
+        "sweep": {
+          "games": 7680,
+          "wins": 7300,
+          "draws": 82,
+          "losses": 298,
+          "delta": -64
+        }
+      }
+    },
+    {
+      "id": "grimTrigger",
+      "rating": 1941,
+      "peak": 2158.1,
+      "low": 1499.8,
+      "games": 9155,
+      "wins": 7695,
+      "draws": 850,
+      "losses": 610,
+      "winRate": 0.8869,
+      "byMode": {
+        "league": {
+          "games": 1440,
+          "wins": 1352,
+          "draws": 19,
+          "losses": 69,
+          "delta": 578.2
+        },
+        "spatial": {
+          "games": 35,
+          "wins": 33,
+          "draws": 1,
+          "losses": 1,
+          "delta": 5.5
+        },
+        "sweep": {
+          "games": 7680,
+          "wins": 6310,
+          "draws": 830,
+          "losses": 540,
+          "delta": -142.7
+        }
+      }
+    },
+    {
+      "id": "feignedWeakness",
+      "rating": 1839.8,
+      "peak": 1915.3,
+      "low": 1492,
+      "games": 9185,
+      "wins": 5836,
+      "draws": 560,
+      "losses": 2789,
+      "winRate": 0.6659,
+      "byMode": {
+        "league": {
+          "games": 1440,
+          "wins": 869,
+          "draws": 66,
+          "losses": 505,
+          "delta": 125.4
+        },
+        "spatial": {
+          "games": 65,
+          "wins": 39,
+          "draws": 4,
+          "losses": 22,
+          "delta": -38.1
+        },
+        "sweep": {
+          "games": 7680,
+          "wins": 4928,
+          "draws": 490,
+          "losses": 2262,
+          "delta": 252.5
+        }
+      }
+    },
+    {
+      "id": "counterIntelligence",
+      "rating": 1630.6,
+      "peak": 1642.1,
+      "low": 1275.5,
+      "games": 9505,
+      "wins": 3560,
+      "draws": 1473,
+      "losses": 4472,
+      "winRate": 0.452,
+      "byMode": {
+        "league": {
+          "games": 1440,
+          "wins": 679,
+          "draws": 72,
+          "losses": 689,
+          "delta": -16.3
+        },
+        "challengers": {
+          "games": 240,
+          "wins": 133,
+          "draws": 23,
+          "losses": 84,
+          "delta": 13.8
+        },
+        "spatial": {
+          "games": 145,
+          "wins": 46,
+          "draws": 18,
+          "losses": 81,
+          "delta": -61.5
+        },
+        "sweep": {
+          "games": 7680,
+          "wins": 2702,
+          "draws": 1360,
+          "losses": 3618,
+          "delta": 194.6
+        }
+      }
+    },
+    {
+      "id": "reconInForce",
+      "rating": 1582.8,
+      "peak": 1662.4,
+      "low": 1391.5,
+      "games": 9193,
+      "wins": 4788,
+      "draws": 474,
+      "losses": 3931,
+      "winRate": 0.5466,
+      "byMode": {
+        "league": {
+          "games": 1440,
+          "wins": 768,
+          "draws": 49,
+          "losses": 623,
+          "delta": 90.3
+        },
+        "spatial": {
+          "games": 73,
+          "wins": 50,
+          "draws": 5,
+          "losses": 18,
+          "delta": 54.6
+        },
+        "sweep": {
+          "games": 7680,
+          "wins": 3970,
+          "draws": 420,
+          "losses": 3290,
+          "delta": -62.1
+        }
+      }
+    },
+    {
+      "id": "titForTat",
+      "rating": 1542.3,
+      "peak": 1778,
+      "low": 1400.5,
+      "games": 9228,
+      "wins": 4440,
+      "draws": 2085,
+      "losses": 2703,
+      "winRate": 0.5941,
+      "byMode": {
+        "league": {
+          "games": 1440,
+          "wins": 955,
+          "draws": 65,
+          "losses": 420,
+          "delta": 193.2
+        },
+        "spatial": {
+          "games": 108,
+          "wins": 85,
+          "draws": 12,
+          "losses": 11,
+          "delta": 77.4
+        },
+        "sweep": {
+          "games": 7680,
+          "wins": 3400,
+          "draws": 2008,
+          "losses": 2272,
+          "delta": -228.2
+        }
+      }
+    },
+    {
+      "id": "windAndMountain",
+      "rating": 1532.5,
+      "peak": 1657,
+      "low": 1193.8,
+      "games": 9465,
+      "wins": 3751,
+      "draws": 1458,
+      "losses": 4256,
+      "winRate": 0.4733,
+      "byMode": {
+        "league": {
+          "games": 1440,
+          "wins": 608,
+          "draws": 65,
+          "losses": 767,
+          "delta": -78.8
+        },
+        "challengers": {
+          "games": 240,
+          "wins": 45,
+          "draws": 10,
+          "losses": 185,
+          "delta": -217.5
+        },
+        "spatial": {
+          "games": 105,
+          "wins": 34,
+          "draws": 9,
+          "losses": 62,
+          "delta": 114.4
+        },
+        "sweep": {
+          "games": 7680,
+          "wins": 3064,
+          "draws": 1374,
+          "losses": 3242,
+          "delta": 214.4
+        }
+      }
+    },
+    {
+      "id": "winWithoutFighting",
+      "rating": 1518.8,
+      "peak": 1569.9,
+      "low": 1129,
+      "games": 9213,
+      "wins": 2301,
+      "draws": 1162,
+      "losses": 5750,
+      "winRate": 0.3128,
+      "byMode": {
+        "league": {
+          "games": 1440,
+          "wins": 287,
+          "draws": 56,
+          "losses": 1097,
+          "delta": -348.2
+        },
+        "spatial": {
+          "games": 93,
+          "wins": 14,
+          "draws": 8,
+          "losses": 71,
+          "delta": 42.4
+        },
+        "sweep": {
+          "games": 7680,
+          "wins": 2000,
+          "draws": 1098,
+          "losses": 4582,
+          "delta": 324.5
+        }
+      }
+    },
+    {
+      "id": "patience",
+      "rating": 1513.4,
+      "peak": 1545.8,
+      "low": 1015,
+      "games": 9399,
+      "wins": 1949,
+      "draws": 636,
+      "losses": 6814,
+      "winRate": 0.2412,
+      "byMode": {
+        "league": {
+          "games": 1440,
+          "wins": 255,
+          "draws": 28,
+          "losses": 1157,
+          "delta": -300.3
+        },
+        "challengers": {
+          "games": 240,
+          "wins": 40,
+          "draws": 14,
+          "losses": 186,
+          "delta": 11.7
+        },
+        "spatial": {
+          "games": 39,
+          "wins": 2,
+          "draws": 2,
+          "losses": 35,
+          "delta": -77.9
+        },
+        "sweep": {
+          "games": 7680,
+          "wins": 1652,
+          "draws": 592,
+          "losses": 5436,
+          "delta": 379.9
+        }
+      }
+    },
+    {
+      "id": "nameless",
+      "rating": 1488.5,
+      "peak": 1659.2,
+      "low": 1411.4,
+      "games": 9147,
+      "wins": 4692,
+      "draws": 303,
+      "losses": 4152,
+      "winRate": 0.5295,
+      "byMode": {
+        "league": {
+          "games": 1440,
+          "wins": 739,
+          "draws": 22,
+          "losses": 679,
+          "delta": 21.5
+        },
+        "spatial": {
+          "games": 27,
+          "wins": 15,
+          "draws": 1,
+          "losses": 11,
+          "delta": 16.1
+        },
+        "sweep": {
+          "games": 7680,
+          "wins": 3938,
+          "draws": 280,
+          "losses": 3462,
+          "delta": -49
+        }
+      }
+    },
+    {
+      "id": "resonance",
+      "rating": 1477.6,
+      "peak": 1713,
+      "low": 1351,
+      "games": 9431,
+      "wins": 4861,
+      "draws": 580,
+      "losses": 3990,
+      "winRate": 0.5462,
+      "byMode": {
+        "league": {
+          "games": 1440,
+          "wins": 782,
+          "draws": 59,
+          "losses": 599,
+          "delta": 81
+        },
+        "challengers": {
+          "games": 240,
+          "wins": 187,
+          "draws": 14,
+          "losses": 39,
+          "delta": 95.7
+        },
+        "spatial": {
+          "games": 71,
+          "wins": 30,
+          "draws": 11,
+          "losses": 30,
+          "delta": -109.3
+        },
+        "sweep": {
+          "games": 7680,
+          "wins": 3862,
+          "draws": 496,
+          "losses": 3322,
+          "delta": -89.8
+        }
+      }
+    },
+    {
+      "id": "knowTheEnemy",
+      "rating": 1433.3,
+      "peak": 1754.1,
+      "low": 1394.9,
+      "games": 9156,
+      "wins": 5030,
+      "draws": 375,
+      "losses": 3751,
+      "winRate": 0.5698,
+      "byMode": {
+        "league": {
+          "games": 1440,
+          "wins": 753,
+          "draws": 29,
+          "losses": 658,
+          "delta": 11.2
+        },
+        "spatial": {
+          "games": 36,
+          "wins": 21,
+          "draws": 2,
+          "losses": 13,
+          "delta": 48.1
+        },
+        "sweep": {
+          "games": 7680,
+          "wins": 4256,
+          "draws": 344,
+          "losses": 3080,
+          "delta": -126
+        }
+      }
+    },
+    {
+      "id": "waterShape",
+      "rating": 1411.5,
+      "peak": 1708.4,
+      "low": 1327.6,
+      "games": 9158,
+      "wins": 4269,
+      "draws": 589,
+      "losses": 4300,
+      "winRate": 0.4983,
+      "byMode": {
+        "league": {
+          "games": 1440,
+          "wins": 756,
+          "draws": 64,
+          "losses": 620,
+          "delta": 56.8
+        },
+        "spatial": {
+          "games": 38,
+          "wins": 13,
+          "draws": 3,
+          "losses": 22,
+          "delta": -54.3
+        },
+        "sweep": {
+          "games": 7680,
+          "wins": 3500,
+          "draws": 522,
+          "losses": 3658,
+          "delta": -91
+        }
+      }
+    },
+    {
+      "id": "quartermaster",
+      "rating": 1380.2,
+      "peak": 1619,
+      "low": 1298,
+      "games": 9443,
+      "wins": 3879,
+      "draws": 819,
+      "losses": 4745,
+      "winRate": 0.4541,
+      "byMode": {
+        "league": {
+          "games": 1440,
+          "wins": 676,
+          "draws": 70,
+          "losses": 694,
+          "delta": 2.7
+        },
+        "challengers": {
+          "games": 240,
+          "wins": 151,
+          "draws": 27,
+          "losses": 62,
+          "delta": 96.4
+        },
+        "spatial": {
+          "games": 83,
+          "wins": 26,
+          "draws": 14,
+          "losses": 43,
+          "delta": -165.6
+        },
+        "sweep": {
+          "games": 7680,
+          "wins": 3026,
+          "draws": 708,
+          "losses": 3946,
+          "delta": -53.3
+        }
+      }
+    },
+    {
+      "id": "pavlov",
+      "rating": 1261,
+      "peak": 1540.9,
+      "low": 1195.4,
+      "games": 9170,
+      "wins": 3304,
+      "draws": 992,
+      "losses": 4874,
+      "winRate": 0.4144,
+      "byMode": {
+        "league": {
+          "games": 1440,
+          "wins": 621,
+          "draws": 33,
+          "losses": 786,
+          "delta": -41.3
+        },
+        "spatial": {
+          "games": 50,
+          "wins": 27,
+          "draws": 5,
+          "losses": 18,
+          "delta": 78.6
+        },
+        "sweep": {
+          "games": 7680,
+          "wins": 2656,
+          "draws": 954,
+          "losses": 4070,
+          "delta": -276.3
+        }
+      }
+    },
+    {
+      "id": "random",
+      "rating": 1250.8,
+      "peak": 1507.8,
+      "low": 1208.5,
+      "games": 9138,
+      "wins": 2617,
+      "draws": 292,
+      "losses": 6229,
+      "winRate": 0.3024,
+      "byMode": {
+        "league": {
+          "games": 1440,
+          "wins": 378,
+          "draws": 30,
+          "losses": 1032,
+          "delta": -257.4
+        },
+        "spatial": {
+          "games": 18,
+          "wins": 7,
+          "draws": 0,
+          "losses": 11,
+          "delta": 32.7
+        },
+        "sweep": {
+          "games": 7680,
+          "wins": 2232,
+          "draws": 262,
+          "losses": 5186,
+          "delta": -24.6
+        }
+      }
+    },
+    {
+      "id": "alwaysCooperate",
+      "rating": 682.3,
+      "peak": 1500,
+      "low": 681.7,
+      "games": 9141,
+      "wins": 191,
+      "draws": 862,
+      "losses": 8088,
+      "winRate": 0.068,
+      "byMode": {
+        "league": {
+          "games": 1440,
+          "wins": 42,
+          "draws": 9,
+          "losses": 1389,
+          "delta": -669.9
+        },
+        "spatial": {
+          "games": 21,
+          "wins": 1,
+          "draws": 1,
+          "losses": 19,
+          "delta": 11
+        },
+        "sweep": {
+          "games": 7680,
+          "wins": 148,
+          "draws": 852,
+          "losses": 6680,
+          "delta": -158.8
+        }
+      }
+    }
+  ],
+  "headToHead": [
+    [
+      null,
+      0,
+      0,
+      0.11,
+      0.105,
+      0.105,
+      0,
+      0.355,
+      0,
+      0.127,
+      0.018,
+      0,
+      0.124,
+      0.005,
+      0.012,
+      0.128,
+      0
+    ],
+    [
+      1,
+      null,
+      1,
+      0.997,
+      0.67,
+      1,
+      0.983,
+      0.957,
+      0.97,
+      1,
+      1,
+      1,
+      0.887,
+      1,
+      0.969,
+      0.825,
+      0.995
+    ],
+    [
+      1,
+      0,
+      null,
+      0.624,
+      0,
+      0.58,
+      0,
+      0.254,
+      0.039,
+      0.96,
+      0.358,
+      0.653,
+      0.121,
+      0.168,
+      0.049,
+      0.03,
+      0.002
+    ],
+    [
+      0.89,
+      0.003,
+      0.376,
+      null,
+      0.111,
+      0.544,
+      0.86,
+      0.744,
+      0.482,
+      0.812,
+      0.422,
+      0.638,
+      0.88,
+      0.882,
+      0.868,
+      0.839,
+      0.129
+    ],
+    [
+      0.895,
+      0.33,
+      1,
+      0.889,
+      null,
+      0.895,
+      0.976,
+      0.774,
+      0.959,
+      0.965,
+      0.993,
+      1,
+      0.842,
+      0.997,
+      0.956,
+      0.727,
+      0.993
+    ],
+    [
+      0.895,
+      0,
+      0.42,
+      0.456,
+      0.105,
+      null,
+      0,
+      0.657,
+      0.096,
+      0.923,
+      0.37,
+      0.833,
+      0.657,
+      0.415,
+      0.564,
+      0.226,
+      0.007
+    ],
+    [
+      1,
+      0.017,
+      1,
+      0.14,
+      0.024,
+      1,
+      null,
+      0.542,
+      0.345,
+      0.837,
+      0.849,
+      0.075,
+      0.551,
+      0.919,
+      0.3,
+      0.545,
+      0.977
+    ],
+    [
+      0.645,
+      0.043,
+      0.746,
+      0.256,
+      0.226,
+      0.343,
+      0.458,
+      null,
+      0.143,
+      0.256,
+      0.131,
+      0.107,
+      0.336,
+      0.208,
+      0.365,
+      0.403,
+      0.343
+    ],
+    [
+      1,
+      0.03,
+      0.961,
+      0.518,
+      0.041,
+      0.904,
+      0.655,
+      0.857,
+      null,
+      0.942,
+      0.787,
+      0.644,
+      0.747,
+      0.703,
+      0.576,
+      0.526,
+      0.764
+    ],
+    [
+      0.873,
+      0,
+      0.04,
+      0.188,
+      0.035,
+      0.077,
+      0.163,
+      0.744,
+      0.058,
+      null,
+      0.144,
+      0.083,
+      0.285,
+      0.302,
+      0.249,
+      0.566,
+      0.003
+    ],
+    [
+      0.982,
+      0,
+      0.642,
+      0.578,
+      0.007,
+      0.63,
+      0.151,
+      0.869,
+      0.213,
+      0.856,
+      null,
+      0.49,
+      0.532,
+      0.538,
+      0.68,
+      0.402,
+      0.404
+    ],
+    [
+      1,
+      0,
+      0.347,
+      0.362,
+      0,
+      0.167,
+      0.925,
+      0.893,
+      0.356,
+      0.917,
+      0.51,
+      null,
+      0.753,
+      0.8,
+      0.793,
+      0.892,
+      0.014
+    ],
+    [
+      0.876,
+      0.113,
+      0.879,
+      0.12,
+      0.158,
+      0.343,
+      0.449,
+      0.664,
+      0.253,
+      0.715,
+      0.468,
+      0.247,
+      null,
+      0.466,
+      0.298,
+      0.691,
+      0.467
+    ],
+    [
+      0.995,
+      0,
+      0.832,
+      0.118,
+      0.003,
+      0.585,
+      0.081,
+      0.792,
+      0.297,
+      0.698,
+      0.462,
+      0.2,
+      0.534,
+      null,
+      0.355,
+      0.747,
+      0.511
+    ],
+    [
+      0.988,
+      0.031,
+      0.951,
+      0.132,
+      0.044,
+      0.436,
+      0.7,
+      0.635,
+      0.424,
+      0.751,
+      0.32,
+      0.207,
+      0.702,
+      0.645,
+      null,
+      0.74,
+      0.969
+    ],
+    [
+      0.872,
+      0.175,
+      0.97,
+      0.161,
+      0.273,
+      0.774,
+      0.455,
+      0.597,
+      0.474,
+      0.434,
+      0.598,
+      0.108,
+      0.309,
+      0.253,
+      0.26,
+      null,
+      0.948
+    ],
+    [
+      1,
+      0.005,
+      0.998,
+      0.871,
+      0.007,
+      0.993,
+      0.023,
+      0.657,
+      0.236,
+      0.997,
+      0.596,
+      0.986,
+      0.533,
+      0.489,
+      0.031,
+      0.052,
+      null
+    ]
+  ],
+  "records": [
+    {
+      "key": "rating",
+      "title": "Высший рейтинг",
+      "id": "alwaysDefect",
+      "value": 2013.6,
+      "unit": "",
+      "note": "по 9145 матчам: 8662 побед, 112 ничьих, 371 поражений"
+    },
+    {
+      "key": "evolution",
+      "title": "Чемпион эволюции",
+      "id": "counterIntelligence",
+      "value": 4,
+      "unit": "-й",
+      "note": "выиграл лигу, а в очной ставке всего 4-й из 17 при рейтинге 1630.6"
+    },
+    {
+      "key": "draws",
+      "title": "Чаще всех сводит вничью",
+      "id": "titForTat",
+      "value": 22.6,
+      "unit": "%",
+      "note": "столько его матчей закончились поровну — ни один не взял верх"
+    },
+    {
+      "key": "unbeaten",
+      "title": "Ни разу не проиграл",
+      "id": "alwaysDefect",
+      "value": 8,
+      "unit": "",
+      "note": "столько соперников не отобрали у него ни одного матча из всех сыгранных"
+    },
+    {
+      "key": "spatial",
+      "title": "Хозяин территории",
+      "id": "windAndMountain",
+      "value": "+114",
+      "unit": "",
+      "note": "столько рейтинга он набрал именно здесь, за 105 матчей"
+    },
+    {
+      "key": "sweep",
+      "title": "Хозяин стенда",
+      "id": "patience",
+      "value": "+380",
+      "unit": "",
+      "note": "столько рейтинга он набрал именно здесь, за 7680 матчей"
+    },
+    {
+      "key": "challengers",
+      "title": "Герой войны претендентов",
+      "id": "quartermaster",
+      "value": "+96",
+      "unit": "",
+      "note": "столько рейтинга он набрал именно здесь, за 240 матчей"
+    }
+  ],
+  "unbeaten": [
+    {
+      "id": "alwaysDefect",
+      "over": [
+        "alwaysCooperate",
+        "random",
+        "titForTat",
+        "pavlov",
+        "patience",
+        "waterShape",
+        "reconInForce",
+        "quartermaster"
+      ]
+    },
+    {
+      "id": "grimTrigger",
+      "over": [
+        "alwaysCooperate",
+        "random",
+        "titForTat",
+        "pavlov",
+        "patience",
+        "waterShape",
+        "reconInForce",
+        "quartermaster"
+      ]
+    },
+    {
+      "id": "knowTheEnemy",
+      "over": [
+        "alwaysCooperate",
+        "random",
+        "pavlov"
+      ]
+    },
+    {
+      "id": "nameless",
+      "over": [
+        "alwaysCooperate",
+        "random"
+      ]
+    },
+    {
+      "id": "feignedWeakness",
+      "over": [
+        "alwaysCooperate"
+      ]
+    },
+    {
+      "id": "reconInForce",
+      "over": [
+        "alwaysCooperate"
+      ]
+    },
+    {
+      "id": "titForTat",
+      "over": [
+        "alwaysCooperate"
+      ]
+    },
+    {
+      "id": "waterShape",
+      "over": [
+        "alwaysCooperate"
+      ]
+    },
+    {
+      "id": "pavlov",
+      "over": [
+        "alwaysCooperate"
+      ]
+    },
+    {
+      "id": "random",
+      "over": [
+        "alwaysCooperate"
+      ]
+    }
+  ],
+  "gap": {
+    "id": "alwaysDefect",
+    "d": 16,
+    "elo": 1,
+    "evo": 17
+  }
+}

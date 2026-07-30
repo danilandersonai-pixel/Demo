@@ -77,7 +77,8 @@ function runWorld(defs, opts) {
       generation: gen,
       rounds: opts.rounds,
       noise: opts.noise,
-      payoff: opts.payoff
+      payoff: opts.payoff,
+      onMatch: opts.onMatch
     });
     var fitness = tournament.fitnessVector(rr.matrix, shares);
     var step = evolution.step(shares, fitness, {});
@@ -123,7 +124,10 @@ function run(opts) {
           generations: generations,
           rounds: rounds,
           noise: noise,
-          payoff: matrix.payoff
+          payoff: matrix.payoff,
+          onMatch: o.onMatch && function (i, j, avgA, avgB) {
+            o.onMatch(i, j, avgA, avgB, { matrix: matrix.id, noise: noise, rounds: rounds });
+          }
         });
         cells.push({
           matrix: matrix.id,

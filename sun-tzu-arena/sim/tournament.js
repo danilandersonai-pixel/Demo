@@ -20,8 +20,14 @@ var DOMAIN = 0x54524e4d; // 'TRNM'
  * арифметике; с перерозыгрышем у каждого поколения свой шум и свои случайные
  * стратегии, и линия фронта живёт.
  *
+ * Необязательный `opts.onMatch(i, j, avgA, avgB)` вызывается на каждый
+ * сыгранный матч. Он нужен рейтингу (`sim/elo.js`), которому важны отдельные
+ * встречи, а не свод по популяции. Хук, а не запись в файл: матчи считаются
+ * миллионами, и хранить их значило бы раздувать `results/` ради данных,
+ * которые нужны одному потребителю и выводятся из тех же сидов.
+ *
  * @param {object[]} defs определения стратегий (порядок фиксирован реестром)
- * @param {object} opts {seed, generation, rounds, noise}
+ * @param {object} opts {seed, generation, rounds, noise, payoff, onMatch}
  * @returns {{matrix: number[][], coop: number[][], matches: number}}
  */
 function roundRobin(defs, opts) {
@@ -54,6 +60,7 @@ function roundRobin(defs, opts) {
       coop[i][j] = r.coopA;
       coop[j][i] = r.coopB;
       played += 1;
+      if (opts.onMatch) opts.onMatch(i, j, r.avgA, r.avgB);
     }
   }
 

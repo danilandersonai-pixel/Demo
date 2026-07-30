@@ -34,7 +34,12 @@ var ROUNDS = 80;
  *     на сетке важна не тонкая настройка стратегий друг под друга, а скорость
  *     распространения территории.
  *
- * @param {object} [opts] {seed, size, generations, rounds, noise, strategies}
+ * Необязательный `opts.onMatch(i, j, avgA, avgB, gen)` вызывается на каждый
+ * действительно сыгранный матч — то есть один раз на пару за поколение, после
+ * кэша. Соседство на сетке неполное: пары, ни разу не оказавшиеся рядом,
+ * не играют вовсе, и рейтинг не должен считать их сыгранными.
+ *
+ * @param {object} [opts] {seed, size, generations, rounds, noise, strategies, onMatch}
  * @returns {object} данные для вкладки «Территория» визуализатора
  */
 function run(opts) {
@@ -77,6 +82,7 @@ function run(opts) {
         });
         pair[lo][hi] = r.avgA;
         pair[hi][lo] = r.avgB;
+        if (o.onMatch) o.onMatch(lo, hi, r.avgA, r.avgB, gen);
       }
       return pair[a][b];
     }

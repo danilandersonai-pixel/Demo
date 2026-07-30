@@ -27,6 +27,7 @@ var SPATIAL_FILE = path.join(RESULTS_DIR, 'spatial.json');
 var CHALLENGERS_FILE = path.join(RESULTS_DIR, 'challengers.json');
 var SWEEP_FILE = path.join(RESULTS_DIR, 'sweep-42.json');
 var EVOLVED_FILE = path.join(RESULTS_DIR, 'evolved-42.json');
+var ELO_FILE = path.join(RESULTS_DIR, 'elo.json');
 var REFERENCE_SEEDS = [7, 42, 2026];
 
 /** Разбор аргументов вида --key value и --flag. */
@@ -223,7 +224,8 @@ function main(argv) {
     spatial: spatialData,
     challengers: readJsonIfExists(CHALLENGERS_FILE),
     sweep: readJsonIfExists(SWEEP_FILE),
-    evolved: readJsonIfExists(EVOLVED_FILE)
+    evolved: readJsonIfExists(EVOLVED_FILE),
+    elo: readJsonIfExists(ELO_FILE)
   });
   var bytes = replayLib.writeReplay(REPLAY_FILE, arenaData);
   console.log(

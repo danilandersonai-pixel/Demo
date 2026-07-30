@@ -17,7 +17,7 @@ var FORMAT_VERSION = 2;
  * не имела бы смысла.
  *
  * @param {object[]} runs прогоны из sim/simulate.js
- * @param {object} [extra] {spatial, challengers, sweep, evolved, strategies}
+ * @param {object} [extra] {spatial, challengers, sweep, evolved, elo, strategies}
  * @returns {object}
  */
 function buildArenaData(runs, extra) {
@@ -43,7 +43,8 @@ function buildArenaData(runs, extra) {
     spatial: e.spatial || null,
     challengers: e.challengers || null,
     sweep: e.sweep || null,
-    evolved: e.evolved || null
+    evolved: e.evolved || null,
+    elo: e.elo || null
   };
 }
 
