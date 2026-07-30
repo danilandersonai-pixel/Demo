@@ -65,6 +65,15 @@ var K = 16;
 
 var LEAGUE_SEEDS = [7, 42, 2026];
 
+/** Русское склонение по числу: plural(1, 'победа', 'победы', 'побед'). */
+function plural(n, one, few, many) {
+  var mod10 = n % 10;
+  var mod100 = n % 100;
+  if (mod10 === 1 && mod100 !== 11) return one;
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return few;
+  return many;
+}
+
 /** Ожидаемый результат A против B по разнице рейтингов. */
 function expected(ra, rb) {
   // Классическая логистика Эло с шагом 400. Math.pow здесь допустим: он не
@@ -312,8 +321,10 @@ function summarize(collected, opts) {
     id: ranking[0].id,
     value: ranking[0].rating,
     unit: '',
-    note: 'по ' + ranking[0].games + ' матчам: ' + ranking[0].wins + ' побед, ' +
-      ranking[0].draws + ' ничьих, ' + ranking[0].losses + ' поражений'
+    note: 'по ' + ranking[0].games + ' матчам: ' +
+      ranking[0].wins + ' ' + plural(ranking[0].wins, 'победа', 'победы', 'побед') + ', ' +
+      ranking[0].draws + ' ' + plural(ranking[0].draws, 'ничья', 'ничьи', 'ничьих') + ', ' +
+      ranking[0].losses + ' ' + plural(ranking[0].losses, 'поражение', 'поражения', 'поражений')
   });
 
   if (evoOrder.length && byId[evoOrder[0]]) {
@@ -356,7 +367,9 @@ function summarize(collected, opts) {
       id: unbeaten[0].id,
       value: unbeaten[0].over.length,
       unit: '',
-      note: 'столько соперников не отобрали у него ни одного матча из всех сыгранных'
+      note: 'столько ' + plural(unbeaten[0].over.length, 'соперник', 'соперника', 'соперников') +
+        ' не ' + plural(unbeaten[0].over.length, 'отобрал', 'отобрали', 'отобрали') +
+        ' у него ни одного матча из всех сыгранных'
     });
   }
 
@@ -379,7 +392,8 @@ function summarize(collected, opts) {
       id: best.id,
       value: '+' + Math.round(best.delta),
       unit: '',
-      note: 'столько рейтинга он набрал именно здесь, за ' + best.games + ' матчей'
+      note: 'столько рейтинга он набрал именно здесь, за ' + best.games + ' ' +
+        plural(best.games, 'матч', 'матча', 'матчей')
     });
   });
 

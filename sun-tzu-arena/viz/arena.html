@@ -1912,6 +1912,25 @@ function codeById(id) {
  * кончится, ходит `tail` (или сотрудничает, если хвоста нет). Нужно разбору:
  * так «ты» становится обычной стратегией и играет тем же движком, что и все.
  */
+/**
+ * Русское склонение по числу: plural(1, 'раунд', 'раунда', 'раундов').
+ * Нужно потому, что разбор говорит числами, а «в раундах 10» читается как
+ * недоделка, даже когда всё посчитано верно.
+ */
+function plural(n, one, few, many) {
+  var mod10 = n % 10;
+  var mod100 = n % 100;
+  if (mod10 === 1 && mod100 !== 11) return one;
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return few;
+  return many;
+}
+
+/** «раунд 7» или «раунды 1, 7, 13» — по числу перечисленного. */
+function roundList(indexes) {
+  var human = indexes.map(function (i) { return i + 1; });
+  return plural(human.length, 'раунд', 'раунды', 'раунды') + ' ' + human.join(', ');
+}
+
 function tapeDef(orders, tail) {
   return {
     id: 'human', latin: 'Human', name: 'Ты', color: '#c9a227', glyph: '我',
@@ -2144,9 +2163,12 @@ function findMistakes() {
       count: strikes.length,
       rounds: strikes,
       gain: costOf(v1),
-      text: 'Ударов по мирному — <b>' + strikes.length + '</b> (раунды ' +
-        strikes.map(function (i) { return i + 1; }).join(', ') + '). ' +
-        'На <b>' + answered + '</b> из них он ответил ударом.'
+      text: 'Ударов по мирному — <b>' + strikes.length + '</b> (' + roundList(strikes) + '). ' +
+        (!answered
+          ? (strikes.length === 1 ? 'Ударом он не ответил.' : 'Ни на один он ударом не ответил.')
+          : strikes.length === 1
+            ? 'На него он ответил ударом.'
+            : 'На <b>' + answered + '</b> из них он ответил ударом.')
     });
   }
 
@@ -2165,8 +2187,7 @@ function findMistakes() {
       count: mercy.length,
       rounds: mercy,
       gain: costOf(v2),
-      text: 'Раз за разом ты предлагал союз тому, кто бил три хода подряд: раунды ' +
-        mercy.map(function (i) { return i + 1; }).join(', ') + '.'
+      text: 'Ты предлагал союз тому, кто бил три хода подряд: ' + roundList(mercy) + '.'
     });
   }
 
@@ -2187,7 +2208,8 @@ function findMistakes() {
       count: echoes.length,
       rounds: echoes,
       gain: costOf(v3),
-      text: 'В раундах ' + echoes.map(function (i) { return i + 1; }).join(', ') +
+      text: 'В ' + (echoes.length === 1 ? 'раунде' : 'раундах') + ' ' +
+        echoes.map(function (i) { return i + 1; }).join(', ') +
         ' он тебя не предавал — приказ исказил шум. Ты ответил ударом на то, ' +
         'чего не было, и война пошла из ничего.'
     });
@@ -2306,14 +2328,20 @@ function renderVerdict() {
   } else {
     html += '<ul class="errs">' + errs.map(function (err) {
       var tail;
+      var fixed = err.count === 1
+        ? 'но с исправленным этим раундом'
+        : 'но с исправленными этими раундами';
       if (err.gain > 0) {
-        tail = 'Тот же список приказов, но с исправленными этими раундами, взял бы ' +
-          '<span class="cost">на ' + err.gain + ' больше</span> — во столько они обошлись.';
+        tail = 'Тот же список приказов, ' + fixed + ', взял бы на ' +
+          '<span class="cost">' + err.gain + '</span> ' +
+          plural(err.gain, 'очко', 'очка', 'очков') + ' больше — во столько ' +
+          (err.count === 1 ? 'он обошёлся' : 'они обошлись') + '.';
       } else if (err.gain === 0) {
         tail = 'Ценой это не обернулось: исправленный список взял бы ровно столько же.';
       } else {
-        tail = 'И это было верно: исправленный список взял бы ' +
-          '<span class="cost">на ' + (-err.gain) + ' меньше</span>.';
+        tail = 'И это было верно: исправленный список взял бы на ' +
+          '<span class="cost">' + (-err.gain) + '</span> ' +
+          plural(-err.gain, 'очко', 'очка', 'очков') + ' меньше.';
       }
       return '<li><b>' + err.title + '.</b> ' + err.text + ' ' + tail + '</li>';
     }).join('') + '</ul>' +
@@ -2330,8 +2358,9 @@ function renderVerdict() {
   }
 
   if (flips) {
-    html += '<p class="note">Шум исказил <b>' + flips + '</b> из ' + DUEL_ROUNDS +
-      ' твоих приказов. Это не ошибка, а условие боя: соперник видел не то, ' +
+    html += '<p class="note">Шум исказил <b>' + flips + '</b> ' +
+      plural(flips, 'твой приказ', 'твоих приказа', 'твоих приказов') + ' из ' +
+      DUEL_ROUNDS + '. Это не ошибка, а условие боя: соперник видел не то, ' +
       'что ты приказывал, и отвечал на увиденное.</p>';
   }
 
@@ -2352,7 +2381,8 @@ function renderVerdict() {
   if (turn.at >= 0) {
     html += '<p style="margin-top:14px">Переломный раунд — <b>' + (turn.at + 1) + '-й</b>: ' +
       'если бы с него ты отдал поводья Зеркалу и просто повторял его последний ход, ' +
-      'то взял бы на <span class="cost">+' + turn.gain + '</span> больше.</p>';
+      'то взял бы на <span class="cost">' + turn.gain + '</span> ' +
+      plural(turn.gain, 'очко', 'очка', 'очков') + ' больше.</p>';
   } else {
     html += '<p style="margin-top:14px">Переломного раунда нет: ни с одного места ' +
       'простое зеркало не сыграло бы лучше тебя.</p>';
