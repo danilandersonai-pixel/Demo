@@ -1,0 +1,14 @@
+{
+  "name": "sun-tzu-arena",
+  "version": "1.0.0",
+  "description": "Арена Сунь-Цзы: эволюционный турнир стратегий в повторяющейся дилемме заключённого",
+  "type": "module",
+  "private": true,
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "test": "node --test tests/",
+    "sim": "node sim/run.js --all"
+  }
+}
