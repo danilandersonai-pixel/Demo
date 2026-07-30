@@ -274,6 +274,67 @@ table.board tr { cursor: pointer; }
 .legend .row.gone { color: var(--ink-faint); }
 
 /* ============================================================================
+   6b. Поединок («Сыграй сам»)
+   ========================================================================= */
+.foes { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 8px; }
+.foes button {
+  display: flex; align-items: center; gap: 10px; text-align: left;
+  padding: 9px 11px; border-radius: 10px; width: 100%;
+}
+.foes button .gl {
+  width: 30px; height: 30px; flex: 0 0 30px; display: grid; place-items: center;
+  border: 1px solid currentColor; border-radius: 7px;
+  font-family: var(--serif); font-size: 16px;
+}
+.foes button .who { min-width: 0; }
+.foes button .who b { display: block; font-weight: 500; color: var(--ink); font-size: 13.5px; }
+.foes button .who i {
+  display: block; font-style: normal; font-size: 11px; color: var(--ink-faint);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+.duelbar { display: flex; flex-wrap: wrap; gap: 10px 22px; align-items: center; margin-bottom: 14px; }
+.duelbar .sc { font-family: var(--mono); font-size: 20px; }
+.duelbar .sc b { font-weight: 600; }
+.duelbar .rd { font-size: 12px; color: var(--ink-dim); letter-spacing: .08em; text-transform: uppercase; }
+
+.hands { display: flex; gap: 12px; margin: 16px 0 6px; }
+.hands button { flex: 1 1 0; padding: 16px 12px; border-radius: 12px; text-align: center; }
+.hands button b { display: block; font-family: var(--serif); font-size: 19px; color: var(--ink); }
+.hands button span { display: block; font-size: 11.5px; color: var(--ink-faint); margin-top: 2px; }
+.hands button.ally:hover { border-color: var(--ok); }
+.hands button.strike:hover { border-color: var(--bad); }
+
+.tapes { display: grid; grid-template-columns: 86px 1fr; gap: 4px 12px; align-items: center; font-size: 12px; }
+.tapes .lbl { color: var(--ink-dim); text-align: right; }
+.tapes .ln {
+  font-family: var(--mono); font-size: 13px; letter-spacing: .12em;
+  word-break: break-all; line-height: 1.7;
+}
+.tapes .ln u { text-decoration: none; }
+.tapes .ln .d { color: var(--bad); }
+.tapes .ln .c { color: var(--ok); }
+.tapes .ln .garbled { text-decoration: underline wavy var(--gold); text-underline-offset: 3px; }
+.tapes .ln .now { outline: 1px solid var(--gold); border-radius: 2px; }
+
+.echo {
+  margin-top: 14px; padding: 11px 14px; border-radius: 10px;
+  background: var(--panel-2); border: 1px solid var(--line);
+  font-size: 13px; min-height: 44px;
+}
+.echo .pts { font-family: var(--mono); color: var(--gold-soft); }
+.echo .warn { color: var(--gold-soft); }
+
+.verdict .quote3 {
+  font-family: var(--serif); font-style: italic; font-size: 15px; color: var(--gold-soft);
+  border-left: 2px solid var(--gold); padding-left: 14px; margin: 0 0 14px;
+}
+.verdict .errs { margin: 0 0 16px; padding-left: 18px; font-size: 13.5px; }
+.verdict .errs li { margin: 6px 0; }
+.verdict .errs b { color: var(--ink); }
+.verdict .cost { font-family: var(--mono); color: var(--gold-soft); }
+
+/* ============================================================================
    7. Экран победы
    ========================================================================= */
 .veil {
@@ -452,6 +513,19 @@ table.board tr { cursor: pointer; }
     </div>
   </section>
 
+  <!-- ==================== СЫГРАЙ САМ ==================== -->
+  <section class="tabpage" id="page-duel" role="tabpanel">
+    <div class="card">
+      <h2>Сыграй сам <span id="duelCap">выбери противника</span></h2>
+      <p class="note" id="duelNote"></p>
+      <div id="duelStage"></div>
+    </div>
+    <div class="card" style="margin-top:18px; display:none" id="verdictCard">
+      <h2>Разбор <span>после боя</span></h2>
+      <div class="verdict" id="verdictBody"></div>
+    </div>
+  </section>
+
 </div>
 
 <div class="veil" id="veil" role="dialog" aria-modal="true" aria-label="Итоги прогона">
@@ -459,6 +533,7 @@ table.board tr { cursor: pointer; }
 </div>
 
 <script src="replay.js"></script>
+<script src="strategies.js"></script>
 <script>
 'use strict';
 /* ============================================================================
@@ -1700,6 +1775,504 @@ function buildChallengers() {
 }
 
 /* ============================================================================
+   8b. ПОЕДИНОК: «Сыграй сам»
+
+   Человек играет двадцать раундов против участника лиги. Противник — не
+   пересказ стратегии на клиенте, а её настоящий код: viz/strategies.js собран
+   из тех же файлов, что и турнир (см. sim/bundle.js). Правила те же: тот же
+   шум, та же матрица, длина матча противнику не сообщается.
+
+   Разбор после боя считается контрфактами через тот же playMatch и тот же
+   жребий: список приказов меняется в помеченных раундах, всё остальное — шум
+   в том числе — остаётся прежним. Поэтому «стоило тебе N очков» — измерение,
+   а не оценка на глаз.
+   ========================================================================= */
+var CODE = window.ARENA_CODE || null;
+var DUEL_ROUNDS = 20;
+
+/** Текущий поединок; null — идёт выбор противника. */
+var duel = null;
+/** Номер поединка за сессию: входит в жребий, чтобы реванш шёл по-новому. */
+var duelSeq = 0;
+
+function codeLeague() {
+  if (!CODE) return [];
+  if (!codeLeague.cache) codeLeague.cache = CODE.league();
+  return codeLeague.cache;
+}
+
+function codeById(id) {
+  var all = codeLeague();
+  for (var i = 0; i < all.length; i++) if (all[i].id === id) return all[i];
+  return null;
+}
+
+/**
+ * Определение игрока из готового списка приказов. После того как список
+ * кончится, ходит `tail` (или сотрудничает, если хвоста нет). Нужно разбору:
+ * так «ты» становится обычной стратегией и играет тем же движком, что и все.
+ */
+function tapeDef(orders, tail) {
+  return {
+    id: 'human', latin: 'Human', name: 'Ты', color: '#c9a227', glyph: '我',
+    create: function (io) {
+      var i = 0;
+      var inner = tail ? tail.create(io) : null;
+      return {
+        move: function (hist) {
+          if (i < orders.length) { i += 1; return orders[i - 1]; }
+          return inner ? inner.move(hist) : 'C';
+        }
+      };
+    }
+  };
+}
+
+/** Прогнать список приказов против того же противника при том же жребии. */
+function replayOrders(orders, tail) {
+  var M = CODE.require('engine/match');
+  return M.playMatch(tapeDef(orders, tail), codeById(duel.foeId), {
+    rounds: DUEL_ROUNDS, noise: duel.noise, seed: duel.seed, payoff: data.meta.payoff
+  });
+}
+
+function buildFoePicker() {
+  var note = document.getElementById('duelNote');
+  var stage = document.getElementById('duelStage');
+  document.getElementById('verdictCard').style.display = 'none';
+  document.getElementById('duelCap').textContent = 'выбери противника';
+
+  if (!CODE) {
+    note.textContent = '';
+    stage.innerHTML = '<div class="miss"><p><b>Нет кода стратегий.</b></p>' +
+      '<p>Собери его и открой страницу заново:</p><p><code>node sim/bundle.js</code></p></div>';
+    return;
+  }
+
+  note.innerHTML = 'Двадцать раундов против настоящего кода участника лиги — того же, ' +
+    'что играет турнир. Матрица та же: обоюдный союз даёт по <b>' + data.meta.payoff.R +
+    '</b>, удар по доверчивому — <b>' + data.meta.payoff.T + '</b> бьющему и <b>' +
+    data.meta.payoff.S + '</b> битому, обоюдный удар — по <b>' + data.meta.payoff.P +
+    '</b>. Шум тот же, ' + Math.round(data.meta.noise * 100) + '%: приказ может дойти ' +
+    'до поля искажённым, и увидят его искажённым обе стороны. Длину боя противник ' +
+    'не знает — для него бой может продлиться вечно.';
+
+  stage.innerHTML = '<div class="foes">' + codeLeague().map(function (foe) {
+    var st = strat(foe.id);
+    return '<button data-foe="' + foe.id + '">' +
+      '<span class="gl" style="color:' + st.color + '">' + st.glyph + '</span>' +
+      '<span class="who"><b>' + st.name + '</b><i>' + st.tagline + '</i></span></button>';
+  }).join('') + '</div>';
+
+  stage.querySelectorAll('button[data-foe]').forEach(function (b) {
+    b.addEventListener('click', function () { startDuel(b.getAttribute('data-foe')); });
+  });
+}
+
+function startDuel(foeId) {
+  var rng = CODE.require('engine/rng');
+  var idx = 0;
+  codeLeague().forEach(function (foe, i) { if (foe.id === foeId) idx = i; });
+  duelSeq += 1;
+
+  duel = {
+    foeId: foeId,
+    noise: data.meta.noise,
+    // Жребий выводится из сида прогона, номера противника и номера поединка:
+    // тот же противник в тот же по счёту раз даст ту же полосу помех, а реванш
+    // пойдёт по-новому. Число показано на экране — бой воспроизводим.
+    seed: rng.hashSeed(currentRun().seed, idx, duelSeq),
+    orders: [],      // что приказал человек
+    mine: [],        // что исполнено с его стороны
+    theirs: [],      // что исполнено с той стороны
+    theirOrders: [], // что та сторона приказывала (человеку не показывается)
+    me: 0,
+    foe: 0,
+    last: null
+  };
+
+  duel.noiseMe = rng.mulberry32(rng.hashSeed(duel.seed, 0x9e37));
+  duel.noiseFoe = rng.mulberry32(rng.hashSeed(duel.seed, 0x85eb));
+  duel.coinFoe = rng.mulberry32(rng.hashSeed(duel.seed, 0x27d4));
+
+  var H = CODE.require('engine/history');
+  duel.histMe = H.createHistory();
+  duel.histFoe = H.createHistory();
+  duel.agent = codeById(foeId).create({ random: duel.coinFoe });
+
+  document.getElementById('verdictCard').style.display = 'none';
+  renderDuel();
+}
+
+/**
+ * Один раунд. Порядок операций — тот же, что в engine/match.js: сперва обе
+ * стороны решают, затем канал искажает решения независимыми бросками, затем
+ * очки, затем обе истории пополняются исполненными ходами.
+ */
+function duelHand(want) {
+  var P = CODE.require('engine/payoff');
+  var wantFoe = P.normalize(duel.agent.move(duel.histFoe));
+
+  var mine = want;
+  var theirs = wantFoe;
+  var garbledMe = false;
+  var garbledFoe = false;
+  if (duel.noise > 0) {
+    if (duel.noiseMe() < duel.noise) { mine = P.flip(mine); garbledMe = true; }
+    if (duel.noiseFoe() < duel.noise) { theirs = P.flip(theirs); garbledFoe = true; }
+  }
+
+  var pts = P.score(mine, theirs, data.meta.payoff);
+  duel.orders.push(want);
+  duel.mine.push(mine);
+  duel.theirs.push(theirs);
+  duel.theirOrders.push(wantFoe);
+  duel.me += pts[0];
+  duel.foe += pts[1];
+  duel.last = { want: want, mine: mine, theirs: theirs, pts: pts, garbled: garbledMe };
+
+  duel.histMe.__push(mine, theirs);
+  duel.histFoe.__push(theirs, mine);
+
+  if (garbledMe || garbledFoe) soundClash(0.35);
+  renderDuel();
+  if (duel.orders.length >= DUEL_ROUNDS) { soundVictory(); renderVerdict(); }
+}
+
+function tapeHtml(moves, garbled) {
+  return moves.map(function (m, i) {
+    var cls = m === 'D' ? 'd' : 'c';
+    if (garbled && garbled[i]) cls += ' garbled';
+    if (i === moves.length - 1) cls += ' now';
+    return '<u class="' + cls + '">' + m + '</u>';
+  }).join('');
+}
+
+function renderDuel() {
+  var st = strat(duel.foeId);
+  var n = duel.orders.length;
+  var over = n >= DUEL_ROUNDS;
+  var garbledMe = duel.orders.map(function (o, i) { return o !== duel.mine[i]; });
+
+  document.getElementById('duelCap').textContent = 'против: ' + st.name;
+  document.getElementById('duelNote').innerHTML =
+    '<b>' + st.name + '</b> — ' + st.tagline + '. Жребий боя <span class="pts">№' +
+    duel.seed + '</span>: тот же противник в тот же по счёту раз даст ту же полосу помех.';
+
+  var echo = '';
+  if (duel.last) {
+    var L = duel.last;
+    echo = 'Ты приказал <b>' + (L.want === 'C' ? 'союз' : 'удар') + '</b>. ';
+    if (L.garbled) {
+      echo += '<span class="warn">Гонец перепутал сигнал — на поле вышел ' +
+        (L.mine === 'C' ? 'союз' : 'удар') + '.</span> ';
+    }
+    echo += 'Он ответил <b>' + (L.theirs === 'C' ? 'союзом' : 'ударом') + '</b>. ' +
+      '<span class="pts">+' + L.pts[0] + ' : +' + L.pts[1] + '</span>';
+  } else {
+    echo = 'Первый раунд. Он тебя не знает — ты его тоже.';
+  }
+
+  document.getElementById('duelStage').innerHTML =
+    '<div class="duelbar">' +
+      '<span class="rd">раунд ' + Math.min(n + 1, DUEL_ROUNDS) + ' / ' + DUEL_ROUNDS + '</span>' +
+      '<span class="sc">ты <b style="color:var(--gold-soft)">' + duel.me + '</b>' +
+      ' &nbsp;:&nbsp; <b style="color:' + st.color + '">' + duel.foe + '</b> ' + st.name + '</span>' +
+      '<button class="ghost" id="duelQuit" style="margin-left:auto">Сменить противника</button>' +
+    '</div>' +
+    (n ? '<div class="tapes">' +
+      '<span class="lbl">ты</span><span class="ln">' + tapeHtml(duel.mine, garbledMe) + '</span>' +
+      '<span class="lbl">' + st.name + '</span><span class="ln">' + tapeHtml(duel.theirs) + '</span>' +
+    '</div>' : '') +
+    (over ? '' :
+      '<div class="hands">' +
+        '<button class="ally" id="handC"><b>Союз</b><span>держать слово</span></button>' +
+        '<button class="strike" id="handD"><b>Удар</b><span>взять своё</span></button>' +
+      '</div>') +
+    '<div class="echo">' + echo + '</div>' +
+    (n ? '<p class="hint">Волнистой чертой помечены твои ходы, искажённые шумом: ' +
+      'приказ был другой. Клавиши — <b>C</b> и <b>D</b>.</p>' : '');
+
+  document.getElementById('duelQuit').addEventListener('click', function () {
+    duel = null;
+    buildFoePicker();
+  });
+  if (!over) {
+    document.getElementById('handC').addEventListener('click', function () { duelHand('C'); });
+    document.getElementById('handD').addEventListener('click', function () { duelHand('D'); });
+  }
+}
+
+/* ------------------------------------------------------- Разбор после боя */
+
+/**
+ * Найти ошибки в списке приказов и измерить каждую контрфактом.
+ *
+ * Контрфакт честный, но у него есть граница, о которой сказано и на экране:
+ * меняются только помеченные раунды, остальные приказы остаются как были —
+ * хотя человек отдавал их, глядя на другую историю. Это ответ на вопрос
+ * «во что обошёлся именно этот приказ», а не «как бы ты сыграл, будь ты умнее».
+ */
+function findMistakes() {
+  var mine = duel.mine;
+  var theirs = duel.theirs;
+  var orders = duel.orders;
+  var theirOrders = duel.theirOrders;
+  var actual = duel.me;
+  var out = [];
+
+  function costOf(variant, tail) {
+    return replayOrders(variant, tail).scoreA - actual;
+  }
+
+  /* 1. Удар без повода: он не бил в прошлом раунде, а ты ударил.
+     Последний раунд из счёта исключён намеренно: отвечать на удар сопернику
+     уже нечем, так что цена такого удара равна нулю по определению правил, а
+     не по стечению обстоятельств. Он разбирается отдельно, и не как ошибка. */
+  var strikes = [];
+  orders.forEach(function (o, i) {
+    if (i === DUEL_ROUNDS - 1) return;
+    if (o === 'D' && (i === 0 || theirs[i - 1] === 'C')) strikes.push(i);
+  });
+  if (strikes.length) {
+    var v1 = orders.slice();
+    strikes.forEach(function (i) { v1[i] = 'C'; });
+    var answered = strikes.filter(function (i) { return theirs[i + 1] === 'D'; }).length;
+    out.push({
+      key: 'first',
+      title: 'Ты бил первым',
+      count: strikes.length,
+      rounds: strikes,
+      gain: costOf(v1),
+      text: 'Ударов по мирному — <b>' + strikes.length + '</b> (раунды ' +
+        strikes.map(function (i) { return i + 1; }).join(', ') + '). ' +
+        'На <b>' + answered + '</b> из них он ответил ударом.'
+    });
+  }
+
+  /* 2. Милость к безнадёжному: он бил три раунда подряд, а ты снова протянул руку. */
+  var mercy = [];
+  orders.forEach(function (o, i) {
+    if (o !== 'C' || i < 3) return;
+    if (theirs[i - 1] === 'D' && theirs[i - 2] === 'D' && theirs[i - 3] === 'D') mercy.push(i);
+  });
+  if (mercy.length) {
+    var v2 = orders.slice();
+    mercy.forEach(function (i) { v2[i] = 'D'; });
+    out.push({
+      key: 'mercy',
+      title: 'Ты щадил того, кто не щадит',
+      count: mercy.length,
+      rounds: mercy,
+      gain: costOf(v2),
+      text: 'Раз за разом ты предлагал союз тому, кто бил три хода подряд: раунды ' +
+        mercy.map(function (i) { return i + 1; }).join(', ') + '.'
+    });
+  }
+
+  /* 3. Месть за то, чего он не приказывал: его удар был искажением канала. */
+  var echoes = [];
+  orders.forEach(function (o, i) {
+    if (o !== 'D' || i === 0) return;
+    if (i === DUEL_ROUNDS - 1) return;   // тот же случай, что и с ударом без повода
+    if (orders[i - 1] !== 'C') return;
+    if (theirs[i - 1] === 'D' && theirOrders[i - 1] === 'C') echoes.push(i);
+  });
+  if (echoes.length) {
+    var v3 = orders.slice();
+    echoes.forEach(function (i) { v3[i] = 'C'; });
+    out.push({
+      key: 'echo',
+      title: 'Ты мстил призраку',
+      count: echoes.length,
+      rounds: echoes,
+      gain: costOf(v3),
+      text: 'В раундах ' + echoes.map(function (i) { return i + 1; }).join(', ') +
+        ' он тебя не предавал — приказ исказил шум. Ты ответил ударом на то, ' +
+        'чего не было, и война пошла из ничего.'
+    });
+  }
+
+  return out.sort(function (a, b) { return b.gain - a.gain; });
+}
+
+/** Раунд, начиная с которого стоило отдать поводья Зеркалу. */
+function turningPoint() {
+  var tft = codeById('titForTat');
+  var best = { at: -1, gain: 0 };
+  for (var t = 0; t <= DUEL_ROUNDS; t++) {
+    var got = replayOrders(duel.orders.slice(0, t), tft).scoreA - duel.me;
+    if (got > best.gain + 1e-9) best = { at: t, gain: got };
+  }
+  return best;
+}
+
+/** Как тот же бой сыграли бы классики — тем же жребием, против того же врага. */
+function benchmarks() {
+  var ids = ['titForTat', 'pavlov', 'alwaysDefect', 'alwaysCooperate', 'grimTrigger'];
+  var M = CODE.require('engine/match');
+  var rows = ids.map(function (id) {
+    var res = M.playMatch(codeById(id), codeById(duel.foeId), {
+      rounds: DUEL_ROUNDS, noise: duel.noise, seed: duel.seed, payoff: data.meta.payoff
+    });
+    return { id: id, name: strat(id).name, score: res.scoreA, you: false };
+  });
+  rows.push({ id: 'human', name: 'Ты', score: duel.me, you: true });
+  rows.sort(function (a, b) { return b.score - a.score; });
+  return rows;
+}
+
+/**
+ * Приговор: главный урок боя и изречение под него.
+ *
+ * Порог в одно взаимное сотрудничество (R очков) — не круглое число ради
+ * красоты: ошибка ценой меньше одного мирного раунда неотличима от везения
+ * в бросках шума, и делать из неё главный урок боя значило бы врать с важным
+ * видом. Ниже порога разбор уходит к упущенной выгоде.
+ */
+function verdictFor(errs, turn, place, total) {
+  var FLOOR = data.meta.payoff.R;
+  var top = errs[0] && errs[0].gain >= FLOOR ? errs[0] : null;
+  if (top && top.gain > 0 && top.key === 'first') {
+    return {
+      quote: '«Нет случая, чтобы страна выиграла от продолжительной войны». — II. Ведение войны',
+      text: 'Ты открывал войну там, где её не было. Удар по мирному приносит ' +
+        data.meta.payoff.T + ' в тот же раунд и отнимает мир во все следующие: ' +
+        'соперник запоминает, а платить за память приходится до конца боя.'
+    };
+  }
+  if (top && top.gain > 0 && top.key === 'mercy') {
+    return {
+      quote: '«Если знаешь его и знаешь себя — сражайся хоть сто раз, опасности не будет». — III. Стратегическое нападение',
+      text: 'Ты был добр, но слеп. Доброта — оружие против того, кто способен ответить ' +
+        'добром; против того, кто бьёт третий раз подряд, это не доброта, а дань.'
+    };
+  }
+  if (top && top.gain > 0 && top.key === 'echo') {
+    return {
+      quote: '«Война — путь обмана». — I. Предварительные расчёты',
+      text: 'Обманул тебя не соперник, а канал связи. В мире с шумом каждый ' +
+        Math.round(data.meta.noise * 100) + '-й приказ доходит наизнанку, и вражда, ' +
+        'начатая из одного искажения, кормится потом сама собой. Проверять, прежде ' +
+        'чем мстить, дороже одного раунда — и дешевле десяти.'
+    };
+  }
+  if (place === 1) {
+    return {
+      quote: '«Высшее искусство войны — покорить противника без сражения». — III. Стратегическое нападение',
+      text: 'Ты обыграл всех классиков на этом жребии: ни одна из ' + (total - 1) +
+        ' канонических стратегий не взяла против него больше. Читать соперника ты умеешь.'
+    };
+  }
+  if (turn.at >= 0 && turn.gain >= FLOOR) {
+    return {
+      quote: '«Тот, кто умеет вести войну, покоряет чужую армию, не сражаясь». — III. Стратегическое нападение',
+      text: 'Грубых ошибок нет — есть упущенная выгода. С ' + (turn.at + 1) +
+        '-го раунда простое зеркало взяло бы больше: соперник был читаем, а ты искал сложности.'
+    };
+  }
+  if (errs.length) {
+    return {
+      quote: '«Победа зависит от противника, поражение — от себя». — IV. Форма',
+      text: 'Огрехи есть, но все они дешевле одного мирного раунда — на таком расстоянии ' +
+        'их уже не отличить от везения в помехах. Крупных ошибок ты не сделал.'
+    };
+  }
+  return {
+    quote: '«Непобедимость заключена в себе самом, возможность победы заключена в противнике». — IV. Форма',
+    text: 'Ни одной измеримой ошибки: ни удара без повода, ни милости к безнадёжному, ' +
+      'ни мести призраку. Больше, чем ты взял, на этом жребии взять было почти нечем.'
+  };
+}
+
+function renderVerdict() {
+  var st = strat(duel.foeId);
+  var errs = findMistakes();
+  var turn = turningPoint();
+  var bench = benchmarks();
+  var place = 0;
+  bench.forEach(function (row, i) { if (row.you) place = i + 1; });
+  var v = verdictFor(errs, turn, place, bench.length);
+  var flips = duel.orders.filter(function (o, i) { return o !== duel.mine[i]; }).length;
+
+  var html =
+    '<p class="quote3">' + v.quote + '</p>' +
+    '<p>Против <b>' + st.name + '</b> за ' + DUEL_ROUNDS + ' раундов ты взял <b>' + duel.me +
+    '</b>, он — <b>' + duel.foe + '</b>. ' + v.text + '</p>';
+
+  html += '<h3 style="font-family:var(--serif);font-size:16px;margin:18px 0 8px">Что тебе стоило очков</h3>';
+  if (!errs.length) {
+    html += '<p class="note">Ни одной из трёх типовых ошибок не найдено.</p>';
+  } else {
+    html += '<ul class="errs">' + errs.map(function (err) {
+      var tail;
+      if (err.gain > 0) {
+        tail = 'Тот же список приказов, но с исправленными этими раундами, взял бы ' +
+          '<span class="cost">на ' + err.gain + ' больше</span> — во столько они обошлись.';
+      } else if (err.gain === 0) {
+        tail = 'Ценой это не обернулось: исправленный список взял бы ровно столько же.';
+      } else {
+        tail = 'И это было верно: исправленный список взял бы ' +
+          '<span class="cost">на ' + (-err.gain) + ' меньше</span>.';
+      }
+      return '<li><b>' + err.title + '.</b> ' + err.text + ' ' + tail + '</li>';
+    }).join('') + '</ul>' +
+    '<p class="note">Контрфакт честный, но с границей: в нём меняются только ' +
+    'помеченные раунды, остальные приказы остаются как были — хотя отдавал ты ' +
+    'их, глядя на другую историю. Это ответ на вопрос «во что обошёлся именно ' +
+    'этот приказ», а не «как бы ты сыграл, будь ты умнее».</p>';
+  }
+
+  if (duel.orders[DUEL_ROUNDS - 1] === 'D') {
+    html += '<p class="note">Удар в последнем раунде ошибкой не считается: ответить ' +
+      'сопернику уже нечем, и он единственный за весь бой ничего не стоит. Ты нашёл ' +
+      'его — а вот соперник длины боя не знал и до конца играл как в бесконечном.</p>';
+  }
+
+  if (flips) {
+    html += '<p class="note">Шум исказил <b>' + flips + '</b> из ' + DUEL_ROUNDS +
+      ' твоих приказов. Это не ошибка, а условие боя: соперник видел не то, ' +
+      'что ты приказывал, и отвечал на увиденное.</p>';
+  }
+
+  html += '<h3 style="font-family:var(--serif);font-size:16px;margin:18px 0 8px">Как сыграли бы классики</h3>' +
+    '<p class="note">Тот же противник, тот же жребий, те же ' + DUEL_ROUNDS + ' раундов.</p>' +
+    '<table class="board"><thead><tr><th>#</th><th>кто</th><th class="num">очки</th>' +
+    '<th class="num">разница с тобой</th></tr></thead><tbody>' +
+    bench.map(function (row, i) {
+      var d = row.score - duel.me;
+      var mark = row.you ? ' style="background:rgba(201,162,39,.10)"' : '';
+      return '<tr' + mark + '><td class="num">' + (i + 1) + '</td>' +
+        '<td class="nm">' + row.name + '</td>' +
+        '<td class="num">' + row.score + '</td>' +
+        '<td class="num ' + (d > 0 ? 'dn' : d < 0 ? 'up' : 'flat') + '">' +
+        (row.you ? '—' : (d > 0 ? '+' : '') + d) + '</td></tr>';
+    }).join('') + '</tbody></table>';
+
+  if (turn.at >= 0) {
+    html += '<p style="margin-top:14px">Переломный раунд — <b>' + (turn.at + 1) + '-й</b>: ' +
+      'если бы с него ты отдал поводья Зеркалу и просто повторял его последний ход, ' +
+      'то взял бы на <span class="cost">+' + turn.gain + '</span> больше.</p>';
+  } else {
+    html += '<p style="margin-top:14px">Переломного раунда нет: ни с одного места ' +
+      'простое зеркало не сыграло бы лучше тебя.</p>';
+  }
+
+  html += '<div style="margin-top:18px;display:flex;gap:10px">' +
+    '<button id="duelAgain">Реванш</button>' +
+    '<button id="duelOther" class="ghost">Другой противник</button></div>';
+
+  document.getElementById('verdictBody').innerHTML = html;
+  document.getElementById('verdictCard').style.display = '';
+  document.getElementById('duelAgain').addEventListener('click', function () { startDuel(duel.foeId); });
+  document.getElementById('duelOther').addEventListener('click', function () {
+    duel = null;
+    buildFoePicker();
+  });
+  document.getElementById('verdictCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+/* ============================================================================
    9. ЭКРАН ПОБЕДЫ
    ========================================================================= */
 function showVictory() {
@@ -1800,7 +2373,8 @@ function buildSpeedButtons() {
 var TABS = [
   { id: 'battle', label: 'Битва' },
   { id: 'territory', label: 'Территория' },
-  { id: 'analytics', label: 'Аналитика' }
+  { id: 'analytics', label: 'Аналитика' },
+  { id: 'duel', label: 'Сыграй сам' }
 ];
 
 function buildTabs() {
@@ -1822,6 +2396,7 @@ function showTab(id) {
   if (id === 'territory') drawTerrain();
   if (id === 'battle') renderAll();
   if (id === 'analytics') drawAnalytics();
+  if (id === 'duel' && !duel) buildFoePicker();
 }
 
 function syncPlayButton() {
@@ -1895,6 +2470,14 @@ function bindControls() {
 
   document.addEventListener('keydown', function (e) {
     if (e.target.tagName === 'INPUT') return;
+    // На вкладке поединка клавиши принадлежат бою, а не плееру битвы.
+    if (document.getElementById('page-duel').classList.contains('live')) {
+      if (duel && duel.orders.length < DUEL_ROUNDS) {
+        if (e.code === 'KeyC') { e.preventDefault(); duelHand('C'); }
+        else if (e.code === 'KeyD') { e.preventDefault(); duelHand('D'); }
+      }
+      return;
+    }
     if (e.code === 'Space') { e.preventDefault(); document.getElementById('btnPlay').click(); }
     else if (e.code === 'ArrowLeft') document.getElementById('btnBack').click();
     else if (e.code === 'ArrowRight') document.getElementById('btnFwd').click();
