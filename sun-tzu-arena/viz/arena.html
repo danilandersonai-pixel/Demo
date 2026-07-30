@@ -307,6 +307,13 @@ table.board tr { cursor: pointer; }
 .trophy ol li { margin: 4px 0; }
 .trophy ol b { font-family: var(--mono); font-weight: 500; }
 .trophy .acts { display: flex; gap: 10px; justify-content: center; }
+.trophy .finals {
+  max-width: 420px; margin: 0 auto 22px; padding-top: 14px;
+  border-top: 1px solid var(--line); font-size: 12.5px;
+}
+.trophy .finals .row { display: flex; justify-content: space-between; padding: 3px 0; }
+.trophy .finals .row span:first-child { color: var(--ink-dim); }
+.trophy .finals .row span:last-child { font-family: var(--mono); color: var(--ink); }
 
 .miss {
   border: 1px dashed var(--line); border-radius: var(--radius);
@@ -768,11 +775,23 @@ function drawLane(g, lane, frame, prev, k, y0, laneH, padSide, W, phase, clash) 
   g.textBaseline = 'alphabetic';
 }
 
+/**
+ * Башня разрушается по стадиям, а не гаснет разом.
+ *
+ * Прочность делится на четыре ступени, и каждая забирает свой кусок силуэта:
+ * сначала осыпаются зубцы, потом валится флаг, потом от корпуса откалывается
+ * верх, и у самой земли остаётся обломок. Так по одному взгляду на дорожку
+ * видно, кому осталось одно поколение, — раньше башня выглядела целой при
+ * 10% прочности и исчезала на следующем кадре.
+ */
 function drawTower(g, x, cy, st, hp, dir, laneH) {
-  var h = Math.min(56, laneH * 0.7);
-  var w = Math.min(34, h * 0.66);
-  var top = cy - h / 2;
+  var full = Math.min(56, laneH * 0.7);
+  var w = Math.min(34, full * 0.66);
   var alive = hp > 0.001;
+
+  var stage = !alive ? 4 : hp > 0.66 ? 0 : hp > 0.4 ? 1 : hp > 0.15 ? 2 : 3;
+  var h = full * [1, 0.92, 0.72, 0.5][Math.min(stage, 3)];
+  var top = cy - full / 2 + (full - h);
 
   /* корпус */
   var grd = g.createLinearGradient(x - w / 2, 0, x + w / 2, 0);
@@ -785,14 +804,26 @@ function drawTower(g, x, cy, st, hp, dir, laneH) {
   g.fillStyle = alive ? shade(st.color, -.7) : '#12151b';
   g.fillRect(x - w / 2 - 4, cy + h / 2 - 5, w + 8, 5);
 
-  /* зубцы */
+  /* Зубцы: на второй стадии осыпается половина, на третьей — все. */
   var merlons = 4, mw = w / (merlons * 2 - 1);
-  for (var i = 0; i < merlons; i++) {
+  for (var i = 0; i < merlons && stage < 2; i++) {
+    if (stage === 1 && i % 2 === 1) continue;
     g.fillRect(x - w / 2 + i * mw * 2, top + 1, mw, 8);
   }
 
-  /* флаг */
-  if (alive) {
+  /* Трещины по корпусу — со второй стадии. */
+  if (alive && stage >= 2) {
+    g.strokeStyle = 'rgba(8,10,14,.55)';
+    g.lineWidth = 1;
+    g.beginPath();
+    g.moveTo(x - w / 4, top + 10);
+    g.lineTo(x + w / 8, top + h * 0.45);
+    g.lineTo(x - w / 6, top + h * 0.8);
+    g.stroke();
+  }
+
+  /* Флаг падает вместе с первой стадией разрушения. */
+  if (alive && stage === 0) {
     g.strokeStyle = 'rgba(255,255,255,.35)'; g.lineWidth = 1;
     g.beginPath(); g.moveTo(x, top - 16); g.lineTo(x, top); g.stroke();
     g.fillStyle = st.color;
@@ -846,6 +877,15 @@ function drawTroops(g, st, share, fromX, toX, cy, laneH, t, dir, laneIdx, clash)
     var endX = toX - dir * lag * (spread * 0.42);
     var x = lerp(startX, endX, t);
     var y = cy + (rows === 1 ? 0 : (row - (rows - 1) / 2) * 15) + 4;
+
+    /*
+     * Траектория, а не отрезок. Раньше юнит ехал по прямой с синусоидой
+     * «шага» — читалось как бегущая строка, а не как марш. Теперь к пути
+     * добавлена дуга: в начале отряд расходится веером от башни, к линии
+     * фронта снова собирается. Отклонение зависит от номера юнита, поэтому
+     * строй выглядит строем, а не колонной по одному.
+     */
+    y += Math.sin(t * Math.PI) * (laneH * 0.14) * (((i % 5) - 2) / 2);
     y += Math.sin(t * 12 + i * 1.7 + laneIdx) * (t < 1 ? 1.1 : 0.4);
     if (clash > .3) x += jitter(i * 13 + laneIdx * 7 + Math.floor(state.gen * 40)) * clash * 2.2;
     drawSoldier(g, x, y, st.color, dir);
@@ -1678,6 +1718,26 @@ function showVictory() {
       e.name + ' — <b>' + pct(s.share) + '</b> · счёт <b>' + s.fitness.toFixed(3) + '</b></li>';
   }).join('');
 
+  // Итоговая статистика: не только кто победил, но и чем всё кончилось.
+  var lastFrame = run.frames[run.frames.length - 1];
+  var firstFrame = run.frames[0];
+  var coopOf = function (frame) {
+    var acc = 0;
+    run.strategyIds.forEach(function (id, i) { acc += frame.sharesAfter[i] * frame.coop[i]; });
+    return acc;
+  };
+  var stats = [
+    ['фракций пало', (run.strategyIds.length - alive.length) + ' из ' + run.strategyIds.length],
+    ['первой пала', run.extinctions.length
+      ? strat(run.extinctions[0].id).name + ', поколение ' + run.extinctions[0].gen : '—'],
+    ['средний счёт', firstFrame.avgFitness.toFixed(3) + ' → ' + lastFrame.avgFitness.toFixed(3)],
+    ['кооперация', Math.round(coopOf(firstFrame) * 100) + '% → ' +
+      Math.round(coopOf(lastFrame) * 100) + '%'],
+    ['матчей отыграно', String(run.totalMatches)]
+  ].map(function (row) {
+    return '<div class="row"><span>' + row[0] + '</span><span>' + row[1] + '</span></div>';
+  }).join('');
+
   document.getElementById('trophy').innerHTML =
     '<div class="kind">' + kind + '</div>' +
     '<div class="gl" style="color:' + st.color + '">' + st.glyph + '</div>' +
@@ -1685,6 +1745,7 @@ function showVictory() {
     '<div class="lat2">' + st.latin + ' · сид ' + run.seed + ' · поколение ' + run.outcome.gen + '</div>' +
     '<p class="quote2">' + st.dossier.principle + '</p>' +
     '<ol>' + list + '</ol>' +
+    '<div class="finals">' + stats + '</div>' +
     '<div class="acts">' +
     '<button id="btnAgain">Заново</button>' +
     '<button id="btnDossier" class="ghost">Досье победителя</button>' +
