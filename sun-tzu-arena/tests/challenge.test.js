@@ -34,6 +34,20 @@ test('results/challenge.json: структура турнира претенде
   assert.ok(Number.isInteger(c.evolution.outcome.winner) && c.evolution.outcome.winner < n);
 });
 
+test('архив круга 1 сохранён и структурно корректен (на него ссылается REPORT2)', () => {
+  const c = JSON.parse(fs.readFileSync(resultPath('challenge-round1.json'), 'utf8'));
+  assert.equal(c.participants.length, 5, 'чемпион + 4 претендента');
+  assert.equal(c.champion, 'patience', 'чемпионом круга 1 входил Полководец');
+  assert.equal(c.roundRobin.length, 5);
+  assert.equal(c.roundRobinPairs.length, 15, 'все пары, включая селф-матчи');
+  const sum = c.evolution.finalShares.reduce((a, b) => a + b, 0);
+  assert.ok(Math.abs(sum - 1) < 1e-4);
+  // главный факт круга 1, вокруг которого построен круг 2: Воду не победил никто
+  const waterIdx = c.participants.findIndex((p) => p.id === 'ch-water');
+  const max = Math.max(...c.evolution.finalShares);
+  assert.equal(c.evolution.finalShares[waterIdx], max, 'круг 1 выиграла Вода');
+});
+
 test('имена файлов: нестандартные параметры не затирают эталонные результаты', () => {
   const defaults = { noise: 0.05, generations: 30, rounds: 200 };
   assert.equal(resultFileName(42, defaults), '42.json');
