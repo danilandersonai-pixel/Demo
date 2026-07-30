@@ -1,0 +1,1365 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Арена Сунь-Цзы</title>
+<style>
+/* ============================================================================
+   0. Дизайн-система
+   Тёмная тема, единственный акцент — состаренное золото. Ничего внешнего:
+   ни шрифтов с CDN, ни библиотек, ни картинок. Файл открывается с диска.
+   ========================================================================= */
+:root {
+  --bg:        #0a0c11;
+  --bg-soft:   #10131b;
+  --panel:     #141824;
+  --panel-2:   #1b2030;
+  --line:      #262c3d;
+  --ink:       #e8eaf2;
+  --ink-dim:   #98a0b5;
+  --ink-faint: #5f6779;
+  --gold:      #c9a227;
+  --gold-soft: #e3c76a;
+  --blood:     #7d2230;
+  --river:     #14405c;
+  --ok:        #4ade80;
+  --bad:       #f87171;
+  --radius:    14px;
+  --fast:      cubic-bezier(.22,.61,.36,1);
+  --serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+  --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+}
+
+* { box-sizing: border-box; }
+
+html, body { margin: 0; padding: 0; }
+
+body {
+  background:
+    radial-gradient(1100px 620px at 50% -12%, #1a1f2e 0%, transparent 62%),
+    var(--bg);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 15px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  min-height: 100vh;
+}
+
+.wrap { max-width: 1320px; margin: 0 auto; padding: 22px 22px 64px; }
+
+/* ============================================================================
+   1. Шапка
+   ========================================================================= */
+.top {
+  display: flex; flex-wrap: wrap; align-items: flex-end;
+  gap: 18px 26px; padding-bottom: 18px;
+  border-bottom: 1px solid var(--line); margin-bottom: 20px;
+}
+.brand { display: flex; align-items: center; gap: 14px; }
+.seal {
+  width: 52px; height: 52px; flex: 0 0 52px;
+  display: grid; place-items: center;
+  border: 1px solid var(--gold); border-radius: 10px;
+  color: var(--gold-soft); font-family: var(--serif); font-size: 26px;
+  background: linear-gradient(160deg, rgba(201,162,39,.16), transparent 70%);
+  box-shadow: inset 0 0 22px rgba(201,162,39,.10);
+}
+h1 {
+  font-family: var(--serif); font-weight: 600;
+  font-size: 27px; letter-spacing: .2px; margin: 0 0 2px;
+}
+.sub { color: var(--ink-dim); font-size: 13px; margin: 0; }
+.sub b { color: var(--gold-soft); font-weight: 600; }
+
+.runpick { display: flex; gap: 8px; align-items: center; margin-left: auto; }
+.runpick .lbl { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-faint); }
+
+/* ============================================================================
+   2. Кнопки, вкладки
+   ========================================================================= */
+button {
+  font: inherit; color: var(--ink-dim); cursor: pointer;
+  background: var(--panel); border: 1px solid var(--line);
+  border-radius: 9px; padding: 7px 13px;
+  transition: background .18s var(--fast), color .18s var(--fast), border-color .18s var(--fast);
+}
+button:hover { background: var(--panel-2); color: var(--ink); }
+button:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+button[aria-pressed="true"], button.on {
+  background: linear-gradient(180deg, rgba(201,162,39,.22), rgba(201,162,39,.08));
+  border-color: var(--gold); color: var(--gold-soft);
+}
+button.ghost { background: transparent; }
+button:disabled { opacity: .4; cursor: default; }
+
+.tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 18px; }
+.tabs button { border-radius: 9px 9px 0 0; padding: 9px 18px; }
+
+.tabpage { display: none; }
+.tabpage.live { display: block; }
+
+/* ============================================================================
+   3. Поле боя
+   ========================================================================= */
+.arena {
+  position: relative; border: 1px solid var(--line); border-radius: var(--radius);
+  overflow: hidden; background: #080a0e; margin-bottom: 14px;
+}
+.arena canvas { display: block; width: 100%; height: auto; }
+
+.hud {
+  position: absolute; inset: 12px 14px auto 14px;
+  display: flex; justify-content: space-between; align-items: flex-start;
+  pointer-events: none; font-size: 12px;
+}
+.hud .chip {
+  background: rgba(8,10,14,.74); border: 1px solid var(--line);
+  border-radius: 8px; padding: 5px 11px; backdrop-filter: blur(6px);
+}
+.hud .chip b { color: var(--gold-soft); font-family: var(--mono); }
+
+/* Панель управления */
+.deck {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px;
+  background: var(--panel); border: 1px solid var(--line);
+  border-radius: var(--radius); padding: 12px 16px; margin-bottom: 18px;
+}
+.deck .group { display: flex; align-items: center; gap: 6px; }
+.deck .cap { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-faint); }
+.scrub { flex: 1 1 260px; display: flex; align-items: center; gap: 12px; min-width: 220px; }
+input[type=range] {
+  -webkit-appearance: none; appearance: none; width: 100%; height: 22px;
+  background: transparent; cursor: pointer;
+}
+input[type=range]::-webkit-slider-runnable-track {
+  height: 4px; border-radius: 2px; background: var(--line);
+}
+input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 16px; height: 16px; margin-top: -6px;
+  border-radius: 50%; background: var(--gold); border: 2px solid #0a0c11;
+}
+input[type=range]::-moz-range-track { height: 4px; border-radius: 2px; background: var(--line); }
+input[type=range]::-moz-range-thumb {
+  width: 14px; height: 14px; border-radius: 50%; background: var(--gold); border: 2px solid #0a0c11;
+}
+.genread { font-family: var(--mono); font-size: 13px; color: var(--gold-soft); min-width: 92px; text-align: right; }
+
+/* ============================================================================
+   4. Панели: график и таблица лидеров
+   ========================================================================= */
+.grid2 { display: grid; grid-template-columns: minmax(0,1.25fr) minmax(0,1fr); gap: 18px; }
+@media (max-width: 940px) { .grid2 { grid-template-columns: 1fr; } }
+
+.card {
+  background: var(--panel); border: 1px solid var(--line);
+  border-radius: var(--radius); padding: 16px 18px;
+}
+.card h2 {
+  font-family: var(--serif); font-size: 16px; font-weight: 600; margin: 0 0 4px;
+  display: flex; align-items: baseline; gap: 10px;
+}
+.card h2 span { font-family: var(--sans); font-size: 11px; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--ink-faint); font-weight: 400; }
+.card .note { color: var(--ink-dim); font-size: 12.5px; margin: 0 0 12px; }
+.card canvas { display: block; width: 100%; height: auto; }
+
+table.board { width: 100%; border-collapse: collapse; font-size: 13px; }
+table.board th {
+  text-align: left; font-weight: 500; font-size: 10.5px; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--ink-faint);
+  padding: 0 8px 7px; border-bottom: 1px solid var(--line);
+}
+table.board th.num, table.board td.num { text-align: right; font-family: var(--mono); }
+table.board td { padding: 6px 8px; border-bottom: 1px solid rgba(38,44,61,.5); }
+table.board tr.dead td { color: var(--ink-faint); }
+table.board tr.dead .nm { text-decoration: line-through; text-decoration-color: var(--ink-faint); }
+table.board tr:hover td { background: rgba(255,255,255,.028); }
+table.board tr { cursor: pointer; }
+.sw { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 8px; vertical-align: baseline; }
+.nm { font-weight: 500; }
+.lat { color: var(--ink-faint); font-size: 11px; margin-left: 6px; font-family: var(--mono); }
+.up { color: var(--ok); } .dn { color: var(--bad); } .flat { color: var(--ink-faint); }
+.bar { position: relative; height: 5px; border-radius: 3px; background: var(--panel-2); margin-top: 4px; overflow: hidden; }
+.bar i { position: absolute; inset: 0 auto 0 0; border-radius: 3px; }
+
+/* ============================================================================
+   5. Досье
+   ========================================================================= */
+.dossiers { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 16px; }
+.dos {
+  background: var(--panel); border: 1px solid var(--line); border-top-width: 3px;
+  border-radius: var(--radius); padding: 16px 18px; scroll-margin-top: 20px;
+  transition: border-color .2s var(--fast), transform .2s var(--fast);
+}
+.dos.flash { transform: translateY(-3px); }
+.dos .hd { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+.dos .gl {
+  width: 40px; height: 40px; flex: 0 0 40px; display: grid; place-items: center;
+  border-radius: 9px; font-family: var(--serif); font-size: 21px;
+  border: 1px solid currentColor;
+}
+.dos h3 { margin: 0; font-family: var(--serif); font-size: 17px; font-weight: 600; }
+.dos .tl { color: var(--ink-dim); font-size: 12px; }
+.dos .fam {
+  font-size: 10px; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--ink-faint); border: 1px solid var(--line); border-radius: 5px;
+  padding: 2px 7px; margin-left: auto; flex: 0 0 auto; align-self: flex-start;
+}
+.dos .quote {
+  font-family: var(--serif); font-size: 13.5px; font-style: italic; color: var(--gold-soft);
+  border-left: 2px solid var(--gold); padding-left: 11px; margin: 0 0 10px;
+}
+.dos p.ph { font-size: 13px; color: var(--ink-dim); margin: 0 0 12px; }
+.dos dl { margin: 0; font-size: 12.5px; }
+.dos dt {
+  font-size: 10px; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--ink-faint); margin-top: 9px;
+}
+.dos dd { margin: 3px 0 0; }
+.dos ul { margin: 3px 0 0; padding-left: 17px; }
+.dos li { margin: 1px 0; }
+.dos .stat {
+  margin-top: 13px; padding-top: 11px; border-top: 1px solid var(--line);
+  display: flex; justify-content: space-between; font-family: var(--mono); font-size: 12px;
+}
+
+/* ============================================================================
+   6. Территория
+   ========================================================================= */
+.terr { display: grid; grid-template-columns: minmax(0,auto) minmax(240px,1fr); gap: 18px; align-items: start; }
+@media (max-width: 860px) { .terr { grid-template-columns: 1fr; } }
+#terrain { border: 1px solid var(--line); border-radius: var(--radius); background: #080a0e; max-width: 100%; }
+.legend { display: flex; flex-direction: column; gap: 5px; font-size: 12.5px; }
+.legend .row { display: flex; align-items: center; gap: 9px; }
+.legend .row .cnt { margin-left: auto; font-family: var(--mono); color: var(--ink-dim); }
+.legend .row.gone { color: var(--ink-faint); }
+
+/* ============================================================================
+   7. Экран победы
+   ========================================================================= */
+.veil {
+  position: fixed; inset: 0; z-index: 50; display: none;
+  place-items: center; padding: 24px;
+  background: radial-gradient(700px 500px at 50% 40%, rgba(201,162,39,.10), transparent 70%), rgba(4,5,8,.9);
+  backdrop-filter: blur(7px);
+}
+.veil.live { display: grid; animation: fade .5s var(--fast); }
+@keyframes fade { from { opacity: 0 } to { opacity: 1 } }
+.trophy {
+  max-width: 620px; width: 100%; text-align: center;
+  background: linear-gradient(180deg, var(--panel-2), var(--panel));
+  border: 1px solid var(--gold); border-radius: 18px; padding: 34px 32px;
+  box-shadow: 0 30px 90px rgba(0,0,0,.65), inset 0 0 60px rgba(201,162,39,.06);
+}
+.trophy .kind {
+  font-size: 11px; letter-spacing: .22em; text-transform: uppercase; color: var(--gold); margin-bottom: 14px;
+}
+.trophy .gl {
+  width: 84px; height: 84px; margin: 0 auto 16px; display: grid; place-items: center;
+  border: 2px solid currentColor; border-radius: 18px; font-family: var(--serif); font-size: 42px;
+}
+.trophy h2 { font-family: var(--serif); font-size: 30px; margin: 0 0 4px; font-weight: 600; }
+.trophy .lat2 { color: var(--ink-faint); font-family: var(--mono); font-size: 12px; margin-bottom: 14px; }
+.trophy .quote2 {
+  font-family: var(--serif); font-style: italic; font-size: 14px; color: var(--gold-soft);
+  margin: 0 auto 20px; max-width: 460px;
+}
+.trophy ol { text-align: left; max-width: 420px; margin: 0 auto 22px; padding-left: 22px; font-size: 13.5px; }
+.trophy ol li { margin: 4px 0; }
+.trophy ol b { font-family: var(--mono); font-weight: 500; }
+.trophy .acts { display: flex; gap: 10px; justify-content: center; }
+
+.miss {
+  border: 1px dashed var(--line); border-radius: var(--radius);
+  padding: 30px; text-align: center; color: var(--ink-dim);
+}
+.miss code { color: var(--gold-soft); font-family: var(--mono); }
+.hint { color: var(--ink-faint); font-size: 12px; margin-top: 10px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="top">
+    <div class="brand">
+      <div class="seal" aria-hidden="true">兵</div>
+      <div>
+        <h1>Арена Сунь-Цзы</h1>
+        <p class="sub" id="subline">эволюционный турнир стратегий</p>
+      </div>
+    </div>
+    <div class="runpick">
+      <span class="lbl">прогон</span>
+      <span id="runbtns"></span>
+    </div>
+  </div>
+
+  <div class="tabs" role="tablist" id="tabbar"></div>
+
+  <!-- ==================== БИТВА ==================== -->
+  <section class="tabpage live" id="page-battle" role="tabpanel">
+    <div class="arena">
+      <canvas id="field" width="1280" height="560" role="img"
+              aria-label="Поле боя: армии фракций сходятся на дорожках"></canvas>
+      <div class="hud">
+        <div class="chip">поколение <b id="hudGen">—</b></div>
+        <div class="chip">живых фракций <b id="hudAlive">—</b> · средний счёт <b id="hudFit">—</b></div>
+      </div>
+    </div>
+
+    <div class="deck">
+      <div class="group">
+        <button id="btnPlay" aria-label="Воспроизведение">▶ Пуск</button>
+        <button id="btnBack" class="ghost" aria-label="Предыдущее поколение">◀</button>
+        <button id="btnFwd" class="ghost" aria-label="Следующее поколение">▶</button>
+      </div>
+      <div class="group">
+        <span class="cap">скорость</span>
+        <span id="speedbtns"></span>
+      </div>
+      <div class="scrub">
+        <input type="range" id="scrub" min="0" max="29" value="0" step="0.001"
+               aria-label="Перемотка по поколениям">
+        <span class="genread" id="genread">0 / 29</span>
+      </div>
+    </div>
+
+    <div class="grid2">
+      <div class="card">
+        <h2>Доли популяции <span>репликаторная динамика</span></h2>
+        <p class="note" id="chartNote">Толщина полосы — доля фракции. Полоса обрывается на поколении вымирания.</p>
+        <canvas id="chart" width="1000" height="380"></canvas>
+      </div>
+      <div class="card">
+        <h2>Таблица лидеров <span id="boardCap">поколение 0</span></h2>
+        <p class="note">Счёт — средние очки за раунд против всей популяции. Δ — прирост доли за поколение.</p>
+        <table class="board">
+          <thead><tr>
+            <th>#</th><th>фракция</th><th class="num">доля</th><th class="num">счёт</th><th class="num">Δ</th>
+          </tr></thead>
+          <tbody id="boardBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== ТЕРРИТОРИЯ ==================== -->
+  <section class="tabpage" id="page-territory" role="tabpanel">
+    <div class="card" style="margin-bottom:18px">
+      <h2>Захват территории <span>сетка 20×20, четыре соседа</span></h2>
+      <p class="note" id="terrNote">Каждая клетка — агент. Он играет с четырьмя соседями по замкнутой сетке и перенимает стратегию сильнейшего в округе.</p>
+      <div class="deck" style="margin:0 0 16px">
+        <div class="group">
+          <button id="btnTerrPlay">▶ Пуск</button>
+        </div>
+        <div class="scrub">
+          <input type="range" id="terrScrub" min="0" max="24" value="0" step="1" aria-label="Перемотка территории">
+          <span class="genread" id="terrRead">0 / 24</span>
+        </div>
+      </div>
+      <div class="terr">
+        <canvas id="terrain" width="520" height="520"></canvas>
+        <div>
+          <div class="legend" id="terrLegend"></div>
+          <p class="hint" id="terrStat"></p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== ДОСЬЕ ==================== -->
+  <section class="tabpage" id="page-dossier" role="tabpanel">
+    <div class="dossiers" id="dossiers"></div>
+  </section>
+
+  <!-- ==================== ПРЕТЕНДЕНТЫ ==================== -->
+  <section class="tabpage" id="page-challengers" role="tabpanel">
+    <div id="chWrap"></div>
+  </section>
+
+</div>
+
+<div class="veil" id="veil" role="dialog" aria-modal="true" aria-label="Итоги прогона">
+  <div class="trophy" id="trophy"></div>
+</div>
+
+<script src="replay.js"></script>
+<script>
+'use strict';
+/* ============================================================================
+   Визуализатор «Арены Сунь-Цзы».
+   Данные приходят из replay.js присваиванием в window.ARENA_DATA — никакого
+   fetch, потому что страница обязана работать открытой с диска (file://).
+
+   Соглашение об именах, на которое опирается tests/viz-contract.test.js:
+   объекты данных всегда лежат в переменных с фиксированными именами —
+   data (корень), run (прогон), frame (поколение), lane (дорожка),
+   st (стратегия), sp (пространственный режим), spFrame (кадр сетки).
+   Тест выдирает из этого файла все обращения `run.поле`, `frame.поле` и т.д.
+   и проверяет, что такие поля в данных действительно есть. Поэтому эти семь
+   имён нельзя использовать ни для чего другого.
+   ========================================================================= */
+
+var data = window.ARENA_DATA || null;
+
+/* ---------------------------------------------------------------- 0. Заглушка */
+if (!data) {
+  document.querySelector('.wrap').insertAdjacentHTML('beforeend',
+    '<div class="miss"><p><b>Нет данных реплея.</b></p>' +
+    '<p>Сгенерируй их и открой страницу заново:</p>' +
+    '<p><code>node sim/run.js --all</code></p></div>');
+}
+
+/* ------------------------------------------------------------ 1. Состояние */
+var state = {
+  runIndex: 0,
+  gen: 0,          // дробное: целая часть — поколение, дробная — фаза внутри него
+  playing: false,
+  speed: 1,
+  lastTick: 0,
+  shown: false,    // экран победы уже показывали для текущего прогона
+  terrGen: 0,
+  terrPlaying: false,
+  terrTick: 0
+};
+
+var GEN_MS = 1500;          // длительность поколения при скорости ×1
+var PHASE_MARCH = 0.42;     // марш
+var PHASE_CLASH = 0.74;     // сшибка; дальше — оседание фронта
+var SPEEDS = [1, 4, 16];
+
+/* Справочник стратегий по id: лига плюс, если есть, претенденты. */
+var byId = {};
+if (data) {
+  data.strategies.forEach(function (st) { byId[st.id] = st; });
+  if (data.challengers && data.challengers.entrants) {
+    data.challengers.entrants.forEach(function (st) { byId[st.id] = st; });
+  }
+}
+
+function currentRun() { return data.runs[state.runIndex]; }
+function strat(id) {
+  return byId[id] || { id: id, name: id, latin: id, color: '#888', glyph: '?', tagline: '',
+    family: '', dossier: { principle: '', philosophy: '', strengths: [], weaknesses: [], targets: '' } };
+}
+function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
+function lerp(a, b, t) { return a + (b - a) * t; }
+function ease(t) { return t < .5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2; }
+function pct(v) { return (v * 100).toFixed(1) + '%'; }
+
+/** Детерминированный «шум» без Math.random — чтобы дрожание кадра было стабильным. */
+function jitter(seed) {
+  var x = Math.sin(seed * 127.1) * 43758.5453;
+  return (x - Math.floor(x)) * 2 - 1;
+}
+
+/** Осветление/затемнение hex-цвета на k∈[-1,1]. */
+function shade(hex, k) {
+  var n = parseInt(hex.slice(1), 16);
+  var r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
+  if (k >= 0) { r += (255 - r) * k; g += (255 - g) * k; b += (255 - b) * k; }
+  else { r *= 1 + k; g *= 1 + k; b *= 1 + k; }
+  return 'rgb(' + (r | 0) + ',' + (g | 0) + ',' + (b | 0) + ')';
+}
+function rgba(hex, a) {
+  var n = parseInt(hex.slice(1), 16);
+  return 'rgba(' + ((n >> 16) & 255) + ',' + ((n >> 8) & 255) + ',' + (n & 255) + ',' + a + ')';
+}
+
+/* --------------------------------------------------- 2. Подготовка холстов */
+function fitCanvas(cv, cssW, cssH) {
+  var dpr = Math.min(2, window.devicePixelRatio || 1);
+  cv.width = Math.round(cssW * dpr);
+  cv.height = Math.round(cssH * dpr);
+  cv.style.height = cssH + 'px';
+  var ctx = cv.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  return ctx;
+}
+
+/* ============================================================================
+   3. ПОЛЕ БОЯ
+   Дорожки идут сверху вниз. Слева — восходящая коалиция (счёт не ниже
+   среднего), справа — закатная. Линия фронта в дорожке задана очной разницей
+   очков и плавно переезжает от прошлого положения к нынешнему.
+   ========================================================================= */
+var field = document.getElementById('field');
+var fctx = null;
+
+function drawField() {
+  var run = currentRun();
+  var gi = clamp(Math.floor(state.gen), 0, run.frames.length - 1);
+  var phase = clamp(state.gen - gi, 0, 1);
+  var frame = run.frames[gi];
+  var prev = gi > 0 ? run.frames[gi - 1] : null;
+
+  var cssW = field.clientWidth || 1280;
+  var cssH = Math.max(420, Math.min(600, Math.round(cssW * 0.44)));
+  if (!fctx || field.dataset.w !== String(cssW) || field.dataset.h !== String(cssH)) {
+    fctx = fitCanvas(field, cssW, cssH);
+    field.dataset.w = String(cssW);
+    field.dataset.h = String(cssH);
+  }
+  var g = fctx;
+  var W = cssW, H = cssH;
+
+  g.clearRect(0, 0, W, H);
+
+  /* --- дрожание экрана: только в фазе сшибки, амплитуда от накала --- */
+  var clash = phase > PHASE_MARCH && phase < PHASE_CLASH
+    ? Math.sin(((phase - PHASE_MARCH) / (PHASE_CLASH - PHASE_MARCH)) * Math.PI) : 0;
+  var shakeAmp = clash * frame.battle.intensity * 7;
+  g.save();
+  if (shakeAmp > 0.05) {
+    g.translate(jitter(state.gen * 91 + 3) * shakeAmp, jitter(state.gen * 57 + 11) * shakeAmp);
+  }
+
+  /* --- земля --- */
+  var sky = g.createLinearGradient(0, 0, 0, H);
+  sky.addColorStop(0, '#0d1017'); sky.addColorStop(1, '#070809');
+  g.fillStyle = sky; g.fillRect(-10, -10, W + 20, H + 20);
+
+  var padTop = 86, padBottom = 26, padSide = 100;
+  var lanes = frame.battle.lanes;
+  var laneCount = Math.max(1, lanes.length);
+  var laneH = (H - padTop - padBottom) / laneCount;
+
+  /* --- полоса общей популяции: непрерывный якорь под HUD --- */
+  drawPopulationStrip(g, W, 50, 24, frame);
+
+  /* --- река посередине --- */
+  var mid = W / 2;
+  var rw = 26;
+  var riverGrad = g.createLinearGradient(mid - rw, 0, mid + rw, 0);
+  riverGrad.addColorStop(0, 'rgba(20,64,92,0)');
+  riverGrad.addColorStop(.5, 'rgba(26,86,124,.55)');
+  riverGrad.addColorStop(1, 'rgba(20,64,92,0)');
+  g.fillStyle = riverGrad;
+  g.fillRect(mid - rw, padTop - 8, rw * 2, H - padTop - padBottom + 16);
+  g.strokeStyle = 'rgba(120,190,230,.16)'; g.lineWidth = 1;
+  for (var w = 0; w < 3; w++) {
+    g.beginPath();
+    for (var yy = padTop - 8; yy <= H - padBottom + 8; yy += 6) {
+      var wob = Math.sin(yy * 0.08 + state.gen * 2.4 + w * 2.1) * 4;
+      if (yy === padTop - 8) g.moveTo(mid + wob + (w - 1) * 9, yy);
+      else g.lineTo(mid + wob + (w - 1) * 9, yy);
+    }
+    g.stroke();
+  }
+
+  /* --- дорожки --- */
+  for (var k = 0; k < lanes.length; k++) {
+    var lane = lanes[k];
+    var y0 = padTop + k * laneH;
+    drawLane(g, lane, frame, prev, k, y0, laneH, padSide, W, phase, clash);
+  }
+
+  g.restore();
+
+  /* --- подпись исхода на последнем поколении --- */
+  if (gi === run.frames.length - 1 && phase > 0.9) {
+    g.fillStyle = 'rgba(201,162,39,.85)';
+    g.font = '600 12px ' + getComputedStyle(document.body).fontFamily;
+    g.textAlign = 'center';
+    g.fillText('конец прогона', W / 2, H - 8);
+  }
+
+  /* --- HUD --- */
+  document.getElementById('hudGen').textContent = gi + ' / ' + (run.generations - 1);
+  document.getElementById('hudAlive').textContent = frame.alive;
+  document.getElementById('hudFit').textContent = frame.avgFitness.toFixed(3);
+}
+
+/** Верхняя полоса: непрерывный якорь — вся популяция одной строкой. */
+function drawPopulationStrip(g, W, y, h, frame) {
+  var run = currentRun();
+  var x = 24;
+  var total = W - 48;
+  g.fillStyle = '#5f6779';
+  g.font = '10px ' + getComputedStyle(document.body).fontFamily;
+  g.textAlign = 'left'; g.textBaseline = 'bottom';
+  g.fillText('ПОПУЛЯЦИЯ', x, y - 5);
+  g.fillStyle = 'rgba(255,255,255,.04)';
+  g.fillRect(x, y, total, h);
+  for (var i = 0; i < run.strategyIds.length; i++) {
+    var share = frame.sharesAfter[i];
+    if (share <= 0) continue;
+    var st = strat(run.strategyIds[i]);
+    var wid = share * total;
+    var grd = g.createLinearGradient(0, y, 0, y + h);
+    grd.addColorStop(0, shade(st.color, .18));
+    grd.addColorStop(1, shade(st.color, -.35));
+    g.fillStyle = grd;
+    g.fillRect(x, y, wid, h);
+    if (wid > 44) {
+      g.fillStyle = 'rgba(0,0,0,.62)';
+      g.font = '600 10px ' + getComputedStyle(document.body).fontFamily;
+      g.textAlign = 'center'; g.textBaseline = 'middle';
+      g.fillText(st.name, x + wid / 2, y + h / 2 + .5);
+    }
+    x += wid;
+    g.fillStyle = 'rgba(8,10,14,.85)';
+    g.fillRect(x - 1, y, 1, h);
+  }
+  g.strokeStyle = 'rgba(201,162,39,.28)'; g.lineWidth = 1;
+  g.strokeRect(24.5, y + .5, total - 1, h - 1);
+  g.textBaseline = 'alphabetic';
+}
+
+function drawLane(g, lane, frame, prev, k, y0, laneH, padSide, W, phase, clash) {
+  var cy = y0 + laneH / 2;
+  var leftX = padSide * 0.42;
+  var rightX = W - padSide * 0.42;
+  var innerL = padSide, innerR = W - padSide;
+
+  /* фон дорожки */
+  g.fillStyle = k % 2 ? 'rgba(255,255,255,.014)' : 'rgba(255,255,255,.028)';
+  g.fillRect(0, y0, W, laneH - 2);
+  g.strokeStyle = 'rgba(255,255,255,.045)'; g.lineWidth = 1;
+  g.beginPath(); g.moveTo(0, y0 + laneH - 1.5); g.lineTo(W, y0 + laneH - 1.5); g.stroke();
+
+  /* линия фронта: переезд от прошлого положения к нынешнему */
+  var prevFront = 0.5;
+  if (prev && prev.battle.lanes[k]) prevFront = prev.battle.lanes[k].front;
+  var front = lerp(prevFront, lane.front, ease(clamp(phase / PHASE_CLASH, 0, 1)));
+  var fx = innerL + front * (innerR - innerL);
+
+  var stL = lane.left ? strat(lane.left) : null;
+  var stR = lane.right ? strat(lane.right) : null;
+
+  /* владение полем: заливка от башни до линии фронта */
+  if (stL) {
+    var gl = g.createLinearGradient(innerL, 0, fx, 0);
+    gl.addColorStop(0, rgba(stL.color, .20)); gl.addColorStop(1, rgba(stL.color, .05));
+    g.fillStyle = gl; g.fillRect(innerL, y0 + 4, fx - innerL, laneH - 10);
+  }
+  if (stR) {
+    var gr = g.createLinearGradient(fx, 0, innerR, 0);
+    gr.addColorStop(0, rgba(stR.color, .05)); gr.addColorStop(1, rgba(stR.color, .20));
+    g.fillStyle = gr; g.fillRect(fx, y0 + 4, innerR - fx, laneH - 10);
+  }
+
+  /* сама линия фронта */
+  g.strokeStyle = clash > .2 ? 'rgba(255,225,150,' + (.25 + clash * .6) + ')' : 'rgba(255,255,255,.18)';
+  g.lineWidth = 1 + clash * 1.6;
+  g.beginPath(); g.moveTo(fx, y0 + 5); g.lineTo(fx, y0 + laneH - 7); g.stroke();
+
+  /* башни */
+  var iL = lane.leftIndex, iR = lane.rightIndex;
+  if (stL) drawTower(g, leftX, cy, stL, iL >= 0 ? frame.hp[iL] : 0, 1, laneH);
+  else drawRuin(g, leftX, cy, laneH);
+  if (stR) drawTower(g, rightX, cy, stR, iR >= 0 ? frame.hp[iR] : 0, -1, laneH);
+  else drawRuin(g, rightX, cy, laneH);
+
+  /* войска */
+  var marchT = ease(clamp(phase / PHASE_MARCH, 0, 1));
+  if (stL) drawTroops(g, stL, frame.sharesAfter[iL], innerL + 12, fx - 9, cy, laneH, marchT, 1, k, clash);
+  if (stR) drawTroops(g, stR, frame.sharesAfter[iR], innerR - 12, fx + 9, cy, laneH, marchT, -1, k, clash);
+
+  /* сшибка: искры и всплывающие очки */
+  if (clash > 0.02) drawClash(g, fx, cy, lane, stL, stR, clash, k, laneH);
+
+  /* подписи */
+  g.font = '600 11.5px ' + getComputedStyle(document.body).fontFamily;
+  g.textBaseline = 'middle';
+  if (stL) {
+    g.fillStyle = shade(stL.color, .2); g.textAlign = 'left';
+    g.fillText(stL.name, 8, y0 + 13);
+  }
+  if (stR) {
+    g.fillStyle = shade(stR.color, .2); g.textAlign = 'right';
+    g.fillText(stR.name, W - 8, y0 + 13);
+  }
+  if (lane.winner) {
+    var wSt = strat(lane.winner);
+    g.fillStyle = 'rgba(201,162,39,.75)'; g.textAlign = 'center';
+    g.font = '600 10px ' + getComputedStyle(document.body).fontFamily;
+    g.fillText('перевес: ' + wSt.name, W / 2, y0 + laneH - 10);
+  }
+  g.textBaseline = 'alphabetic';
+}
+
+function drawTower(g, x, cy, st, hp, dir, laneH) {
+  var h = Math.min(56, laneH * 0.7);
+  var w = Math.min(34, h * 0.66);
+  var top = cy - h / 2;
+  var alive = hp > 0.001;
+
+  /* корпус */
+  var grd = g.createLinearGradient(x - w / 2, 0, x + w / 2, 0);
+  grd.addColorStop(0, alive ? shade(st.color, -.55) : '#1a1d24');
+  grd.addColorStop(.45, alive ? shade(st.color, -.18) : '#23262e');
+  grd.addColorStop(1, alive ? shade(st.color, -.62) : '#171a20');
+  g.fillStyle = grd;
+  g.fillRect(x - w / 2, top + 8, w, h - 8);
+  /* основание */
+  g.fillStyle = alive ? shade(st.color, -.7) : '#12151b';
+  g.fillRect(x - w / 2 - 4, cy + h / 2 - 5, w + 8, 5);
+
+  /* зубцы */
+  var merlons = 4, mw = w / (merlons * 2 - 1);
+  for (var i = 0; i < merlons; i++) {
+    g.fillRect(x - w / 2 + i * mw * 2, top + 1, mw, 8);
+  }
+
+  /* флаг */
+  if (alive) {
+    g.strokeStyle = 'rgba(255,255,255,.35)'; g.lineWidth = 1;
+    g.beginPath(); g.moveTo(x, top - 16); g.lineTo(x, top); g.stroke();
+    g.fillStyle = st.color;
+    g.beginPath();
+    g.moveTo(x, top - 16);
+    g.lineTo(x + dir * 15, top - 12.5);
+    g.lineTo(x, top - 9);
+    g.closePath(); g.fill();
+  }
+
+  /* полоса прочности */
+  var bw = w + 12, bx = x - bw / 2, by = cy + h / 2 + 5;
+  g.fillStyle = 'rgba(255,255,255,.10)'; g.fillRect(bx, by, bw, 3.5);
+  g.fillStyle = hp > .55 ? st.color : hp > .25 ? '#e8b64c' : '#f46a6a';
+  g.fillRect(bx, by, bw * clamp(hp, 0, 1), 3.5);
+
+  /* иероглиф фракции */
+  g.fillStyle = alive ? 'rgba(255,255,255,.82)' : 'rgba(255,255,255,.16)';
+  g.font = '15px var(--serif), Georgia, serif';
+  g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.fillText(st.glyph, x, cy + 6);
+  g.textBaseline = 'alphabetic';
+}
+
+function drawRuin(g, x, cy, laneH) {
+  var h = Math.min(30, laneH * 0.4), w = 24;
+  g.fillStyle = '#151821';
+  g.beginPath();
+  g.moveTo(x - w / 2, cy + h / 2);
+  g.lineTo(x - w / 2 + 4, cy - h / 2 + 6);
+  g.lineTo(x - 2, cy + 1);
+  g.lineTo(x + 5, cy - h / 2);
+  g.lineTo(x + w / 2, cy + h / 2);
+  g.closePath(); g.fill();
+  g.strokeStyle = 'rgba(255,255,255,.07)'; g.lineWidth = 1; g.stroke();
+}
+
+/** Отряд: число фигурок пропорционально доле популяции. */
+function drawTroops(g, st, share, fromX, toX, cy, laneH, t, dir, laneIdx, clash) {
+  if (!(share > 0)) return;
+  var n = clamp(Math.round(share * 44), 2, 14);
+  var rows = laneH > 66 ? 2 : 1;
+  var perRow = Math.ceil(n / rows);
+  var spread = Math.min(60, Math.abs(toX - fromX) * 0.5);
+
+  for (var i = 0; i < n; i++) {
+    var row = Math.floor(i / perRow);
+    var col = i % perRow;
+    var lag = col / Math.max(1, perRow - 1);
+    var startX = fromX - dir * lag * spread;
+    var endX = toX - dir * lag * (spread * 0.42);
+    var x = lerp(startX, endX, t);
+    var y = cy + (rows === 1 ? 0 : (row - (rows - 1) / 2) * 15) + 4;
+    y += Math.sin(t * 12 + i * 1.7 + laneIdx) * (t < 1 ? 1.1 : 0.4);
+    if (clash > .3) x += jitter(i * 13 + laneIdx * 7 + Math.floor(state.gen * 40)) * clash * 2.2;
+    drawSoldier(g, x, y, st.color, dir);
+  }
+}
+
+function drawSoldier(g, x, y, color, dir) {
+  g.fillStyle = 'rgba(0,0,0,.38)';
+  g.beginPath(); g.ellipse(x, y + 6, 4.4, 1.5, 0, 0, Math.PI * 2); g.fill();   // тень
+  g.strokeStyle = shade(color, .45); g.lineWidth = 1.3;
+  g.beginPath(); g.moveTo(x + dir * 4, y - 12); g.lineTo(x + dir * 4, y + 4); g.stroke(); // копьё
+  g.fillStyle = shade(color, -.2);
+  g.fillRect(x - 3.1, y - 5, 6.2, 10);                                          // корпус
+  g.fillStyle = color;
+  g.beginPath(); g.arc(x, y - 8.4, 3.1, 0, Math.PI * 2); g.fill();              // голова
+  g.fillStyle = shade(color, .5);
+  g.fillRect(x - 3.1, y - 5, 6.2, 1.6);                                         // блик доспеха
+}
+
+/** Искры, вспышка и всплывающие числа очков в точке сшибки. */
+function drawClash(g, fx, cy, lane, stL, stR, clash, laneIdx, laneH) {
+  var flash = g.createRadialGradient(fx, cy, 0, fx, cy, 46 * clash + 8);
+  flash.addColorStop(0, 'rgba(255,236,180,' + (.30 * clash) + ')');
+  flash.addColorStop(1, 'rgba(255,200,90,0)');
+  g.fillStyle = flash;
+  g.beginPath(); g.arc(fx, cy, 46 * clash + 8, 0, Math.PI * 2); g.fill();
+
+  var count = Math.round(10 + clash * 22);
+  for (var i = 0; i < count; i++) {
+    var a = jitter(i * 3.7 + laneIdx * 11) * Math.PI;
+    var d = (0.25 + Math.abs(jitter(i * 7.1 + laneIdx))) * 34 * clash;
+    var px = fx + Math.cos(a) * d;
+    var py = cy + Math.sin(a) * d * 0.55;
+    var side = Math.cos(a) < 0;
+    var col = side ? (stL ? stL.color : '#888') : (stR ? stR.color : '#888');
+    g.fillStyle = rgba(col, (1 - clash) * .35 + .25);
+    var sz = 1 + (1 - d / (34 * clash + 1)) * 2;
+    g.fillRect(px, py, sz, sz);
+  }
+
+  /* всплывающие очки */
+  var rise = (1 - clash) * 16;
+  g.font = '600 12px ' + getComputedStyle(document.body).fontFamily;
+  g.textBaseline = 'middle';
+  if (stL) {
+    g.fillStyle = rgba(stL.color, clash);
+    g.textAlign = 'right';
+    g.fillText('+' + lane.scoreLeft.toFixed(2), fx - 14, cy - 16 - rise);
+  }
+  if (stR) {
+    g.fillStyle = rgba(stR.color, clash);
+    g.textAlign = 'left';
+    g.fillText('+' + lane.scoreRight.toFixed(2), fx + 14, cy - 16 - rise);
+  }
+  /* урон по башням проигравшей стороны */
+  g.font = '600 10.5px ' + getComputedStyle(document.body).fontFamily;
+  if (stL && lane.damageLeft > 0.01) {
+    g.fillStyle = rgba('#f87171', clash * .95); g.textAlign = 'right';
+    g.fillText('−' + Math.round(lane.damageLeft * 100) + '%', fx - 14, cy + 18 + rise);
+  }
+  if (stR && lane.damageRight > 0.01) {
+    g.fillStyle = rgba('#f87171', clash * .95); g.textAlign = 'left';
+    g.fillText('−' + Math.round(lane.damageRight * 100) + '%', fx + 14, cy + 18 + rise);
+  }
+  g.textBaseline = 'alphabetic';
+}
+
+/* ============================================================================
+   4. AREA-ГРАФИК ДОЛЕЙ (рисуется вручную, без библиотек)
+   ========================================================================= */
+var chart = document.getElementById('chart');
+var cctx = null;
+
+function drawChart() {
+  var run = currentRun();
+  var cssW = chart.clientWidth || 900;
+  var cssH = clamp(Math.round(cssW * 0.42), 240, 380);
+  if (!cctx || chart.dataset.w !== String(cssW) || chart.dataset.h !== String(cssH)) {
+    cctx = fitCanvas(chart, cssW, cssH);
+    chart.dataset.w = String(cssW); chart.dataset.h = String(cssH);
+  }
+  var g = cctx, W = cssW, H = cssH;
+  var padL = 40, padR = 12, padT = 12, padB = 26;
+  var plotW = W - padL - padR, plotH = H - padT - padB;
+  var G = run.frames.length;              // столько переходов
+  var points = G + 1;                     // плюс начальное состояние
+
+  g.clearRect(0, 0, W, H);
+
+  /* сетка */
+  g.strokeStyle = 'rgba(255,255,255,.06)'; g.lineWidth = 1;
+  g.fillStyle = '#5f6779';
+  g.font = '10px ' + getComputedStyle(document.body).fontFamily;
+  g.textAlign = 'right'; g.textBaseline = 'middle';
+  for (var q = 0; q <= 4; q++) {
+    var yy = padT + (plotH * q) / 4;
+    g.beginPath(); g.moveTo(padL, yy); g.lineTo(W - padR, yy); g.stroke();
+    g.fillText((100 - q * 25) + '%', padL - 7, yy);
+  }
+
+  function px(i) { return padL + (plotW * i) / (points - 1); }
+  function py(v) { return padT + plotH * (1 - v); }
+
+  /* доля стратегии i в точке t: t=0 — начальное состояние */
+  function shareAt(i, t) {
+    if (t === 0) return run.frames[0].shares[i];
+    return run.frames[t - 1].sharesAfter[i];
+  }
+
+  /* накопительные полосы в порядке реестра */
+  var base = new Array(points).fill(0);
+  for (var s = 0; s < run.strategyIds.length; s++) {
+    var st = strat(run.strategyIds[s]);
+    var tops = new Array(points);
+    var any = false;
+    for (var t = 0; t < points; t++) {
+      var v = shareAt(s, t);
+      if (v > 0) any = true;
+      tops[t] = base[t] + v;
+    }
+    if (any) {
+      g.beginPath();
+      g.moveTo(px(0), py(base[0]));
+      for (t = 0; t < points; t++) g.lineTo(px(t), py(tops[t]));
+      for (t = points - 1; t >= 0; t--) g.lineTo(px(t), py(base[t]));
+      g.closePath();
+      var grd = g.createLinearGradient(padL, 0, W - padR, 0);
+      grd.addColorStop(0, rgba(st.color, .55));
+      grd.addColorStop(1, rgba(st.color, .85));
+      g.fillStyle = grd; g.fill();
+      g.strokeStyle = rgba(st.color, .9); g.lineWidth = 1;
+      g.beginPath();
+      for (t = 0; t < points; t++) {
+        if (t === 0) g.moveTo(px(t), py(tops[t])); else g.lineTo(px(t), py(tops[t]));
+      }
+      g.stroke();
+
+      /* подпись выживших у правого края */
+      if (shareAt(s, points - 1) > 0.045) {
+        var midY = py((base[points - 1] + tops[points - 1]) / 2);
+        g.fillStyle = 'rgba(0,0,0,.65)';
+        g.font = '600 10px ' + getComputedStyle(document.body).fontFamily;
+        g.textAlign = 'right'; g.textBaseline = 'middle';
+        g.fillText(st.name, W - padR - 6, midY);
+      }
+    }
+    base = tops;
+  }
+
+  /* порог доминации */
+  var domY = py(currentRun().dominationThreshold);
+  g.setLineDash([4, 4]); g.strokeStyle = 'rgba(201,162,39,.55)'; g.lineWidth = 1;
+  g.beginPath(); g.moveTo(padL, domY); g.lineTo(W - padR, domY); g.stroke();
+  g.setLineDash([]);
+  g.fillStyle = 'rgba(201,162,39,.8)'; g.textAlign = 'left'; g.textBaseline = 'bottom';
+  g.font = '9.5px ' + getComputedStyle(document.body).fontFamily;
+  g.fillText('порог доминации ' + Math.round(currentRun().dominationThreshold * 100) + '%', padL + 4, domY - 3);
+
+  /* ось поколений */
+  g.fillStyle = '#5f6779'; g.textAlign = 'center'; g.textBaseline = 'top';
+  g.font = '10px ' + getComputedStyle(document.body).fontFamily;
+  for (var gg = 0; gg < points; gg += 5) g.fillText(String(gg), px(gg), H - padB + 6);
+  g.fillText('поколение', padL + plotW / 2, H - 10);
+
+  /* игловая метка текущего положения */
+  var head = clamp(state.gen + 1, 0, points - 1);
+  var hx = px(head);
+  g.strokeStyle = 'rgba(255,255,255,.75)'; g.lineWidth = 1.5;
+  g.beginPath(); g.moveTo(hx, padT); g.lineTo(hx, padT + plotH); g.stroke();
+  g.fillStyle = '#fff';
+  g.beginPath(); g.arc(hx, padT - 2, 3, 0, Math.PI * 2); g.fill();
+}
+
+/* ============================================================================
+   5. ТАБЛИЦА ЛИДЕРОВ
+   ========================================================================= */
+function drawBoard() {
+  var run = currentRun();
+  var gi = clamp(Math.floor(state.gen), 0, run.frames.length - 1);
+  var frame = run.frames[gi];
+
+  var rows = run.strategyIds.map(function (id, i) {
+    return {
+      id: id, share: frame.sharesAfter[i], before: frame.shares[i],
+      fitness: frame.fitness[i], coop: frame.coop[i]
+    };
+  }).sort(function (a, b) {
+    if (b.share !== a.share) return b.share - a.share;
+    return b.fitness - a.fitness;
+  });
+
+  var maxShare = Math.max.apply(null, rows.map(function (r) { return r.share; })) || 1;
+  var html = '';
+  rows.forEach(function (r, i) {
+    var st = strat(r.id);
+    var d = r.share - r.before;
+    var cls = r.share <= 0 ? ' class="dead"' : '';
+    var arrow = r.share <= 0 ? '<span class="flat">—</span>'
+      : d > 0.0005 ? '<span class="up">▲ ' + (d * 100).toFixed(2) + '</span>'
+        : d < -0.0005 ? '<span class="dn">▼ ' + (Math.abs(d) * 100).toFixed(2) + '</span>'
+          : '<span class="flat">·</span>';
+    html += '<tr' + cls + ' data-id="' + st.id + '">' +
+      '<td class="num">' + (r.share > 0 ? i + 1 : '·') + '</td>' +
+      '<td><span class="sw" style="background:' + st.color + '"></span>' +
+      '<span class="nm">' + st.name + '</span><span class="lat">' + st.latin + '</span>' +
+      '<div class="bar"><i style="width:' + (r.share / maxShare * 100).toFixed(1) +
+      '%;background:' + st.color + '"></i></div></td>' +
+      '<td class="num">' + pct(r.share) + '</td>' +
+      '<td class="num">' + r.fitness.toFixed(3) + '</td>' +
+      '<td class="num">' + arrow + '</td></tr>';
+  });
+  document.getElementById('boardBody').innerHTML = html;
+  document.getElementById('boardCap').textContent = 'поколение ' + gi;
+}
+
+/* ============================================================================
+   6. ДОСЬЕ
+   ========================================================================= */
+function buildDossiers() {
+  var run = currentRun();
+  var host = document.getElementById('dossiers');
+  var list = data.strategies.slice();
+  if (data.challengers && data.challengers.entrants) {
+    list = list.concat(data.challengers.entrants);
+  }
+  host.innerHTML = list.map(function (st) {
+    var idx = run.strategyIds.indexOf(st.id);
+    var last = run.frames[run.frames.length - 1];
+    var share = idx >= 0 ? last.sharesAfter[idx] : -1;
+    var fam = st.family === 'classic' ? 'классика'
+      : st.family === 'authored' ? 'авторская' : 'претендент';
+    return '<article class="dos" id="dos-' + st.id + '" style="border-top-color:' + st.color + '">' +
+      '<div class="hd">' +
+      '<div class="gl" style="color:' + st.color + '">' + st.glyph + '</div>' +
+      '<div><h3>' + st.name + '</h3><div class="tl">' + st.tagline + '</div></div>' +
+      '<span class="fam">' + fam + '</span></div>' +
+      '<p class="quote">' + st.dossier.principle + '</p>' +
+      '<p class="ph">' + st.dossier.philosophy + '</p>' +
+      '<dl>' +
+      '<dt>сильные стороны</dt><dd><ul>' +
+      st.dossier.strengths.map(function (x) { return '<li>' + x + '</li>'; }).join('') + '</ul></dd>' +
+      '<dt>слабые стороны</dt><dd><ul>' +
+      st.dossier.weaknesses.map(function (x) { return '<li>' + x + '</li>'; }).join('') + '</ul></dd>' +
+      '<dt>против кого</dt><dd>' + st.dossier.targets + '</dd>' +
+      '</dl>' +
+      '<div class="stat"><span>' + st.latin + '</span><span>' +
+      (share < 0 ? 'вне лиги' : share > 0 ? 'итог ' + pct(share) : 'вымерла') +
+      '</span></div></article>';
+  }).join('');
+}
+
+function flashDossier(id) {
+  showTab('dossier');
+  var el = document.getElementById('dos-' + id);
+  if (!el) return;
+  el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  el.classList.add('flash');
+  setTimeout(function () { el.classList.remove('flash'); }, 700);
+}
+
+/* ============================================================================
+   7. ТЕРРИТОРИЯ (пространственный режим)
+   ========================================================================= */
+var terrain = document.getElementById('terrain');
+
+function drawTerrain() {
+  var sp = data.spatial;
+  if (!sp) return;
+  var spFrame = sp.frames[clamp(state.terrGen, 0, sp.frames.length - 1)];
+  var side = Math.min(520, Math.max(260, (document.getElementById('page-territory').clientWidth || 520) * 0.5));
+  var ctx = fitCanvas(terrain, side, side);
+  var cell = side / sp.size;
+
+  ctx.clearRect(0, 0, side, side);
+  for (var y = 0; y < sp.size; y++) {
+    for (var x = 0; x < sp.size; x++) {
+      var st = strat(sp.strategyIds[spFrame.grid[y * sp.size + x]]);
+      ctx.fillStyle = st.color;
+      ctx.fillRect(x * cell, y * cell, cell + .5, cell + .5);
+    }
+  }
+  /* тонкая сетка поверх — чтобы кластеры читались как территории */
+  ctx.strokeStyle = 'rgba(8,10,14,.35)'; ctx.lineWidth = 1;
+  for (var i = 0; i <= sp.size; i++) {
+    ctx.beginPath(); ctx.moveTo(i * cell, 0); ctx.lineTo(i * cell, side); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, i * cell); ctx.lineTo(side, i * cell); ctx.stroke();
+  }
+
+  var total = sp.size * sp.size;
+  var order = sp.strategyIds.map(function (id, i) {
+    return { id: id, cells: spFrame.counts[i] };
+  }).sort(function (a, b) { return b.cells - a.cells; });
+
+  document.getElementById('terrLegend').innerHTML = order.map(function (r) {
+    var st = strat(r.id);
+    return '<div class="row' + (r.cells === 0 ? ' gone' : '') + '">' +
+      '<span class="sw" style="background:' + st.color + '"></span>' +
+      '<span>' + st.name + '</span>' +
+      '<span class="cnt">' + r.cells + ' · ' + Math.round((r.cells / total) * 100) + '%</span></div>';
+  }).join('');
+
+  document.getElementById('terrStat').textContent =
+    'поколение ' + spFrame.gen + ' · сменили стратегию клеток: ' + spFrame.flips +
+    ' · средние очки за раунд: ' + spFrame.meanScore.toFixed(3);
+  document.getElementById('terrRead').textContent = state.terrGen + ' / ' + (sp.frames.length - 1);
+  document.getElementById('terrScrub').value = String(state.terrGen);
+}
+
+/* ============================================================================
+   8. ПРЕТЕНДЕНТЫ
+   ========================================================================= */
+function buildChallengers() {
+  var chData = data.challengers;
+  var host = document.getElementById('chWrap');
+  if (!chData) {
+    host.innerHTML = '<div class="miss"><p><b>Чемпионат претендентов не проводился.</b></p>' +
+      '<p>Запусти <code>node sim/challengers.js</code> и пересобери реплей.</p></div>';
+    return;
+  }
+  var rows = chData.table.map(function (chRow, i) {
+    var st = strat(chRow.id);
+    return '<tr data-id="' + st.id + '"' + (chRow.survived ? '' : ' class="dead"') + '>' +
+      '<td class="num">' + (i + 1) + '</td>' +
+      '<td><span class="sw" style="background:' + st.color + '"></span>' +
+      '<span class="nm">' + st.name + '</span><span class="lat">' + st.latin + '</span></td>' +
+      '<td class="num">' + chRow.avg.toFixed(3) + '</td>' +
+      '<td class="num">' + chRow.vsChampion.toFixed(2) + '</td>' +
+      '<td class="num">' + chRow.self.toFixed(2) + '</td>' +
+      '<td class="num">' + pct(chRow.finalShare) + '</td>' +
+      '<td>' + (chRow.survived ? '<span class="up">выжил</span>' : '<span class="dn">выбит</span>') + '</td>' +
+      '</tr>';
+  }).join('');
+
+  host.innerHTML =
+    '<div class="card" style="margin-bottom:18px">' +
+    '<h2>Закрытый турнир претендентов <span>против чемпиона основной лиги</span></h2>' +
+    '<p class="note">Чемпион лиги — <b style="color:' + strat(chData.championId).color + '">' +
+    strat(chData.championId).name + '</b>. Претенденты писались независимо, ' +
+    'каждый не видя кода остальных. Столбцы: средние очки за раунд по всему турниру, ' +
+    'очки в очной паре с чемпионом, очки против собственной копии и доля популяции ' +
+    'после ' + chData.generations + ' поколений эволюции.</p>' +
+    '<table class="board"><thead><tr><th>#</th><th>участник</th><th class="num">счёт</th>' +
+    '<th class="num">vs чемпион</th><th class="num">сам с собой</th>' +
+    '<th class="num">итог</th><th>судьба</th></tr></thead><tbody>' + rows + '</tbody></table>' +
+    '</div>' +
+    '<div class="card"><h2>Вердикт</h2><p class="note" style="font-size:13.5px">' +
+    chData.verdict + '</p></div>';
+
+  host.querySelectorAll('tr[data-id]').forEach(function (tr) {
+    tr.addEventListener('click', function () { flashDossier(tr.getAttribute('data-id')); });
+  });
+}
+
+/* ============================================================================
+   9. ЭКРАН ПОБЕДЫ
+   ========================================================================= */
+function showVictory() {
+  var run = currentRun();
+  var st = strat(run.outcome.id);
+  var kind = run.outcome.type === 'domination'
+    ? 'доминация · более ' + Math.round(run.dominationThreshold * 100) + '% популяции'
+    : run.outcome.type === 'extinction'
+      ? 'остальные вымерли'
+      : 'сосуществование · доминации не случилось';
+
+  var alive = run.standings.filter(function (s) { return s.share > 0; });
+  var list = alive.slice(0, 6).map(function (s) {
+    var e = strat(s.id);
+    return '<li><span class="sw" style="background:' + e.color + '"></span>' +
+      e.name + ' — <b>' + pct(s.share) + '</b> · счёт <b>' + s.fitness.toFixed(3) + '</b></li>';
+  }).join('');
+
+  document.getElementById('trophy').innerHTML =
+    '<div class="kind">' + kind + '</div>' +
+    '<div class="gl" style="color:' + st.color + '">' + st.glyph + '</div>' +
+    '<h2>' + st.name + '</h2>' +
+    '<div class="lat2">' + st.latin + ' · сид ' + run.seed + ' · поколение ' + run.outcome.gen + '</div>' +
+    '<p class="quote2">' + st.dossier.principle + '</p>' +
+    '<ol>' + list + '</ol>' +
+    '<div class="acts">' +
+    '<button id="btnAgain">Заново</button>' +
+    '<button id="btnDossier" class="ghost">Досье победителя</button>' +
+    '<button id="btnClose" class="ghost">Закрыть</button>' +
+    '</div>';
+
+  document.getElementById('veil').classList.add('live');
+  state.playing = false;
+  syncPlayButton();
+
+  document.getElementById('btnAgain').onclick = function () {
+    hideVictory(); state.gen = 0; state.shown = false; state.playing = true; syncPlayButton(); renderAll();
+  };
+  document.getElementById('btnDossier').onclick = function () {
+    hideVictory(); flashDossier(run.outcome.id);
+  };
+  document.getElementById('btnClose').onclick = hideVictory;
+}
+function hideVictory() { document.getElementById('veil').classList.remove('live'); }
+
+/* ============================================================================
+   10. УПРАВЛЕНИЕ
+   ========================================================================= */
+function buildRunButtons() {
+  document.getElementById('runbtns').innerHTML = data.runs.map(function (run, i) {
+    return '<button data-run="' + i + '" aria-pressed="' + (i === state.runIndex) + '">сид ' + run.seed + '</button>';
+  }).join(' ');
+  document.querySelectorAll('#runbtns button').forEach(function (b) {
+    b.addEventListener('click', function () {
+      state.runIndex = Number(b.getAttribute('data-run'));
+      state.gen = 0; state.shown = false;
+      hideVictory();
+      buildRunButtons(); buildDossiers(); syncScrubBounds(); renderAll();
+    });
+  });
+}
+
+function buildSpeedButtons() {
+  document.getElementById('speedbtns').innerHTML = SPEEDS.map(function (s) {
+    return '<button data-speed="' + s + '" aria-pressed="' + (s === state.speed) + '">×' + s + '</button>';
+  }).join(' ');
+  document.querySelectorAll('#speedbtns button').forEach(function (b) {
+    b.addEventListener('click', function () {
+      state.speed = Number(b.getAttribute('data-speed'));
+      buildSpeedButtons();
+    });
+  });
+}
+
+var TABS = [
+  { id: 'battle', label: 'Битва' },
+  { id: 'territory', label: 'Территория' },
+  { id: 'dossier', label: 'Досье' },
+  { id: 'challengers', label: 'Претенденты' }
+];
+
+function buildTabs() {
+  document.getElementById('tabbar').innerHTML = TABS.map(function (t, i) {
+    return '<button role="tab" data-tab="' + t.id + '" aria-pressed="' + (i === 0) + '">' + t.label + '</button>';
+  }).join('');
+  document.querySelectorAll('#tabbar button').forEach(function (b) {
+    b.addEventListener('click', function () { showTab(b.getAttribute('data-tab')); });
+  });
+}
+
+function showTab(id) {
+  TABS.forEach(function (t) {
+    document.getElementById('page-' + t.id).classList.toggle('live', t.id === id);
+  });
+  document.querySelectorAll('#tabbar button').forEach(function (b) {
+    b.setAttribute('aria-pressed', String(b.getAttribute('data-tab') === id));
+  });
+  if (id === 'territory') drawTerrain();
+  if (id === 'battle') renderAll();
+}
+
+function syncPlayButton() {
+  var b = document.getElementById('btnPlay');
+  b.textContent = state.playing ? '❚❚ Пауза' : '▶ Пуск';
+  b.setAttribute('aria-pressed', String(state.playing));
+}
+
+function syncScrubBounds() {
+  var run = currentRun();
+  var s = document.getElementById('scrub');
+  s.max = String(run.frames.length - 1);
+  document.getElementById('subline').innerHTML =
+    'выплаты R=<b>' + data.meta.payoff.R + '</b> P=<b>' + data.meta.payoff.P +
+    '</b> T=<b>' + data.meta.payoff.T + '</b> S=<b>' + data.meta.payoff.S +
+    '</b> · матч <b>' + run.rounds + '</b> раундов · шум <b>' + (run.noise * 100).toFixed(0) +
+    '%</b> · поколений <b>' + run.generations + '</b> · фракций <b>' + run.strategyIds.length +
+    '</b> · матчей в прогоне <b>' + run.totalMatches + '</b>';
+}
+
+function bindControls() {
+  document.getElementById('btnPlay').addEventListener('click', function () {
+    var run = currentRun();
+    if (!state.playing && state.gen >= run.frames.length - 1) { state.gen = 0; state.shown = false; }
+    state.playing = !state.playing;
+    state.lastTick = 0;
+    syncPlayButton();
+  });
+  document.getElementById('btnBack').addEventListener('click', function () {
+    state.gen = clamp(Math.floor(state.gen) - 1, 0, currentRun().frames.length - 1);
+    state.playing = false; syncPlayButton(); renderAll();
+  });
+  document.getElementById('btnFwd').addEventListener('click', function () {
+    state.gen = clamp(Math.floor(state.gen) + 1, 0, currentRun().frames.length - 1);
+    state.playing = false; syncPlayButton(); renderAll();
+  });
+  document.getElementById('scrub').addEventListener('input', function (e) {
+    state.gen = Number(e.target.value);
+    state.playing = false; state.shown = true; syncPlayButton(); renderAll();
+  });
+  document.getElementById('boardBody').addEventListener('click', function (e) {
+    var tr = e.target.closest('tr[data-id]');
+    if (tr) flashDossier(tr.getAttribute('data-id'));
+  });
+
+  document.getElementById('terrScrub').addEventListener('input', function (e) {
+    state.terrGen = Number(e.target.value);
+    state.terrPlaying = false;
+    document.getElementById('btnTerrPlay').textContent = '▶ Пуск';
+    drawTerrain();
+  });
+  document.getElementById('btnTerrPlay').addEventListener('click', function () {
+    var sp = data.spatial;
+    if (!sp) return;
+    if (!state.terrPlaying && state.terrGen >= sp.frames.length - 1) state.terrGen = 0;
+    state.terrPlaying = !state.terrPlaying;
+    this.textContent = state.terrPlaying ? '❚❚ Пауза' : '▶ Пуск';
+    state.terrTick = 0;
+  });
+
+  document.addEventListener('keydown', function (e) {
+    if (e.target.tagName === 'INPUT') return;
+    if (e.code === 'Space') { e.preventDefault(); document.getElementById('btnPlay').click(); }
+    else if (e.code === 'ArrowLeft') document.getElementById('btnBack').click();
+    else if (e.code === 'ArrowRight') document.getElementById('btnFwd').click();
+    else if (e.code === 'Escape') hideVictory();
+  });
+  window.addEventListener('resize', function () { renderAll(); drawTerrain(); });
+}
+
+/* ============================================================================
+   11. ЦИКЛ
+   ========================================================================= */
+function renderAll() {
+  drawField();
+  drawChart();
+  drawBoard();
+  var run = currentRun();
+  document.getElementById('scrub').value = String(state.gen);
+  document.getElementById('genread').textContent =
+    Math.floor(state.gen) + ' / ' + (run.frames.length - 1);
+}
+
+function tick(now) {
+  requestAnimationFrame(tick);
+  if (!data) return;
+  var run = currentRun();
+
+  if (state.playing) {
+    if (!state.lastTick) state.lastTick = now;
+    var dt = Math.min(120, now - state.lastTick);
+    state.lastTick = now;
+    state.gen += (dt / GEN_MS) * state.speed;
+    if (state.gen >= run.frames.length - 1) {
+      state.gen = run.frames.length - 1;
+      state.playing = false;
+      syncPlayButton();
+      if (!state.shown) { state.shown = true; showVictory(); }
+    }
+    renderAll();
+  } else {
+    drawField(); // река и мерцание живут и на паузе
+  }
+
+  if (state.terrPlaying && data.spatial) {
+    if (!state.terrTick) state.terrTick = now;
+    if (now - state.terrTick > 420 / Math.max(1, state.speed / 2)) {
+      state.terrTick = now;
+      state.terrGen += 1;
+      if (state.terrGen >= data.spatial.frames.length) {
+        state.terrGen = data.spatial.frames.length - 1;
+        state.terrPlaying = false;
+        document.getElementById('btnTerrPlay').textContent = '▶ Пуск';
+      }
+      drawTerrain();
+    }
+  }
+}
+
+/* ============================================================================
+   12. Старт
+   ========================================================================= */
+if (data) {
+  buildTabs();
+  buildRunButtons();
+  buildSpeedButtons();
+  buildDossiers();
+  buildChallengers();
+  syncScrubBounds();
+  bindControls();
+  var sp = data.spatial;
+  if (sp) {
+    document.getElementById('terrScrub').max = String(sp.frames.length - 1);
+    document.getElementById('terrNote').textContent =
+      'Сетка ' + sp.size + '×' + sp.size + ', ' + (sp.size * sp.size) +
+      ' агентов. Каждый играет матч по ' + sp.rounds + ' раундов с четырьмя соседями ' +
+      'по замкнутой сетке и перенимает стратегию сильнейшего в округе, включая себя. ' +
+      'Шум тот же, ' + Math.round(sp.noise * 100) + '%.';
+    drawTerrain();
+  } else {
+    document.getElementById('page-territory').innerHTML =
+      '<div class="miss"><p><b>Пространственный режим не рассчитан.</b></p>' +
+      '<p>Запусти <code>node sim/run.js --all</code>.</p></div>';
+  }
+  renderAll();
+  requestAnimationFrame(tick);
+}
+</script>
+</body>
+</html>
