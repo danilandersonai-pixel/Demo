@@ -53,20 +53,6 @@ function hashSeed() {
   return h >>> 0;
 }
 
-/**
- * Строка → uint32 (FNV-1a). Используется для сидов, привязанных к id стратегии.
- * @param {string} str
- * @returns {number} uint32
- */
-function hashString(str) {
-  var h = 2166136261 >>> 0;
-  for (var i = 0; i < str.length; i++) {
-    h = (h ^ str.charCodeAt(i)) >>> 0;
-    h = Math.imul(h, 16777619) >>> 0;
-  }
-  return h >>> 0;
-}
-
 /** Множители десятичных разрядов таблицей, а не Math.pow — только целая арифметика. */
 var FACTORS = [1, 10, 100, 1000, 10000, 100000, 1000000, 10000000, 100000000];
 
@@ -88,6 +74,5 @@ function round(value, digits) {
 module.exports = {
   mulberry32: mulberry32,
   hashSeed: hashSeed,
-  hashString: hashString,
   round: round
 };

@@ -1,8 +1,6 @@
 'use strict';
 
-var payoff = require('./payoff');
-var C = payoff.COOPERATE;
-var D = payoff.DEFECT;
+var D = require('./payoff').DEFECT;
 
 /**
  * История матча глазами одного игрока.
@@ -127,4 +125,4 @@ function createHistory() {
   return view;
 }
 
-module.exports = { createHistory: createHistory, C: C, D: D };
+module.exports = { createHistory: createHistory };

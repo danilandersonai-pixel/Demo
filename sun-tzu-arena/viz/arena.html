@@ -578,10 +578,6 @@ function drawPopulationStrip(g, W, y, h, frame) {
   var run = currentRun();
   var x = 24;
   var total = W - 48;
-  g.fillStyle = '#5f6779';
-  g.font = '10px ' + getComputedStyle(document.body).fontFamily;
-  g.textAlign = 'left'; g.textBaseline = 'bottom';
-  g.fillText('ПОПУЛЯЦИЯ', x, y - 5);
   g.fillStyle = 'rgba(255,255,255,.04)';
   g.fillRect(x, y, total, h);
   for (var i = 0; i < run.strategyIds.length; i++) {
@@ -594,9 +590,11 @@ function drawPopulationStrip(g, W, y, h, frame) {
     grd.addColorStop(1, shade(st.color, -.35));
     g.fillStyle = grd;
     g.fillRect(x, y, wid, h);
-    if (wid > 44) {
+    g.font = '600 10px ' + getComputedStyle(document.body).fontFamily;
+    // Подпись только если имя действительно помещается: обрезанное имя хуже,
+    // чем его отсутствие — цвет всё равно опознаётся по таблице лидеров.
+    if (wid > g.measureText(st.name).width + 12) {
       g.fillStyle = 'rgba(0,0,0,.62)';
-      g.font = '600 10px ' + getComputedStyle(document.body).fontFamily;
       g.textAlign = 'center'; g.textBaseline = 'middle';
       g.fillText(st.name, x + wid / 2, y + h / 2 + .5);
     }
@@ -659,8 +657,11 @@ function drawLane(g, lane, frame, prev, k, y0, laneH, padSide, W, phase, clash) 
   if (stL) drawTroops(g, stL, frame.sharesAfter[iL], innerL + 12, fx - 9, cy, laneH, marchT, 1, k, clash);
   if (stR) drawTroops(g, stR, frame.sharesAfter[iR], innerR - 12, fx + 9, cy, laneH, marchT, -1, k, clash);
 
-  /* сшибка: искры и всплывающие очки */
-  if (clash > 0.02) drawClash(g, fx, cy, lane, stL, stR, clash, k, laneH);
+  /* Сшибка бывает только там, где есть кому сойтись. На дорожке без второй
+     стороны нет ни очной пары, ни очков за неё — рисовать искры и «+0.00»
+     значило бы показывать бой, которого не было. */
+  if (clash > 0.02 && stL && stR) drawClash(g, fx, cy, lane, stL, stR, clash, k, laneH);
+  else if (clash > 0.02) drawUnopposed(g, lane, stL, stR, fx, cy, clash);
 
   /* подписи */
   g.font = '600 11.5px ' + getComputedStyle(document.body).fontFamily;
@@ -673,11 +674,14 @@ function drawLane(g, lane, frame, prev, k, y0, laneH, padSide, W, phase, clash) 
     g.fillStyle = shade(stR.color, .2); g.textAlign = 'right';
     g.fillText(stR.name, W - 8, y0 + 13);
   }
-  if (lane.winner) {
-    var wSt = strat(lane.winner);
-    g.fillStyle = 'rgba(201,162,39,.75)'; g.textAlign = 'center';
-    g.font = '600 10px ' + getComputedStyle(document.body).fontFamily;
-    g.fillText('перевес: ' + wSt.name, W / 2, y0 + laneH - 10);
+  g.textAlign = 'center';
+  g.font = '600 10px ' + getComputedStyle(document.body).fontFamily;
+  if (stL && stR && lane.winner) {
+    g.fillStyle = 'rgba(201,162,39,.75)';
+    g.fillText('перевес: ' + strat(lane.winner).name, W / 2, y0 + laneH - 10);
+  } else if (!stL || !stR) {
+    g.fillStyle = 'rgba(150,158,178,.5)';
+    g.fillText('без сопротивления — противник этого поколения уже пал', W / 2, y0 + laneH - 10);
   }
   g.textBaseline = 'alphabetic';
 }
@@ -777,6 +781,24 @@ function drawSoldier(g, x, y, color, dir) {
   g.beginPath(); g.arc(x, y - 8.4, 3.1, 0, Math.PI * 2); g.fill();              // голова
   g.fillStyle = shade(color, .5);
   g.fillRect(x - 3.1, y - 5, 6.2, 1.6);                                         // блик доспеха
+}
+
+/**
+ * Дорожка без второй стороны. Очной пары нет, показывать нечего, кроме
+ * собственных потерь фракции: доля она теряет по всей популяции, а не в этом
+ * матче, и это единственное, что здесь правда.
+ */
+function drawUnopposed(g, lane, stL, stR, fx, cy, clash) {
+  var st = stL || stR;
+  var damage = stL ? lane.damageLeft : lane.damageRight;
+  if (!st || damage <= 0.01) return;
+  var dir = stL ? 1 : -1;
+  g.font = '600 10.5px ' + getComputedStyle(document.body).fontFamily;
+  g.textBaseline = 'middle';
+  g.textAlign = dir > 0 ? 'right' : 'left';
+  g.fillStyle = rgba('#f87171', clash * .9);
+  g.fillText('−' + Math.round(damage * 100) + '% населения', fx + dir * -16, cy + 20);
+  g.textBaseline = 'alphabetic';
 }
 
 /** Искры, вспышка и всплывающие числа очков в точке сшибки. */
