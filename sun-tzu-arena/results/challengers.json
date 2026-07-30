@@ -1,0 +1,3883 @@
+{
+  "seed": 42,
+  "noise": 0.05,
+  "rounds": 200,
+  "generations": 30,
+  "championId": "patience",
+  "participants": [
+    "patience",
+    "counterIntelligence",
+    "quartermaster",
+    "resonance",
+    "windAndMountain"
+  ],
+  "entrants": [
+    {
+      "id": "counterIntelligence",
+      "latin": "CounterIntelligence",
+      "name": "Контрразведка",
+      "color": "#7dd3fc",
+      "glyph": "諜",
+      "family": "challenger",
+      "tagline": "Сличает сегодняшний портрет противника с ранним",
+      "dossier": {
+        "principle": "«Война — это путь обмана» — I. Предварительные расчёты",
+        "philosophy": "Ведёт досье и сравнивает противника не с другими, а с ним же прежним. Уликой считает только «свободное» предательство — то, которому не предшествовал мой собственный удар или сорвавшийся приказ. Резкий разворот ловит вспышкой из четырёх ходов подряд, медленный дрейф — накопителем улик и z-сличением раннего окна с недавним. Приговор необратим: мягкость до него, строгое зеркало и доение — после.",
+        "strengths": [
+          "Ловит смену режима: резкий разворот за 3–4 раунда, медленный дрейф — накопителем улик",
+          "Фильтр «свободных» ходов отсеивает собственный шум — уживается со своей копией"
+        ],
+        "weaknesses": [
+          "Приговор необратим: редкая серия помех навсегда лишает честного снисхождения",
+          "К тому, кто предаёт стабильно и чуть ниже порогов, остаётся мягкой и переплачивает"
+        ],
+        "targets": "Против перевёртышей: «Приманка» с маской на 18 раундов, «Терпение» с поздней жатвой"
+      }
+    },
+    {
+      "id": "quartermaster",
+      "latin": "Quartermaster",
+      "name": "Интендант",
+      "color": "#fcd34d",
+      "glyph": "糧",
+      "family": "challenger",
+      "tagline": "Считает провиант, а не подвиги",
+      "dossier": {
+        "principle": "«Война любит победу и не любит продолжительности» — II. Ведение войны",
+        "philosophy": "Решает не последний ход, а сальдо матча: очки обеих сторон восстанавливаются из истории точно, и разрыв сводится к 5·((D,C) − (C,D)). Раунд мира стоит 3.0, раунд войны — 1.0, значит конфликт обходится в 2 очка за день обеим сторонам. Удар по мстительному не окупается никогда, по неотвечающему даёт чистые +2 — поэтому Интендант платит за ревизию, а набрав целевой отрыв около очка на раунд, возвращается к самой доходной статье: взаимным тройкам.",
+        "strengths": [
+          "Решение от накопленного сальдо: помеха не сбивает курс, эхо гаснет за два раунда",
+          "Ревизия за три наблюдения отделяет доверчивого от мстительного — и не жадничает сверх цели"
+        ],
+        "weaknesses": [
+          "Дуэль с «Зеркалом» и роднёй структурно не выигрывается — и он не тратится на неё",
+          "Открывается доверием: чистому агрессору дарит 5 очков форы, которых уже не вернуть"
+        ],
+        "targets": "Против доверчивых и слабо мстительных, а также против шумных сред, где остальные проедают бюджет на эхо-войнах"
+      }
+    },
+    {
+      "id": "resonance",
+      "latin": "Resonance",
+      "name": "Резонанс",
+      "color": "#c4b5fd",
+      "glyph": "虛",
+      "family": "challenger",
+      "tagline": "Читает форму противника и отвечает расчётом курса",
+      "dossier": {
+        "principle": "«Тот, кто умеет заставить противника обнаружить форму, а сам формы не имеет, — сохраняет цельность» — VI. Полнота и пустота",
+        "philosophy": "Строит таблицу переходов «контекст из двух последних раундов → его следующий ход» с иерархическим сглаживанием под 5% шума, а затем считает не выгоду раунда, а установившуюся ценность курса: итерация ценности по 16 состояниям с дисконтом 0.95. Поэтому лучший ответ не вырождается в вечное предательство — взаимные 3.0 стоят дороже разовых 5. Неуверенность и высокая энтропия предсказания поднимают порог осторожности и склоняют выбор к сотрудничеству.",
+        "strengths": [
+          "Вскрывает и доит любого, кто не наказывает за предательство",
+          "Расчёт сам порождает прощение: одиночная помеха не превращается в войну"
+        ],
+        "weaknesses": [
+          "Первые 10–25 раундов уходят на разведку и шесть пробных предательств",
+          "Память глубже двух раундов и скрытые счётчики терпения для модели невидимы"
+        ],
+        "targets": "Против популяции коротко-памятных автоматов: доверчивых доит, «Зеркало» держит в мире"
+      }
+    },
+    {
+      "id": "windAndMountain",
+      "latin": "WindAndMountain",
+      "name": "Ветер и Гора",
+      "color": "#fda4af",
+      "glyph": "風",
+      "family": "challenger",
+      "tagline": "Четыре повадки фуринкадзан: ветер, лес, огонь, гора",
+      "dossier": {
+        "principle": "«Двигайся быстрый, как ветер; будь спокойный, как лес; при нападении будь подобен огню; будь неподвижен, как гора» — VII. Борьба на войне",
+        "philosophy": "Автомат из четырёх явных режимов с измеримыми переходами. ВЕТЕР — отражение последнего хода плюс повинность за собственную осечку, режим непрочитанного соперника. ЛЕС — безусловное C без единого зонда, пока его предательства не выходят за 0.18 шумового потолка. ОГОНЬ — безусловное D против того, кто доказал, что не отвечает на удар (пробу приносит шум, а не зонд); при первом же отпоре Огонь гаснет навсегда. ГОРА — безусловное D против того, с кем мир невозможен: ни зондов, ни примирения, единственный необратимый режим. Все пороги вынесены далеко от 5% шума, а выход из Огня считается по накопленной статистике, не по окну.",
+        "strengths": [
+          "Четыре чистых ответа вместо одного компромиссного: 4.7 против доверчивых, 3.0 против надёжных",
+          "Повинность за свою осечку и безусловный Лес гасят эхо, на котором ломаются Зеркало и Мститель"
+        ],
+        "weaknesses": [
+          "Лес — безусловное C: подтравка ниже 0.25 доит его до 20 раундов",
+          "Гора необратима, а вход в Огонь ждёт двух осечек шума — в среднем ~40 раундов вежливости"
+        ],
+        "targets": "Огонь — против «Овцы» и не мстящих; Гора — против «Агрессора» и «Хаоса»; Лес — против «Зеркала» и своей копии"
+      }
+    }
+  ],
+  "matrix": [
+    [
+      2.985,
+      2.8,
+      2.785,
+      3.075,
+      2.535
+    ],
+    [
+      3.05,
+      2.92,
+      2.91,
+      1.78,
+      3.015
+    ],
+    [
+      2.885,
+      2.885,
+      1.27,
+      3.345,
+      1.58
+    ],
+    [
+      2.65,
+      1.18,
+      2.295,
+      2.165,
+      1.09
+    ],
+    [
+      2.61,
+      2.915,
+      2.13,
+      3.34,
+      2.785
+    ]
+  ],
+  "table": [
+    {
+      "id": "counterIntelligence",
+      "avg": 2.735,
+      "vsChampion": 3.05,
+      "self": 2.92,
+      "finalShare": 0.5056,
+      "survived": true
+    },
+    {
+      "id": "patience",
+      "avg": 2.836,
+      "vsChampion": 2.985,
+      "self": 2.985,
+      "finalShare": 0.3443,
+      "survived": true
+    },
+    {
+      "id": "windAndMountain",
+      "avg": 2.756,
+      "vsChampion": 2.61,
+      "self": 2.785,
+      "finalShare": 0.104,
+      "survived": true
+    },
+    {
+      "id": "quartermaster",
+      "avg": 2.393,
+      "vsChampion": 2.885,
+      "self": 1.27,
+      "finalShare": 0.0253,
+      "survived": true
+    },
+    {
+      "id": "resonance",
+      "avg": 1.876,
+      "vsChampion": 2.65,
+      "self": 2.165,
+      "finalShare": 0.0208,
+      "survived": true
+    }
+  ],
+  "evolution": {
+    "seed": 42,
+    "noise": 0.05,
+    "rounds": 200,
+    "generations": 30,
+    "dominationThreshold": 0.6,
+    "extinctionThreshold": 0.005,
+    "strategyIds": [
+      "patience",
+      "counterIntelligence",
+      "quartermaster",
+      "resonance",
+      "windAndMountain"
+    ],
+    "frames": [
+      {
+        "gen": 0,
+        "shares": [
+          0.2,
+          0.2,
+          0.2,
+          0.2,
+          0.2
+        ],
+        "sharesAfter": [
+          0.225151,
+          0.217132,
+          0.189981,
+          0.148936,
+          0.2188
+        ],
+        "fitness": [
+          2.836,
+          2.735,
+          2.393,
+          1.876,
+          2.756
+        ],
+        "coop": [
+          0.837,
+          0.765,
+          0.612,
+          0.643,
+          0.604
+        ],
+        "hp": [
+          1,
+          1,
+          0.9499,
+          0.7447,
+          1
+        ],
+        "avgFitness": 2.5192,
+        "alive": 5,
+        "extinct": [],
+        "leader": "patience",
+        "matrix": [
+          [
+            2.985,
+            2.8,
+            2.785,
+            3.075,
+            2.535
+          ],
+          [
+            3.05,
+            2.92,
+            2.91,
+            1.78,
+            3.015
+          ],
+          [
+            2.885,
+            2.885,
+            1.27,
+            3.345,
+            1.58
+          ],
+          [
+            2.65,
+            1.18,
+            2.295,
+            2.165,
+            1.09
+          ],
+          [
+            2.61,
+            2.915,
+            2.13,
+            3.34,
+            2.785
+          ]
+        ],
+        "battle": {
+          "lanes": [
+            {
+              "left": "patience",
+              "right": "quartermaster",
+              "leftIndex": 0,
+              "rightIndex": 2,
+              "front": 0.475,
+              "scoreLeft": 2.785,
+              "scoreRight": 2.885,
+              "winner": "quartermaster",
+              "damageLeft": 0,
+              "damageRight": 0.0501
+            },
+            {
+              "left": "windAndMountain",
+              "right": "resonance",
+              "leftIndex": 4,
+              "rightIndex": 3,
+              "front": 0.74,
+              "scoreLeft": 3.34,
+              "scoreRight": 1.09,
+              "winner": "windAndMountain",
+              "damageLeft": 0,
+              "damageRight": 0.2553
+            },
+            {
+              "left": "counterIntelligence",
+              "right": null,
+              "leftIndex": 1,
+              "rightIndex": -1,
+              "front": 0.88,
+              "scoreLeft": 0,
+              "scoreRight": 0,
+              "winner": "counterIntelligence",
+              "damageLeft": 0,
+              "damageRight": 0
+            }
+          ],
+          "intensity": 0.1018
+        }
+      },
+      {
+        "gen": 1,
+        "shares": [
+          0.225151,
+          0.217132,
+          0.189981,
+          0.148936,
+          0.2188
+        ],
+        "sharesAfter": [
+          0.23289,
+          0.23376,
+          0.167776,
+          0.143481,
+          0.222092
+        ],
+        "fitness": [
+          2.8417,
+          2.9577,
+          2.4262,
+          2.6467,
+          2.7886
+        ],
+        "coop": [
+          0.8855,
+          0.9158,
+          0.6488,
+          0.8462,
+          0.7989
+        ],
+        "hp": [
+          1,
+          1,
+          0.8389,
+          0.7174,
+          1
+        ],
+        "avgFitness": 2.7473,
+        "alive": 5,
+        "extinct": [],
+        "leader": "counterIntelligence",
+        "matrix": [
+          [
+            2.805,
+            2.895,
+            2.795,
+            2.845,
+            2.865
+          ],
+          [
+            2.97,
+            2.92,
+            2.895,
+            2.975,
+            3.025
+          ],
+          [
+            2.92,
+            2.895,
+            1.245,
+            3.32,
+            1.87
+          ],
+          [
+            2.795,
+            2.825,
+            2.27,
+            2.425,
+            2.795
+          ],
+          [
+            2.865,
+            2.825,
+            2.445,
+            2.77,
+            2.985
+          ]
+        ],
+        "battle": {
+          "lanes": [
+            {
+              "left": "counterIntelligence",
+              "right": "resonance",
+              "leftIndex": 1,
+              "rightIndex": 3,
+              "front": 0.5364,
+              "scoreLeft": 2.975,
+              "scoreRight": 2.825,
+              "winner": "counterIntelligence",
+              "damageLeft": 0,
+              "damageRight": 0.0366
+            },
+            {
+              "left": "patience",
+              "right": "quartermaster",
+              "leftIndex": 0,
+              "rightIndex": 2,
+              "front": 0.4692,
+              "scoreLeft": 2.795,
+              "scoreRight": 2.92,
+              "winner": "quartermaster",
+              "damageLeft": 0,
+              "damageRight": 0.1169
+            },
+            {
+              "left": "windAndMountain",
+              "right": null,
+              "leftIndex": 4,
+              "rightIndex": -1,
+              "front": 0.88,
+              "scoreLeft": 0,
+              "scoreRight": 0,
+              "winner": "windAndMountain",
+              "damageLeft": 0,
+              "damageRight": 0
+            }
+          ],
+          "intensity": 0.0512
+        }
+      },
+      {
+        "gen": 2,
+        "shares": [
+          0.23289,
+          0.23376,
+          0.167776,
+          0.143481,
+          0.222092
+        ],
+        "sharesAfter": [
+          0.245814,
+          0.253435,
+          0.159306,
+          0.135518,
+          0.205928
+        ],
+        "fitness": [
+          2.8779,
+          2.9561,
+          2.589,
+          2.5753,
+          2.5282
+        ],
+        "coop": [
+          0.8685,
+          0.8983,
+          0.694,
+          0.8944,
+          0.6694
+        ],
+        "hp": [
+          1,
+          1,
+          0.7965,
+          0.6776,
+          0.9272
+        ],
+        "avgFitness": 2.7266,
+        "alive": 5,
+        "extinct": [],
+        "leader": "counterIntelligence",
+        "matrix": [
+          [
+            2.9,
+            2.85,
+            2.775,
+            3.175,
+            2.77
+          ],
+          [
+            2.975,
+            2.88,
+            2.845,
+            3.065,
+            3.03
+          ],
+          [
+            2.8,
+            2.895,
+            1.725,
+            3.275,
+            2.255
+          ],
+          [
+            2.575,
+            2.765,
+            2.225,
+            2.7,
+            2.56
+          ],
+          [
+            2.92,
+            2.83,
+            2.53,
+            2.835,
+            1.6
+          ]
+        ],
+        "battle": {
+          "lanes": [
+            {
+              "left": "counterIntelligence",
+              "right": "quartermaster",
+              "leftIndex": 1,
+              "rightIndex": 2,
+              "front": 0.4871,
+              "scoreLeft": 2.845,
+              "scoreRight": 2.895,
+              "winner": "quartermaster",
+              "damageLeft": 0,
+              "damageRight": 0.0505
+            },
+            {
+              "left": "patience",
+              "right": "resonance",
+              "leftIndex": 0,
+              "rightIndex": 3,
+              "front": 0.6143,
+              "scoreLeft": 3.175,
+              "scoreRight": 2.575,
+              "winner": "patience",
+              "damageLeft": 0,
+              "damageRight": 0.0555
+            },
+            {
+              "left": null,
+              "right": "windAndMountain",
+              "leftIndex": -1,
+              "rightIndex": 4,
+              "front": 0.12,
+              "scoreLeft": 0,
+              "scoreRight": 0,
+              "winner": "windAndMountain",
+              "damageLeft": 0,
+              "damageRight": 0.0728
+            }
+          ],
+          "intensity": 0.0596
+        }
+      },
+      {
+        "gen": 3,
+        "shares": [
+          0.245814,
+          0.253435,
+          0.159306,
+          0.135518,
+          0.205928
+        ],
+        "sharesAfter": [
+          0.266627,
+          0.244598,
+          0.150449,
+          0.137014,
+          0.201312
+        ],
+        "fitness": [
+          2.8809,
+          2.5634,
+          2.5084,
+          2.6853,
+          2.5965
+        ],
+        "coop": [
+          0.8687,
+          0.6879,
+          0.6742,
+          0.8342,
+          0.7828
+        ],
+        "hp": [
+          1,
+          0.9651,
+          0.7522,
+          0.6851,
+          0.9064
+        ],
+        "avgFitness": 2.656,
+        "alive": 5,
+        "extinct": [],
+        "leader": "patience",
+        "matrix": [
+          [
+            2.83,
+            2.755,
+            2.78,
+            3.04,
+            3.07
+          ],
+          [
+            3.08,
+            1.73,
+            2.815,
+            2.94,
+            2.53
+          ],
+          [
+            2.83,
+            2.865,
+            1.715,
+            3.305,
+            1.775
+          ],
+          [
+            2.565,
+            2.89,
+            2.255,
+            2.655,
+            2.93
+          ],
+          [
+            2.67,
+            2.505,
+            2.35,
+            2.63,
+            2.79
+          ]
+        ],
+        "battle": {
+          "lanes": [
+            {
+              "left": "patience",
+              "right": "windAndMountain",
+              "leftIndex": 0,
+              "rightIndex": 4,
+              "front": 0.5842,
+              "scoreLeft": 3.07,
+              "scoreRight": 2.67,
+              "winner": "patience",
+              "damageLeft": 0,
+              "damageRight": 0.0224
+            },
+            {
+              "left": "resonance",
+              "right": "counterIntelligence",
+              "leftIndex": 3,
+              "rightIndex": 1,
+              "front": 0.4871,
+              "scoreLeft": 2.89,
+              "scoreRight": 2.94,
+              "winner": "counterIntelligence",
+              "damageLeft": 0,
+              "damageRight": 0.0349
+            },
+            {
+              "left": null,
+              "right": "quartermaster",
+              "leftIndex": -1,
+              "rightIndex": 2,
+              "front": 0.12,
+              "scoreLeft": 0,
+              "scoreRight": 0,
+              "winner": "quartermaster",
+              "damageLeft": 0,
+              "damageRight": 0.0556
+            }
+          ],
+          "intensity": 0.0376
+        }
+      },
+      {
+        "gen": 4,
+        "shares": [
+          0.266627,
+          0.244598,
+          0.150449,
+          0.137014,
+          0.201312
+        ],
+        "sharesAfter": [
+          0.272317,
+          0.261844,
+          0.149639,
+          0.117318,
+          0.198882
+        ],
+        "fitness": [
+          2.8433,
+          2.9802,
+          2.7689,
+          2.3837,
+          2.7503
+        ],
+        "coop": [
+          0.8749,
+          0.8892,
+          0.7303,
+          0.8362,
+          0.8631
+        ],
+        "hp": [
+          1,
+          1,
+          0.7482,
+          0.5866,
+          0.8955
+        ],
+        "avgFitness": 2.7839,
+        "alive": 5,
+        "extinct": [],
+        "leader": "patience",
+        "matrix": [
+          [
+            2.81,
+            2.865,
+            2.74,
+            2.995,
+            2.835
+          ],
+          [
+            3.015,
+            2.95,
+            2.83,
+            3.08,
+            3.015
+          ],
+          [
+            2.94,
+            2.855,
+            1.695,
+            3.335,
+            2.855
+          ],
+          [
+            2.645,
+            2.43,
+            2.285,
+            1.495,
+            2.66
+          ],
+          [
+            2.76,
+            2.84,
+            2.43,
+            2.96,
+            2.725
+          ]
+        ],
+        "battle": {
+          "lanes": [
+            {
+              "left": "counterIntelligence",
+              "right": "quartermaster",
+              "leftIndex": 1,
+              "rightIndex": 2,
+              "front": 0.4934,
+              "scoreLeft": 2.83,
+              "scoreRight": 2.855,
+              "winner": "quartermaster",
+              "damageLeft": 0,
+              "damageRight": 0.0054
+            },
+            {
+              "left": "patience",
+              "right": "windAndMountain",
+              "leftIndex": 0,
+              "rightIndex": 4,
+              "front": 0.519,
+              "scoreLeft": 2.835,
+              "scoreRight": 2.76,
+              "winner": "patience",
+              "damageLeft": 0,
+              "damageRight": 0.0121
+            },
+            {
+              "left": null,
+              "right": "resonance",
+              "leftIndex": -1,
+              "rightIndex": 3,
+              "front": 0.12,
+              "scoreLeft": 0,
+              "scoreRight": 0,
+              "winner": "resonance",
+              "damageLeft": 0,
+              "damageRight": 0.1438
+            }
+          ],
+          "intensity": 0.0537
+        }
+      },
+      {
+        "gen": 5,
+        "shares": [
+          0.272317,
+          0.261844,
+          0.149639,
+          0.117318,
+          0.198882
+        ],
+        "sharesAfter": [
+          0.283716,
+          0.276791,
+          0.125708,
+          0.112251,
+          0.201535
+        ],
+        "fitness": [
+          2.8351,
+          2.8766,
+          2.286,
+          2.6037,
+          2.7575
+        ],
+        "coop": [
+          0.8685,
+          0.8189,
+          0.6056,
+          0.8807,
+          0.8096
+        ],
+        "hp": [
+          1,
+          1,
+          0.6285,
+          0.5613,
+          0.9074
+        ],
+        "avgFitness": 2.7212,
+        "alive": 5,
+        "extinct": [],
+        "leader": "patience",
+        "matrix": [
+          [
+            2.79,
+            2.83,
+            2.85,
+            2.975,
+            2.81
+          ],
+          [
+            3.005,
+            2.91,
+            2.37,
+            3,
+            2.965
+          ],
+          [
+            2.925,
+            1.595,
+            1.74,
+            3.34,
+            2.11
+          ],
+          [
+            2.7,
+            2.825,
+            2.29,
+            2.335,
+            2.575
+          ],
+          [
+            2.66,
+            2.84,
+            2.385,
+            3.025,
+            2.905
+          ]
+        ],
+        "battle": {
+          "lanes": [
+            {
+              "left": "counterIntelligence",
+              "right": "resonance",
+              "leftIndex": 1,
+              "rightIndex": 3,
+              "front": 0.5418,
+              "scoreLeft": 3,
+              "scoreRight": 2.825,
+              "winner": "counterIntelligence",
+              "damageLeft": 0,
+              "damageRight": 0.0432
+            },
+            {
+              "left": "patience",
+              "right": "quartermaster",
+              "leftIndex": 0,
+              "rightIndex": 2,
+              "front": 0.481,
+              "scoreLeft": 2.85,
+              "scoreRight": 2.925,
+              "winner": "quartermaster",
+              "damageLeft": 0,
+              "damageRight": 0.1599
+            },
+            {
+              "left": "windAndMountain",
+              "right": null,
+              "leftIndex": 4,
+              "rightIndex": -1,
+              "front": 0.88,
+              "scoreLeft": 0,
+              "scoreRight": 0,
+              "winner": "windAndMountain",
+              "damageLeft": 0,
+              "damageRight": 0
+            }
+          ],
+          "intensity": 0.0677
+        }
+      },
+      {
+        "gen": 6,
+        "shares": [
+          0.283716,
+          0.276791,
+          0.125708,
+          0.112251,
+          0.201535
+        ],
+        "sharesAfter": [
+          0.267577,
+          0.308656,
+          0.125256,
+          0.108604,
+          0.189906
+        ],
+        "fitness": [
+          2.4914,
+          2.9458,
+          2.6322,
+          2.5558,
+          2.4892
+        ],
+        "coop": [
+          0.7429,
+          0.8656,
+          0.7312,
+          0.8233,
+          0.6994
+        ],
+        "hp": [
+          0.9431,
+          1,
+          0.6263,
+          0.543,
+          0.8551
+        ],
+        "avgFitness": 2.6416,
+        "alive": 5,
+        "extinct": [],
+        "leader": "counterIntelligence",
+        "matrix": [
+          [
+            2.91,
+            2.51,
+            2.8,
+            3.1,
+            1.345
+          ],
+          [
+            2.935,
+            2.905,
+            2.91,
+            3.07,
+            2.97
+          ],
+          [
+            2.85,
+            2.91,
+            1.37,
+            2.32,
+            2.905
+          ],
+          [
+            2.65,
+            2.72,
+            2.345,
+            1.54,
+            2.895
+          ],
+          [
+            1.72,
+            2.845,
+            2.555,
+            2.745,
+            2.9
+          ]
+        ],
+        "battle": {
+          "lanes": [
+            {
+              "left": "counterIntelligence",
+              "right": "quartermaster",
+              "leftIndex": 1,
+              "rightIndex": 2,
+              "front": 0.5,
+              "scoreLeft": 2.91,
+              "scoreRight": 2.91,
+              "winner": null,
+              "damageLeft": 0,
+              "damageRight": 0.0036
+            },
+            {
+              "left": null,
+              "right": "resonance",
+              "leftIndex": -1,
+              "rightIndex": 3,
+              "front": 0.12,
+              "scoreLeft": 0,
+              "scoreRight": 0,
+              "winner": "resonance",
+              "damageLeft": 0,
+              "damageRight": 0.0325
+            },
+            {
+              "left": null,
+              "right": "patience",
+              "leftIndex": -1,
+              "rightIndex": 0,
+              "front": 0.12,
+              "scoreLeft": 0,
+              "scoreRight": 0,
+              "winner": "patience",
+              "damageLeft": 0,
+              "damageRight": 0.0569
+            },
+            {
+              "left": null,
+              "right": "windAndMountain",
+              "leftIndex": -1,
+              "rightIndex": 4,
+              "front": 0.12,
+              "scoreLeft": 0,
+              "scoreRight": 0,
+              "winner": "windAndMountain",
+              "damageLeft": 0,
+              "damageRight": 0.0577
+            }
+          ],
+          "intensity": 0.0377
+        }
+      },
+      {
+        "gen": 7,
+        "shares": [
+          0.267577,
+          0.308656,
+          0.125256,
+          0.108604,
+          0.189906
+        ],
+        "sharesAfter": [
+          0.280925,
+          0.316616,
+          0.109914,
+          0.12,
+          0.172545
+        ],
+        "fitness": [
+          2.5551,
+          2.4965,
+          2.1356,
+          2.6891,
+          2.2112
+        ],
+        "coop": [
+          0.7705,
+          0.615,
+          0.5537,
+          0.856,
+          0.5682
+        ],
+        "hp": [
+          0.9902,
+          1,
+          0.5496,
+          0.6,
+          0.7769
+        ],
+        "avgFitness": 2.4337,
+        "alive": 5,
+        "extinct": [],
+        "leader": "counterIntelligence",
+        "matrix": [
+          [
+            2.755,
+            1.965,
+            2.535,
+            3.195,
+            2.88
+          ],
+          [
+            2.39,
+            2.855,
+            2.33,
+            2.975,
+            1.9
+          ],
+          [
+            2.935,
+            1.53,
+            1.705,
+            2.7,
+            1.955
+          ],
+          [
+            2.545,
+            2.825,
+            2.775,
+            2.295,
+            2.84
+          ],
+          [
+            2.805,
+            1.875,
+            2.18,
+            2.765,
+            1.625
+          ]
+        ],
+        "battle": {
+          "lanes": [
+            {
+              "left": "resonance",
+              "right": "windAndMountain",
+              "leftIndex": 3,
+              "rightIndex": 4,
+              "front": 0.519,
+              "scoreLeft": 2.84,
+              "scoreRight": 2.765,
+              "winner": "resonance",
+              "damageLeft": 0,
+              "damageRight": 0.0914
+            },
+            {
+              "left": "patience",
+              "right": "quartermaster",
+              "leftIndex": 0,
+              "rightIndex": 2,
+              "front": 0.4158,
+              "scoreLeft": 2.535,
+              "scoreRight": 2.935,
+              "winner": "quartermaster",
+              "damageLeft": 0,
+              "damageRight": 0.1225
+            },
+            {
+              "left": "counterIntelligence",
+              "right": null,
+              "leftIndex": 1,
+              "rightIndex": -1,
+              "front": 0.88,
+              "scoreLeft": 0,
+              "scoreRight": 0,
+              "winner": "counterIntelligence",
+              "damageLeft": 0,
+              "damageRight": 0
+            }
+          ],
+          "intensity": 0.0713
+        }
+      },
+      {
+        "gen": 8,
+        "shares": [
+          0.280925,
+          0.316616,
+          0.109914,
+          0.12,
+          0.172545
+        ],
+        "sharesAfter": [
+          0.27984,
+          0.353523,
+          0.097438,
+          0.125445,
+          0.143754
+        ],
+        "fitness": [
+          2.6161,
+          2.9324,
+          2.3282,
+          2.7455,
+          2.1881
+        ],
+        "coop": [
+          0.7731,
+          0.8809,
+          0.6365,
+          0.8375,
+          0.5258
+        ],
+        "hp": [
+          0.9863,
+          1,
+          0.4872,
+          0.6272,
+          0.6473
+        ],
+        "avgFitness": 2.6263,
+        "alive": 5,
+        "extinct": [],
+        "leader": "counterIntelligence",
+        "matrix": [
+          [
+            2.825,
+            2.885,
+            2.805,
+            2.785,
+            1.545
+          ],
+          [
+            2.935,
+            2.885,
+            2.885,
+            3.005,
+            2.995
+          ],
+          [
+            2.83,
+            2.285,
+            1.555,
+            3.31,
+            1.4
+          ],
+          [
+            2.735,
+            2.805,
+            2.26,
+            3.015,
+            2.775
+          ],
+          [
+            1.795,
+            2.82,
+            1.725,
+            2.725,
+            1.59
+          ]
+        ],
+        "battle": {
+          "lanes": [
+            {
+              "left": "counterIntelligence",
+              "right": "patience",
+              "leftIndex": 1,
+              "rightIndex": 0,
+              "front": 0.5129,
+              "scoreLeft": 2.935,
+              "scoreRight": 2.885,
+              "winner": "counterIntelligence",
+              "damageLeft": 0,
+              "damageRight": 0.0039
+            },
+            {
+              "left": "resonance",
+              "right": "quartermaster",
+              "leftIndex": 3,
+              "rightIndex": 2,
+              "front": 0.3353,
+              "scoreLeft": 2.26,
+              "scoreRight": 3.31,
+              "winner": "quartermaster",
+              "damageLeft": 0,
+              "damageRight": 0.1135
+            },
+            {
+              "left": null,
+              "right": "windAndMountain",
+              "leftIndex": -1,
+              "rightIndex": 4,
+              "front": 0.12,
+              "scoreLeft": 0,
+              "scoreRight": 0,
+              "winner": "windAndMountain",
+              "damageLeft": 0,
+              "damageRight": 0.1669
+            }
+          ],
+          "intensity": 0.0947
+        }
+      },
+      {
+        "gen": 9,
+        "shares": [
+          0.27984,
+          0.353523,
+          0.097438,
+          0.125445,
+          0.143754
+        ],
+        "sharesAfter": [
+          0.280904,
+          0.369785,
+          0.088743,
+          0.117794,
+          0.142773
+        ],
+        "fitness": [
+          2.828,
+          2.9469,
+          2.5659,
+          2.6455,
+          2.7981
+        ],
+        "coop": [
+          0.8909,
+          0.9249,
+          0.7018,
+          0.8556,
+          0.8172
+        ],
+        "hp": [
+          0.9901,
+          1,
+          0.4437,
+          0.589,
+          0.6429
+        ],
+        "avgFitness": 2.8173,
+        "alive": 5,
+        "extinct": [],
+        "leader": "counterIntelligence",
+        "matrix": [
+          [
+            2.755,
+            2.915,
+            2.785,
+            2.84,
+            2.775
+          ],
+          [
+            2.99,
+            2.895,
+            2.91,
+            3.005,
+            2.965
+          ],
+          [
+            2.76,
+            2.91,
+            1.515,
+            3.35,
+            1.37
+          ],
+          [
+            2.815,
+            2.83,
+            2.3,
+            2.085,
+            2.585
+          ],
+          [
+            2.9,
+            2.915,
+            1.77,
+            2.86,
+            2.955
+          ]
+        ],
+        "battle": {
+          "lanes": [
+            {
+              "left": "counterIntelligence",
+              "right": "windAndMountain",
+              "leftIndex": 1,
+              "rightIndex": 4,
+              "front": 0.5129,
+              "scoreLeft": 2.965,
+              "scoreRight": 2.915,
+              "winner": "counterIntelligence",
+              "damageLeft": 0,
+              "damageRight": 0.0068
+            },
+            {
+              "left": "patience",
+              "right": "resonance",
+              "leftIndex": 0,
+              "rightIndex": 3,
+              "front": 0.5066,
+              "scoreLeft": 2.84,
+              "scoreRight": 2.815,
+              "winner": "patience",
+              "damageLeft": 0,
+              "damageRight": 0.061
+            },
+            {
+              "left": null,
+              "right": "quartermaster",
+              "leftIndex": -1,
+              "rightIndex": 2,
+              "front": 0.12,
+              "scoreLeft": 0,
+              "scoreRight": 0,
+              "winner": "quartermaster",
+              "damageLeft": 0,
+              "damageRight": 0.0892
+            }
+          ],
+          "intensity": 0.0523
+        }
+      },
+      {
+        "gen": 10,
+        "shares": [
+          0.280904,
+          0.369785,
+          0.088743,
+          0.117794,
+          0.142773
+        ],
+        "sharesAfter": [
+          0.313389,
+          0.382686,
+          0.088024,
+          0.092609,
+          0.123292
+        ],
+        "fitness": [
+          2.9014,
+          2.6914,
+          2.5796,
+          2.0446,
+          2.2458
+        ],
+        "coop": [
+          0.8656,
+          0.7257,
+          0.7334,
+          0.7044,
+          0.5483
+        ],
+        "hp": [
+          1,
+          1,
+          0.4401,
+          0.463,
+          0.5551
+        ],
+        "avgFitness": 2.6007,
+        "alive": 5,
+        "extinct": [],
+        "leader": "counterIntelligence",
+        "matrix": [
+          [
+            2.91,
+            2.99,
+            2.795,
+            2.915,
+            2.71
+          ],
+          [
+            2.84,
+            2.9,
+            2.895,
+            2.9,
+            1.56
+          ],
+          [
+            2.945,
+            2.895,
+            1.65,
+            2.83,
+            1.415
+          ],
+          [
+            2.74,
+            1,
+            2.605,
+            2.34,
+            2.79
+          ],
+          [
+            2.86,
+            1.485,
+            1.69,
+            2.765,
+            2.925
+          ]
+        ],
+        "battle": {
+          "lanes": [
+            {
+              "left": "patience",
+              "right": "quartermaster",
+              "leftIndex": 0,
+              "rightIndex": 2,
+              "front": 0.4636,
+              "scoreLeft": 2.795,
+              "scoreRight": 2.945,
+              "winner": "quartermaster",
+              "damageLeft": 0,
+              "damageRight": 0.0081
+            },
+            {
+              "left": "counterIntelligence",
+              "right": "windAndMountain",
+              "leftIndex": 1,
+              "rightIndex": 4,
+              "front": 0.519,
+              "scoreLeft": 1.56,
+              "scoreRight": 1.485,
+              "winner": "counterIntelligence",
+              "damageLeft": 0,
+              "damageRight": 0.1364
+            },
+            {
+              "left": null,
+              "right": "resonance",
+              "leftIndex": -1,
+              "rightIndex": 3,
+              "front": 0.12,
+              "scoreLeft": 0,
+              "scoreRight": 0,
+              "winner": "resonance",
+              "damageLeft": 0,
+              "damageRight": 0.2138
+            }
+          ],
+          "intensity": 0.1195
+        }
+      },
+      {
+        "gen": 11,
+        "shares": [
+          0.313389,
+          0.382686,
+          0.088024,
+          0.092609,
+          0.123292
+        ],
+        "sharesAfter": [
+          0.316971,
+          0.39805,
+          0.081317,
+          0.086108,
+          0.117555
+        ],
+        "fitness": [
+          2.8848,
+          2.9667,
+          2.6349,
+          2.652,
+          2.7195
+        ],
+        "coop": [
+          0.8812,
+          0.9316,
+          0.7365,
+          0.8573,
+          0.8447
+        ],
+        "hp": [
+          1,
+          1,
+          0.4066,
+          0.4305,
+          0.5293
+        ],
+        "avgFitness": 2.8522,
+        "alive": 5,
+        "extinct": [],
+        "leader": "counterIntelligence",
+        "matrix": [
+          [
+            2.945,
+            2.9,
+            2.73,
+            2.845,
+            2.825
+          ],
+          [
+            3,
+            2.905,
+            2.935,
+            2.995,
+            3.075
+          ],
+          [
+            2.855,
+            2.935,
+            1.52,
+            3.36,
+            1.395
+          ],
+          [
+            2.695,
+            2.82,
+            2.31,
+            1.94,
+            2.8
+          ],
+          [
+            2.725,
+            2.825,
+            1.695,
+            2.825,
+            3.03
+          ]
+        ],
+        "battle": {
+          "lanes": [
+            {
+              "left": "counterIntelligence",
+              "right": "windAndMountain",
+              "leftIndex": 1,
+              "rightIndex": 4,
+              "front": 0.5571,
+              "scoreLeft": 3.075,
+              "scoreRight": 2.825,
+              "winner": "counterIntelligence",
+              "damageLeft": 0,
+              "damageRight": 0.0465
+            },
+            {
+              "left": "patience",
+              "right": "resonance",
+              "leftIndex": 0,
+              "rightIndex": 3,
+              "front": 0.5364,
+              "scoreLeft": 2.845,
+              "scoreRight": 2.695,
+              "winner": "patience",
+              "damageLeft": 0,
+              "damageRight": 0.0702
+            },
+            {
+              "left": null,
+              "right": "quartermaster",
+              "leftIndex": -1,
+              "rightIndex": 2,
+              "front": 0.12,
+              "scoreLeft": 0,
+              "scoreRight": 0,
+              "winner": "quartermaster",
+              "damageLeft": 0,
+              "damageRight": 0.0762
+            }
+          ],
+          "intensity": 0.0643
+        }
+      },
+      {
+        "gen": 12,
+        "shares": [
+          0.316971,
+          0.39805,
+          0.081317,
+          0.086108,
+          0.117555
+        ],
+        "sharesAfter": [
+          0.327168,
+          0.415696,
+          0.058719,
+          0.080426,
+          0.117991
+        ],
+        "fitness": [
+          2.8839,
+          2.9179,
+          2.0176,
+          2.6097,
+          2.8044
+        ],
+        "coop": [
+          0.8853,
+          0.8505,
+          0.5833,
+          0.8744,
+          0.8456
+        ],
+        "hp": [
+          1,
+          1,
+          0.2936,
+          0.4021,
+          0.5313
+        ],
+        "avgFitness": 2.7941,
+        "alive": 5,
+        "extinct": [],
+        "leader": "counterIntelligence",
+        "matrix": [
+          [
+            2.96,
+            2.82,
+            2.795,
+            3.105,
+            2.795
+          ],
+          [
+            3.045,
+            2.915,
+            2.19,
+            3.005,
+            3.025
+          ],
+          [
+            2.945,
+            1.415,
+            1.3,
+            2.685,
+            1.565
+          ],
+          [
+            2.655,
+            2.78,
+            2.835,
+            1.395,
+            2.645
+          ],
+          [
+            2.82,
+            2.85,
+            2.265,
+            2.97,
+            2.86
+          ]
+        ],
+        "battle": {
+          "lanes": [
+            {
+              "left": "counterIntelligence",
+              "right": "resonance",
+              "leftIndex": 1,
+              "rightIndex": 3,
+              "front": 0.5522,
+              "scoreLeft": 3.005,
+              "scoreRight": 2.78,
+              "winner": "counterIntelligence",
+              "damageLeft": 0,
+              "damageRight": 0.066
+            },
+            {
+              "left": "patience",
+              "right": "quartermaster",
+              "leftIndex": 0,
+              "rightIndex": 2,
+              "front": 0.4636,
+              "scoreLeft": 2.795,
+              "scoreRight": 2.945,
+              "winner": "quartermaster",
+              "damageLeft": 0,
+              "damageRight": 0.2779
+            },
+            {
+              "left": "windAndMountain",
+              "right": null,
+              "leftIndex": 4,
+              "rightIndex": -1,
+              "front": 0.88,
+              "scoreLeft": 0,
+              "scoreRight": 0,
+              "winner": "windAndMountain",
+              "damageLeft": 0,
+              "damageRight": 0
+            }
+          ],
+          "intensity": 0.1146
+        }
+      },
+      {
+        "gen": 13,
+        "shares": [
+          0.327168,
+          0.415696,
+          0.058719,
+          0.080426,
+          0.117991
+        ],
+        "sharesAfter": [
+          0.347207,
+          0.382981,
+          0.066171,
+          0.08632,
+          0.117321
+        ],
+        "fitness": [
+          2.6851,
+          2.331,
+          2.8512,
+          2.7155,
+          2.5157
+        ],
+        "coop": [
+          0.8139,
+          0.6407,
+          0.819,
+          0.816,
+          0.6821
+        ],
+        "hp": [
+          1,
+          0.9213,
+          0.3309,
+          0.4316,
+          0.5283
+        ],
+        "avgFitness": 2.5301,
+        "alive": 5,
+        "extinct": [],
+        "leader": "counterIntelligence",
+        "matrix": [
+          [
+            2.965,
+            2.82,
+            2.835,
+            2.735,
+            1.325
+          ],
+          [
+            3.02,
+            1.395,
+            2.865,
+            2.98,
+            3.01
+          ],
+          [
+            2.935,
+            2.89,
+            1.52,
+            3.32,
+            2.825
+          ],
+          [
+            2.785,
+            2.83,
+            2.27,
+            2.145,
+            2.73
+          ],
+          [
+            1.8,
+            2.885,
+            2.55,
+            2.93,
+            2.9
+          ]
+        ],
+        "battle": {
+          "lanes": [
+            {
+              "left": "quartermaster",
+              "right": "windAndMountain",
+              "leftIndex": 2,
+              "rightIndex": 4,
+              "front": 0.562,
+              "scoreLeft": 2.825,
+              "scoreRight": 2.55,
+              "winner": "quartermaster",
+              "damageLeft": 0,
+              "damageRight": 0.0057
+            },
+            {
+              "left": "resonance",
+              "right": "counterIntelligence",
+              "leftIndex": 3,
+              "rightIndex": 1,
+              "front": 0.4636,
+              "scoreLeft": 2.83,
+              "scoreRight": 2.98,
+              "winner": "counterIntelligence",
+              "damageLeft": 0,
+              "damageRight": 0.0787
+            },
+            {
+              "left": "patience",
+              "right": null,
+              "leftIndex": 0,
+              "rightIndex": -1,
+              "front": 0.88,
+              "scoreLeft": 0,
+              "scoreRight": 0,
+              "winner": "patience",
+              "damageLeft": 0,
+              "damageRight": 0
+            }
+          ],
+          "intensity": 0.0281
+        }
+      },
+      {
+        "gen": 14,
+        "shares": [
+          0.347207,
+          0.382981,
+          0.066171,
+          0.08632,
+          0.117321
+        ],
+        "sharesAfter": [
+          0.32849,
+          0.387445,
+          0.057622,
+          0.092989,
+          0.133453
+        ],
+        "fitness": [
+          2.3178,
+          2.4784,
+          2.1333,
+          2.6391,
+          2.7867
+        ],
+        "coop": [
+          0.6492,
+          0.63,
+          0.5851,
+          0.8804,
+          0.8966
+        ],
+        "hp": [
+          0.9461,
+          0.932,
+          0.2881,
+          0.4649,
+          0.6009
+        ],
+        "avgFitness": 2.4498,
+        "alive": 5,
+        "extinct": [],
+        "leader": "counterIntelligence",
+        "matrix": [
+          [
+            2.755,
+            1.515,
+            2.73,
+            3,
+            2.91
+          ],
+          [
+            1.765,
+            2.905,
+            2.015,
+            3.02,
+            3.06
+          ],
+          [
+            2.98,
+            1.165,
+            1.59,
+            2.915,
+            2.52
+          ],
+          [
+            2.675,
+            2.77,
+            2.74,
+            1.53,
+            2.865
+          ],
+          [
+            2.71,
+            2.835,
+            2.595,
+            2.915,
+            2.87
+          ]
+        ],
+        "battle": {
+          "lanes": [
+            {
+              "left": "windAndMountain",
+              "right": "patience",
+              "leftIndex": 4,
+              "rightIndex": 0,
+              "front": 0.4529,
+              "scoreLeft": 2.71,
+              "scoreRight": 2.91,
+              "winner": "patience",
+              "damageLeft": 0,
+              "damageRight": 0.0539
+            },
+            {
+              "left": "resonance",
+              "right": "quartermaster",
+              "leftIndex": 3,
+              "rightIndex": 2,
+              "front": 0.4582,
+              "scoreLeft": 2.74,
+              "scoreRight": 2.915,
+              "winner": "quartermaster",
+              "damageLeft": 0,
+              "damageRight": 0.1292
+            },
+            {
+              "left": "counterIntelligence",
+              "right": null,
+              "leftIndex": 1,
+              "rightIndex": -1,
+              "front": 0.88,
+              "scoreLeft": 0,
+              "scoreRight": 0,
+              "winner": "counterIntelligence",
+              "damageLeft": 0,
+              "damageRight": 0
+            }
+          ],
+          "intensity": 0.061
+        }
+      },
+      {
+        "gen": 15,
+        "shares": [
+          0.32849,
+          0.387445,
+          0.057622,
+          0.092989,
+          0.133453
+        ],
+        "sharesAfter": [
+          0.328764,
+          0.401312,
+          0.050837,
+          0.087864,
+          0.131224
+        ],
+        "fitness": [
+          2.8179,
+          2.9163,
+          2.484,
+          2.6604,
+          2.7685
+        ],
+        "coop": [
+          0.8956,
+          0.8824,
+          0.7235,
+          0.8489,
+          0.8424
+        ],
+        "hp": [
+          0.9469,
+          0.9654,
+          0.2542,
+          0.4393,
+          0.5909
+        ],
+        "avgFitness": 2.8156,
+        "alive": 5,
+        "extinct": [],
+        "leader": "counterIntelligence",
+        "matrix": [
+          [
+            2.705,
+            2.915,
+            2.775,
+            2.85,
+            2.81
+          ],
+          [
+            2.965,
+            2.905,
+            2.75,
+            3.04,
+            2.815
+          ],
+          [
+            2.9,
+            2.025,
+            1.555,
+            3.365,
+            2.58
+          ],
+          [
+            2.725,
+            2.815,
+            2.315,
+            1.83,
+            2.78
+          ],
+          [
+            2.86,
+            2.64,
+            2.655,
+            2.805,
+            2.94
+          ]
+        ],
+        "battle": {
+          "lanes": [
+            {
+              "left": "counterIntelligence",
+              "right": "windAndMountain",
+              "leftIndex": 1,
+              "rightIndex": 4,
+              "front": 0.5418,
+              "scoreLeft": 2.815,
+              "scoreRight": 2.64,
+              "winner": "counterIntelligence",
+              "damageLeft": 0,
+              "damageRight": 0.0167
+            },
+            {
+              "left": "patience",
+              "right": "resonance",
+              "leftIndex": 0,
+              "rightIndex": 3,
+              "front": 0.5308,
+              "scoreLeft": 2.85,
+              "scoreRight": 2.725,
+              "winner": "patience",
+              "damageLeft": 0,
+              "damageRight": 0.0551
+            },
+            {
+              "left": null,
+              "right": "quartermaster",
+              "leftIndex": -1,
+              "rightIndex": 2,
+              "front": 0.12,
+              "scoreLeft": 0,
+              "scoreRight": 0,
+              "winner": "quartermaster",
+              "damageLeft": 0,
+              "damageRight": 0.1178
+            }
+          ],
+          "intensity": 0.0632
+        }
+      },
+      {
+        "gen": 16,
+        "shares": [
+          0.328764,
+          0.401312,
+          0.050837,
+          0.087864,
+          0.131224
+        ],
+        "sharesAfter": [
+          0.331095,
+          0.417964,
+          0.04907,
+          0.078684,
+          0.123187
+        ],
+        "fitness": [
+          2.8485,
+          2.9458,
+          2.7302,
+          2.533,
+          2.6553
+        ],
+        "coop": [
+          0.8791,
+          0.9003,
+          0.7682,
+          0.8421,
+          0.7799
+        ],
+        "hp": [
+          0.9536,
+          1,
+          0.2454,
+          0.3934,
+          0.5547
+        ],
+        "avgFitness": 2.8285,
+        "alive": 5,
+        "extinct": [],
+        "leader": "counterIntelligence",
+        "matrix": [
+          [
+            2.84,
+            2.88,
+            2.765,
+            2.865,
+            2.795
+          ],
+          [
+            2.955,
+            2.895,
+            2.9,
+            2.955,
+            3.09
+          ],
+          [
+            2.815,
+            2.875,
+            1.63,
+            3.15,
+            2.22
+          ],
+          [
+            2.64,
+            2.805,
+            1.6,
+            1.8,
+            2.285
+          ],
+          [
+            2.845,
+            2.765,
+            2.47,
+            3.06,
+            1.645
+          ]
+        ],
+        "battle": {
+          "lanes": [
+            {
+              "left": "counterIntelligence",
+              "right": "quartermaster",
+              "leftIndex": 1,
+              "rightIndex": 2,
+              "front": 0.5066,
+              "scoreLeft": 2.9,
+              "scoreRight": 2.875,
+              "winner": "counterIntelligence",
+              "damageLeft": 0,
+              "damageRight": 0.0347
+            },
+            {
+              "left": "patience",
+              "right": "windAndMountain",
+              "leftIndex": 0,
+              "rightIndex": 4,
+              "front": 0.4871,
+              "scoreLeft": 2.795,
+              "scoreRight": 2.845,
+              "winner": "windAndMountain",
+              "damageLeft": 0,
+              "damageRight": 0.0612
+            },
+            {
+              "left": null,
+              "right": "resonance",
+              "leftIndex": -1,
+              "rightIndex": 3,
+              "front": 0.12,
+              "scoreLeft": 0,
+              "scoreRight": 0,
+              "winner": "resonance",
+              "damageLeft": 0,
+              "damageRight": 0.1045
+            }
+          ],
+          "intensity": 0.0668
+        }
+      },
+      {
+        "gen": 17,
+        "shares": [
+          0.331095,
+          0.417964,
+          0.04907,
+          0.078684,
+          0.123187
+        ],
+        "sharesAfter": [
+          0.34889,
+          0.425083,
+          0.038348,
+          0.077821,
+          0.109859
+        ],
+        "fitness": [
+          2.8466,
+          2.7474,
+          2.1111,
+          2.6718,
+          2.4091
+        ],
+        "coop": [
+          0.8719,
+          0.7936,
+          0.5556,
+          0.8421,
+          0.6382
+        ],
+        "hp": [
+          1,
+          1,
+          0.1917,
+          0.3891,
+          0.4947
+        ],
+        "avgFitness": 2.7014,
+        "alive": 5,
+        "extinct": [],
+        "leader": "counterIntelligence",
+        "matrix": [
+          [
+            2.915,
+            2.82,
+            2.66,
+            2.905,
+            2.79
+          ],
+          [
+            2.97,
+            2.815,
+            2.295,
+            3.045,
+            1.91
+          ],
+          [
+            2.935,
+            1.52,
+            1.47,
+            3.305,
+            1.395
+          ],
+          [
+            2.63,
+            2.77,
+            2.255,
+            2.44,
+            2.765
+          ],
+          [
+            2.89,
+            1.86,
+            1.72,
+            2.815,
+            2.995
+          ]
+        ],
+        "battle": {
+          "lanes": [
+            {
+              "left": "patience",
+              "right": "resonance",
+              "leftIndex": 0,
+              "rightIndex": 3,
+              "front": 0.562,
+              "scoreLeft": 2.905,
+              "scoreRight": 2.63,
+              "winner": "patience",
+              "damageLeft": 0,
+              "damageRight": 0.011
+            },
+            {
+              "left": "counterIntelligence",
+              "right": "windAndMountain",
+              "leftIndex": 1,
+              "rightIndex": 4,
+              "front": 0.5129,
+              "scoreLeft": 1.91,
+              "scoreRight": 1.86,
+              "winner": "counterIntelligence",
+              "damageLeft": 0,
+              "damageRight": 0.1082
+            },
+            {
+              "left": null,
+              "right": "quartermaster",
+              "leftIndex": -1,
+              "rightIndex": 2,
+              "front": 0.12,
+              "scoreLeft": 0,
+              "scoreRight": 0,
+              "winner": "quartermaster",
+              "damageLeft": 0,
+              "damageRight": 0.2185
+            }
+          ],
+          "intensity": 0.1126
+        }
+      },
+      {
+        "gen": 18,
+        "shares": [
+          0.34889,
+          0.425083,
+          0.038348,
+          0.077821,
+          0.109859
+        ],
+        "sharesAfter": [
+          0.36178,
+          0.437747,
+          0.037428,
+          0.051949,
+          0.111096
+        ],
+        "fitness": [
+          2.8824,
+          2.8625,
+          2.713,
+          1.8556,
+          2.811
+        ],
+        "coop": [
+          0.8853,
+          0.8375,
+          0.8001,
+          0.6272,
+          0.8796
+        ],
+        "hp": [
+          1,
+          1,
+          0.1871,
+          0.2597,
+          0.5002
+        ],
+        "avgFitness": 2.7797,
+        "alive": 5,
+        "extinct": [],
+        "leader": "counterIntelligence",
+        "matrix": [
+          [
+            2.825,
+            2.89,
+            2.85,
+            2.99,
+            2.97
+          ],
+          [
+            2.94,
+            2.87,
+            2.895,
+            2.32,
+            2.96
+          ],
+          [
+            2.8,
+            2.895,
+            1.73,
+            3.3,
+            1.66
+          ],
+          [
+            2.665,
+            1.045,
+            2.275,
+            1.7,
+            2.385
+          ],
+          [
+            2.745,
+            2.86,
+            2.41,
+            2.96,
+            2.865
+          ]
+        ],
+        "battle": {
+          "lanes": [
+            {
+              "left": "patience",
+              "right": "quartermaster",
+              "leftIndex": 0,
+              "rightIndex": 2,
+              "front": 0.5129,
+              "scoreLeft": 2.85,
+              "scoreRight": 2.8,
+              "winner": "patience",
+              "damageLeft": 0,
+              "damageRight": 0.024
+            },
+            {
+              "left": "counterIntelligence",
+              "right": "resonance",
+              "leftIndex": 1,
+              "rightIndex": 3,
+              "front": 0.6838,
+              "scoreLeft": 2.32,
+              "scoreRight": 1.045,
+              "winner": "counterIntelligence",
+              "damageLeft": 0,
+              "damageRight": 0.3325
+            },
+            {
+              "left": "windAndMountain",
+              "right": null,
+              "leftIndex": 4,
+              "rightIndex": -1,
+              "front": 0.88,
+              "scoreLeft": 0,
+              "scoreRight": 0,
+              "winner": "windAndMountain",
+              "damageLeft": 0,
+              "damageRight": 0
+            }
+          ],
+          "intensity": 0.1188
+        }
+      },
+      {
+        "gen": 19,
+        "shares": [
+          0.36178,
+          0.437747,
+          0.037428,
+          0.051949,
+          0.111096
+        ],
+        "sharesAfter": [
+          0.357527,
+          0.450147,
+          0.035643,
+          0.048686,
+          0.107997
+        ],
+        "fitness": [
+          2.8256,
+          2.9403,
+          2.7229,
+          2.6796,
+          2.7795
+        ],
+        "coop": [
+          0.8757,
+          0.901,
+          0.8068,
+          0.875,
+          0.8402
+        ],
+        "hp": [
+          0.9882,
+          1,
+          0.1782,
+          0.2434,
+          0.4863
+        ],
+        "avgFitness": 2.8593,
+        "alive": 5,
+        "extinct": [],
+        "leader": "counterIntelligence",
+        "matrix": [
+          [
+            2.82,
+            2.85,
+            2.745,
+            3.04,
+            2.675
+          ],
+          [
+            2.975,
+            2.885,
+            2.845,
+            3.03,
+            3.035
+          ],
+          [
+            2.92,
+            2.82,
+            1.625,
+            2.73,
+            2.065
+          ],
+          [
+            2.64,
+            2.78,
+            2.805,
+            2.04,
+            2.67
+          ],
+          [
+            2.7,
+            2.835,
+            2.515,
+            2.895,
+            2.855
+          ]
+        ],
+        "battle": {
+          "lanes": [
+            {
+              "left": "counterIntelligence",
+              "right": "patience",
+              "leftIndex": 1,
+              "rightIndex": 0,
+              "front": 0.5308,
+              "scoreLeft": 2.975,
+              "scoreRight": 2.85,
+              "winner": "counterIntelligence",
+              "damageLeft": 0,
+              "damageRight": 0.0118
+            },
+            {
+              "left": null,
+              "right": "windAndMountain",
+              "leftIndex": -1,
+              "rightIndex": 4,
+              "front": 0.12,
+              "scoreLeft": 0,
+              "scoreRight": 0,
+              "winner": "windAndMountain",
+              "damageLeft": 0,
+              "damageRight": 0.0279
+            },
+            {
+              "left": null,
+              "right": "quartermaster",
+              "leftIndex": -1,
+              "rightIndex": 2,
+              "front": 0.12,
+              "scoreLeft": 0,
+              "scoreRight": 0,
+              "winner": "quartermaster",
+              "damageLeft": 0,
+              "damageRight": 0.0477
+            },
+            {
+              "left": null,
+              "right": "resonance",
+              "leftIndex": -1,
+              "rightIndex": 3,
+              "front": 0.12,
+              "scoreLeft": 0,
+              "scoreRight": 0,
+              "winner": "resonance",
+              "damageLeft": 0,
+              "damageRight": 0.0628
+            }
+          ],
+          "intensity": 0.0375
+        }
+      },
+      {
+        "gen": 20,
+        "shares": [
+          0.357527,
+          0.450147,
+          0.035643,
+          0.048686,
+          0.107997
+        ],
+        "sharesAfter": [
+          0.343325,
+          0.467163,
+          0.035045,
+          0.048807,
+          0.10566
+        ],
+        "fitness": [
+          2.6666,
+          2.8819,
+          2.7303,
+          2.7838,
+          2.7168
+        ],
+        "coop": [
+          0.8295,
+          0.8383,
+          0.7663,
+          0.88,
+          0.8578
+        ],
+        "hp": [
+          0.949,
+          1,
+          0.1752,
+          0.244,
+          0.4757
+        ],
+        "avgFitness": 2.7769,
+        "alive": 5,
+        "extinct": [],
+        "leader": "counterIntelligence",
+        "matrix": [
+          [
+            2.8,
+            2.49,
+            2.605,
+            2.825,
+            2.91
+          ],
+          [
+            2.74,
+            2.955,
+            2.91,
+            2.965,
+            3
+          ],
+          [
+            2.955,
+            2.91,
+            1.805,
+            3.335,
+            1.27
+          ],
+          [
+            2.8,
+            2.84,
+            2.26,
+            2.405,
+            2.84
+          ],
+          [
+            2.735,
+            2.825,
+            1.645,
+            2.915,
+            2.47
+          ]
+        ],
+        "battle": {
+          "lanes": [
+            {
+              "left": "counterIntelligence",
+              "right": "quartermaster",
+              "leftIndex": 1,
+              "rightIndex": 2,
+              "front": 0.5,
+              "scoreLeft": 2.91,
+              "scoreRight": 2.91,
+              "winner": null,
+              "damageLeft": 0,
+              "damageRight": 0.0168
+            },
+            {
+              "left": "resonance",
+              "right": "windAndMountain",
+              "leftIndex": 3,
+              "rightIndex": 4,
+              "front": 0.481,
+              "scoreLeft": 2.84,
+              "scoreRight": 2.915,
+              "winner": "windAndMountain",
+              "damageLeft": 0,
+              "damageRight": 0.0216
+            },
+            {
+              "left": null,
+              "right": "patience",
+              "leftIndex": -1,
+              "rightIndex": 0,
+              "front": 0.12,
+              "scoreLeft": 0,
+              "scoreRight": 0,
+              "winner": "patience",
+              "damageLeft": 0,
+              "damageRight": 0.0397
+            }
+          ],
+          "intensity": 0.0261
+        }
+      },
+      {
+        "gen": 21,
+        "shares": [
+          0.343325,
+          0.467163,
+          0.035045,
+          0.048807,
+          0.10566
+        ],
+        "sharesAfter": [
+          0.323298,
+          0.493475,
+          0.035639,
+          0.035437,
+          0.11215
+        ],
+        "fitness": [
+          2.5059,
+          2.811,
+          2.7062,
+          1.9321,
+          2.8246
+        ],
+        "coop": [
+          0.8008,
+          0.7903,
+          0.7715,
+          0.6292,
+          0.8644
+        ],
+        "hp": [
+          0.8936,
+          1,
+          0.1782,
+          0.1772,
+          0.505
+        ],
+        "avgFitness": 2.6611,
+        "alive": 5,
+        "extinct": [],
+        "leader": "counterIntelligence",
+        "matrix": [
+          [
+            2.7,
+            2.285,
+            2.74,
+            2.785,
+            2.645
+          ],
+          [
+            2.66,
+            2.91,
+            2.89,
+            2.405,
+            3.025
+          ],
+          [
+            2.89,
+            2.89,
+            1.625,
+            3.345,
+            1.36
+          ],
+          [
+            2.81,
+            1.005,
+            2.295,
+            2.535,
+            2.78
+          ],
+          [
+            2.92,
+            2.825,
+            1.66,
+            2.93,
+            2.85
+          ]
+        ],
+        "battle": {
+          "lanes": [
+            {
+              "left": "windAndMountain",
+              "right": "patience",
+              "leftIndex": 4,
+              "rightIndex": 0,
+              "front": 0.562,
+              "scoreLeft": 2.92,
+              "scoreRight": 2.645,
+              "winner": "windAndMountain",
+              "damageLeft": 0,
+              "damageRight": 0.0583
+            },
+            {
+              "left": "counterIntelligence",
+              "right": "resonance",
+              "leftIndex": 1,
+              "rightIndex": 3,
+              "front": 0.6931,
+              "scoreLeft": 2.405,
+              "scoreRight": 1.005,
+              "winner": "counterIntelligence",
+              "damageLeft": 0,
+              "damageRight": 0.2739
+            },
+            {
+              "left": "quartermaster",
+              "right": null,
+              "leftIndex": 2,
+              "rightIndex": -1,
+              "front": 0.88,
+              "scoreLeft": 0,
+              "scoreRight": 0,
+              "winner": "quartermaster",
+              "damageLeft": 0,
+              "damageRight": 0
+            }
+          ],
+          "intensity": 0.1108
+        }
+      },
+      {
+        "gen": 22,
+        "shares": [
+          0.323298,
+          0.493475,
+          0.035639,
+          0.035437,
+          0.11215
+        ],
+        "sharesAfter": [
+          0.367524,
+          0.446879,
+          0.038212,
+          0.025178,
+          0.122207
+        ],
+        "fitness": [
+          2.9244,
+          2.3296,
+          2.7582,
+          1.8277,
+          2.8032
+        ],
+        "coop": [
+          0.8882,
+          0.6382,
+          0.8157,
+          0.6875,
+          0.8942
+        ],
+        "hp": [
+          1,
+          0.9056,
+          0.1911,
+          0.1259,
+          0.5503
+        ],
+        "avgFitness": 2.5725,
+        "alive": 5,
+        "extinct": [],
+        "leader": "counterIntelligence",
+        "matrix": [
+          [
+            2.935,
+            2.935,
+            2.835,
+            2.99,
+            2.855
+          ],
+          [
+            2.91,
+            1.72,
+            2.875,
+            2.79,
+            3.02
+          ],
+          [
+            2.86,
+            2.9,
+            1.53,
+            3.3,
+            2.06
+          ],
+          [
+            2.665,
+            0.965,
+            2.25,
+            2.575,
+            2.84
+          ],
+          [
+            2.78,
+            2.82,
+            2.485,
+            2.715,
+            2.925
+          ]
+        ],
+        "battle": {
+          "lanes": [
+            {
+              "left": "patience",
+              "right": "counterIntelligence",
+              "leftIndex": 0,
+              "rightIndex": 1,
+              "front": 0.5066,
+              "scoreLeft": 2.935,
+              "scoreRight": 2.91,
+              "winner": "patience",
+              "damageLeft": 0,
+              "damageRight": 0.0944
+            },
+            {
+              "left": "windAndMountain",
+              "right": "resonance",
+              "leftIndex": 4,
+              "rightIndex": 3,
+              "front": 0.4692,
+              "scoreLeft": 2.715,
+              "scoreRight": 2.84,
+              "winner": "resonance",
+              "damageLeft": 0,
+              "damageRight": 0.2895
+            },
+            {
+              "left": "quartermaster",
+              "right": null,
+              "leftIndex": 2,
+              "rightIndex": -1,
+              "front": 0.88,
+              "scoreLeft": 0,
+              "scoreRight": 0,
+              "winner": "quartermaster",
+              "damageLeft": 0,
+              "damageRight": 0
+            }
+          ],
+          "intensity": 0.128
+        }
+      },
+      {
+        "gen": 23,
+        "shares": [
+          0.367524,
+          0.446879,
+          0.038212,
+          0.025178,
+          0.122207
+        ],
+        "sharesAfter": [
+          0.360983,
+          0.460805,
+          0.035988,
+          0.023663,
+          0.118562
+        ],
+        "fitness": [
+          2.8064,
+          2.9463,
+          2.691,
+          2.6854,
+          2.7721
+        ],
+        "coop": [
+          0.8904,
+          0.9076,
+          0.778,
+          0.8833,
+          0.8521
+        ],
+        "hp": [
+          0.9822,
+          0.9338,
+          0.1799,
+          0.1183,
+          0.5338
+        ],
+        "avgFitness": 2.8573,
+        "alive": 5,
+        "extinct": [],
+        "leader": "counterIntelligence",
+        "matrix": [
+          [
+            2.785,
+            2.82,
+            2.65,
+            3.075,
+            2.815
+          ],
+          [
+            2.945,
+            2.945,
+            2.91,
+            2.93,
+            2.97
+          ],
+          [
+            2.925,
+            2.835,
+            1.53,
+            2.83,
+            1.795
+          ],
+          [
+            2.575,
+            2.83,
+            2.255,
+            2.045,
+            2.755
+          ],
+          [
+            2.69,
+            2.845,
+            2.295,
+            2.755,
+            2.905
+          ]
+        ],
+        "battle": {
+          "lanes": [
+            {
+              "left": "counterIntelligence",
+              "right": "patience",
+              "leftIndex": 1,
+              "rightIndex": 0,
+              "front": 0.5308,
+              "scoreLeft": 2.945,
+              "scoreRight": 2.82,
+              "winner": "counterIntelligence",
+              "damageLeft": 0,
+              "damageRight": 0.0178
+            },
+            {
+              "left": null,
+              "right": "windAndMountain",
+              "leftIndex": -1,
+              "rightIndex": 4,
+              "front": 0.12,
+              "scoreLeft": 0,
+              "scoreRight": 0,
+              "winner": "windAndMountain",
+              "damageLeft": 0,
+              "damageRight": 0.0298
+            },
+            {
+              "left": null,
+              "right": "quartermaster",
+              "leftIndex": -1,
+              "rightIndex": 2,
+              "front": 0.12,
+              "scoreLeft": 0,
+              "scoreRight": 0,
+              "winner": "quartermaster",
+              "damageLeft": 0,
+              "damageRight": 0.0582
+            },
+            {
+              "left": null,
+              "right": "resonance",
+              "leftIndex": -1,
+              "rightIndex": 3,
+              "front": 0.12,
+              "scoreLeft": 0,
+              "scoreRight": 0,
+              "winner": "resonance",
+              "damageLeft": 0,
+              "damageRight": 0.0602
+            }
+          ],
+          "intensity": 0.0415
+        }
+      },
+      {
+        "gen": 24,
+        "shares": [
+          0.360983,
+          0.460805,
+          0.035988,
+          0.023663,
+          0.118562
+        ],
+        "sharesAfter": [
+          0.377,
+          0.428759,
+          0.036364,
+          0.021074,
+          0.136803
+        ],
+        "fitness": [
+          2.51,
+          2.2362,
+          2.4285,
+          2.1404,
+          2.7731
+        ],
+        "coop": [
+          0.7772,
+          0.5143,
+          0.7423,
+          0.7632,
+          0.9055
+        ],
+        "hp": [
+          1,
+          0.8689,
+          0.1818,
+          0.1054,
+          0.616
+        ],
+        "avgFitness": 2.4034,
+        "alive": 5,
+        "extinct": [],
+        "leader": "counterIntelligence",
+        "matrix": [
+          [
+            2.915,
+            2.055,
+            2.805,
+            2.94,
+            2.87
+          ],
+          [
+            2.63,
+            1.63,
+            2.79,
+            3.015,
+            3.07
+          ],
+          [
+            2.93,
+            2.24,
+            1.55,
+            3.335,
+            1.72
+          ],
+          [
+            2.69,
+            1.565,
+            2.285,
+            2.44,
+            2.6
+          ],
+          [
+            2.77,
+            2.82,
+            2.345,
+            2.825,
+            2.72
+          ]
+        ],
+        "battle": {
+          "lanes": [
+            {
+              "left": "windAndMountain",
+              "right": "counterIntelligence",
+              "leftIndex": 4,
+              "rightIndex": 1,
+              "front": 0.4429,
+              "scoreLeft": 2.82,
+              "scoreRight": 3.07,
+              "winner": "counterIntelligence",
+              "damageLeft": 0,
+              "damageRight": 0.0695
+            },
+            {
+              "left": "patience",
+              "right": "resonance",
+              "leftIndex": 0,
+              "rightIndex": 3,
+              "front": 0.5571,
+              "scoreLeft": 2.94,
+              "scoreRight": 2.69,
+              "winner": "patience",
+              "damageLeft": 0,
+              "damageRight": 0.1094
+            },
+            {
+              "left": "quartermaster",
+              "right": null,
+              "leftIndex": 2,
+              "rightIndex": -1,
+              "front": 0.88,
+              "scoreLeft": 0,
+              "scoreRight": 0,
+              "winner": "quartermaster",
+              "damageLeft": 0,
+              "damageRight": 0
+            }
+          ],
+          "intensity": 0.0596
+        }
+      },
+      {
+        "gen": 25,
+        "shares": [
+          0.377,
+          0.428759,
+          0.036364,
+          0.021074,
+          0.136803
+        ],
+        "sharesAfter": [
+          0.374106,
+          0.434105,
+          0.036132,
+          0.019845,
+          0.135812
+        ],
+        "fitness": [
+          2.8496,
+          2.9074,
+          2.8533,
+          2.7041,
+          2.8509
+        ],
+        "coop": [
+          0.8818,
+          0.899,
+          0.8142,
+          0.8709,
+          0.913
+        ],
+        "hp": [
+          0.9923,
+          0.8797,
+          0.1807,
+          0.0992,
+          0.6115
+        ],
+        "avgFitness": 2.8716,
+        "alive": 5,
+        "extinct": [],
+        "leader": "counterIntelligence",
+        "matrix": [
+          [
+            2.86,
+            2.835,
+            2.75,
+            2.87,
+            2.89
+          ],
+          [
+            2.91,
+            2.92,
+            2.8,
+            2.97,
+            2.88
+          ],
+          [
+            2.85,
+            2.925,
+            1.7,
+            3.305,
+            2.875
+          ],
+          [
+            2.67,
+            2.82,
+            2.255,
+            1.595,
+            2.725
+          ],
+          [
+            2.865,
+            2.88,
+            2.525,
+            2.8,
+            2.815
+          ]
+        ],
+        "battle": {
+          "lanes": [
+            {
+              "left": "counterIntelligence",
+              "right": "quartermaster",
+              "leftIndex": 1,
+              "rightIndex": 2,
+              "front": 0.4692,
+              "scoreLeft": 2.8,
+              "scoreRight": 2.925,
+              "winner": "quartermaster",
+              "damageLeft": 0,
+              "damageRight": 0.0064
+            },
+            {
+              "left": null,
+              "right": "windAndMountain",
+              "leftIndex": -1,
+              "rightIndex": 4,
+              "front": 0.12,
+              "scoreLeft": 0,
+              "scoreRight": 0,
+              "winner": "windAndMountain",
+              "damageLeft": 0,
+              "damageRight": 0.0072
+            },
+            {
+              "left": null,
+              "right": "patience",
+              "leftIndex": -1,
+              "rightIndex": 0,
+              "front": 0.12,
+              "scoreLeft": 0,
+              "scoreRight": 0,
+              "winner": "patience",
+              "damageLeft": 0,
+              "damageRight": 0.0077
+            },
+            {
+              "left": null,
+              "right": "resonance",
+              "leftIndex": -1,
+              "rightIndex": 3,
+              "front": 0.12,
+              "scoreLeft": 0,
+              "scoreRight": 0,
+              "winner": "resonance",
+              "damageLeft": 0,
+              "damageRight": 0.0583
+            }
+          ],
+          "intensity": 0.0199
+        }
+      },
+      {
+        "gen": 26,
+        "shares": [
+          0.374106,
+          0.434105,
+          0.036132,
+          0.019845,
+          0.135812
+        ],
+        "sharesAfter": [
+          0.375708,
+          0.44121,
+          0.033098,
+          0.0182,
+          0.131784
+        ],
+        "fitness": [
+          2.9052,
+          2.9402,
+          2.6499,
+          2.6531,
+          2.807
+        ],
+        "coop": [
+          0.9016,
+          0.9296,
+          0.7495,
+          0.9077,
+          0.9028
+        ],
+        "hp": [
+          0.9966,
+          0.8941,
+          0.1655,
+          0.091,
+          0.5934
+        ],
+        "avgFitness": 2.8928,
+        "alive": 5,
+        "extinct": [],
+        "leader": "counterIntelligence",
+        "matrix": [
+          [
+            2.84,
+            2.925,
+            2.68,
+            3.19,
+            3.04
+          ],
+          [
+            2.975,
+            2.91,
+            2.79,
+            2.945,
+            2.98
+          ],
+          [
+            2.955,
+            2.89,
+            1.255,
+            3.32,
+            1.315
+          ],
+          [
+            2.49,
+            2.82,
+            2.27,
+            2.83,
+            2.645
+          ],
+          [
+            2.74,
+            2.905,
+            1.89,
+            2.995,
+            2.895
+          ]
+        ],
+        "battle": {
+          "lanes": [
+            {
+              "left": "counterIntelligence",
+              "right": "windAndMountain",
+              "leftIndex": 1,
+              "rightIndex": 4,
+              "front": 0.519,
+              "scoreLeft": 2.98,
+              "scoreRight": 2.905,
+              "winner": "counterIntelligence",
+              "damageLeft": 0,
+              "damageRight": 0.0297
+            },
+            {
+              "left": "patience",
+              "right": "resonance",
+              "leftIndex": 0,
+              "rightIndex": 3,
+              "front": 0.6273,
+              "scoreLeft": 3.19,
+              "scoreRight": 2.49,
+              "winner": "patience",
+              "damageLeft": 0,
+              "damageRight": 0.0829
+            },
+            {
+              "left": null,
+              "right": "quartermaster",
+              "leftIndex": -1,
+              "rightIndex": 2,
+              "front": 0.12,
+              "scoreLeft": 0,
+              "scoreRight": 0,
+              "winner": "quartermaster",
+              "damageLeft": 0,
+              "damageRight": 0.084
+            }
+          ],
+          "intensity": 0.0655
+        }
+      },
+      {
+        "gen": 27,
+        "shares": [
+          0.375708,
+          0.44121,
+          0.033098,
+          0.0182,
+          0.131784
+        ],
+        "sharesAfter": [
+          0.343931,
+          0.477551,
+          0.035494,
+          0.01877,
+          0.124254
+        ],
+        "fitness": [
+          2.445,
+          2.8909,
+          2.8643,
+          2.7546,
+          2.5183
+        ],
+        "coop": [
+          0.7647,
+          0.827,
+          0.8763,
+          0.8763,
+          0.6883
+        ],
+        "hp": [
+          0.9123,
+          0.9677,
+          0.1775,
+          0.0939,
+          0.5595
+        ],
+        "avgFitness": 2.6709,
+        "alive": 5,
+        "extinct": [],
+        "leader": "counterIntelligence",
+        "matrix": [
+          [
+            2.805,
+            2.34,
+            2.89,
+            2.87,
+            1.6
+          ],
+          [
+            2.865,
+            2.885,
+            2.92,
+            2.945,
+            2.97
+          ],
+          [
+            2.89,
+            2.92,
+            1.525,
+            3.305,
+            2.88
+          ],
+          [
+            2.72,
+            2.87,
+            2.255,
+            2.555,
+            2.62
+          ],
+          [
+            1.9,
+            2.92,
+            2.655,
+            2.895,
+            2.85
+          ]
+        ],
+        "battle": {
+          "lanes": [
+            {
+              "left": "counterIntelligence",
+              "right": "windAndMountain",
+              "leftIndex": 1,
+              "rightIndex": 4,
+              "front": 0.5129,
+              "scoreLeft": 2.97,
+              "scoreRight": 2.92,
+              "winner": "counterIntelligence",
+              "damageLeft": 0,
+              "damageRight": 0.0571
+            },
+            {
+              "left": "quartermaster",
+              "right": "patience",
+              "leftIndex": 2,
+              "rightIndex": 0,
+              "front": 0.5,
+              "scoreLeft": 2.89,
+              "scoreRight": 2.89,
+              "winner": null,
+              "damageLeft": 0,
+              "damageRight": 0.0846
+            },
+            {
+              "left": "resonance",
+              "right": null,
+              "leftIndex": 3,
+              "rightIndex": -1,
+              "front": 0.88,
+              "scoreLeft": 0,
+              "scoreRight": 0,
+              "winner": "resonance",
+              "damageLeft": 0,
+              "damageRight": 0
+            }
+          ],
+          "intensity": 0.0472
+        }
+      },
+      {
+        "gen": 28,
+        "shares": [
+          0.343931,
+          0.477551,
+          0.035494,
+          0.01877,
+          0.124254
+        ],
+        "sharesAfter": [
+          0.363412,
+          0.486832,
+          0.034971,
+          0.019075,
+          0.09571
+        ],
+        "fitness": [
+          2.8931,
+          2.7912,
+          2.6976,
+          2.7825,
+          2.109
+        ],
+        "coop": [
+          0.8768,
+          0.8227,
+          0.805,
+          0.8652,
+          0.5433
+        ],
+        "hp": [
+          0.964,
+          0.9865,
+          0.1749,
+          0.0954,
+          0.4309
+        ],
+        "avgFitness": 2.738,
+        "alive": 5,
+        "extinct": [],
+        "leader": "counterIntelligence",
+        "matrix": [
+          [
+            3.04,
+            2.795,
+            2.845,
+            2.94,
+            2.87
+          ],
+          [
+            2.995,
+            2.87,
+            2.835,
+            2.935,
+            1.89
+          ],
+          [
+            2.845,
+            2.885,
+            1.575,
+            1.575,
+            2.06
+          ],
+          [
+            2.69,
+            2.86,
+            3.025,
+            2.26,
+            2.75
+          ],
+          [
+            2.82,
+            1.69,
+            2.26,
+            2.925,
+            1.585
+          ]
+        ],
+        "battle": {
+          "lanes": [
+            {
+              "left": "patience",
+              "right": "quartermaster",
+              "leftIndex": 0,
+              "rightIndex": 2,
+              "front": 0.5,
+              "scoreLeft": 2.845,
+              "scoreRight": 2.845,
+              "winner": null,
+              "damageLeft": 0,
+              "damageRight": 0.0147
+            },
+            {
+              "left": "counterIntelligence",
+              "right": "windAndMountain",
+              "leftIndex": 1,
+              "rightIndex": 4,
+              "front": 0.5471,
+              "scoreLeft": 1.89,
+              "scoreRight": 1.69,
+              "winner": "counterIntelligence",
+              "damageLeft": 0,
+              "damageRight": 0.2297
+            },
+            {
+              "left": "resonance",
+              "right": null,
+              "leftIndex": 3,
+              "rightIndex": -1,
+              "front": 0.88,
+              "scoreLeft": 0,
+              "scoreRight": 0,
+              "winner": "resonance",
+              "damageLeft": 0,
+              "damageRight": 0
+            }
+          ],
+          "intensity": 0.0815
+        }
+      },
+      {
+        "gen": 29,
+        "shares": [
+          0.363412,
+          0.486832,
+          0.034971,
+          0.019075,
+          0.09571
+        ],
+        "sharesAfter": [
+          0.3443,
+          0.505611,
+          0.025286,
+          0.020766,
+          0.104037
+        ],
+        "fitness": [
+          2.4461,
+          2.6814,
+          1.8669,
+          2.8108,
+          2.8065
+        ],
+        "coop": [
+          0.7169,
+          0.721,
+          0.4343,
+          0.8739,
+          0.8638
+        ],
+        "hp": [
+          0.9133,
+          1,
+          0.1264,
+          0.1038,
+          0.4684
+        ],
+        "avgFitness": 2.5818,
+        "alive": 5,
+        "extinct": [],
+        "leader": "counterIntelligence",
+        "matrix": [
+          [
+            2.935,
+            1.97,
+            2.88,
+            2.835,
+            2.775
+          ],
+          [
+            2.42,
+            2.9,
+            1.455,
+            2.985,
+            2.95
+          ],
+          [
+            2.805,
+            1.23,
+            1.465,
+            2.825,
+            1.5
+          ],
+          [
+            2.785,
+            2.835,
+            2.775,
+            3.105,
+            2.74
+          ],
+          [
+            2.825,
+            2.85,
+            1.775,
+            2.79,
+            2.895
+          ]
+        ],
+        "battle": {
+          "lanes": [
+            {
+              "left": "resonance",
+              "right": "patience",
+              "leftIndex": 3,
+              "rightIndex": 0,
+              "front": 0.4871,
+              "scoreLeft": 2.785,
+              "scoreRight": 2.835,
+              "winner": "patience",
+              "damageLeft": 0,
+              "damageRight": 0.0526
+            },
+            {
+              "left": "windAndMountain",
+              "right": "quartermaster",
+              "leftIndex": 4,
+              "rightIndex": 2,
+              "front": 0.562,
+              "scoreLeft": 1.775,
+              "scoreRight": 1.5,
+              "winner": "windAndMountain",
+              "damageLeft": 0,
+              "damageRight": 0.2769
+            },
+            {
+              "left": "counterIntelligence",
+              "right": null,
+              "leftIndex": 1,
+              "rightIndex": -1,
+              "front": 0.88,
+              "scoreLeft": 0,
+              "scoreRight": 0,
+              "winner": "counterIntelligence",
+              "damageLeft": 0,
+              "damageRight": 0
+            }
+          ],
+          "intensity": 0.1098
+        }
+      }
+    ],
+    "outcome": {
+      "type": "coexistence",
+      "id": "counterIntelligence",
+      "gen": 29
+    },
+    "standings": [
+      {
+        "id": "counterIntelligence",
+        "share": 0.505611,
+        "fitness": 2.6814
+      },
+      {
+        "id": "patience",
+        "share": 0.3443,
+        "fitness": 2.4461
+      },
+      {
+        "id": "windAndMountain",
+        "share": 0.104037,
+        "fitness": 2.8065
+      },
+      {
+        "id": "quartermaster",
+        "share": 0.025286,
+        "fitness": 1.8669
+      },
+      {
+        "id": "resonance",
+        "share": 0.020766,
+        "fitness": 2.8108
+      }
+    ],
+    "extinctions": [],
+    "totalMatches": 450
+  },
+  "verdict": "Из 4 претендентов через 30 поколений выжило 4: Контрразведка — 50.6%, Ветер и Гора — 10.4%, Интендант — 2.5%, Резонанс — 2.1%. Чемпион лиги «Терпение» удержал 34.4% и уступил первое место. Выбыли: никто."
+}
