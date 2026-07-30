@@ -50,8 +50,32 @@
   button:hover { border-color: var(--gold); }
   button.active { background: var(--gold); color: #16130a; border-color: var(--gold); font-weight: 600; }
   #btnPlay { min-width: 92px; font-weight: 600; }
-  #genSlider { width: 220px; accent-color: var(--gold); }
+  .scrubber { position: relative; display: inline-block; width: 230px; height: 34px; flex: 1; }
+  .scrubber canvas { position: absolute; inset: 0; width: 100%; height: 100%; border-radius: 6px; opacity: 0.85; }
+  #genSlider { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; accent-color: var(--gold); background: transparent; }
   #genLabel { font-variant-numeric: tabular-nums; min-width: 130px; color: var(--ink-dim); }
+  #btnSound.on { background: var(--gold); color: #16130a; border-color: var(--gold); }
+
+  /* Инспектор дуэлей */
+  #inspector select, #playSection select {
+    background: var(--panel-2); color: var(--ink); border: 1px solid var(--line);
+    border-radius: 7px; padding: 5px 8px; font-size: 14px;
+  }
+  #duelTape { display: block; width: 100%; cursor: crosshair; }
+  #duelInfo { font-size: 13px; color: var(--ink-dim); margin-top: 6px; min-height: 20px; font-variant-numeric: tabular-nums; }
+
+  /* Тепловая карта */
+  #heatmap { display: block; width: 100%; }
+  #heatInfo { font-size: 12.5px; color: var(--ink-dim); min-height: 18px; margin-top: 4px; }
+
+  /* Зал славы */
+  #hofBody td { padding: 4px 6px; border-bottom: 1px solid rgba(42,50,69,0.5); font-variant-numeric: tabular-nums; }
+
+  /* Сыграй сам */
+  .play-btns button { font-size: 16px; padding: 10px 18px; }
+  #playTape { display: block; width: 100%; }
+  #playVerdict { margin-top: 10px; font-size: 14px; line-height: 1.6; }
+  #playVerdict .aphorism { font-family: var(--serif); font-style: italic; color: var(--gold); }
 
   #battleWrap { position: relative; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: #0a0c10; }
   #battlefield { display: block; width: 100%; }
@@ -132,12 +156,15 @@
 
   <div class="toolbar">
     <div class="group" id="viewTabs">
-      <button data-view="arena" class="active">⚔ Арена</button>
+      <button data-view="arena" class="active">⚔ Битва</button>
       <button data-view="territory">🗺 Территория</button>
+      <button data-view="analytics">📜 Аналитика</button>
+      <button data-view="play">🎮 Сыграй сам</button>
     </div>
     <div class="group" id="seedTabs"><label>Прогон</label></div>
     <div class="group">
       <button id="btnPlay">▶ Играть</button>
+      <button id="btnSound" title="Звук (WebAudio, по умолчанию выключен)">🔇</button>
     </div>
     <div class="group" id="speedGroup">
       <label>Скорость</label>
@@ -146,7 +173,7 @@
       <button data-speed="16">×16</button>
     </div>
     <div class="group" style="flex:1; min-width:260px;">
-      <input type="range" id="genSlider" min="0" max="30" step="1" value="0">
+      <span class="scrubber"><canvas id="scrubThumb"></canvas><input type="range" id="genSlider" min="0" max="30" step="1" value="0"></span>
       <span id="genLabel"></span>
     </div>
   </div>
@@ -158,6 +185,7 @@
       <h2 id="victoryName"></h2>
       <div class="cond" id="victoryCond"></div>
       <div class="podium" id="victoryPodium"></div>
+      <div class="cond" id="victoryStats" style="font-size:13px"></div>
       <button id="btnReplay">⟲ Смотреть снова</button>
     </div>
   </div>
@@ -194,24 +222,80 @@
     </div>
   </div>
 
-  <div class="panels">
-    <div class="panel">
-      <h3>Доли популяции по поколениям</h3>
-      <canvas id="chart"></canvas>
+  <div id="analyticsSection" style="display:none">
+    <div class="panels">
+      <div class="panel">
+        <h3>Доли популяции по поколениям</h3>
+        <canvas id="chart"></canvas>
+      </div>
+      <div class="panel" id="leaderboard">
+        <h3>Таблица лидеров</h3>
+        <table>
+          <thead><tr><th>#</th><th>Фракция</th><th>Доля</th><th>Δ</th><th>Фитнес</th></tr></thead>
+          <tbody id="lbBody"></tbody>
+        </table>
+      </div>
     </div>
-    <div class="panel" id="leaderboard">
-      <h3>Таблица лидеров</h3>
-      <table>
-        <thead><tr><th>#</th><th>Фракция</th><th>Доля</th><th>Δ</th><th>Фитнес</th></tr></thead>
-        <tbody id="lbBody"></tbody>
-      </table>
+
+    <div class="panel" id="inspector" style="margin-top:16px">
+      <h3>Инспектор дуэлей</h3>
+      <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:10px">
+        <select id="duelA"></select>
+        <span style="color:var(--ink-dim)">против</span>
+        <select id="duelB"></select>
+        <label style="color:var(--ink-dim); font-size:12px">поколение</label>
+        <select id="duelGen"></select>
+        <button id="duelRun">⚔ Сыграть матч</button>
+        <button id="duelPlay">▶</button>
+        <span id="duelParity" style="font-size:12.5px; color:var(--ink-dim)"></span>
+      </div>
+      <canvas id="duelTape"></canvas>
+      <input type="range" id="duelScrub" min="0" max="200" value="200" style="width:100%; accent-color:var(--gold)">
+      <div id="duelInfo"></div>
+    </div>
+
+    <div class="panel" id="heatPanel" style="margin-top:16px">
+      <h3>Стенд устойчивости: кто побеждает где</h3>
+      <canvas id="heatmap"></canvas>
+      <div id="heatInfo">Наведи на клетку: условие × стратегия. Золотая рамка — победитель условия.</div>
+    </div>
+
+    <div class="panels" style="margin-top:16px">
+      <div class="panel" id="hallOfFame">
+        <h3>Зал славы (ELO по всем матчам)</h3>
+        <table>
+          <thead><tr><th>#</th><th>Стратегия</th><th>ELO</th><th>В/Н/П</th><th>Матчей</th></tr></thead>
+          <tbody id="hofBody"></tbody>
+        </table>
+      </div>
+      <div class="panel" id="genStats">
+        <h3>Генетика: «Безымянный»</h3>
+        <div id="genInfo" style="font-size:13.5px; color:var(--ink-dim)">Геном и родословная — в досье; здесь — его место в лиге.</div>
+      </div>
+    </div>
+
+    <div id="dossiers" style="margin-top:16px">
+      <div class="panel">
+        <h3>Досье стратегий</h3>
+        <div class="cards" id="cardGrid"></div>
+      </div>
     </div>
   </div>
 
-  <div id="dossiers">
+  <div id="playSection" style="display:none">
     <div class="panel">
-      <h3>Досье стратегий</h3>
-      <div class="cards" id="cardGrid"></div>
+      <h3>Сыграй сам: 20 раундов против любой стратегии</h3>
+      <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:10px">
+        <select id="playOpp"></select>
+        <button id="playStart">Начать матч</button>
+        <span id="playScore" style="font-variant-numeric:tabular-nums; color:var(--ink-dim)"></span>
+      </div>
+      <div class="play-btns" style="display:flex; gap:12px; margin-bottom:10px">
+        <button id="playC" disabled>🕊 Сотрудничать</button>
+        <button id="playD" disabled>🗡 Предать</button>
+      </div>
+      <canvas id="playTape"></canvas>
+      <div id="playVerdict"></div>
     </div>
   </div>
 
@@ -219,6 +303,7 @@
 </div>
 
 <script src="replay.js"></script>
+<script src="league.js"></script>
 <script>
 (() => {
   // ── Валидация данных ────────────────────────────────────────────────
@@ -272,6 +357,13 @@
     buildChartCache();
     buildDossiers();
     syncMetaLabels();
+    drawScrubThumb();
+    populateInspector();
+    populatePlay();
+    if (tState.view === 'analytics') {
+      renderHeatmap();
+      renderHallOfFame();
+    }
   }
 
   // Подписи с параметрами симуляции берутся из meta прогона, а не хардкода.
@@ -326,19 +418,26 @@
   const DPR = Math.min(window.devicePixelRatio || 1, 2);
 
   function layout() {
-    W = canvas.parentElement.clientWidth;
+    W = canvas.parentElement.clientWidth || document.querySelector('.wrap').clientWidth - 32;
     H = Math.max(380, Math.round(W * 0.42));
     canvas.width = W * DPR;
     canvas.height = H * DPR;
     canvas.style.height = H + 'px';
     ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    layoutScrubber();
+  }
+
+  // Разметка канвасов вкладки «Аналитика» (пока она скрыта, ширины нулевые).
+  function layoutAnalytics() {
     CHART_W = chartCanvas.parentElement.clientWidth - 32;
+    if (CHART_W <= 0) return;
     CHART_H = 200;
     chartCanvas.width = CHART_W * DPR;
     chartCanvas.height = CHART_H * DPR;
     chartCanvas.style.height = CHART_H + 'px';
     chartCtx.setTransform(DPR, 0, 0, DPR, 0, 0);
     buildChartCache();
+    layoutDuelTape();
   }
 
   // ── Сиды и управление ───────────────────────────────────────────────
@@ -417,6 +516,7 @@
       if (sp && e.code === 'ArrowLeft') { tState.pos = Math.max(0, Math.ceil(tState.pos) - 1); updateTerritoryHud(true); }
       return;
     }
+    if (tState.view !== 'arena') return; // аналитика и «Сыграй сам» — без горячих клавиш
     if (e.code === 'Space') { e.preventDefault(); setPlaying(!state.playing); }
     if (e.code === 'ArrowRight') { state.pos = Math.min(G(), Math.floor(state.pos) + 1); state.lastWholeGen = Math.floor(state.pos); updateHud(true); }
     if (e.code === 'ArrowLeft') { state.pos = Math.max(0, Math.ceil(state.pos) - 1); state.lastWholeGen = Math.floor(state.pos); updateHud(true); }
@@ -462,6 +562,7 @@
 
   function drawTower(x, y, color, hp, dead, laneH) {
     const w = 30, h = Math.min(64, laneH * 0.62);
+    const hpFrac = Math.max(0, Math.min(1, hp / (run().meta.dominationShare || 0.6)));
     ctx.save();
     ctx.translate(x, y);
     if (dead) { ctx.globalAlpha = 0.35; ctx.rotate(0.12); }
@@ -472,9 +573,31 @@
     ctx.beginPath();
     ctx.rect(-w / 2, -h, w, h);
     ctx.fill(); ctx.stroke();
-    // зубцы
+    // стадии разрушения: трещины при < 50% прочности, проломы при < 25%
+    if (!dead && hpFrac < 0.5) {
+      ctx.strokeStyle = 'rgba(10,12,16,0.85)';
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.moveTo(-w / 4, -h + 6);
+      ctx.lineTo(0, -h * 0.6);
+      ctx.lineTo(-w / 5, -h * 0.35);
+      ctx.stroke();
+      if (hpFrac < 0.25) {
+        ctx.beginPath();
+        ctx.moveTo(w / 3, -h + 10);
+        ctx.lineTo(w / 8, -h * 0.55);
+        ctx.lineTo(w / 3.2, -h * 0.3);
+        ctx.stroke();
+        ctx.fillStyle = 'rgba(10,12,16,0.7)';
+        ctx.fillRect(-w / 2 + 3, -h * 0.4, 8, 6); // пролом
+      }
+    }
+    // зубцы (при сильном разрушении часть обвалилась)
     ctx.fillStyle = '#2c3448';
-    for (let i = -1; i <= 1; i++) ctx.fillRect(i * 10 - 4, -h - 7, 8, 7);
+    for (let i = -1; i <= 1; i++) {
+      if (hpFrac < 0.25 && i === 1) continue;
+      ctx.fillRect(i * 10 - 4, -h - 7, 8, 7);
+    }
     // знамя
     ctx.strokeStyle = '#4a5470';
     ctx.beginPath(); ctx.moveTo(0, -h - 7); ctx.lineTo(0, -h - 26); ctx.stroke();
@@ -514,7 +637,9 @@
       const backOff = col * 13 + jitter(faction * 97 + u) * 6;
       const targetX = frontX - dir * (14 + backOff);
       const x = fromX + (targetX - fromX) * ease;
-      const y = laneY + 14 + row * ((laneH - 34) / 4) + (jitter(faction * 31 + u * 7) - 0.5) * 6;
+      // траектория: дуга по ходу марша (0 на старте и у фронта)
+      const arc = Math.sin(march * Math.PI) * 8 * (jitter(faction * 53 + u * 11) - 0.5) * 2;
+      const y = laneY + 14 + row * ((laneH - 34) / 4) + (jitter(faction * 31 + u * 7) - 0.5) * 6 + arc;
       const bob = Math.sin(time * 0.012 + u * 1.7) * (clashing ? 2.2 : 1.2);
       ctx.fillStyle = strat.color;
       ctx.strokeStyle = 'rgba(0,0,0,0.45)';
@@ -636,16 +761,19 @@
             floatText(frontX - 26, y, '+' + P.R, '#7bd389');
             floatText(frontX + 26, y, '+' + P.R, '#7bd389');
             burst(frontX, y, '#7bd389', 4, 1.1);
+            if (time - lastCoopSound > 260) { sound.clash(); lastCoopSound = time; }
           } else if (r < pCC + pDC) {
             floatText(frontX - 26, y, '+' + P.T, '#ff6b6b');
             floatText(frontX + 26, y, String(P.S), '#5f6875');
             burst(frontX, y, sa.color, 7, 1.9);
             shake = Math.min(shake + 1.6, 7);
+            if (time - lastBetraySound > 180) { sound.betray(); lastBetraySound = time; }
           } else if (r < pCC + pDC + pCD) {
             floatText(frontX - 26, y, String(P.S), '#5f6875');
             floatText(frontX + 26, y, '+' + P.T, '#ff6b6b');
             burst(frontX, y, sb.color, 7, 1.9);
             shake = Math.min(shake + 1.6, 7);
+            if (time - lastBetraySound > 180) { sound.betray(); lastBetraySound = time; }
           } else {
             floatText(frontX - 26, y, '+' + P.P, '#9aa0a6');
             floatText(frontX + 26, y, '+' + P.P, '#9aa0a6');
@@ -839,10 +967,18 @@
   }
 
   // ── Победа ──────────────────────────────────────────────────────────
+  let victoryCelebrated = false;
   function updateVictory() {
     const show = state.pos >= G();
     victoryEl.classList.toggle('show', show);
-    if (!show) return;
+    if (!show) {
+      victoryCelebrated = false;
+      return;
+    }
+    if (!victoryCelebrated) {
+      victoryCelebrated = true;
+      sound.fanfare();
+    }
     const r = run();
     const w = r.strategies[r.outcome.winner];
     document.getElementById('victoryName').textContent = w.name;
@@ -864,6 +1000,25 @@
         ' <span class="swatch" style="background:' + p.s.color + '"></span>' +
         p.s.name + ' — ' + (p.share * 100).toFixed(1) + '%</div>')
       .join('');
+    // итоговая статистика кампании
+    const lastGen = r.generations[r.generations.length - 1];
+    let num = 0;
+    let den = 0;
+    for (const m of lastGen.matches) {
+      const wgt = lastGen.sharesBefore[m.a] * lastGen.sharesBefore[m.b] * (m.a === m.b ? 1 : 2);
+      num += (wgt * (m.ca + m.cb)) / 2;
+      den += wgt;
+    }
+    const fallen = r.strategies
+      .map((s, i) => ({ s, g: extinctionGen[i] }))
+      .filter((x) => x.g)
+      .sort((a, b) => a.g - b.g);
+    document.getElementById('victoryStats').innerHTML =
+      'Кооперация финала: <b>' + (den ? ((num / den) * 100).toFixed(0) : '—') + '%</b> · ' +
+      'средний фитнес: <b>' + lastGen.meanFitness.toFixed(2) + '</b>' +
+      (fallen.length
+        ? '<br>Павшие: ' + fallen.map((x) => '<span style="color:' + x.s.color + '">' + x.s.name + '</span> †' + x.g).join(' · ')
+        : '<br>Ни одна фракция не пала — редчайшая кампания');
   }
 
   // ── Территория (пространственный режим) ─────────────────────────────
@@ -963,11 +1118,13 @@
       return;
     }
     if (tState.playing) {
+      const before = Math.floor(tState.pos);
       tState.pos += (dt * state.speed) / EPOCH_MS;
       if (tState.pos >= sp.meta.epochs) {
         tState.pos = sp.meta.epochs;
         setTerritoryPlaying(false);
       }
+      if (Math.floor(tState.pos) > before) sound.capture();
       updateTerritoryHud();
     }
     const gsize = sp.meta.size;
@@ -990,25 +1147,610 @@
     }
   }
 
-  // Переключение видов «Арена | Территория»
-  document.getElementById('viewTabs').addEventListener('click', (e) => {
-    const b = e.target.closest('button[data-view]');
-    if (!b) return;
-    tState.view = b.dataset.view;
-    for (const el of document.querySelectorAll('#viewTabs button')) el.classList.toggle('active', el === b);
-    const arena = tState.view === 'arena';
-    document.getElementById('battleWrap').style.display = arena ? '' : 'none';
-    document.getElementById('arenaCaption').style.display = arena ? '' : 'none';
-    document.getElementById('territorySection').style.display = arena ? 'none' : '';
-    if (!arena) {
-      setPlaying(false);
+  // Переключение вкладок: Битва | Территория | Аналитика | Сыграй сам
+  const SECTIONS = {
+    arena: ['battleWrap', 'arenaCaption'],
+    territory: ['territorySection'],
+    analytics: ['analyticsSection'],
+    play: ['playSection'],
+  };
+  function switchView(view) {
+    tState.view = view;
+    for (const el of document.querySelectorAll('#viewTabs button')) {
+      el.classList.toggle('active', el.dataset.view === view);
+    }
+    for (const [v, ids] of Object.entries(SECTIONS)) {
+      for (const id of ids) document.getElementById(id).style.display = v === view ? '' : 'none';
+    }
+    if (view !== 'arena') setPlaying(false);
+    if (view !== 'territory') setTerritoryPlaying(false);
+    if (view === 'arena') layout(); // канвас мог обнулиться, пока был скрыт
+    if (view === 'territory') {
       layoutTerritory();
       updateTerritoryHud(true);
-    } else {
-      setTerritoryPlaying(false);
-      layout(); // канвас арены мог обнулиться, пока был скрыт (resize)
     }
+    if (view === 'analytics') {
+      layoutAnalytics();
+      updateLeaderboard(true);
+      renderHeatmap();
+      renderHallOfFame();
+    }
+    if (view === 'play') layoutPlayTape();
+  }
+  document.getElementById('viewTabs').addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-view]');
+    if (b) switchView(b.dataset.view);
   });
+
+  // ── Скраббер: миниатюра распределения долей под ползунком ───────────
+  const scrubCanvas = document.getElementById('scrubThumb');
+  const scrubCtx = scrubCanvas.getContext('2d');
+  function layoutScrubber() {
+    const box = scrubCanvas.parentElement;
+    const w = box.clientWidth || 230;
+    const h = box.clientHeight || 34;
+    scrubCanvas.width = w * DPR;
+    scrubCanvas.height = h * DPR;
+    scrubCtx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    drawScrubThumb();
+  }
+  function drawScrubThumb() {
+    const w = scrubCanvas.width / DPR;
+    const h = scrubCanvas.height / DPR;
+    if (!w) return;
+    scrubCtx.clearRect(0, 0, w, h);
+    scrubCtx.fillStyle = '#0a0c10';
+    scrubCtx.fillRect(0, 0, w, h);
+    const total = G();
+    const pts = [];
+    for (let k = 0; k <= total; k++) {
+      pts.push(k === 0 ? run().generations[0].sharesBefore : run().generations[k - 1].sharesAfter);
+    }
+    let base = new Array(total + 1).fill(0);
+    for (let i = 0; i < N(); i++) {
+      const top = base.map((b, k) => b + pts[k][i]);
+      scrubCtx.beginPath();
+      for (let k = 0; k <= total; k++) scrubCtx.lineTo((k / total) * w, h - top[k] * h);
+      for (let k = total; k >= 0; k--) scrubCtx.lineTo((k / total) * w, h - base[k] * h);
+      scrubCtx.closePath();
+      scrubCtx.fillStyle = run().strategies[i].color;
+      scrubCtx.globalAlpha = 0.7;
+      scrubCtx.fill();
+      base = top;
+    }
+    scrubCtx.globalAlpha = 1;
+  }
+
+  // ── Звук: WebAudio-синтез без файлов, по умолчанию выключен ─────────
+  const sound = (() => {
+    let ac = null;
+    let on = false;
+    const ensure = () => {
+      if (!ac) ac = new (window.AudioContext || window.webkitAudioContext)();
+      if (ac.state === 'suspended') ac.resume();
+      return ac;
+    };
+    function tone(freq, dur, type = 'sine', peak = 0.12, when = 0) {
+      if (!on) return;
+      const c = ensure();
+      const o = c.createOscillator();
+      const g = c.createGain();
+      o.type = type;
+      o.frequency.value = freq;
+      const t = c.currentTime + when;
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(peak, t + 0.012);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      o.connect(g).connect(c.destination);
+      o.start(t);
+      o.stop(t + dur + 0.05);
+    }
+    function noiseBurst(dur = 0.08, peak = 0.1, freq = 1800) {
+      if (!on) return;
+      const c = ensure();
+      const len = Math.max(1, Math.floor(c.sampleRate * dur));
+      const buf = c.createBuffer(1, len, c.sampleRate);
+      const d = buf.getChannelData(0);
+      for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / len);
+      const src = c.createBufferSource();
+      src.buffer = buf;
+      const f = c.createBiquadFilter();
+      f.type = 'bandpass';
+      f.frequency.value = freq;
+      const g = c.createGain();
+      g.gain.value = peak;
+      src.connect(f).connect(g).connect(c.destination);
+      src.start();
+    }
+    return {
+      toggle() {
+        on = !on;
+        if (on) ensure();
+        return on;
+      },
+      clash() { noiseBurst(0.05, 0.05); },
+      betray() { noiseBurst(0.1, 0.12); tone(130, 0.16, 'triangle', 0.1); },
+      capture() { tone(540, 0.05, 'square', 0.04); },
+      extinct() { tone(88, 0.9, 'sine', 0.2); noiseBurst(0.35, 0.1, 400); },
+      fanfare() { [523, 659, 784, 1047].forEach((f, i) => tone(f, 0.4, 'triangle', 0.1, i * 0.16)); },
+    };
+  })();
+  let lastCoopSound = 0;
+  let lastBetraySound = 0;
+  document.getElementById('btnSound').addEventListener('click', (e) => {
+    const on = sound.toggle();
+    e.currentTarget.textContent = on ? '🔊' : '🔇';
+    e.currentTarget.classList.toggle('on', on);
+  });
+
+  // ── Инспектор дуэлей: пересимуляция матча в браузере ────────────────
+  const duelTape = document.getElementById('duelTape');
+  const duelCtx = duelTape.getContext('2d');
+  const duelState = { res: null, a: 0, b: 0, cursor: 0, playing: false };
+  const LEAGUE_OK = () => window.ARENA_LEAGUE && window.ARENA_ENGINE;
+
+  function layoutDuelTape() {
+    const w = duelTape.parentElement.clientWidth - 32;
+    if (w <= 0) return;
+    duelTape.width = w * DPR;
+    duelTape.height = 120 * DPR;
+    duelTape.style.height = '120px';
+    duelCtx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    drawDuelTape();
+  }
+
+  function populateInspector() {
+    const opts = run().strategies.map((s, i) => '<option value="' + i + '">' + s.name + '</option>').join('');
+    document.getElementById('duelA').innerHTML = opts;
+    document.getElementById('duelB').innerHTML = opts;
+    document.getElementById('duelB').selectedIndex = Math.min(1, N() - 1);
+    document.getElementById('duelGen').innerHTML = Array.from(
+      { length: G() },
+      (_, g) => '<option value="' + g + '">' + (g + 1) + '</option>'
+    ).join('');
+    duelState.res = null;
+    drawDuelTape();
+  }
+
+  function runDuel() {
+    const parityEl = document.getElementById('duelParity');
+    if (!LEAGUE_OK()) {
+      parityEl.textContent = 'league.js не загружен — пересоберите: node sim/bundle.js';
+      return;
+    }
+    const i = Number(document.getElementById('duelA').value);
+    const j = Number(document.getElementById('duelB').value);
+    const g = Number(document.getElementById('duelGen').value);
+    const lo = Math.min(i, j);
+    const hi = Math.max(i, j);
+    const meta = run().meta;
+    const idLo = run().strategies[lo].id;
+    const idHi = run().strategies[hi].id;
+    const sLo = window.ARENA_LEAGUE.byId[idLo];
+    const sHi = window.ARENA_LEAGUE.byId[idHi];
+    if (!sLo || !sHi) {
+      parityEl.textContent = 'стратегия отсутствует в бандле лиги';
+      return;
+    }
+    const seed = window.ARENA_ENGINE.combineSeedAll(meta.seed, g, lo, hi);
+    const res = window.ARENA_ENGINE.playMatch(sLo, sHi, {
+      rounds: meta.rounds,
+      noise: meta.noise,
+      seed,
+      payoffs: meta.payoffs,
+    });
+    duelState.res = res;
+    duelState.a = lo;
+    duelState.b = hi;
+    duelState.cursor = res.rounds;
+    duelState.playing = false;
+    const scrub = document.getElementById('duelScrub');
+    scrub.max = res.rounds;
+    scrub.value = res.rounds;
+    const rec = run().generations[g] && run().generations[g].matches.find((m) => m.a === lo && m.b === hi);
+    const r3 = (x) => Math.round(x * 1000) / 1000;
+    parityEl.textContent = rec
+      ? Math.abs(rec.sa - r3(res.avgA)) < 1e-9 && Math.abs(rec.sb - r3(res.avgB)) < 1e-9
+        ? '✓ ход в ход совпадает с матчем турнира (поколение ' + (g + 1) + ')'
+        : '⚠ расходится с записью турнира — сообщите об ошибке'
+      : 'пара не играла в этом поколении (кто-то вымер) — показан внетурнирный матч с тем же сидом';
+    drawDuelTape();
+  }
+
+  function drawDuelTape() {
+    const w = duelTape.width / DPR;
+    const h = duelTape.height / DPR;
+    if (!w) return;
+    duelCtx.clearRect(0, 0, w, h);
+    duelCtx.fillStyle = '#0a0c10';
+    duelCtx.fillRect(0, 0, w, h);
+    const st = duelState;
+    const infoEl = document.getElementById('duelInfo');
+    if (!st.res) {
+      duelCtx.fillStyle = '#9aa3b5';
+      duelCtx.font = '13px ' + getComputedStyle(document.body).fontFamily;
+      duelCtx.textAlign = 'center';
+      duelCtx.fillText('Выбери пару и нажми «Сыграть матч» — лента ходов появится здесь', w / 2, h / 2);
+      infoEl.textContent = '';
+      return;
+    }
+    const res = st.res;
+    const sa = run().strategies[st.a];
+    const sb = run().strategies[st.b];
+    const P = run().meta.payoffs || { R: 3, P: 1, T: 5, S: 0 };
+    const left = 90;
+    const cw = (w - left - 8) / res.rounds;
+    const rowY = [18, 52];
+    const rowH = 26;
+    // имена
+    duelCtx.font = '12px ' + getComputedStyle(document.body).fontFamily;
+    duelCtx.textAlign = 'left';
+    duelCtx.fillStyle = sa.color;
+    duelCtx.fillText(sa.name, 4, rowY[0] + 17);
+    duelCtx.fillStyle = sb.color;
+    duelCtx.fillText(sb.name, 4, rowY[1] + 17);
+    // клетки ходов; предательства (T-исходы) подсвечены маркером
+    for (let r = 0; r < res.rounds; r++) {
+      const x = left + r * cw;
+      const a = res.movesA[r];
+      const b = res.movesB[r];
+      duelCtx.fillStyle = a === 'C' ? '#2f7d54' : '#b23b3b';
+      duelCtx.fillRect(x, rowY[0], Math.max(1, cw - 0.5), rowH);
+      duelCtx.fillStyle = b === 'C' ? '#2f7d54' : '#b23b3b';
+      duelCtx.fillRect(x, rowY[1], Math.max(1, cw - 0.5), rowH);
+      if (a !== b) {
+        duelCtx.fillStyle = '#d4af37';
+        duelCtx.fillRect(x, rowY[a === 'D' ? 0 : 1] - 4, Math.max(1, cw - 0.5), 3);
+      }
+    }
+    // курсор и счёт до курсора
+    const cur = Math.max(0, Math.min(res.rounds, st.cursor));
+    const cx = left + cur * cw;
+    duelCtx.strokeStyle = '#d4af37';
+    duelCtx.lineWidth = 1.5;
+    duelCtx.beginPath();
+    duelCtx.moveTo(cx, 6);
+    duelCtx.lineTo(cx, h - 6);
+    duelCtx.stroke();
+    let scA = 0;
+    let scB = 0;
+    for (let r = 0; r < cur; r++) {
+      const a = res.movesA[r];
+      const b = res.movesB[r];
+      scA += a === 'C' ? (b === 'C' ? P.R : P.S) : b === 'C' ? P.T : P.P;
+      scB += b === 'C' ? (a === 'C' ? P.R : P.S) : a === 'C' ? P.T : P.P;
+    }
+    const roundTxt =
+      cur > 0
+        ? 'Раунд ' + cur + ': ' + sa.name + ' — ' + res.movesA[cur - 1] + ', ' + sb.name + ' — ' + res.movesB[cur - 1] + ' · '
+        : '';
+    infoEl.textContent =
+      roundTxt +
+      'счёт ' + scA + ':' + scB +
+      (cur > 0 ? ' (' + (scA / cur).toFixed(2) + ' / ' + (scB / cur).toFixed(2) + ' за раунд)' : '') +
+      ' · золотые метки — предательства доверчивого';
+  }
+
+  document.getElementById('duelRun').addEventListener('click', runDuel);
+  document.getElementById('duelScrub').addEventListener('input', (e) => {
+    duelState.cursor = Number(e.target.value);
+    duelState.playing = false;
+    drawDuelTape();
+  });
+  document.getElementById('duelPlay').addEventListener('click', () => {
+    if (!duelState.res) runDuel();
+    if (!duelState.res) return;
+    if (duelState.cursor >= duelState.res.rounds) duelState.cursor = 0;
+    duelState.playing = !duelState.playing;
+  });
+  function tickDuel(dt) {
+    if (!duelState.playing || !duelState.res) return;
+    duelState.cursor = Math.min(duelState.res.rounds, duelState.cursor + (dt / 40) * state.speed);
+    document.getElementById('duelScrub').value = Math.floor(duelState.cursor);
+    if (duelState.cursor >= duelState.res.rounds) duelState.playing = false;
+    drawDuelTape();
+  }
+
+  // Клик по дорожке битвы → инспектор этой пары
+  canvas.addEventListener('click', (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const y = e.clientY - rect.top;
+    const gi = Math.min(Math.floor(state.pos), G() - 1);
+    const duels = lanesFor(gi);
+    const { top, laneH } = laneGeometry();
+    const li = Math.floor((y - top) / laneH);
+    if (li < 0 || li >= duels.length) return;
+    switchView('analytics');
+    document.getElementById('duelA').value = duels[li].a;
+    document.getElementById('duelB').value = duels[li].b;
+    document.getElementById('duelGen').value = gi;
+    runDuel();
+    document.getElementById('inspector').scrollIntoView({ behavior: 'smooth', block: 'center' });
+  });
+
+  // ── Тепловая карта свипа ────────────────────────────────────────────
+  let heatGeom = null;
+  function renderHeatmap() {
+    const panel = document.getElementById('heatPanel');
+    const sweep = DATA.sweep;
+    if (!sweep) {
+      panel.style.display = 'none';
+      return;
+    }
+    panel.style.display = '';
+    const hm = document.getElementById('heatmap');
+    const w = hm.parentElement.clientWidth - 32;
+    if (w <= 0) return;
+    const ids = sweep.strategies;
+    const conds = sweep.conditions;
+    const nameOf = {};
+    for (const s of run().strategies) nameOf[s.id] = s;
+    const labelW = 120;
+    const headH = 46;
+    const rowH = 20;
+    const h = headH + ids.length * rowH + 4;
+    hm.width = w * DPR;
+    hm.height = h * DPR;
+    hm.style.height = h + 'px';
+    const c = hm.getContext('2d');
+    c.setTransform(DPR, 0, 0, DPR, 0, 0);
+    c.clearRect(0, 0, w, h);
+    const cellW = (w - labelW - 4) / conds.length;
+    heatGeom = { labelW, headH, rowH, cellW, ids, conds, nameOf };
+    c.font = '9.5px ' + getComputedStyle(document.body).fontFamily;
+    c.textAlign = 'center';
+    conds.forEach((cond, k) => {
+      const x = labelW + k * cellW + cellW / 2;
+      c.fillStyle = cond.matrix === 'classic' ? '#9aa3b5' : '#d4af37';
+      c.fillText(cond.matrix === 'classic' ? 'кл' : 'зл', x, 12);
+      c.fillStyle = '#9aa3b5';
+      c.fillText(Math.round(cond.noise * 100) + '%', x, 24);
+      c.fillText(String(cond.rounds), x, 36);
+    });
+    c.font = '11.5px ' + getComputedStyle(document.body).fontFamily;
+    ids.forEach((id, r) => {
+      const y = headH + r * rowH;
+      const s = nameOf[id];
+      c.textAlign = 'right';
+      c.fillStyle = s ? s.color : '#9aa3b5';
+      c.fillText(s ? s.name : id, labelW - 8, y + 14);
+      conds.forEach((cond, k) => {
+        const x = labelW + k * cellW;
+        const share = cond.finalShares[r] || 0;
+        c.fillStyle = '#141821';
+        c.fillRect(x + 1, y + 1, cellW - 2, rowH - 2);
+        if (share > 0) {
+          c.globalAlpha = 0.18 + 0.82 * Math.min(1, share / 0.5);
+          c.fillStyle = s ? s.color : '#888';
+          c.fillRect(x + 1, y + 1, cellW - 2, rowH - 2);
+          c.globalAlpha = 1;
+        }
+        if (cond.winnerId === id) {
+          c.strokeStyle = '#d4af37';
+          c.lineWidth = 1.4;
+          c.strokeRect(x + 1.5, y + 1.5, cellW - 3, rowH - 3);
+        }
+      });
+    });
+  }
+  document.getElementById('heatmap').addEventListener('mousemove', (e) => {
+    if (!heatGeom || !DATA.sweep) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    const k = Math.floor((x - heatGeom.labelW) / heatGeom.cellW);
+    const r = Math.floor((y - heatGeom.headH) / heatGeom.rowH);
+    const el = document.getElementById('heatInfo');
+    if (k < 0 || r < 0 || k >= heatGeom.conds.length || r >= heatGeom.ids.length) return;
+    const cond = heatGeom.conds[k];
+    const id = heatGeom.ids[r];
+    const s = heatGeom.nameOf[id];
+    el.textContent =
+      (cond.matrix === 'classic' ? 'Классика 5/3/1/0' : 'Золотая лихорадка 8/5/1/0') +
+      ' · шум ' + Math.round(cond.noise * 100) + '% · ' + cond.rounds + ' раундов → ' +
+      (s ? s.name : id) + ': ' + ((cond.finalShares[r] || 0) * 100).toFixed(1) + '%' +
+      (cond.winnerId === id ? ' — ПОБЕДИТЕЛЬ условия' : '');
+  });
+
+  // ── Зал славы (ELO) и сводка генетики ───────────────────────────────
+  function renderHallOfFame() {
+    const elo = DATA.elo;
+    const panel = document.getElementById('hallOfFame');
+    if (!elo || !elo.ratings) {
+      panel.style.display = 'none';
+      return;
+    }
+    const nameOf = {};
+    for (const s of run().strategies) nameOf[s.id] = s;
+    document.getElementById('hofBody').innerHTML = elo.ratings
+      .map((r, k) => {
+        const s = nameOf[r.id];
+        const medal = ['🥇', '🥈', '🥉'][k] || String(k + 1);
+        return '<tr><td>' + medal + '</td><td><span class="swatch" style="background:' + (s ? s.color : '#666') + '"></span>' +
+          (s ? s.name : r.id) + '</td><td>' + r.rating + '</td><td>' + r.wins + '/' + r.draws + '/' + r.losses +
+          '</td><td>' + r.games + '</td></tr>';
+      })
+      .join('');
+    // сводка «Безымянного»
+    const idx = run().strategies.findIndex((s) => s.id === 'nameless');
+    const g = document.getElementById('genInfo');
+    if (idx < 0) {
+      g.textContent = 'В этой лиге «Безымянный» не играет (сгенерируйте: node sim/evolve.js --seed 42).';
+    } else {
+      const s = run().strategies[idx];
+      const share = run().finalShares[idx];
+      const eloRow = elo.ratings.find((r) => r.id === 'nameless');
+      g.innerHTML =
+        'Геном: <code style="word-break:break-all">' + (s.dossier.genome || '—') + '</code><br>' +
+        'Финальная доля (сид ' + state.seed + '): <b style="color:' + s.color + '">' + (share * 100).toFixed(1) + '%</b>' +
+        (eloRow ? ' · ELO ' + eloRow.rating + ' (место ' + (elo.ratings.indexOf(eloRow) + 1) + ')' : '') +
+        '<br>' + s.dossier.principle;
+    }
+  }
+
+  // ── «Сыграй сам»: 20 раундов против любой стратегии ────────────────
+  const playTape = document.getElementById('playTape');
+  const playCtx2 = playTape.getContext('2d');
+  const PLAY_ROUNDS = 20;
+  const playState = { opp: null, oppPlayer: null, my: [], theirs: [], seed: 0, active: false };
+
+  function populatePlay() {
+    document.getElementById('playOpp').innerHTML = run()
+      .strategies.map((s) => '<option value="' + s.id + '">' + s.name + '</option>')
+      .join('');
+  }
+
+  function layoutPlayTape() {
+    const w = playTape.parentElement.clientWidth - 32;
+    if (w <= 0) return;
+    playTape.width = w * DPR;
+    playTape.height = 120 * DPR;
+    playTape.style.height = '120px';
+    playCtx2.setTransform(DPR, 0, 0, DPR, 0, 0);
+    drawPlayTape();
+  }
+
+  function playScoreNow() {
+    const P = run().meta.payoffs || { R: 3, P: 1, T: 5, S: 0 };
+    let me = 0;
+    let opp = 0;
+    for (let r = 0; r < playState.my.length; r++) {
+      const a = playState.my[r];
+      const b = playState.theirs[r];
+      me += a === 'C' ? (b === 'C' ? P.R : P.S) : b === 'C' ? P.T : P.P;
+      opp += b === 'C' ? (a === 'C' ? P.R : P.S) : a === 'C' ? P.T : P.P;
+    }
+    return { me, opp };
+  }
+
+  function drawPlayTape() {
+    const w = playTape.width / DPR;
+    const h = playTape.height / DPR;
+    if (!w) return;
+    playCtx2.clearRect(0, 0, w, h);
+    playCtx2.fillStyle = '#0a0c10';
+    playCtx2.fillRect(0, 0, w, h);
+    playCtx2.font = '12px ' + getComputedStyle(document.body).fontFamily;
+    playCtx2.textAlign = 'left';
+    playCtx2.fillStyle = '#e8e4d8';
+    playCtx2.fillText('Ты', 6, 30);
+    playCtx2.fillStyle = playState.opp ? playState.opp.color : '#9aa3b5';
+    playCtx2.fillText(playState.opp ? playState.opp.name : 'Соперник', 6, 84);
+    const left = 100;
+    const cw = (w - left - 8) / PLAY_ROUNDS;
+    for (let r = 0; r < PLAY_ROUNDS; r++) {
+      const x = left + r * cw;
+      for (const [row, arr] of [[14, playState.my], [66, playState.theirs]]) {
+        playCtx2.fillStyle = '#141821';
+        playCtx2.fillRect(x + 1, row, cw - 3, 36);
+        if (arr[r]) {
+          playCtx2.fillStyle = arr[r] === 'C' ? '#2f7d54' : '#b23b3b';
+          playCtx2.fillRect(x + 1, row, cw - 3, 36);
+          playCtx2.fillStyle = '#e8e4d8';
+          playCtx2.textAlign = 'center';
+          playCtx2.fillText(arr[r] === 'C' ? '🕊' : '🗡', x + cw / 2, row + 24);
+          playCtx2.textAlign = 'left';
+        }
+      }
+    }
+  }
+
+  function playStep(myMove) {
+    if (!playState.active) return;
+    // соперник ходит одновременно: его решение строится на истории ДО хода
+    const oppMove = playState.oppPlayer.move(playState.theirs.slice(), playState.my.slice());
+    playState.my.push(myMove);
+    playState.theirs.push(oppMove);
+    const sc = playScoreNow();
+    document.getElementById('playScore').textContent =
+      'Раунд ' + playState.my.length + '/' + PLAY_ROUNDS + ' · счёт ' + sc.me + ':' + sc.opp;
+    drawPlayTape();
+    if (playState.my.length >= PLAY_ROUNDS) finishPlay();
+  }
+
+  function finishPlay() {
+    playState.active = false;
+    document.getElementById('playC').disabled = true;
+    document.getElementById('playD').disabled = true;
+    const sc = playScoreNow();
+    const my = playState.my;
+    const th = playState.theirs;
+    // Разбор в духе Сунь-Цзы — по фактическим паттернам матча.
+    const notes = [];
+    const firstMyD = my.indexOf('D');
+    const firstOppD = th.indexOf('D');
+    let unprovoked = 0;
+    let unpunished = 0;
+    for (let r = 1; r < PLAY_ROUNDS; r++) {
+      if (my[r] === 'D' && th[r - 1] === 'C') unprovoked++;
+      if (th[r - 1] === 'D' && my[r] === 'C') unpunished++;
+    }
+    const oppD = th.filter((m) => m === 'D').length;
+    const myD = my.filter((m) => m === 'D').length;
+    if (myD === 0 && oppD >= 3) {
+      notes.push('«Кто добр ко всем, у того нет стен»: тебя предали ' + oppD + ' раз, а ты ни разу не ответил. Наказание — язык арены; без него доброта читается как слабость.');
+    }
+    if (firstMyD >= 0 && (firstOppD < 0 || firstMyD < firstOppD)) {
+      notes.push('Ты начал войну первым (раунд ' + (firstMyD + 1) + '). «Лучшая победа — та, для которой не пришлось сражаться»: против ответчика первый удар почти всегда убыточен.');
+    }
+    if (unprovoked >= 3 && firstMyD !== -1 && !(firstOppD < 0 || firstMyD < firstOppD)) {
+      notes.push('Ты бил сотрудничающего ' + unprovoked + ' раз(а) без повода — «кто гневлив, того легко разозлить, кто жаден — заманить». Ответчики такое не прощают.');
+    }
+    if (myD === PLAY_ROUNDS) {
+      notes.push('Тотальная война: 20 ударов из 20. Против памяти это дорога к 1.0 за раунд — «затяжная война не приносила выгоды ещё никому».');
+    }
+    if (unpunished >= 2 && myD > 0) {
+      notes.push('Ты ' + unpunished + ' раз(а) простил удар без ответа. Иногда это мудрость («не мешай врагу ошибаться»), но чаще — приглашение бить снова.');
+    }
+    // Базлайн: что взяло бы Зеркало на твоём месте (тот же соперник, тот же сид).
+    let baseline = null;
+    if (LEAGUE_OK() && window.ARENA_LEAGUE.byId['tit-for-tat'] && window.ARENA_LEAGUE.byId[playState.opp.id]) {
+      const b = window.ARENA_ENGINE.playMatch(
+        window.ARENA_LEAGUE.byId['tit-for-tat'],
+        window.ARENA_LEAGUE.byId[playState.opp.id],
+        { rounds: PLAY_ROUNDS, noise: 0, seed: playState.seed, payoffs: run().meta.payoffs }
+      );
+      baseline = b.scoreA;
+    }
+    let verdict = '<b>Итог: ' + sc.me + ':' + sc.opp + ' против «' + playState.opp.name + '».</b> ';
+    if (baseline != null) {
+      verdict +=
+        sc.me >= baseline
+          ? 'Зеркало на твоём месте взяло бы ' + baseline + ' — ты сыграл не хуже стража кооперации.'
+          : 'Зеркало на твоём месте взяло бы ' + baseline + ' очков: простое «око за око» обыграло тебя на ' + (baseline - sc.me) + '.';
+    }
+    if (notes.length === 0) {
+      notes.push('«Знай врага и знай себя» — ты читал соперника и бил только там, где пусто. Достойная кампания.');
+    }
+    document.getElementById('playVerdict').innerHTML =
+      verdict + '<br>' + notes.map((n) => '<div class="aphorism">' + n + '</div>').join('');
+  }
+
+  document.getElementById('playStart').addEventListener('click', () => {
+    if (!LEAGUE_OK()) {
+      document.getElementById('playVerdict').textContent = 'league.js не загружен — пересоберите: node sim/bundle.js';
+      return;
+    }
+    const id = document.getElementById('playOpp').value;
+    const idx = run().strategies.findIndex((s) => s.id === id);
+    playState.opp = run().strategies[idx];
+    playState.seed = (Math.random() * 0xffffffff) >>> 0;
+    // Соперник получает тот же поток ГПСЧ, что получил бы игрок B в playMatch
+    // с этим сидом — базлайн Зеркала после матча честно сравним.
+    playState.oppPlayer = window.ARENA_LEAGUE.byId[id].create(
+      window.ARENA_ENGINE.mulberry32(window.ARENA_ENGINE.combineSeed(playState.seed, 3))
+    );
+    playState.my = [];
+    playState.theirs = [];
+    playState.active = true;
+    document.getElementById('playC').disabled = false;
+    document.getElementById('playD').disabled = false;
+    document.getElementById('playVerdict').textContent = '';
+    document.getElementById('playScore').textContent = 'Раунд 1/' + PLAY_ROUNDS + ' — твой ход (без шума)';
+    layoutPlayTape();
+  });
+  document.getElementById('playC').addEventListener('click', () => playStep('C'));
+  document.getElementById('playD').addEventListener('click', () => playStep('D'));
 
   // ── HUD и главный цикл ──────────────────────────────────────────────
   function updateHud(force) {
@@ -1031,6 +1773,7 @@
       announce('☠ ' + s.name + ' — фракция пала (поколение ' + gen.gen + ')', s.color);
       shake = Math.min(shake + 6, 10);
       burst(W / 2, H / 2, s.color, 26, 3);
+      sound.extinct();
     }
     if (run().outcome.conditionGen === newGen && run().outcome.condition === 'domination') {
       const w = run().strategies[run().outcome.winner];
@@ -1057,20 +1800,21 @@
     }
     if (tState.view === 'arena') {
       drawBattlefield(ts, dt);
-    } else {
+    } else if (tState.view === 'territory') {
       drawTerritory(dt);
+    } else if (tState.view === 'analytics') {
+      drawChart();
+      tickDuel(dt);
     }
-    drawChart();
     requestAnimationFrame(tick);
   }
 
   // ── Старт ───────────────────────────────────────────────────────────
   window.addEventListener('resize', () => {
-    if (tState.view === 'arena') {
-      layout();
-    } else {
-      layoutTerritory(); // арену пере-разметит возврат на вкладку
-    }
+    if (tState.view === 'arena') layout();
+    if (tState.view === 'territory') layoutTerritory();
+    if (tState.view === 'analytics') layoutAnalytics();
+    // скрытые вкладки пере-разметит switchView при возврате
   });
   layout();
   layoutTerritory();

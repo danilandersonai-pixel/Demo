@@ -11,6 +11,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { simulate, serializeResult } from './simulate.js';
+import { computeElo } from './elo.js';
 
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const RESULTS_DIR = path.join(ROOT, 'results');
@@ -83,7 +84,13 @@ export function rebuildReplay() {
       spatial[seed] = JSON.parse(fs.readFileSync(spatialFile, 'utf8'));
     }
   }
-  const data = { version: 1, seeds, runs, spatial };
+  // ARENA_DATA v2: свип, ELO и зал славы поверх реплеев и территорий.
+  const challengeFile = path.join(RESULTS_DIR, 'challenge.json');
+  const challenge = fs.existsSync(challengeFile) ? JSON.parse(fs.readFileSync(challengeFile, 'utf8')) : null;
+  const sweepFile = path.join(RESULTS_DIR, 'sweep-42.json');
+  const sweep = fs.existsSync(sweepFile) ? JSON.parse(fs.readFileSync(sweepFile, 'utf8')) : null;
+  const elo = seeds.length ? computeElo(seeds.map((s) => runs[s]), challenge) : null;
+  const data = { version: 2, seeds, runs, spatial, sweep, elo };
   const js =
     '// Автосгенерировано sim/run.js — не редактировать вручную.\n' +
     '// Данные реплеев для viz/arena.html (файл открывается с диска, без fetch).\n' +
