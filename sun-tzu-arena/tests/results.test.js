@@ -134,13 +134,32 @@ function validateRun(run, label) {
   assert.equal(typeof outcome.aliveAtEnd, 'number', `${label}: aliveAtEnd`);
 }
 
-test('ARENA_DATA: присутствуют все три эталонных сида', () => {
+test('ARENA_DATA v2: присутствуют все три эталонных сида', () => {
   const data = loadArenaData();
-  assert.equal(data.version, 1);
+  assert.equal(data.version, 2);
   assert.deepEqual(data.seeds, CANONICAL_SEEDS);
   for (const seed of CANONICAL_SEEDS) {
     assert.ok(data.runs[seed], `нет прогона для сида ${seed}`);
   }
+});
+
+test('ARENA_DATA v2: секция ELO согласована с реестром', () => {
+  const data = loadArenaData();
+  assert.ok(data.elo && Array.isArray(data.elo.ratings), 'нет секции elo');
+  const ids = new Set(STRATEGIES.map((s) => s.id));
+  for (const r of data.elo.ratings) {
+    assert.ok(ids.has(r.id), `ELO для неизвестной стратегии ${r.id}`);
+    assert.ok(Number.isInteger(r.rating) && r.rating > 0);
+    assert.equal(r.wins + r.draws + r.losses, r.games, r.id);
+  }
+  assert.equal(data.elo.ratings.length, ids.size, 'у каждой стратегии есть рейтинг');
+});
+
+test('ARENA_DATA v2: секция свипа на месте и согласована', () => {
+  const data = loadArenaData();
+  assert.ok(data.sweep, 'нет секции sweep');
+  assert.deepEqual(data.sweep.strategies, STRATEGIES.map((s) => s.id));
+  assert.equal(data.sweep.conditions.length, 24);
 });
 
 test('ARENA_DATA: структура каждого прогона полна и корректна', () => {

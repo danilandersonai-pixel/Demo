@@ -42,7 +42,14 @@ function wrapStrategy(src, file) {
     stripped.slice(at + 'export default'.length, lastBrace + 1) +
     ');' +
     stripped.slice(lastBrace + 2);
-  return `(function () {\n  const C = 'C', D = 'D';\n${body}\n})();\n`;
+  // C/D добавляем, только если модуль не объявляет их сам (иначе — коллизия).
+  const declares = (name) =>
+    new RegExp(`\\b(?:const|let|var)\\s+${name}\\s*=`).test(stripped) ||
+    new RegExp(`\\b(?:const|let|var)\\s+[^;]*,\\s*${name}\\s*=`).test(stripped);
+  let prelude = '';
+  if (!declares('C')) prelude += "  const C = 'C';\n";
+  if (!declares('D')) prelude += "  const D = 'D';\n";
+  return `(function () {\n${prelude}${body}\n})();\n`;
 }
 
 /** Путь к исходнику каждой стратегии реестра (по id). */

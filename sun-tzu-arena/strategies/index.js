@@ -14,6 +14,13 @@ import scout from './scout.js';
 import diplomat from './diplomat.js';
 import feint from './feint.js';
 import patience from './patience.js';
+// Лига 2.0: выжившие круга 2 чемпионата претендентов (все четверо, порядок —
+// по id) и «Безымянный», выведенный генетическим отбором (sim/evolve.js).
+import chAlliance from './challengers/ch-alliance.js';
+import chFire from './challengers/ch-fire.js';
+import chVoid from './challengers/ch-void.js';
+import chWater from './challengers/ch-water.js';
+import nameless from './evolved/nameless.js';
 
 export const STRATEGIES = [
   alwaysCooperate,
@@ -26,6 +33,11 @@ export const STRATEGIES = [
   diplomat,
   feint,
   patience,
+  chAlliance,
+  chFire,
+  chVoid,
+  chWater,
+  nameless,
 ];
 
 const ids = new Set(STRATEGIES.map((s) => s.id));
