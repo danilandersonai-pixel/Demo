@@ -1,0 +1,17 @@
+{
+  "name": "sun-tzu-arena",
+  "version": "1.0.0",
+  "description": "Эволюционный турнир стратегий повторяющейся дилеммы заключённого с визуализатором битвы на дорожках",
+  "private": true,
+  "type": "commonjs",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "test": "node --test tests/",
+    "sim": "node sim/run.js --all",
+    "challengers": "node sim/challengers.js"
+  },
+  "dependencies": {},
+  "devDependencies": {}
+}
