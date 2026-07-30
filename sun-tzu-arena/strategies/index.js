@@ -9,7 +9,14 @@
  * добавлять только в конец.
  */
 
-var list = [
+/**
+ * Ядро лиги — двенадцать стратегий первого сезона. Список заморожен: индекс
+ * стратегии входит в сид каждого матча, поэтому любая перестановка изменила бы
+ * все прогоны и обесценила бы числа в REPORT.md. Новые участники добавляются
+ * только в `admitted`, то есть в хвост общего списка, где они ничьих сидов
+ * не сдвигают.
+ */
+var core = [
   require('./alwaysCooperate'),
   require('./alwaysDefect'),
   require('./random'),
@@ -23,6 +30,15 @@ var list = [
   require('./waterShape'),
   require('./reconInForce')
 ];
+
+/**
+ * Принятые в лигу после первого сезона: выжившие претенденты и выведенный
+ * генетикой «Безымянный». Порядок тоже заморожен и тоже только дописывается.
+ */
+var admitted = [];
+
+/** Основная лига целиком: ядро плюс принятые. */
+var list = core.concat(admitted);
 
 var REQUIRED_FIELDS = ['id', 'latin', 'name', 'color', 'glyph', 'family', 'tagline', 'dossier'];
 var REQUIRED_DOSSIER = ['principle', 'philosophy', 'strengths', 'weaknesses', 'targets'];
@@ -85,6 +101,8 @@ function meta(defs) {
 }
 
 module.exports = {
+  core: core,
+  admitted: admitted,
   list: list,
   byId: byId,
   meta: meta,

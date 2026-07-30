@@ -18,6 +18,7 @@ var simulate = require('./simulate');
 var spatial = require('./spatial');
 var replayLib = require('./replay');
 var match = require('../engine/match');
+var registry = require('../strategies');
 
 var ROOT = path.join(__dirname, '..');
 var RESULTS_DIR = path.join(ROOT, 'results');
@@ -28,7 +29,7 @@ var REFERENCE_SEEDS = [7, 42, 2026];
 
 /** Разбор аргументов вида --key value и --flag. */
 function parseArgs(argv) {
-  var out = { seeds: [], all: false, generations: null, noise: null, spatial: null };
+  var out = { seeds: [], all: false, generations: null, noise: null, spatial: null, league: 'full' };
   for (var i = 0; i < argv.length; i++) {
     var a = argv[i];
     if (a === '--all') out.all = true;
@@ -37,6 +38,12 @@ function parseArgs(argv) {
     else if (a === '--noise') out.noise = Number(argv[++i]);
     else if (a === '--spatial') out.spatial = true;
     else if (a === '--no-spatial') out.spatial = false;
+    else if (a === '--league') {
+      out.league = String(argv[++i]);
+      if (out.league !== 'full' && out.league !== 'core') {
+        throw new Error('--league принимает full или core, получено: ' + out.league);
+      }
+    }
     else if (a === '--help' || a === '-h') out.help = true;
     else throw new Error('Неизвестный аргумент: ' + a);
   }
@@ -53,6 +60,7 @@ var HELP = [
   '  --seed <n>          сид прогона (можно указать несколько раз)',
   '  --generations <n>   число поколений (по умолчанию 30)',
   '  --noise <p>         вероятность искажения хода (по умолчанию 0.05)',
+  '  --league <кто>      full (вся лига, по умолчанию) или core (двенадцать первого сезона)',
   '  --spatial           пересчитать пространственный режим 20×20',
   '  --no-spatial        не пересчитывать пространственный режим',
   '  -h, --help          эта справка',
@@ -131,19 +139,29 @@ function main(argv) {
 
   var noise = args.noise === null ? match.DEFAULT_NOISE : args.noise;
   var generations = args.generations === null ? simulate.DEFAULT_GENERATIONS : args.generations;
+  var core = args.league === 'core';
+  var strategies = core ? registry.core : registry.list;
   var isReferenceConditions = noise === match.DEFAULT_NOISE && generations === simulate.DEFAULT_GENERATIONS;
 
-  console.log('Арена Сунь-Цзы · сиды ' + seeds.join(', ') + ' · шум ' + noise + ' · поколений ' + generations);
+  // Прогоны ядра лиги живут отдельно: на них опирается REPORT.md первого
+  // сезона, и они обязаны оставаться воспроизводимыми после того, как лига
+  // выросла. Индексы ядра при этом не сдвигаются — новички дописаны в хвост.
+  var outDir = core ? path.join(RESULTS_DIR, 'v1') : RESULTS_DIR;
+
+  console.log('Арена Сунь-Цзы · сиды ' + seeds.join(', ') + ' · шум ' + noise +
+    ' · поколений ' + generations + ' · лига ' + args.league + ' (' + strategies.length + ' фракций)');
   console.log('');
 
-  fs.mkdirSync(RESULTS_DIR, { recursive: true });
+  fs.mkdirSync(outDir, { recursive: true });
 
   var computed = {};
   seeds.forEach(function (seed) {
     var started = Date.now();
-    var run = simulate.run({ seed: seed, generations: generations, noise: noise });
+    var run = simulate.run({
+      seed: seed, generations: generations, noise: noise, strategies: strategies
+    });
     var suffix = isReferenceConditions ? '' : '-noise' + noise + '-gen' + generations;
-    var file = path.join(RESULTS_DIR, seed + suffix + '.json');
+    var file = path.join(outDir, seed + suffix + '.json');
     fs.writeFileSync(file, replayLib.serializeJson(run), 'utf8');
     computed[seed] = run;
 
@@ -156,6 +174,10 @@ function main(argv) {
     console.log('Условия отличаются от эталонных — viz/replay.js не тронут.');
     return;
   }
+  if (core) {
+    console.log('Прогон ядра лиги — архивный, viz/replay.js показывает полную лигу и не тронут.');
+    return;
+  }
 
   // Реплей всегда содержит все три эталонных прогона: визуализатор обязан
   // переключаться между ними, даже если пересчитан был только один.
@@ -164,7 +186,9 @@ function main(argv) {
     var cached = readJsonIfExists(path.join(RESULTS_DIR, seed + '.json'));
     if (cached) return cached;
     console.log('seed ' + seed + ' отсутствует в results/ — досчитываю для реплея');
-    var run = simulate.run({ seed: seed, generations: generations, noise: noise });
+    var run = simulate.run({
+      seed: seed, generations: generations, noise: noise, strategies: strategies
+    });
     fs.writeFileSync(path.join(RESULTS_DIR, seed + '.json'), replayLib.serializeJson(run), 'utf8');
     return run;
   });

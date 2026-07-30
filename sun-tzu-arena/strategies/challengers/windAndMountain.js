@@ -102,12 +102,18 @@ var FOREST_IN_MAX_D = 2; // ≤10% измен в окне — партнёр н�
 var FOREST_IN_OPEN = 40; // сколько ждать, если он ни разу не получал удара
 var FOREST_OUT_D = 3; // ≥15% измен в окне — Лес закрывается
 var FOREST_OUT_STREAK = 3; // три предательства подряд — Лес закрывается сразу
+var FOREST_FAST_WIN = 8; // короткое окно против регулярного объедалы
+var FOREST_FAST_D = 2; // две измены в коротком окне — Лес закрывается
 var FIRE_MIN_U = 10; // минимум наблюдений «он мирен»
 var FIRE_MAX_U_RATE = 0.2; // его неспровоцированные измены не выше 20%
-var FIRE_FAST_R = 4; // четыре удара...
-var FIRE_SLOW_R = 12; // ...или двенадцать
-var FIRE_SLOW_RATE = 0.15; // с откликом не выше 15%
+var FIRE_FAST_R = 3; // три удара без единого ответа...
+var FIRE_SLOW_R = 8; // ...или восемь
+var FIRE_SLOW_RATE = 0.2; // с откликом не выше 20%
 var FIRE_MAX_ENTRIES = 2; // больше двух пожаров за матч не разводим
+var FIRE_MIN_EPOCH = 25; // раньше 25 раундов эпохи фон его измен не считается измеренным
+var FIRE_MAX_OPP_DEF = 0.1; // его фон измен не выше 10% (чистый шум даёт 5%)
+var FIRE_AMENDS = 5; // раундов безусловного C после Огня — искупление
+var RETAL_WINDOW = 2; // сколько раундов ждать его ответа на мой удар
 var FIRE_OUT_N1 = 4;
 var FIRE_OUT_RATE1 = 0.5;
 var FIRE_OUT_N2 = 10;
@@ -180,6 +186,9 @@ module.exports = {
     var oppDefEpoch = 0;
     var win = [];
     var winD = 0;
+    var fast = [];
+    var fastD = 0;
+    var pending = []; // удары, ответ на которые ещё ждём
 
     // — сквозные счётчики —
     var streakD = 0;
@@ -191,12 +200,22 @@ module.exports = {
     var fireEntries = 0;
     var intended = null;
     var contrite = 0;
+    var amends = 0;
 
     function pushWin(isD) {
       win.push(isD ? 1 : 0);
       if (isD) winD += 1;
       if (win.length > WIN_SIZE) {
         winD -= win.shift();
+      }
+    }
+
+    // Короткое окно: ловит частого, но регулярного объедалу быстрее длинного.
+    function pushFast(isD) {
+      fast.push(isD ? 1 : 0);
+      if (isD) fastD += 1;
+      if (fast.length > FOREST_FAST_WIN) {
+        fastD -= fast.shift();
       }
     }
 
@@ -209,6 +228,9 @@ module.exports = {
       oppDefEpoch = 0;
       win = [];
       winD = 0;
+      fast = [];
+      fastD = 0;
+      pending = [];
     }
 
     // Сворачивает в счётчики все раунды, доигранные с прошлого вызова.
@@ -230,14 +252,28 @@ module.exports = {
           if (oppBetrayed) oppDefEpoch += 1;
           if (i >= 1 && i !== excuseRound) {
             if (h.mine(i - 1) === D) {
-              rN += 1;
-              if (oppBetrayed) rD += 1;
+              // Удар состоялся в i-1; ответ ждём RETAL_WINDOW раундов.
+              pending.push({ at: i - 1, answered: false });
             } else {
               uN += 1;
               if (oppBetrayed) uD += 1;
               pushWin(oppBetrayed);
+              pushFast(oppBetrayed);
             }
           }
+          // Закрываем удары, у которых окно ответа истекло.
+          var keep = [];
+          for (var k = 0; k < pending.length; k++) {
+            var hit = pending[k];
+            if (oppBetrayed) hit.answered = true;
+            if (i - hit.at >= RETAL_WINDOW) {
+              rN += 1;
+              if (hit.answered) rD += 1;
+            } else {
+              keep.push(hit);
+            }
+          }
+          pending = keep;
         }
         processed += 1;
       }
@@ -265,6 +301,9 @@ module.exports = {
     function fireReady() {
       if (fireEntries >= FIRE_MAX_ENTRIES) return false;
       if (uN < FIRE_MIN_U || uD / uN > FIRE_MAX_U_RATE) return false;
+      // Главный фильтр круга 2: доить можно только того, кто ВООБЩЕ не бьёт.
+      // Фон его измен должен быть на уровне шума, а не «чуть выше».
+      if (epochLen < FIRE_MIN_EPOCH || oppDefEpoch / epochLen > FIRE_MAX_OPP_DEF) return false;
       if (rN >= FIRE_FAST_R && rD === 0) return true;
       return rN >= FIRE_SLOW_R && rD / rN <= FIRE_SLOW_RATE;
     }
@@ -276,6 +315,7 @@ module.exports = {
 
     function forestBroken() {
       if (streakD >= FOREST_OUT_STREAK) return true;
+      if (fast.length >= FOREST_FAST_WIN && fastD >= FOREST_FAST_D) return true;
       return win.length >= WIN_SIZE && winD >= FOREST_OUT_D;
     }
 
@@ -308,6 +348,7 @@ module.exports = {
             resetEpoch();
             truceUntil = h.length + TRUCE;
             contrite = 0;
+            amends = FIRE_AMENDS; // перемирие теперь и в ходах, а не только в счётчиках
           }
         } else if (mode !== 'mountain') {
           if (mode === 'wind' && mountainReady()) {
@@ -333,6 +374,11 @@ module.exports = {
         if (mode === 'mountain' || mode === 'fire') {
           move = D;
         } else if (mode === 'forest') {
+          move = C;
+        } else if (amends > 0) {
+          // Искупление: войну начал я, поэтому его ответный огонь принимаю
+          // молча и не отражаю — иначе Ветер сам продлевает мою же войну.
+          amends -= 1;
           move = C;
         } else if (contrite > 0) {
           contrite -= 1;

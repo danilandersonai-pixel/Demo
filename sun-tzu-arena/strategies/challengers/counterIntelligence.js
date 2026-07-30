@@ -219,6 +219,7 @@ module.exports = {
       if (mode === 0 && !meek && freshRate <= MERCY_RATE) {
         if (myLast === D || (n >= 2 && h.mine(-2) === D)) return C;
       }
+
       return D;
     }
 

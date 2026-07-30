@@ -446,6 +446,17 @@ function strat(id) {
   return byId[id] || { id: id, name: id, latin: id, color: '#888', glyph: '?', tagline: '',
     family: '', dossier: { principle: '', philosophy: '', strengths: [], weaknesses: [], targets: '' } };
 }
+/**
+ * Семейство шрифта берётся из CSS один раз.
+ *
+ * До этого оно читалось через getComputedStyle прямо в коде отрисовки — в
+ * одиннадцати местах, часть из которых внутри циклов по дорожкам и фракциям,
+ * то есть около полусотни обращений на кадр. Каждое такое обращение форсирует
+ * пересчёт стилей документа, и вместе они съедали заметную долю кадрового
+ * бюджета. Значение не меняется в течение сессии — читать его повторно незачем.
+ */
+var UI_FONT = getComputedStyle(document.body).fontFamily;
+
 function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
 function lerp(a, b, t) { return a + (b - a) * t; }
 function ease(t) { return t < .5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2; }
@@ -563,7 +574,7 @@ function drawField() {
   /* --- подпись исхода на последнем поколении --- */
   if (gi === run.frames.length - 1 && phase > 0.9) {
     g.fillStyle = 'rgba(201,162,39,.85)';
-    g.font = '600 12px ' + getComputedStyle(document.body).fontFamily;
+    g.font = '600 12px ' + UI_FONT;
     g.textAlign = 'center';
     g.fillText('конец прогона', W / 2, H - 8);
   }
@@ -591,7 +602,7 @@ function drawPopulationStrip(g, W, y, h, frame) {
     grd.addColorStop(1, shade(st.color, -.35));
     g.fillStyle = grd;
     g.fillRect(x, y, wid, h);
-    g.font = '600 10px ' + getComputedStyle(document.body).fontFamily;
+    g.font = '600 10px ' + UI_FONT;
     // Подпись только если имя действительно помещается: обрезанное имя хуже,
     // чем его отсутствие — цвет всё равно опознаётся по таблице лидеров.
     if (wid > g.measureText(st.name).width + 12) {
@@ -665,7 +676,7 @@ function drawLane(g, lane, frame, prev, k, y0, laneH, padSide, W, phase, clash) 
   else if (clash > 0.02) drawUnopposed(g, lane, stL, stR, fx, cy, clash);
 
   /* подписи */
-  g.font = '600 11.5px ' + getComputedStyle(document.body).fontFamily;
+  g.font = '600 11.5px ' + UI_FONT;
   g.textBaseline = 'middle';
   if (stL) {
     g.fillStyle = shade(stL.color, .2); g.textAlign = 'left';
@@ -676,7 +687,7 @@ function drawLane(g, lane, frame, prev, k, y0, laneH, padSide, W, phase, clash) 
     g.fillText(stR.name, W - 8, y0 + 13);
   }
   g.textAlign = 'center';
-  g.font = '600 10px ' + getComputedStyle(document.body).fontFamily;
+  g.font = '600 10px ' + UI_FONT;
   if (stL && stR && lane.winner) {
     g.fillStyle = 'rgba(201,162,39,.75)';
     g.fillText('перевес: ' + strat(lane.winner).name, W / 2, y0 + laneH - 10);
@@ -794,7 +805,7 @@ function drawUnopposed(g, lane, stL, stR, fx, cy, clash) {
   var damage = stL ? lane.damageLeft : lane.damageRight;
   if (!st || damage <= 0.01) return;
   var dir = stL ? 1 : -1;
-  g.font = '600 10.5px ' + getComputedStyle(document.body).fontFamily;
+  g.font = '600 10.5px ' + UI_FONT;
   g.textBaseline = 'middle';
   g.textAlign = dir > 0 ? 'right' : 'left';
   g.fillStyle = rgba('#f87171', clash * .9);
@@ -825,7 +836,7 @@ function drawClash(g, fx, cy, lane, stL, stR, clash, laneIdx, laneH) {
 
   /* всплывающие очки */
   var rise = (1 - clash) * 16;
-  g.font = '600 12px ' + getComputedStyle(document.body).fontFamily;
+  g.font = '600 12px ' + UI_FONT;
   g.textBaseline = 'middle';
   if (stL) {
     g.fillStyle = rgba(stL.color, clash);
@@ -838,7 +849,7 @@ function drawClash(g, fx, cy, lane, stL, stR, clash, laneIdx, laneH) {
     g.fillText('+' + lane.scoreRight.toFixed(2), fx + 14, cy - 16 - rise);
   }
   /* урон по башням проигравшей стороны */
-  g.font = '600 10.5px ' + getComputedStyle(document.body).fontFamily;
+  g.font = '600 10.5px ' + UI_FONT;
   if (stL && lane.damageLeft > 0.01) {
     g.fillStyle = rgba('#f87171', clash * .95); g.textAlign = 'right';
     g.fillText('−' + Math.round(lane.damageLeft * 100) + '%', fx - 14, cy + 18 + rise);
@@ -875,7 +886,7 @@ function drawChart() {
   /* сетка */
   g.strokeStyle = 'rgba(255,255,255,.06)'; g.lineWidth = 1;
   g.fillStyle = '#5f6779';
-  g.font = '10px ' + getComputedStyle(document.body).fontFamily;
+  g.font = '10px ' + UI_FONT;
   g.textAlign = 'right'; g.textBaseline = 'middle';
   for (var q = 0; q <= 4; q++) {
     var yy = padT + (plotH * q) / 4;
@@ -924,7 +935,7 @@ function drawChart() {
       if (shareAt(s, points - 1) > 0.045) {
         var midY = py((base[points - 1] + tops[points - 1]) / 2);
         g.fillStyle = 'rgba(0,0,0,.65)';
-        g.font = '600 10px ' + getComputedStyle(document.body).fontFamily;
+        g.font = '600 10px ' + UI_FONT;
         g.textAlign = 'right'; g.textBaseline = 'middle';
         g.fillText(st.name, W - padR - 6, midY);
       }
@@ -938,12 +949,12 @@ function drawChart() {
   g.beginPath(); g.moveTo(padL, domY); g.lineTo(W - padR, domY); g.stroke();
   g.setLineDash([]);
   g.fillStyle = 'rgba(201,162,39,.8)'; g.textAlign = 'left'; g.textBaseline = 'bottom';
-  g.font = '9.5px ' + getComputedStyle(document.body).fontFamily;
+  g.font = '9.5px ' + UI_FONT;
   g.fillText('порог доминации ' + Math.round(currentRun().dominationThreshold * 100) + '%', padL + 4, domY - 3);
 
   /* ось поколений */
   g.fillStyle = '#5f6779'; g.textAlign = 'center'; g.textBaseline = 'top';
-  g.font = '10px ' + getComputedStyle(document.body).fontFamily;
+  g.font = '10px ' + UI_FONT;
   for (var gg = 0; gg < points; gg += 5) g.fillText(String(gg), px(gg), H - padB + 6);
   g.fillText('поколение', padL + plotW / 2, H - 10);
 
@@ -1310,6 +1321,7 @@ function bindControls() {
    11. ЦИКЛ
    ========================================================================= */
 function renderAll() {
+  idle = false;
   drawField();
   drawChart();
   drawBoard();
@@ -1318,6 +1330,9 @@ function renderAll() {
   document.getElementById('genread').textContent =
     Math.floor(state.gen) + ' / ' + (run.frames.length - 1);
 }
+
+/** Нечего перерисовывать: последний кадр уже на холсте. */
+var idle = false;
 
 function tick(now) {
   requestAnimationFrame(tick);
@@ -1336,8 +1351,16 @@ function tick(now) {
       if (!state.shown) { state.shown = true; showVictory(); }
     }
     renderAll();
-  } else {
-    drawField(); // река и мерцание живут и на паузе
+    idle = false;
+  } else if (!idle) {
+    // Один кадр после остановки — чтобы осело положение фронта, — и тишина.
+    // Раньше здесь стоял безусловный drawField() «чтобы жила река», но река
+    // рисуется от state.gen, а он на паузе не меняется: кадр выходил
+    // попиксельно тот же самый, и вкладка жгла процессор на неподвижной
+    // картинке. Перерисовка теперь только по событию (перемотка, вкладка,
+    // изменение размера окна).
+    drawField();
+    idle = true;
   }
 
   if (state.terrPlaying && data.spatial) {
