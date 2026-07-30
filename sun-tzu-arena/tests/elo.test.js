@@ -283,3 +283,27 @@ test('Эло: доехал до визуализатора вместе со в�
       row.id + ': в рейтинге есть, в лиге нет');
   });
 });
+
+test('Эло: ранговая корреляция с эволюцией — та самая, что стоит в REPORT2', function () {
+  // Глава 5 отчёта держится на одном числе: ρ = 0.123. Если оно уедет,
+  // утверждение «связи нет» станет неправдой, а текст этого не заметит.
+  var data = JSON.parse(fs.readFileSync(path.join(RESULTS, 'elo.json'), 'utf8'));
+  var league = JSON.parse(fs.readFileSync(path.join(RESULTS, '42.json'), 'utf8'));
+
+  var evo = {};
+  league.standings.forEach(function (row, i) { evo[row.id] = i + 1; });
+
+  var n = data.ranking.length;
+  var d2 = 0;
+  data.ranking.forEach(function (row, i) {
+    var d = (i + 1) - evo[row.id];
+    d2 += d * d;
+  });
+  var rho = 1 - (6 * d2) / (n * (n * n - 1));
+
+  assert.strictEqual(rho.toFixed(3), '0.123',
+    'корреляция стала ' + rho.toFixed(3) + ', а в REPORT2 написано 0.123');
+
+  var report = fs.readFileSync(path.join(__dirname, '..', 'REPORT2.md'), 'utf8');
+  assert.ok(report.indexOf('ρ = 0.123') >= 0, 'в REPORT2 больше нет заявленной корреляции');
+});
