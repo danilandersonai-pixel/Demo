@@ -53,7 +53,7 @@ module.exports = {
   id: 'waterShape',
   latin: 'WaterShape',
   name: 'Вода',
-  color: '#2dd4bf',
+  color: '#0d9488',
   glyph: '水',
   family: 'authored',
   tagline: 'Отражает распределение, а не последний ход',

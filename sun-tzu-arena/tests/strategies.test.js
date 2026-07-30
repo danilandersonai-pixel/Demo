@@ -13,9 +13,26 @@ var byId = registry.byId;
 
 /* =============================== Реестр =============================== */
 
-test('реестр: двенадцать стратегий, уникальные id, полные досье', function () {
+test('реестр: ядро первого сезона заморожено на двенадцати стратегиях', function () {
+  // Индекс стратегии входит в сид каждого матча, поэтому ядро нельзя ни
+  // переставлять, ни дополнять — иначе прогоны первого сезона перестанут
+  // воспроизводиться, а числа в REPORT.md повиснут в воздухе.
+  assert.strictEqual(registry.core.length, 12);
+  assert.deepStrictEqual(
+    registry.core.map(function (d) { return d.id; }),
+    ['alwaysCooperate', 'alwaysDefect', 'random', 'titForTat', 'grimTrigger', 'pavlov',
+      'knowTheEnemy', 'winWithoutFighting', 'feignedWeakness', 'patience', 'waterShape',
+      'reconInForce'],
+    'порядок ядра изменился — все прогоны первого сезона недействительны'
+  );
+  registry.core.forEach(function (def, i) {
+    assert.strictEqual(registry.list[i], def, 'ядро обязано идти в начале общего списка');
+  });
+});
+
+test('реестр: вся лига проходит контракт, id и цвета уникальны', function () {
   assert.ok(registry.list.length >= 10, 'по условию нужно минимум 10 стратегий');
-  assert.strictEqual(registry.list.length, 12);
+  assert.strictEqual(registry.list.length, registry.core.length + registry.admitted.length);
 
   var ids = {};
   var colors = {};
@@ -34,6 +51,18 @@ test('реестр: двенадцать стратегий, уникальны�
   assert.ok(authored.length >= 4, 'по условию нужно минимум 4 авторские стратегии');
 });
 
+test('реестр: принятые во втором сезоне на месте и не пересекаются с ядром', function () {
+  var ids = registry.admitted.map(function (d) { return d.id; });
+  assert.deepStrictEqual(ids,
+    ['counterIntelligence', 'quartermaster', 'resonance', 'windAndMountain', 'nameless'],
+    'состав принятых изменился');
+  registry.admitted.forEach(function (def) {
+    assert.strictEqual(registry.core.indexOf(def), -1, def.id + ' просочился в ядро');
+    assert.ok(['challenger', 'evolved'].indexOf(def.family) >= 0,
+      def.id + ': принятые бывают только претендентами или выведенными');
+  });
+});
+
 test('реестр: валидатор отвергает стратегию без досье и без фабрики', function () {
   assert.throws(function () {
     registry.validate({ id: 'x', latin: 'X', name: 'X', color: '#fff', glyph: 'x', family: 'f',
@@ -46,7 +75,7 @@ test('реестр: валидатор отвергает стратегию б�
   }, /create/);
 });
 
-test('реестр: ни одна стратегия не трогает Math.random', function () {
+test('вся лига: ни одна стратегия не трогает Math.random', function () {
   // Math.random ломает воспроизводимость прогона: подменяем его на ловушку.
   var original = Math.random;
   var touched = [];
@@ -228,7 +257,7 @@ test('Разведка боем: наказание сбивает бюджет 
 
 /* ==================== Общие требования ко всем сразу ==================== */
 
-test('все стратегии: возвращают только C или D в любых условиях', function () {
+test('вся лига: возвращает только C или D в любых условиях', function () {
   var foes = [h.constant(C), h.constant(D), h.scripted([C, D, D, C, D]), byId('random')];
   registry.list.forEach(function (def) {
     foes.forEach(function (foe, k) {
@@ -238,7 +267,7 @@ test('все стратегии: возвращают только C или D в
   });
 });
 
-test('все стратегии: два матча с одним сидом совпадают ход в ход', function () {
+test('вся лига: два матча с одним сидом совпадают ход в ход', function () {
   registry.list.forEach(function (def) {
     var one = h.play(def, byId('random'), 200, { noise: 0.05, seed: 55 });
     var two = h.play(def, byId('random'), 200, { noise: 0.05, seed: 55 });

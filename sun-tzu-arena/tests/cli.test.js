@@ -119,11 +119,26 @@ test('проект: каждая стратегия лежит в своём ф�
     return /\.js$/.test(f) && f !== 'index.js';
   });
   var registry = require('../strategies');
-  assert.strictEqual(files.length, registry.list.length,
-    'файлов стратегий ' + files.length + ', в реестре ' + registry.list.length);
+  assert.strictEqual(files.length, registry.core.length,
+    'файлов в strategies/ ' + files.length + ', в ядре ' + registry.core.length +
+    ' — принятые лежат в подкаталогах challengers/ и evolved/');
   files.forEach(function (f) {
     var def = require(path.join(dir, f));
     assert.ok(registry.byId(def.id), 'файл ' + f + ' не подключён к реестру');
     assert.strictEqual(f, def.id + '.js', 'имя файла должно совпадать с id стратегии');
+  });
+
+  // Принятые лежат в подкаталогах, и там правило то же.
+  [['challengers', 4], ['evolved', 1]].forEach(function (pair) {
+    var sub = path.join(dir, pair[0]);
+    var subFiles = fs.readdirSync(sub).filter(function (f) {
+      return /\.js$/.test(f) && f !== 'index.js';
+    });
+    assert.strictEqual(subFiles.length, pair[1], pair[0] + ': ожидалось ' + pair[1] + ' файлов');
+    subFiles.forEach(function (f) {
+      var def = require(path.join(sub, f));
+      assert.strictEqual(f, def.id + '.js', pair[0] + '/' + f + ': имя файла не совпадает с id');
+      assert.ok(registry.byId(def.id), pair[0] + '/' + f + ' не принят в лигу');
+    });
   });
 });

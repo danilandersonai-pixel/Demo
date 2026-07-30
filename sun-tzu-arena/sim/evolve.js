@@ -207,6 +207,133 @@ function run(opts) {
   };
 }
 
+var EVOLVED_DIR = path.join(ROOT, 'strategies', 'evolved');
+
+/**
+ * Записать выведенную стратегию в `strategies/evolved/nameless.js`.
+ *
+ * Файл генерируется целиком, включая досье: описание обязано соответствовать
+ * геному, а геном меняется при смене сида или параметров. Досье, написанное
+ * руками один раз, разошлось бы с кодом при первом же перезапуске — здесь
+ * оно выводится из самой хромосомы.
+ */
+function writeStrategy(data) {
+  var a = data.champion.analysis;
+  var sim = a.similarity;
+  var nearest = Object.keys(sim).sort(function (x, y) { return sim[y] - sim[x]; })[0];
+  var nearestRu = {
+    titForTat: 'TitForTat', pavlov: 'Pavlov',
+    alwaysCooperate: 'AlwaysCooperate', alwaysDefect: 'AlwaysDefect'
+  }[nearest];
+
+  var lines = a.table.map(function (row) {
+    return ' *     ' + row.state + '  →  ' + row.answer;
+  }).join('\n');
+
+  var traitRu = {
+    nice: 'открывает сотрудничеством',
+    keepsPeace: 'держит достигнутый мир',
+    retaliates: 'отвечает на предательство',
+    forgives: 'прощает исправившегося',
+    escapesWar: 'выходит из взаимной войны сам',
+    exploitsPushover: 'доит того, кто стерпел удар',
+    repentsOwnSlip: 'извиняется за собственный сорвавшийся ход'
+  };
+  var traits = Object.keys(a.traits).filter(function (k) { return a.traits[k]; })
+    .map(function (k) { return ' *   — ' + traitRu[k] + ';'; }).join('\n');
+  var absent = Object.keys(a.traits).filter(function (k) { return !a.traits[k]; })
+    .map(function (k) { return ' *   — НЕ ' + traitRu[k] + ';'; }).join('\n');
+
+  var src = [
+    "'use strict';",
+    '',
+    '/*',
+    ' * ДОСЬЕ · «Безымянный» (Nameless) — выведен эволюцией, не написан рукой',
+    ' *',
+    ' * ЭТОТ ФАЙЛ СГЕНЕРИРОВАН `node sim/evolve.js`. Правки будут перезаписаны.',
+    ' * Досье выводится из самой хромосомы, поэтому описание не может разойтись',
+    ' * с поведением.',
+    ' *',
+    ' * Происхождение:',
+    ' *   сид ' + data.seed + ', популяция ' + data.populationSize + ', ' +
+      data.generations + ' поколений, матч ' + data.rounds + ' раундов, шум ' + data.noise + '.',
+    ' *   Отбор турнирный (' + data.params.tournamentSize + '), кроссовер ' +
+      data.params.crossoverRate + ', мутация ' + data.params.mutationRate +
+      ', элита ' + data.params.elitism + '.',
+    ' *   Рукописных стратегий в среде отбора не было: популяция варилась',
+    ' *   в собственном соку, и встреча с лигой — независимая проверка.',
+    ' *   К последнему поколению этот геном занял ' + data.champion.copies + ' мест из ' +
+      data.populationSize + '.',
+    ' *',
+    ' * Хромосома: ' + data.champion.genome,
+    ' *   [0] первый ход, [1..4] ответ во втором раунде, [5..20] память на два раунда.',
+    ' *',
+    ' * Принцип трактата:',
+    ' *   «У войска нет неизменной мощи, у воды нет неизменной формы; кто умеет',
+    ' *    в зависимости от противника владеть изменениями и превращениями и',
+    ' *    одерживать победу, тот называется божеством». (VI. Полнота и пустота)',
+    ' *   У Безымянного нет ни имени, ни замысла, ни принципа — только таблица,',
+    ' *   которую отобрала выгода. Он единственный в лиге, кто не знает, почему',
+    ' *   поступает так, как поступает.',
+    ' *',
+    ' * Что он делает (полная таблица ответов, читается «что было → мой ответ»):',
+    ' *   первый ход: ' + a.firstMove,
+    lines,
+    ' *',
+    ' * Черты, выведенные из таблицы:',
+    traits,
+    absent,
+    ' *',
+    ' * На кого похож:',
+    ' *   TitForTat ' + Math.round(sim.titForTat * 100) + '%, Pavlov ' +
+      Math.round(sim.pavlov * 100) + '%, AlwaysCooperate ' +
+      Math.round(sim.alwaysCooperate * 100) + '%, AlwaysDefect ' +
+      Math.round(sim.alwaysDefect * 100) + '%.',
+    ' *   Ближе всего к ' + nearestRu + ', но совпадение неполное — расхождения',
+    ' *   и есть то, что эволюция нашла сама.',
+    ' */',
+    '',
+    "var genomeLib = require('../../engine/genome');",
+    '',
+    "var GENOME = '" + data.champion.genome + "';",
+    '',
+    'module.exports = genomeLib.toStrategy(GENOME, {',
+    "  id: 'nameless',",
+    "  latin: 'Nameless',",
+    "  name: 'Безымянный',",
+    "  color: '#f8fafc',",
+    "  glyph: '無',",
+    "  family: 'evolved',",
+    "  tagline: 'Таблица на 21 локус, отобранная выгодой',",
+    '  dossier: {',
+    "    principle: '«У войска нет неизменной мощи» — VI. Полнота и пустота',",
+    "    philosophy:",
+    "      'Не написан, а выведен: " + data.generations + " поколений отбора в популяции из " +
+      data.populationSize + " ' +",
+    "      'хромосом, без единой рукописной стратегии в среде. Хромосома " + data.champion.genome + ". ' +",
+    "      'Ближе всего к " + nearestRu + " (" + Math.round(sim[nearest] * 100) + "% состояний), " +
+      "но совпадение неполное.',",
+    '    strengths: [',
+    "      'Ни одного правила, придуманного человеком, — только то, что окупилось',",
+    "      'Занял " + data.champion.copies + " мест из " + data.populationSize +
+      " в последнем поколении: устойчив к собственным копиям'",
+    '    ],',
+    '    weaknesses: [',
+    "      'Память ровно на два раунда: длинные замыслы соперника ему невидимы',",
+    "      'Отобран против себе подобных, а не против лиги — встреча с ней для него внезапна'",
+    '    ],',
+    "    targets: 'Ни против кого специально — это и есть вопрос эксперимента'",
+    '  }',
+    '});',
+    ''
+  ].join('\n');
+
+  fs.mkdirSync(EVOLVED_DIR, { recursive: true });
+  var file = path.join(EVOLVED_DIR, 'nameless.js');
+  fs.writeFileSync(file, src, 'utf8');
+  return file;
+}
+
 function parseArgs(argv) {
   var out = { seed: 42, population: null, generations: null, write: true };
   for (var i = 0; i < argv.length; i++) {
@@ -290,6 +417,8 @@ function main(argv) {
     var file = path.join(RESULTS_DIR, 'evolved-' + data.seed + '.json');
     fs.writeFileSync(file, JSON.stringify(data, null, 2) + '\n', 'utf8');
     console.log('→ ' + path.relative(ROOT, file));
+    var strategyFile = writeStrategy(data);
+    console.log('→ ' + path.relative(ROOT, strategyFile) + ' («Безымянный»)');
   }
   return data;
 }
@@ -300,6 +429,7 @@ if (require.main === module) {
 
 module.exports = {
   run: run,
+  writeStrategy: writeStrategy,
   evaluate: evaluate,
   select: select,
   diversity: diversity,

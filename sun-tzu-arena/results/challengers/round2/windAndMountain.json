@@ -1,0 +1,205 @@
+{
+  "round": 2,
+  "you": {
+    "id": "windAndMountain",
+    "name": "Ветер и Гора",
+    "place": 4,
+    "of": 5,
+    "avgScore": 2.888,
+    "vsChampion": 2.9,
+    "selfPlay": 3,
+    "finalShare": 0.1655,
+    "survived": true
+  },
+  "rules": {
+    "rounds": 200,
+    "noise": 0.05,
+    "generations": 30,
+    "payoff": {
+      "R": 3,
+      "P": 1,
+      "T": 5,
+      "S": 0
+    }
+  },
+  "note": "Это ваше личное донесение. Здесь только ваши матчи. Соперники-претенденты обезличены намеренно: их код вам по-прежнему недоступен, а поведение полагается выводить из ленты ходов. Ленты записаны по исполненным ходам, то есть уже с искажениями шума.",
+  "yourMatches": [
+    {
+      "opponent": "Терпение (чемпион основной лиги)",
+      "yourAvg": 2.9,
+      "theirAvg": 2.8,
+      "yourScore": 580,
+      "theirScore": 560,
+      "yourCoopRate": 0.86,
+      "theirCoopRate": 0.88,
+      "yourMoves": "CCDCCCCCCCCCCCCCCCDDCCCCCDDDDDDDDCCCCCCCDCCCCCCDCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCDCCCCCDCCCCCCDCCCCCCCDCCCCCCCCCCDCCCCCCCCCCCDCCCCCCCCCDCCCDCCDCCCCDCDCDCCCCCCCCCCCCDCCCCCCCCCCCCCCCCDCCCCDCCCCCCCC",
+      "theirMoves": "CDCCCCCCCCCCCCCCCDCCCCCCCDCCCCDDDDCCCCCCCDCCCCCCDCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCDCCCCCDCCCCCCDCCCCCCCDCCCCCCDCCCCCCCCCCCCCCCCCCCCCCDDCCCDCCDCCCCDCDCDCCCCCCCCCCCCDCCCCCCCCCCCCCCCCCCCCCCCCDCCCCCD"
+    },
+    {
+      "opponent": "Соперник I",
+      "yourAvg": 2.885,
+      "theirAvg": 3.01,
+      "yourScore": 577,
+      "theirScore": 602,
+      "yourCoopRate": 0.96,
+      "theirCoopRate": 0.935,
+      "yourMoves": "CCCCCCDCCCCCCCCCCDCCCCCCCCCDCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCDCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCDCCCCCCCCCCCCDCCCCCCCCDCCCCCCCCCCDCCCCCCCCCCCCCCCCCCCCCCCCC",
+      "theirMoves": "CCCCCCCDCCCCCCCCDCCCCCCCCCCCDCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCDCCCCCCCCCCCCCDCCCDCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCDCCCDCCDCCDCCCCCCCCDCCCCCCCCCCDCCCCCCCCCCCCDCCCCCCCCCCCCC"
+    },
+    {
+      "opponent": "Соперник II",
+      "yourAvg": 2.805,
+      "theirAvg": 2.98,
+      "yourScore": 561,
+      "theirScore": 596,
+      "yourCoopRate": 0.925,
+      "theirCoopRate": 0.89,
+      "yourMoves": "CCCCCCCDCCCCCCCCCCDCCCCCCCCCCCCCCCCCCCCCCCCCCDCCCCCCCCCCCCCCCCCCCCCCCCCCCDCCCCCCCCCCCCCDCCCCCCCCDCCCCDCCDDCCCCDCCCCCCCCCCCCCCCDCCCCCCCCCCCDCCCCCCCCCDCCCCCCCCCCCCCDCCCCCCCCCCCCCCCCCCCCCCCCCDCCCCCCCCCCC",
+      "theirMoves": "CCCCCCDCCCCCCCCCCDCCCCCCCCCCCCCCCCCCCCCCCCCCCCDCCCCCCCCCCCCCCCCCCCCCCCCCCCDCCCCCCCCCCCCCDCDCCCCCDCCCDCCCCDCCCDCCCCCCCCCCCCCCCCCDCCDCCCCCCCCDCDDCCCCCDCCCCCCCCCCCCDCCCCCCCCCCCCCCCCCCCCCCDCCCCDCCCCCDCDCD"
+    },
+    {
+      "opponent": "Соперник III",
+      "yourAvg": 2.85,
+      "theirAvg": 2.825,
+      "yourScore": 570,
+      "theirScore": 565,
+      "yourCoopRate": 0.86,
+      "theirCoopRate": 0.865,
+      "yourMoves": "CCDCCCCCCDCCCCCCDCDCCCDCDCCCCCCCDDCCCCCCCDCCCCCCCCCCCCCDCDCCCCCCCCCCCCCCCCCDCCCCCCCCCCCCCCCCCCDCCCCCCCCCCCCDCCCCCCCCCCDCCCCCCCCCCDCDCCCCCCCCCCCCCCCCCCCDCCCDCCCDDDCCCCCCCCCCDCCDDCDCCCCCCCCCCCCCCCDCCCDC",
+      "theirMoves": "CDCCCCCCCDCCCCCDCDCCCDCDCCCCCCCDCDCCCCCCDCCCCCCCCCCCCCCCDCCCCCCCCCCCCCCCCCCCDCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCDCCCCCCDCDCCCCCCCCCCDCDCCCCCCCCCCCCCCCCCCCCCDCCCCCCCDDCCCDCDCCCDCCDDCDCCCCCCCCCCCCCCCCCDCDCC"
+    },
+    {
+      "opponent": "ВАША СОБСТВЕННАЯ КОПИЯ",
+      "yourAvg": 2.9,
+      "theirAvg": 3,
+      "yourScore": 580,
+      "theirScore": 600,
+      "yourCoopRate": 0.96,
+      "theirCoopRate": 0.94,
+      "yourMoves": "CCCCCCCCCCCCCCCCCCCCDCDCCCCCCCCCCCCCCCCCCDCCCCCCDCCCCCCDCCCCCCCCCCCCCCCCCCDCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCDCCCCCCCCCCCCCCCCCCCCDCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC",
+      "theirMoves": "CCCCDCCCCCCCCCCCCCCCCDCDDCCCCCCCCDCCCCCCDCCCCCCDCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCDCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCDCCCCCCCDCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCDCCCDCCCCCCCCCC"
+    }
+  ],
+  "yourShareByGeneration": [
+    {
+      "gen": 0,
+      "yourShare": 0.200416
+    },
+    {
+      "gen": 1,
+      "yourShare": 0.198285
+    },
+    {
+      "gen": 2,
+      "yourShare": 0.197728
+    },
+    {
+      "gen": 3,
+      "yourShare": 0.198162
+    },
+    {
+      "gen": 4,
+      "yourShare": 0.195694
+    },
+    {
+      "gen": 5,
+      "yourShare": 0.195464
+    },
+    {
+      "gen": 6,
+      "yourShare": 0.193066
+    },
+    {
+      "gen": 7,
+      "yourShare": 0.194723
+    },
+    {
+      "gen": 8,
+      "yourShare": 0.192273
+    },
+    {
+      "gen": 9,
+      "yourShare": 0.192228
+    },
+    {
+      "gen": 10,
+      "yourShare": 0.191437
+    },
+    {
+      "gen": 11,
+      "yourShare": 0.194321
+    },
+    {
+      "gen": 12,
+      "yourShare": 0.193301
+    },
+    {
+      "gen": 13,
+      "yourShare": 0.19081
+    },
+    {
+      "gen": 14,
+      "yourShare": 0.190036
+    },
+    {
+      "gen": 15,
+      "yourShare": 0.189103
+    },
+    {
+      "gen": 16,
+      "yourShare": 0.186966
+    },
+    {
+      "gen": 17,
+      "yourShare": 0.187187
+    },
+    {
+      "gen": 18,
+      "yourShare": 0.18659
+    },
+    {
+      "gen": 19,
+      "yourShare": 0.185211
+    },
+    {
+      "gen": 20,
+      "yourShare": 0.181663
+    },
+    {
+      "gen": 21,
+      "yourShare": 0.179865
+    },
+    {
+      "gen": 22,
+      "yourShare": 0.179188
+    },
+    {
+      "gen": 23,
+      "yourShare": 0.176676
+    },
+    {
+      "gen": 24,
+      "yourShare": 0.175903
+    },
+    {
+      "gen": 25,
+      "yourShare": 0.175647
+    },
+    {
+      "gen": 26,
+      "yourShare": 0.173847
+    },
+    {
+      "gen": 27,
+      "yourShare": 0.170612
+    },
+    {
+      "gen": 28,
+      "yourShare": 0.166897
+    },
+    {
+      "gen": 29,
+      "yourShare": 0.165473
+    }
+  ]
+}

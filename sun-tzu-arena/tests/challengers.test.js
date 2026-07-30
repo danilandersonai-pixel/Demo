@@ -30,17 +30,30 @@ test('претенденты: четыре участника, у каждого
     assert.doesNotThrow(function () { registry.validate(def); }, def.id + ': досье неполно');
     assert.strictEqual(def.family, 'challenger');
     assert.ok(!ids[def.id], 'дубль id: ' + def.id);
-    assert.ok(!registry.byId(def.id), def.id + ' не должен пересекаться с основной лигой');
     ids[def.id] = true;
   });
 });
 
-test('претенденты: реестр основной лиги не изменился', function () {
-  // Добавление претендентов в основной реестр сдвинуло бы сиды всех матчей
-  // и обесценило бы каждый прогон и каждое число в отчёте.
-  assert.strictEqual(registry.list.length, 12);
+test('претенденты: в ядро лиги не попали, в принятые — попали все четверо', function () {
+  // Ядро замороженo: его индексы входят в сиды матчей первого сезона.
+  // Претенденты приняты дописыванием в хвост, где ничьих сидов не сдвигают.
   challengers.list.forEach(function (def) {
-    assert.strictEqual(registry.list.indexOf(def), -1, def.id + ' просочился в основную лигу');
+    assert.strictEqual(registry.core.indexOf(def), -1, def.id + ' просочился в ядро');
+    var admitted = registry.byId(def.id);
+    assert.ok(admitted, def.id + ' пережил оба круга и обязан быть в лиге');
+    assert.strictEqual(admitted.create, def.create, 'в лигу должна попасть та же механика');
+  });
+  assert.strictEqual(registry.core.length, 12, 'ядро обязано остаться двенадцатью');
+});
+
+test('претенденты: у каждого есть раздел «КРУГ 2» в досье', function () {
+  // Требование второго круга: автор обязан записать, что изменил и почему.
+  var fs = require('node:fs');
+  var path = require('node:path');
+  challengers.list.forEach(function (def) {
+    var file = path.join(__dirname, '..', 'strategies', 'challengers', def.id + '.js');
+    var text = fs.readFileSync(file, 'utf8');
+    assert.ok(/КРУГ 2/.test(text), def.id + ': нет раздела «КРУГ 2» в досье');
   });
 });
 
@@ -111,10 +124,10 @@ test('Интендант: держит баланс там, где это оку
   var total = 0;
   var worstDeficit = 0;
 
-  registry.list.forEach(function (foe) { notLost[foe.id] = 0; });
+  registry.core.forEach(function (foe) { notLost[foe.id] = 0; });
 
   for (var s = 0; s < SEEDS; s++) {
-    registry.list.forEach(function (foe) {
+    registry.core.forEach(function (foe) {
       var r = match.playMatch(chById('quartermaster'), foe, {
         rounds: 200, noise: 0.05, seed: s * 97 + 11
       });

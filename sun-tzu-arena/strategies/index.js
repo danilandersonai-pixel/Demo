@@ -32,10 +32,36 @@ var core = [
 ];
 
 /**
- * Принятые в лигу после первого сезона: выжившие претенденты и выведенный
- * генетикой «Безымянный». Порядок тоже заморожен и тоже только дописывается.
+ * Приём в лигу.
+ *
+ * Цвет — метаданные визуализатора, а не механика: он не входит ни в сид матча,
+ * ни в расчёт, и его смена не меняет ни одного числа в results/. Поэтому при
+ * приёме цвет назначается заново, из палитры, разведённой по тону: в закрытом
+ * турнире из пяти участников соседние оттенки незаметны, а на карте
+ * территории из семнадцати фракций две близкие заливки сливаются. Замер:
+ * с исходными цветами худшая пара с участием новичка давала перцептивное
+ * расстояние 71 (Прагматик ↔ Интендант), с назначенными — 82.
+ * Всё остальное — механика, досье, имя — остаётся авторским.
  */
-var admitted = [];
+function admit(def, color) {
+  var copy = Object.assign({}, def);
+  copy.color = color;
+  return copy;
+}
+
+/**
+ * Принятые в лигу после первого сезона: четверо выживших претендентов
+ * (все четверо пережили оба круга) и выведенный генетикой «Безымянный».
+ * Порядок заморожен и только дописывается — индексы ядра не сдвигаются,
+ * поэтому прогоны первого сезона остаются воспроизводимыми.
+ */
+var admitted = [
+  admit(require('./challengers/counterIntelligence'), '#0ea5e9'),
+  admit(require('./challengers/quartermaster'), '#ca8a04'),
+  admit(require('./challengers/resonance'), '#7c3aed'),
+  admit(require('./challengers/windAndMountain'), '#be123c'),
+  admit(require('./evolved/nameless'), '#f8fafc')
+];
 
 /** Основная лига целиком: ядро плюс принятые. */
 var list = core.concat(admitted);
@@ -67,10 +93,15 @@ function validate(def) {
 }
 
 var seen = Object.create(null);
+var seenColor = Object.create(null);
 list.forEach(function (def) {
   validate(def);
   if (seen[def.id]) throw new Error('Дублирующийся id стратегии: ' + def.id);
+  if (seenColor[def.color]) {
+    throw new Error('Дублирующийся цвет ' + def.color + ': ' + seenColor[def.color] + ' и ' + def.id);
+  }
   seen[def.id] = def;
+  seenColor[def.color] = def.id;
 });
 
 /** @param {string} id @returns {object|undefined} */

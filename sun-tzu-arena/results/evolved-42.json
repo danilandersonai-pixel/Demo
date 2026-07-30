@@ -1,0 +1,1370 @@
+{
+  "seed": 42,
+  "populationSize": 64,
+  "generations": 150,
+  "rounds": 150,
+  "noise": 0.05,
+  "genomeLength": 21,
+  "params": {
+    "tournamentSize": 3,
+    "crossoverRate": 0.6,
+    "mutationRate": 0.01,
+    "elitism": 2
+  },
+  "history": [
+    {
+      "gen": 0,
+      "best": 2.8746,
+      "mean": 2.2845,
+      "worst": 1.7856,
+      "unique": 64,
+      "bestGenome": "CDCDCDCDCDDDDDDDDDCDC"
+    },
+    {
+      "gen": 1,
+      "best": 2.4393,
+      "mean": 2.0249,
+      "worst": 1.5536,
+      "unique": 55,
+      "bestGenome": "CCDDDCDDCDDDDCDDDCDDD"
+    },
+    {
+      "gen": 2,
+      "best": 2.1105,
+      "mean": 1.8077,
+      "worst": 1.3319,
+      "unique": 52,
+      "bestGenome": "DDCCCCDDDCCDDCDDDCDDD"
+    },
+    {
+      "gen": 3,
+      "best": 1.6281,
+      "mean": 1.5109,
+      "worst": 1.3258,
+      "unique": 60,
+      "bestGenome": "DDCCCCDCDDDDDDCDDCDDD"
+    },
+    {
+      "gen": 4,
+      "best": 1.411,
+      "mean": 1.3057,
+      "worst": 1.2174,
+      "unique": 54,
+      "bestGenome": "DCCDDDDCDDDCDDDDDDDCD"
+    },
+    {
+      "gen": 5,
+      "best": 1.5204,
+      "mean": 1.3243,
+      "worst": 1.2509,
+      "unique": 54,
+      "bestGenome": "CDDCCCDCDDDDDCDDDCDDC"
+    },
+    {
+      "gen": 6,
+      "best": 1.5453,
+      "mean": 1.3854,
+      "worst": 1.2735,
+      "unique": 46,
+      "bestGenome": "CDDCCCDDCCDDDCCDCCDCD"
+    },
+    {
+      "gen": 7,
+      "best": 1.7209,
+      "mean": 1.5551,
+      "worst": 1.3878,
+      "unique": 50,
+      "bestGenome": "CDDCCCDDCCDDDCCDCCDCD"
+    },
+    {
+      "gen": 8,
+      "best": 2.059,
+      "mean": 1.7343,
+      "worst": 1.4817,
+      "unique": 54,
+      "bestGenome": "CDDCCCDCCCDDCCCCCCDDD"
+    },
+    {
+      "gen": 9,
+      "best": 2.3885,
+      "mean": 2.2175,
+      "worst": 1.8791,
+      "unique": 43,
+      "bestGenome": "CDCCCCDDDCDDCCDDCCDDD"
+    },
+    {
+      "gen": 10,
+      "best": 2.6242,
+      "mean": 2.3602,
+      "worst": 1.8645,
+      "unique": 47,
+      "bestGenome": "CDDCCCDDDCDDDCDDDCDDC"
+    },
+    {
+      "gen": 11,
+      "best": 2.4011,
+      "mean": 2.1648,
+      "worst": 1.7961,
+      "unique": 43,
+      "bestGenome": "CDDDCCDDCCDDDCDDDCDDC"
+    },
+    {
+      "gen": 12,
+      "best": 2.5003,
+      "mean": 2.3535,
+      "worst": 1.631,
+      "unique": 37,
+      "bestGenome": "CDCCCCDDCCDDDCCDDCDDC"
+    },
+    {
+      "gen": 13,
+      "best": 2.6633,
+      "mean": 2.6061,
+      "worst": 2.1681,
+      "unique": 27,
+      "bestGenome": "CDCCCCDDCCDDDCCDDCDDC"
+    },
+    {
+      "gen": 14,
+      "best": 2.6563,
+      "mean": 2.5881,
+      "worst": 2.3014,
+      "unique": 24,
+      "bestGenome": "CDDDCCDDDCDDDCDDDCDDC"
+    },
+    {
+      "gen": 15,
+      "best": 2.6625,
+      "mean": 2.6084,
+      "worst": 2.4451,
+      "unique": 26,
+      "bestGenome": "CDDDCCDDDCDDDCDDDCDDC"
+    },
+    {
+      "gen": 16,
+      "best": 2.6814,
+      "mean": 2.6171,
+      "worst": 1.9357,
+      "unique": 19,
+      "bestGenome": "CDCDCCDDDCDDDCDDDCDDC"
+    },
+    {
+      "gen": 17,
+      "best": 2.6576,
+      "mean": 2.606,
+      "worst": 2.2843,
+      "unique": 17,
+      "bestGenome": "CDDDCCDDDCDDDCDDDCDDC"
+    },
+    {
+      "gen": 18,
+      "best": 2.6407,
+      "mean": 2.5883,
+      "worst": 2.37,
+      "unique": 17,
+      "bestGenome": "CDDCCCDDDCDDDCDDDCDDC"
+    },
+    {
+      "gen": 19,
+      "best": 2.667,
+      "mean": 2.6022,
+      "worst": 2.0441,
+      "unique": 16,
+      "bestGenome": "CDDCCCDDDCDDDCDDDCDDC"
+    },
+    {
+      "gen": 20,
+      "best": 2.6786,
+      "mean": 2.6373,
+      "worst": 2.424,
+      "unique": 13,
+      "bestGenome": "CDDCCCDDDCDDDCDDDCDDC"
+    },
+    {
+      "gen": 21,
+      "best": 2.7,
+      "mean": 2.6358,
+      "worst": 1.8839,
+      "unique": 15,
+      "bestGenome": "CDDCCCDDDCDDDCDDDCDDC"
+    },
+    {
+      "gen": 22,
+      "best": 2.6191,
+      "mean": 2.5296,
+      "worst": 2.2267,
+      "unique": 17,
+      "bestGenome": "CDDCCCDDDCDDDCDDDCDDC"
+    },
+    {
+      "gen": 23,
+      "best": 2.6526,
+      "mean": 2.6074,
+      "worst": 1.9856,
+      "unique": 15,
+      "bestGenome": "CDDDCCDDDCDDDCDDDCDDC"
+    },
+    {
+      "gen": 24,
+      "best": 2.6771,
+      "mean": 2.6327,
+      "worst": 2.0735,
+      "unique": 12,
+      "bestGenome": "CDCDCCDDDCDDDCDDDCDDC"
+    },
+    {
+      "gen": 25,
+      "best": 2.6836,
+      "mean": 2.6235,
+      "worst": 1.9631,
+      "unique": 16,
+      "bestGenome": "CDDCCCDDDCDDDCDDDCDDC"
+    },
+    {
+      "gen": 26,
+      "best": 2.6075,
+      "mean": 2.5519,
+      "worst": 1.9777,
+      "unique": 15,
+      "bestGenome": "CDDCCCDDDCDDDCDDDCDDC"
+    },
+    {
+      "gen": 27,
+      "best": 2.6323,
+      "mean": 2.5615,
+      "worst": 1.7761,
+      "unique": 18,
+      "bestGenome": "CDDCCCDDDCDDDCDDDCDDC"
+    },
+    {
+      "gen": 28,
+      "best": 2.653,
+      "mean": 2.5646,
+      "worst": 1.9685,
+      "unique": 17,
+      "bestGenome": "CDDCCCDDDCDDDCDDDCDDC"
+    },
+    {
+      "gen": 29,
+      "best": 2.6749,
+      "mean": 2.6352,
+      "worst": 2.3816,
+      "unique": 12,
+      "bestGenome": "CDDCCCDDDCDDDCDDDCDDC"
+    },
+    {
+      "gen": 30,
+      "best": 2.6266,
+      "mean": 2.5496,
+      "worst": 1.9105,
+      "unique": 16,
+      "bestGenome": "CDDCCCDDDCDDDCDDDCDDC"
+    },
+    {
+      "gen": 31,
+      "best": 2.636,
+      "mean": 2.5823,
+      "worst": 1.8229,
+      "unique": 12,
+      "bestGenome": "CDDDCCDDDCDDDCDDDCDDC"
+    },
+    {
+      "gen": 32,
+      "best": 2.6281,
+      "mean": 2.5579,
+      "worst": 1.9681,
+      "unique": 18,
+      "bestGenome": "CDDCCCDDDCDDDCDDDCDDC"
+    },
+    {
+      "gen": 33,
+      "best": 2.6378,
+      "mean": 2.5546,
+      "worst": 1.5478,
+      "unique": 15,
+      "bestGenome": "CDDCCCDDDCDDDCDDDCDDC"
+    },
+    {
+      "gen": 34,
+      "best": 2.6921,
+      "mean": 2.6485,
+      "worst": 2.431,
+      "unique": 13,
+      "bestGenome": "CDDDCCDDDCDDDCDDDCDDC"
+    },
+    {
+      "gen": 35,
+      "best": 2.746,
+      "mean": 2.6505,
+      "worst": 2.3653,
+      "unique": 15,
+      "bestGenome": "CDDCCCDDDCDCDCDDDCDDC"
+    },
+    {
+      "gen": 36,
+      "best": 2.6605,
+      "mean": 2.576,
+      "worst": 2.1554,
+      "unique": 18,
+      "bestGenome": "CDDCDCDDDCDDDCDDDCDDC"
+    },
+    {
+      "gen": 37,
+      "best": 2.6511,
+      "mean": 2.5793,
+      "worst": 2.3514,
+      "unique": 18,
+      "bestGenome": "CDDCDCDDDCDDDCDDDCDDC"
+    },
+    {
+      "gen": 38,
+      "best": 2.6753,
+      "mean": 2.6084,
+      "worst": 1.9046,
+      "unique": 16,
+      "bestGenome": "CDDCCCDDDCDCDCDDDCDDC"
+    },
+    {
+      "gen": 39,
+      "best": 2.6797,
+      "mean": 2.5752,
+      "worst": 2.3255,
+      "unique": 18,
+      "bestGenome": "CDDCDCDDDCDDDCDDDCDDC"
+    },
+    {
+      "gen": 40,
+      "best": 2.6667,
+      "mean": 2.5942,
+      "worst": 1.5025,
+      "unique": 15,
+      "bestGenome": "CDDCDCDDDCDDDCDDDCDDC"
+    },
+    {
+      "gen": 41,
+      "best": 2.7005,
+      "mean": 2.5865,
+      "worst": 1.9759,
+      "unique": 14,
+      "bestGenome": "CDDCCCDDDCDCDCDDDCDDC"
+    },
+    {
+      "gen": 42,
+      "best": 2.6292,
+      "mean": 2.568,
+      "worst": 2.295,
+      "unique": 18,
+      "bestGenome": "CDDCDCDDDCDDDCDDDCDDC"
+    },
+    {
+      "gen": 43,
+      "best": 2.6776,
+      "mean": 2.5839,
+      "worst": 1.8747,
+      "unique": 18,
+      "bestGenome": "CDDCCCDDDCDCDCDDDCDDC"
+    },
+    {
+      "gen": 44,
+      "best": 2.6702,
+      "mean": 2.5871,
+      "worst": 2.0153,
+      "unique": 20,
+      "bestGenome": "CDDCCCDDDCDCDCDDDCDDC"
+    },
+    {
+      "gen": 45,
+      "best": 2.6737,
+      "mean": 2.5875,
+      "worst": 1.8969,
+      "unique": 19,
+      "bestGenome": "CDDCCCDDDCDCDCDDDCDDC"
+    },
+    {
+      "gen": 46,
+      "best": 2.6473,
+      "mean": 2.5976,
+      "worst": 2.3301,
+      "unique": 18,
+      "bestGenome": "CDCCCCDDDCDDDCDDDCDDC"
+    },
+    {
+      "gen": 47,
+      "best": 2.6781,
+      "mean": 2.627,
+      "worst": 2.0116,
+      "unique": 19,
+      "bestGenome": "CDDCCCDDDCDCDCDDDCDDC"
+    },
+    {
+      "gen": 48,
+      "best": 2.6387,
+      "mean": 2.5728,
+      "worst": 2.2945,
+      "unique": 27,
+      "bestGenome": "CDDCCCDDDCDCDCDDDCDCC"
+    },
+    {
+      "gen": 49,
+      "best": 2.7024,
+      "mean": 2.6486,
+      "worst": 2.0532,
+      "unique": 14,
+      "bestGenome": "CDDCCCDDDCDCDCDDDCDCC"
+    },
+    {
+      "gen": 50,
+      "best": 2.7031,
+      "mean": 2.639,
+      "worst": 2.3844,
+      "unique": 15,
+      "bestGenome": "CDDCCCDDDCDCDCDDDCDDC"
+    },
+    {
+      "gen": 51,
+      "best": 2.704,
+      "mean": 2.6385,
+      "worst": 2.1953,
+      "unique": 14,
+      "bestGenome": "CDDCCCDDDCDCDCDDDCDDC"
+    },
+    {
+      "gen": 52,
+      "best": 2.7324,
+      "mean": 2.6567,
+      "worst": 2.0024,
+      "unique": 14,
+      "bestGenome": "CDDCCCDDDCDCDCDDDCDDC"
+    },
+    {
+      "gen": 53,
+      "best": 2.7256,
+      "mean": 2.6699,
+      "worst": 1.9956,
+      "unique": 12,
+      "bestGenome": "CDCCDCDDDCDDDCDDDCDDC"
+    },
+    {
+      "gen": 54,
+      "best": 2.7211,
+      "mean": 2.6559,
+      "worst": 2.4798,
+      "unique": 16,
+      "bestGenome": "CDDCCCDDDCDCDCDDDCDDC"
+    },
+    {
+      "gen": 55,
+      "best": 2.6483,
+      "mean": 2.5739,
+      "worst": 2.3568,
+      "unique": 14,
+      "bestGenome": "CDDCCCDDDCDCDCDDDCDDC"
+    },
+    {
+      "gen": 56,
+      "best": 2.6929,
+      "mean": 2.6075,
+      "worst": 1.9661,
+      "unique": 16,
+      "bestGenome": "CDDCCCDDDCDCDCDDDCDDC"
+    },
+    {
+      "gen": 57,
+      "best": 2.7277,
+      "mean": 2.6535,
+      "worst": 2.0099,
+      "unique": 14,
+      "bestGenome": "CDDCCCDDDCDCDCDDDCDDC"
+    },
+    {
+      "gen": 58,
+      "best": 2.7148,
+      "mean": 2.6306,
+      "worst": 1.5484,
+      "unique": 12,
+      "bestGenome": "CDDCCCDDDCDCDCDDDCDDC"
+    },
+    {
+      "gen": 59,
+      "best": 2.6868,
+      "mean": 2.6268,
+      "worst": 2.4256,
+      "unique": 11,
+      "bestGenome": "CDDCCCDDDCDCDCDDDCDDC"
+    },
+    {
+      "gen": 60,
+      "best": 2.6743,
+      "mean": 2.6057,
+      "worst": 2.37,
+      "unique": 10,
+      "bestGenome": "CDDCCCDDDCDCDCDDDCDDC"
+    },
+    {
+      "gen": 61,
+      "best": 2.685,
+      "mean": 2.6062,
+      "worst": 2.3518,
+      "unique": 12,
+      "bestGenome": "CDDCCCDDDCDCDCDDDCDDC"
+    },
+    {
+      "gen": 62,
+      "best": 2.7453,
+      "mean": 2.6557,
+      "worst": 1.6857,
+      "unique": 14,
+      "bestGenome": "CDDCCCDDDCDCDCDDDCDDC"
+    },
+    {
+      "gen": 63,
+      "best": 2.7009,
+      "mean": 2.624,
+      "worst": 2.3281,
+      "unique": 12,
+      "bestGenome": "CDDCCCDDDCDCDCDDDCDDC"
+    },
+    {
+      "gen": 64,
+      "best": 2.7003,
+      "mean": 2.6181,
+      "worst": 2.3321,
+      "unique": 11,
+      "bestGenome": "CDDCCCDDDCDCDCDDDCDDC"
+    },
+    {
+      "gen": 65,
+      "best": 2.7203,
+      "mean": 2.6418,
+      "worst": 2.0486,
+      "unique": 12,
+      "bestGenome": "CDDCCCDDDCDCDCDDDCDDC"
+    },
+    {
+      "gen": 66,
+      "best": 2.7239,
+      "mean": 2.6635,
+      "worst": 2.4557,
+      "unique": 9,
+      "bestGenome": "CDDCCCDDDCDCDCDDDCDDC"
+    },
+    {
+      "gen": 67,
+      "best": 2.7358,
+      "mean": 2.6742,
+      "worst": 2.449,
+      "unique": 10,
+      "bestGenome": "CDDCCCDDDCDCDCDDDCDDC"
+    },
+    {
+      "gen": 68,
+      "best": 2.7036,
+      "mean": 2.6202,
+      "worst": 2.0232,
+      "unique": 13,
+      "bestGenome": "CDDCCCDDDCDCDCDDDCDDC"
+    },
+    {
+      "gen": 69,
+      "best": 2.6771,
+      "mean": 2.5896,
+      "worst": 2.375,
+      "unique": 12,
+      "bestGenome": "CDDCCCDDDCDCDCDDDCDDC"
+    },
+    {
+      "gen": 70,
+      "best": 2.704,
+      "mean": 2.6441,
+      "worst": 2.4237,
+      "unique": 14,
+      "bestGenome": "CDDCCCDDDCDCDCDDDCDDC"
+    },
+    {
+      "gen": 71,
+      "best": 2.7039,
+      "mean": 2.6224,
+      "worst": 2.3795,
+      "unique": 9,
+      "bestGenome": "CDDCCCDDDCDCDCDDDCDDC"
+    },
+    {
+      "gen": 72,
+      "best": 2.6751,
+      "mean": 2.5919,
+      "worst": 1.9775,
+      "unique": 13,
+      "bestGenome": "CDDCCCDDDCDCDCDDDCDDC"
+    },
+    {
+      "gen": 73,
+      "best": 2.7227,
+      "mean": 2.6539,
+      "worst": 1.9983,
+      "unique": 11,
+      "bestGenome": "CDDCCCDDDCDCDCDDDCDDC"
+    },
+    {
+      "gen": 74,
+      "best": 2.6938,
+      "mean": 2.6219,
+      "worst": 2.2725,
+      "unique": 14,
+      "bestGenome": "CDDCCCDDDCDCDCDDDCDDC"
+    },
+    {
+      "gen": 75,
+      "best": 2.7044,
+      "mean": 2.6375,
+      "worst": 2.3706,
+      "unique": 12,
+      "bestGenome": "CDDCCCDDDCDCDCDDDCDDC"
+    },
+    {
+      "gen": 76,
+      "best": 2.714,
+      "mean": 2.6324,
+      "worst": 1.8776,
+      "unique": 16,
+      "bestGenome": "CDDCCCDDDCDCDCDDDCDDC"
+    },
+    {
+      "gen": 77,
+      "best": 2.6859,
+      "mean": 2.6261,
+      "worst": 2.4344,
+      "unique": 16,
+      "bestGenome": "CDDCCCDDDCDCDCDDDCDDC"
+    },
+    {
+      "gen": 78,
+      "best": 2.696,
+      "mean": 2.628,
+      "worst": 2.4785,
+      "unique": 18,
+      "bestGenome": "CDDCCCDDDCDCDCDDDCDDC"
+    },
+    {
+      "gen": 79,
+      "best": 2.7344,
+      "mean": 2.6597,
+      "worst": 2.409,
+      "unique": 12,
+      "bestGenome": "CDDCCCDDDCDCDCDDDCDDC"
+    },
+    {
+      "gen": 80,
+      "best": 2.7236,
+      "mean": 2.6497,
+      "worst": 2.3851,
+      "unique": 12,
+      "bestGenome": "CDDCCCDDDCDCDCDDDCDDC"
+    },
+    {
+      "gen": 81,
+      "best": 2.7548,
+      "mean": 2.6804,
+      "worst": 2.4285,
+      "unique": 8,
+      "bestGenome": "CDDCCCDDDCDCDCDDDCDDC"
+    },
+    {
+      "gen": 82,
+      "best": 2.7127,
+      "mean": 2.6243,
+      "worst": 2.0215,
+      "unique": 12,
+      "bestGenome": "CDDCCCDDDCDCDCDDDCDDC"
+    },
+    {
+      "gen": 83,
+      "best": 2.7267,
+      "mean": 2.6406,
+      "worst": 2.0501,
+      "unique": 10,
+      "bestGenome": "CDDCCCDDDCDCDCDDDCDDC"
+    },
+    {
+      "gen": 84,
+      "best": 2.7059,
+      "mean": 2.637,
+      "worst": 2.3983,
+      "unique": 15,
+      "bestGenome": "CDDCCCDDDCDCDCDDDCDDC"
+    },
+    {
+      "gen": 85,
+      "best": 2.7124,
+      "mean": 2.6399,
+      "worst": 2.3874,
+      "unique": 14,
+      "bestGenome": "CDDCCCDDDCDCDCDDDCDDC"
+    },
+    {
+      "gen": 86,
+      "best": 2.7046,
+      "mean": 2.6193,
+      "worst": 2.3716,
+      "unique": 15,
+      "bestGenome": "CDDCCCDDDCDCDCDDDCDDC"
+    },
+    {
+      "gen": 87,
+      "best": 2.7156,
+      "mean": 2.6478,
+      "worst": 2.3756,
+      "unique": 10,
+      "bestGenome": "CDDCCCDDDCDCDCDDDCDDC"
+    },
+    {
+      "gen": 88,
+      "best": 2.7389,
+      "mean": 2.6862,
+      "worst": 2.4764,
+      "unique": 9,
+      "bestGenome": "CDDCCCDDDCDCDCDDDCDDC"
+    },
+    {
+      "gen": 89,
+      "best": 2.7308,
+      "mean": 2.6477,
+      "worst": 1.5602,
+      "unique": 9,
+      "bestGenome": "CDDCCCDDDCDCDCDDDCDDC"
+    },
+    {
+      "gen": 90,
+      "best": 2.7101,
+      "mean": 2.5939,
+      "worst": 1.2899,
+      "unique": 14,
+      "bestGenome": "CDDCCCDDDCDCDCDDDCDDC"
+    },
+    {
+      "gen": 91,
+      "best": 2.677,
+      "mean": 2.598,
+      "worst": 1.8452,
+      "unique": 11,
+      "bestGenome": "CDDCCCDDDCDCDCDDDCDDC"
+    },
+    {
+      "gen": 92,
+      "best": 2.7108,
+      "mean": 2.624,
+      "worst": 2.0194,
+      "unique": 13,
+      "bestGenome": "CDDCCCDDDCDCDCDDDCDDC"
+    },
+    {
+      "gen": 93,
+      "best": 2.709,
+      "mean": 2.6381,
+      "worst": 2.251,
+      "unique": 12,
+      "bestGenome": "CDCCDCDDDCDCDCDDDCDDC"
+    },
+    {
+      "gen": 94,
+      "best": 2.7354,
+      "mean": 2.6592,
+      "worst": 2.4206,
+      "unique": 7,
+      "bestGenome": "CDCCDCDDDCDCDCDDDCDDC"
+    },
+    {
+      "gen": 95,
+      "best": 2.6703,
+      "mean": 2.6188,
+      "worst": 2.4737,
+      "unique": 14,
+      "bestGenome": "CDDCCCDDDCDCDCDDDCDDC"
+    },
+    {
+      "gen": 96,
+      "best": 2.6877,
+      "mean": 2.6433,
+      "worst": 2.4764,
+      "unique": 13,
+      "bestGenome": "CDCCDCDDDCDCDCDDDCDDC"
+    },
+    {
+      "gen": 97,
+      "best": 2.6245,
+      "mean": 2.5785,
+      "worst": 2.3939,
+      "unique": 20,
+      "bestGenome": "CDCCDCDDDCDCDCDDDCDDC"
+    },
+    {
+      "gen": 98,
+      "best": 2.6451,
+      "mean": 2.5672,
+      "worst": 1.8456,
+      "unique": 16,
+      "bestGenome": "CDCCCCDDDCDCDCDDDCCDC"
+    },
+    {
+      "gen": 99,
+      "best": 2.6787,
+      "mean": 2.5968,
+      "worst": 2.3427,
+      "unique": 19,
+      "bestGenome": "CDCCCCDDDCDCDCDDDCCDC"
+    },
+    {
+      "gen": 100,
+      "best": 2.7328,
+      "mean": 2.641,
+      "worst": 2.0872,
+      "unique": 16,
+      "bestGenome": "CDCCCCDDDCDCDCDDDCCDC"
+    },
+    {
+      "gen": 101,
+      "best": 2.6955,
+      "mean": 2.6343,
+      "worst": 1.9283,
+      "unique": 17,
+      "bestGenome": "CDCCCCDDDCDCDCDDDCCDC"
+    },
+    {
+      "gen": 102,
+      "best": 2.6578,
+      "mean": 2.5708,
+      "worst": 1.8543,
+      "unique": 19,
+      "bestGenome": "CDCCCCDDDCDCDCDDDCCDC"
+    },
+    {
+      "gen": 103,
+      "best": 2.659,
+      "mean": 2.577,
+      "worst": 2.4217,
+      "unique": 24,
+      "bestGenome": "DDCCDCDDDCDCDCDDDCDDC"
+    },
+    {
+      "gen": 104,
+      "best": 2.6956,
+      "mean": 2.6248,
+      "worst": 2.0875,
+      "unique": 21,
+      "bestGenome": "DDCCDCDDDCDCDCDDDCDDC"
+    },
+    {
+      "gen": 105,
+      "best": 2.6982,
+      "mean": 2.6133,
+      "worst": 2.3835,
+      "unique": 23,
+      "bestGenome": "DDCCDCDDCCDCDCDDDCDDC"
+    },
+    {
+      "gen": 106,
+      "best": 2.7203,
+      "mean": 2.6438,
+      "worst": 2.4631,
+      "unique": 19,
+      "bestGenome": "DDCCDCDDCCDCDCDDDCDDC"
+    },
+    {
+      "gen": 107,
+      "best": 2.705,
+      "mean": 2.6284,
+      "worst": 2.4242,
+      "unique": 16,
+      "bestGenome": "DDCCDCDDCCDCDCDDDCDDC"
+    },
+    {
+      "gen": 108,
+      "best": 2.6646,
+      "mean": 2.6183,
+      "worst": 2.4346,
+      "unique": 16,
+      "bestGenome": "DDCCDCDDDCDCDCDDDCDDC"
+    },
+    {
+      "gen": 109,
+      "best": 2.6654,
+      "mean": 2.6022,
+      "worst": 2.3749,
+      "unique": 16,
+      "bestGenome": "DDCCDCDDCCDCDCDDDCDDC"
+    },
+    {
+      "gen": 110,
+      "best": 2.6788,
+      "mean": 2.597,
+      "worst": 1.8626,
+      "unique": 14,
+      "bestGenome": "DDCCDCDDCCDCDCDDDCDDC"
+    },
+    {
+      "gen": 111,
+      "best": 2.6378,
+      "mean": 2.6006,
+      "worst": 2.4042,
+      "unique": 17,
+      "bestGenome": "DDCCDCDDDCDCDCDDDCDCC"
+    },
+    {
+      "gen": 112,
+      "best": 2.6532,
+      "mean": 2.6028,
+      "worst": 2.4606,
+      "unique": 16,
+      "bestGenome": "DDCCDCDDCCDCDCDDDCDDC"
+    },
+    {
+      "gen": 113,
+      "best": 2.6802,
+      "mean": 2.6384,
+      "worst": 2.334,
+      "unique": 17,
+      "bestGenome": "DDCCDCDDDCDCDCDDDCDCC"
+    },
+    {
+      "gen": 114,
+      "best": 2.639,
+      "mean": 2.5595,
+      "worst": 2.3276,
+      "unique": 21,
+      "bestGenome": "DDCCDCDDCCDCDCDDDCDDC"
+    },
+    {
+      "gen": 115,
+      "best": 2.625,
+      "mean": 2.5724,
+      "worst": 2.331,
+      "unique": 16,
+      "bestGenome": "DDCCDCDDDCDCDCDDDCDCC"
+    },
+    {
+      "gen": 116,
+      "best": 2.6242,
+      "mean": 2.5703,
+      "worst": 2.4323,
+      "unique": 20,
+      "bestGenome": "DDCCDCDDDCDCDCDDDCDCC"
+    },
+    {
+      "gen": 117,
+      "best": 2.6453,
+      "mean": 2.5689,
+      "worst": 2.4354,
+      "unique": 19,
+      "bestGenome": "DDCCDCDDCCDCDCDDDCDDC"
+    },
+    {
+      "gen": 118,
+      "best": 2.6807,
+      "mean": 2.607,
+      "worst": 2.4666,
+      "unique": 27,
+      "bestGenome": "DDCCDCDDCCDCDCDDDCDDC"
+    },
+    {
+      "gen": 119,
+      "best": 2.6428,
+      "mean": 2.587,
+      "worst": 2.4494,
+      "unique": 28,
+      "bestGenome": "DDCCDCDDDCDDDCCDDCDCC"
+    },
+    {
+      "gen": 120,
+      "best": 2.6523,
+      "mean": 2.5795,
+      "worst": 2.381,
+      "unique": 31,
+      "bestGenome": "DDCCDCDDCCDCDCCDDCDDC"
+    },
+    {
+      "gen": 121,
+      "best": 2.6872,
+      "mean": 2.6239,
+      "worst": 2.3554,
+      "unique": 31,
+      "bestGenome": "DDCCDCDDDCDCDCDDDCDDC"
+    },
+    {
+      "gen": 122,
+      "best": 2.601,
+      "mean": 2.555,
+      "worst": 2.2913,
+      "unique": 33,
+      "bestGenome": "DDCDDCDDDCDCDCCCDCDCC"
+    },
+    {
+      "gen": 123,
+      "best": 2.656,
+      "mean": 2.5818,
+      "worst": 2.0811,
+      "unique": 32,
+      "bestGenome": "DDCCDCDDCCDCDCDDDCDDC"
+    },
+    {
+      "gen": 124,
+      "best": 2.5964,
+      "mean": 2.5477,
+      "worst": 2.3632,
+      "unique": 39,
+      "bestGenome": "CDCCCCDDCCDDDCCDDCDCC"
+    },
+    {
+      "gen": 125,
+      "best": 2.6118,
+      "mean": 2.581,
+      "worst": 2.395,
+      "unique": 36,
+      "bestGenome": "DCCCDCDDDCDCDCCCDCDCC"
+    },
+    {
+      "gen": 126,
+      "best": 2.6276,
+      "mean": 2.5781,
+      "worst": 2.3314,
+      "unique": 44,
+      "bestGenome": "DDCDDCDDDCDCDCDDDCDCC"
+    },
+    {
+      "gen": 127,
+      "best": 2.6233,
+      "mean": 2.5665,
+      "worst": 2.1278,
+      "unique": 43,
+      "bestGenome": "DCCCDCDDDCDDDCCDDCDDC"
+    },
+    {
+      "gen": 128,
+      "best": 2.6315,
+      "mean": 2.5994,
+      "worst": 2.4477,
+      "unique": 38,
+      "bestGenome": "DDCCDCDDCCDCDCDDDCDDC"
+    },
+    {
+      "gen": 129,
+      "best": 2.6151,
+      "mean": 2.5648,
+      "worst": 2.3195,
+      "unique": 44,
+      "bestGenome": "DDCCDCDDCCDCDCDDDCDDC"
+    },
+    {
+      "gen": 130,
+      "best": 2.6509,
+      "mean": 2.5831,
+      "worst": 2.0498,
+      "unique": 41,
+      "bestGenome": "DDCDDCDDCDDDDCDDDCDDC"
+    },
+    {
+      "gen": 131,
+      "best": 2.6404,
+      "mean": 2.5815,
+      "worst": 1.9819,
+      "unique": 39,
+      "bestGenome": "DDCDDCDDCDDDDCDDDCDDC"
+    },
+    {
+      "gen": 132,
+      "best": 2.6356,
+      "mean": 2.5783,
+      "worst": 2.3833,
+      "unique": 30,
+      "bestGenome": "DDCDDCDDCDDDDCDDDCDDC"
+    },
+    {
+      "gen": 133,
+      "best": 2.6891,
+      "mean": 2.6258,
+      "worst": 2.4301,
+      "unique": 27,
+      "bestGenome": "DDCDDCDDCDDDDCDDDCDDC"
+    },
+    {
+      "gen": 134,
+      "best": 2.569,
+      "mean": 2.4829,
+      "worst": 2.2363,
+      "unique": 28,
+      "bestGenome": "DDCDDCDDCDDDDCDDDCDDC"
+    },
+    {
+      "gen": 135,
+      "best": 2.5972,
+      "mean": 2.4899,
+      "worst": 1.7635,
+      "unique": 25,
+      "bestGenome": "DDCDDCDDCDDCDCDDDCDDC"
+    },
+    {
+      "gen": 136,
+      "best": 2.6943,
+      "mean": 2.5892,
+      "worst": 1.6835,
+      "unique": 19,
+      "bestGenome": "DDCDDCDDCDDCDCDDDCDDC"
+    },
+    {
+      "gen": 137,
+      "best": 2.7148,
+      "mean": 2.6325,
+      "worst": 2.3926,
+      "unique": 15,
+      "bestGenome": "DDCDDCDCCDDDDCDDDCDDC"
+    },
+    {
+      "gen": 138,
+      "best": 2.6902,
+      "mean": 2.6308,
+      "worst": 2.378,
+      "unique": 15,
+      "bestGenome": "DDCDDCDDCDDCDCDDDCDDC"
+    },
+    {
+      "gen": 139,
+      "best": 2.6571,
+      "mean": 2.5884,
+      "worst": 2.3081,
+      "unique": 15,
+      "bestGenome": "DDCDDCDDCDDCDCDDDCDDC"
+    },
+    {
+      "gen": 140,
+      "best": 2.7451,
+      "mean": 2.6734,
+      "worst": 2.4893,
+      "unique": 10,
+      "bestGenome": "DDCDDCDDCDDCDCDDDCDDC"
+    },
+    {
+      "gen": 141,
+      "best": 2.7418,
+      "mean": 2.691,
+      "worst": 2.3774,
+      "unique": 9,
+      "bestGenome": "DDCDDCDDCDDCDCDDDCDDC"
+    },
+    {
+      "gen": 142,
+      "best": 2.6654,
+      "mean": 2.5866,
+      "worst": 1.6318,
+      "unique": 18,
+      "bestGenome": "DDCDDCDDCDDCDCDDDCDDC"
+    },
+    {
+      "gen": 143,
+      "best": 2.7377,
+      "mean": 2.6677,
+      "worst": 1.9856,
+      "unique": 9,
+      "bestGenome": "DDCDDCDDCDDCDCDDDCDDC"
+    },
+    {
+      "gen": 144,
+      "best": 2.7053,
+      "mean": 2.6376,
+      "worst": 2.2188,
+      "unique": 11,
+      "bestGenome": "DDCDDCDDCDDCDCDDDCDDC"
+    },
+    {
+      "gen": 145,
+      "best": 2.6854,
+      "mean": 2.6153,
+      "worst": 2.2727,
+      "unique": 15,
+      "bestGenome": "DDCDDCDDCDDCDCDDDCDDC"
+    },
+    {
+      "gen": 146,
+      "best": 2.7234,
+      "mean": 2.6584,
+      "worst": 2.1023,
+      "unique": 12,
+      "bestGenome": "DDCDDCDCCDDDDCDDDCDDC"
+    },
+    {
+      "gen": 147,
+      "best": 2.7319,
+      "mean": 2.6595,
+      "worst": 1.6805,
+      "unique": 15,
+      "bestGenome": "DDCDDCDDCDDCDCDDDCDDC"
+    },
+    {
+      "gen": 148,
+      "best": 2.6985,
+      "mean": 2.6277,
+      "worst": 2.3475,
+      "unique": 13,
+      "bestGenome": "DDCDDCDDCDDCDCDDDCDDC"
+    },
+    {
+      "gen": 149,
+      "best": 2.7334,
+      "mean": 2.6598,
+      "worst": 2.3692,
+      "unique": 13,
+      "bestGenome": "DDCDDCDCCDDDDCDDDCDDC"
+    }
+  ],
+  "champion": {
+    "genome": "DDCDDCDDCDDDDCDDDCDDC",
+    "fitness": 2.705,
+    "copies": 49,
+    "shareOfPopulation": 0.7656,
+    "analysis": {
+      "genome": "DDCDDCDDCDDDDCDDDCDDC",
+      "firstMove": "D",
+      "table": [
+        {
+          "state": "CC → CC",
+          "answer": "C"
+        },
+        {
+          "state": "CC → CD",
+          "answer": "D"
+        },
+        {
+          "state": "CC → DC",
+          "answer": "D"
+        },
+        {
+          "state": "CC → DD",
+          "answer": "C"
+        },
+        {
+          "state": "CD → CC",
+          "answer": "D"
+        },
+        {
+          "state": "CD → CD",
+          "answer": "D"
+        },
+        {
+          "state": "CD → DC",
+          "answer": "D"
+        },
+        {
+          "state": "CD → DD",
+          "answer": "D"
+        },
+        {
+          "state": "DC → CC",
+          "answer": "C"
+        },
+        {
+          "state": "DC → CD",
+          "answer": "D"
+        },
+        {
+          "state": "DC → DC",
+          "answer": "D"
+        },
+        {
+          "state": "DC → DD",
+          "answer": "D"
+        },
+        {
+          "state": "DD → CC",
+          "answer": "C"
+        },
+        {
+          "state": "DD → CD",
+          "answer": "D"
+        },
+        {
+          "state": "DD → DC",
+          "answer": "D"
+        },
+        {
+          "state": "DD → DD",
+          "answer": "C"
+        }
+      ],
+      "similarity": {
+        "titForTat": 0.5625,
+        "pavlov": 0.8125,
+        "alwaysCooperate": 0.3125,
+        "alwaysDefect": 0.6875
+      },
+      "traits": {
+        "nice": false,
+        "keepsPeace": true,
+        "retaliates": true,
+        "forgives": false,
+        "escapesWar": true,
+        "exploitsPushover": true,
+        "repentsOwnSlip": false
+      }
+    }
+  },
+  "finalPopulation": [
+    {
+      "genome": "DDCDDCDDCDDDDCDDDCDDC",
+      "count": 49,
+      "fitness": 2.705
+    },
+    {
+      "genome": "DDCDDCDCCDDDDCDDDCDDC",
+      "count": 3,
+      "fitness": 2.6727
+    },
+    {
+      "genome": "DDCDDCDDCDDCDCDDDCDDC",
+      "count": 2,
+      "fitness": 2.7305
+    },
+    {
+      "genome": "DDCDDCCDCDDDDCDDDCDDC",
+      "count": 1,
+      "fitness": 2.6521
+    },
+    {
+      "genome": "DDCDDCDDDDDCDCDDDCDDC",
+      "count": 1,
+      "fitness": 2.6486
+    },
+    {
+      "genome": "DDCDDCDDCDCCDCDDDCDDC",
+      "count": 1,
+      "fitness": 2.586
+    },
+    {
+      "genome": "DCCDDCDDCDDDDCDDDCDDC",
+      "count": 1,
+      "fitness": 2.5291
+    },
+    {
+      "genome": "DDCDDCDDCDDDDCCDDCDDC",
+      "count": 1,
+      "fitness": 2.5069
+    },
+    {
+      "genome": "DDCDDCDCCDDCDCDDDCDDC",
+      "count": 1,
+      "fitness": 2.4781
+    },
+    {
+      "genome": "DDCDDCDDDDDDDCDDDCDDC",
+      "count": 1,
+      "fitness": 2.4723
+    },
+    {
+      "genome": "DDCDDDDDCDDCDCDDDCDDC",
+      "count": 1,
+      "fitness": 2.4368
+    },
+    {
+      "genome": "DDCCDCDDCDDDDCDDDCDDC",
+      "count": 1,
+      "fitness": 2.4361
+    }
+  ],
+  "uniqueAtEnd": 13
+}

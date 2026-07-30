@@ -100,3 +100,18 @@ test('детерминизм: результаты в results/ совпадаю�
       'results/' + seed + '.json разошёлся с пересчётом — перегенерируй прогоны');
   });
 });
+
+test('детерминизм: архив первого сезона воспроизводится ядром лиги', function () {
+  // На эти файлы опирается REPORT.md. Лига с тех пор выросла, но ядро
+  // заморожено, и `--league core` обязан давать ровно те же байты.
+  var dir = path.join(__dirname, '..', 'results', 'v1');
+  REFERENCE_SEEDS.forEach(function (seed) {
+    var file = path.join(dir, seed + '.json');
+    assert.ok(fs.existsSync(file), 'нет ' + file + ' — запусти node sim/run.js --all --league core');
+    var fresh = replayLib.serializeJson(
+      simulate.run({ seed: seed, generations: 30, strategies: registry.core })
+    );
+    assert.strictEqual(fs.readFileSync(file, 'utf8'), fresh,
+      'results/v1/' + seed + '.json разошёлся — числа REPORT.md больше не проверяемы');
+  });
+});

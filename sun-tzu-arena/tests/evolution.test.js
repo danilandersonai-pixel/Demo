@@ -154,8 +154,11 @@ test('шум меняет чемпиона: без него побеждает �
   // перевернёт этот результат, тест обязан упасть — и REPORT.md придётся
   // переписать по новым числам, а не оставить старые утверждения.
   [7, 42, 2026].forEach(function (seed) {
-    var quiet = simulate.run({ seed: seed, generations: 30, noise: 0 });
-    var noisy = simulate.run({ seed: seed, generations: 30, noise: 0.05 });
+    // Утверждение относится к лиге первого сезона: именно её описывает
+    // REPORT.md. Во втором сезоне лига выросла, и её разбор — в REPORT2.md.
+    var core = registry.core;
+    var quiet = simulate.run({ seed: seed, generations: 30, noise: 0, strategies: core });
+    var noisy = simulate.run({ seed: seed, generations: 30, noise: 0.05, strategies: core });
 
     assert.strictEqual(quiet.standings[0].id, 'titForTat',
       'сид ' + seed + ' без шума: чемпион должен быть titForTat, а не ' + quiet.standings[0].id);
