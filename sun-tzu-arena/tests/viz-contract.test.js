@@ -14,9 +14,9 @@
  *    удаляются комментарии и строковые литералы, и всё оставшееся
  *    сканируется на обращения вида `run.поле`, `frame.поле`, `lane.поле` и так
  *    далее. Каждое найденное поле обязано существовать в настоящих данных.
- *    Поэтому семь имён — data, run, frame, lane, st, sp, spFrame — в
- *    arena.html зарезервированы под объекты данных и ни для чего другого
- *    не используются (об этом сказано в шапке самого рендерера).
+ *    Поэтому девять имён — data, run, frame, lane, st, sp, spFrame, chData,
+ *    chRow — в arena.html зарезервированы под объекты данных и ни для чего
+ *    другого не используются (об этом сказано в шапке самого рендерера).
  */
 
 var test = require('node:test');
@@ -186,6 +186,25 @@ test('ARENA_DATA: дорожки поля боя ссылаются на сущ�
   });
 });
 
+test('ARENA_DATA: чемпионат претендентов согласован с таблицей', function () {
+  var chData = data.challengers;
+  assert.ok(chData, 'нет данных чемпионата — запусти node sim/challengers.js');
+  assert.ok(typeof chData.championId === 'string' && chData.championId.length);
+  assert.ok(chData.verdict.length > 40, 'вердикт должен быть содержательным');
+  assert.strictEqual(chData.table.length, chData.participants.length);
+  assert.strictEqual(chData.entrants.length, chData.participants.length - 1);
+
+  var known = {};
+  data.strategies.concat(chData.entrants).forEach(function (st) { known[st.id] = true; });
+  chData.table.forEach(function (chRow) {
+    assert.ok(known[chRow.id], 'участник чемпионата ' + chRow.id + ' неизвестен визуализатору');
+    ['avg', 'vsChampion', 'self', 'finalShare'].forEach(function (key) {
+      assert.ok(isNum(chRow[key]), 'чемпионат: поле ' + key + ' не число');
+    });
+    assert.strictEqual(typeof chRow.survived, 'boolean');
+  });
+});
+
 test('ARENA_DATA: пространственный режим согласован с сеткой', function () {
   var sp = data.spatial;
   assert.ok(sp, 'нет данных территории — запусти node sim/run.js --all');
@@ -231,11 +250,13 @@ test('рендерер: код не обращается ни к одному о
     lane: frame.battle.lanes[0],
     st: data.strategies[0],
     sp: data.spatial,
-    spFrame: data.spatial.frames[0]
+    spFrame: data.spatial.frames[0],
+    chData: data.challengers,
+    chRow: data.challengers.table[0]
   };
 
   var code = rendererCode();
-  var re = /\b(data|run|frame|lane|st|sp|spFrame)\.([A-Za-z_$][A-Za-z0-9_$]*)/g;
+  var re = /\b(data|run|frame|lane|st|sp|spFrame|chData|chRow)\.([A-Za-z_$][A-Za-z0-9_$]*)/g;
   var seen = {};
   var missing = [];
   var m;
