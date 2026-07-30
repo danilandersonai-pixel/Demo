@@ -22,10 +22,12 @@ export function mulberry32(seed) {
  * не зависящий от порядка матчей в турнире.
  */
 export function combineSeed(a, b) {
+  // a и b входят несимметрично (a перемешивается умножением до подмешивания b),
+  // иначе XOR сделал бы свёртку коммутативной: combine(1,2) === combine(2,1).
   let h = (a >>> 0) ^ 0x9e3779b9;
-  h = Math.imul(h ^ (b >>> 0), 2654435761) >>> 0;
+  h = Math.imul(h, 0x85ebca6b) >>> 0;
   h ^= h >>> 13;
-  h = Math.imul(h, 2246822519) >>> 0;
+  h = Math.imul(h ^ (b >>> 0), 2654435761) >>> 0;
   h ^= h >>> 16;
   return h >>> 0;
 }
