@@ -1,0 +1,864 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Арена Сунь-Цзы — эволюционный турнир стратегий</title>
+<style>
+  :root {
+    --bg: #0d0f14;
+    --panel: #151923;
+    --panel-2: #1b2130;
+    --line: #2a3245;
+    --ink: #e8e4d8;
+    --ink-dim: #9aa3b5;
+    --gold: #d4af37;
+    --red: #ff6b6b;
+    --green: #7bd389;
+    --grey: #9aa0a6;
+    --serif: Georgia, 'Times New Roman', serif;
+    --sans: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 15px;
+    line-height: 1.5;
+    min-height: 100vh;
+  }
+  .wrap { max-width: 1100px; margin: 0 auto; padding: 20px 16px 60px; }
+
+  header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px 18px; margin-bottom: 6px; }
+  h1 { font-family: var(--serif); font-weight: 400; font-size: 30px; letter-spacing: 0.04em; }
+  h1 .blade { color: var(--gold); }
+  .subtitle { color: var(--ink-dim); font-size: 13px; }
+
+  .toolbar {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+    padding: 10px 14px; margin: 14px 0;
+  }
+  .toolbar .group { display: flex; align-items: center; gap: 6px; }
+  .toolbar label { color: var(--ink-dim); font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; }
+  button {
+    background: var(--panel-2); color: var(--ink); border: 1px solid var(--line);
+    border-radius: 7px; padding: 6px 12px; font-size: 14px; cursor: pointer;
+    font-family: var(--sans); transition: border-color 0.15s, background 0.15s;
+  }
+  button:hover { border-color: var(--gold); }
+  button.active { background: var(--gold); color: #16130a; border-color: var(--gold); font-weight: 600; }
+  #btnPlay { min-width: 92px; font-weight: 600; }
+  #genSlider { width: 220px; accent-color: var(--gold); }
+  #genLabel { font-variant-numeric: tabular-nums; min-width: 130px; color: var(--ink-dim); }
+
+  #battleWrap { position: relative; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: #0a0c10; }
+  #battlefield { display: block; width: 100%; }
+  .canvas-caption { color: var(--ink-dim); font-size: 12.5px; margin: 8px 2px 0; }
+
+  #victory {
+    position: absolute; inset: 0; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 10px; text-align: center;
+    background: rgba(8, 9, 13, 0.88); backdrop-filter: blur(3px);
+    opacity: 0; pointer-events: none; transition: opacity 0.5s;
+  }
+  #victory.show { opacity: 1; pointer-events: auto; }
+  #victory .laurel { font-size: 44px; }
+  #victory h2 { font-family: var(--serif); font-weight: 400; font-size: 40px; letter-spacing: 0.03em; }
+  #victory .cond { color: var(--ink-dim); font-size: 15px; max-width: 560px; }
+  #victory .podium { display: flex; gap: 22px; margin-top: 10px; font-size: 14px; }
+  #victory .podium div { display: flex; align-items: center; gap: 7px; }
+  #victory button { margin-top: 16px; }
+
+  .panels { display: grid; grid-template-columns: 1fr 340px; gap: 16px; margin-top: 16px; }
+  @media (max-width: 900px) { .panels { grid-template-columns: 1fr; } }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; }
+  .panel h3 {
+    font-family: var(--serif); font-weight: 400; font-size: 17px; letter-spacing: 0.05em;
+    color: var(--gold); margin-bottom: 10px;
+  }
+  #chart { display: block; width: 100%; cursor: crosshair; }
+
+  #leaderboard table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  #leaderboard th {
+    text-align: left; color: var(--ink-dim); font-weight: 500; font-size: 11px;
+    text-transform: uppercase; letter-spacing: 0.07em; padding: 3px 6px; border-bottom: 1px solid var(--line);
+  }
+  #leaderboard td { padding: 4.5px 6px; border-bottom: 1px solid rgba(42, 50, 69, 0.5); font-variant-numeric: tabular-nums; }
+  #leaderboard tr.dead { opacity: 0.42; }
+  .swatch { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 7px; vertical-align: baseline; }
+  .delta-up { color: var(--green); }
+  .delta-down { color: var(--red); }
+
+  #dossiers { margin-top: 16px; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 12px; }
+  .card {
+    background: var(--panel); border: 1px solid var(--line); border-left-width: 4px;
+    border-radius: 10px; padding: 12px 14px; font-size: 13.5px;
+  }
+  .card.dead { opacity: 0.5; }
+  .card h4 { font-family: var(--serif); font-weight: 400; font-size: 18px; letter-spacing: 0.02em; }
+  .card .epithet { color: var(--ink-dim); font-size: 12.5px; margin-bottom: 6px; }
+  .card .quote { font-family: var(--serif); font-style: italic; color: var(--gold); font-size: 13.5px; margin: 6px 0; }
+  .card .principle { margin-bottom: 6px; }
+  .card ul { list-style: none; margin: 4px 0; }
+  .card li { padding-left: 16px; position: relative; color: var(--ink-dim); }
+  .card li.plus::before { content: '+'; position: absolute; left: 2px; color: var(--green); }
+  .card li.minus::before { content: '−'; position: absolute; left: 2px; color: var(--red); }
+  .card .targets { color: var(--ink-dim); font-size: 12.5px; margin-top: 6px; }
+  .card .status { margin-top: 8px; font-size: 12.5px; font-weight: 600; }
+
+  .error-box {
+    margin: 40px auto; max-width: 640px; background: var(--panel); border: 1px solid var(--red);
+    border-radius: 12px; padding: 24px; font-size: 15px;
+  }
+  .error-box h2 { color: var(--red); font-family: var(--serif); font-weight: 400; margin-bottom: 10px; }
+  .error-box code { background: var(--panel-2); padding: 2px 6px; border-radius: 4px; }
+
+  footer { margin-top: 26px; color: var(--ink-dim); font-size: 12.5px; text-align: center; }
+  kbd {
+    background: var(--panel-2); border: 1px solid var(--line); border-radius: 4px;
+    padding: 0 5px; font-size: 11.5px; font-family: var(--sans);
+  }
+</style>
+</head>
+<body>
+<div class="wrap" id="app">
+  <header>
+    <h1><span class="blade">⚔</span> Арена Сунь-Цзы</h1>
+    <span class="subtitle">эволюционный турнир стратегий · дилемма заключённого · шум 5 %</span>
+  </header>
+
+  <div class="toolbar">
+    <div class="group" id="seedTabs"><label>Прогон</label></div>
+    <div class="group">
+      <button id="btnPlay">▶ Играть</button>
+    </div>
+    <div class="group" id="speedGroup">
+      <label>Скорость</label>
+      <button data-speed="1" class="active">×1</button>
+      <button data-speed="4">×4</button>
+      <button data-speed="16">×16</button>
+    </div>
+    <div class="group" style="flex:1; min-width:260px;">
+      <input type="range" id="genSlider" min="0" max="30" step="1" value="0">
+      <span id="genLabel"></span>
+    </div>
+  </div>
+
+  <div id="battleWrap">
+    <canvas id="battlefield"></canvas>
+    <div id="victory">
+      <div class="laurel">🏆</div>
+      <h2 id="victoryName"></h2>
+      <div class="cond" id="victoryCond"></div>
+      <div class="podium" id="victoryPodium"></div>
+      <button id="btnReplay">⟲ Смотреть снова</button>
+    </div>
+  </div>
+  <p class="canvas-caption">
+    Каждое поколение — волна: армии (размер = доля популяции) сходятся на трёх главных фронтах поколения,
+    линия фронта смещается к проигравшему, башни теряют прочность вместе с долей.
+    Числа: <b style="color:#7bd389">+3/+3</b> — взаимное сотрудничество,
+    <b style="color:#ff6b6b">+5/0</b> — предательство доверчивого,
+    <b style="color:#9aa0a6">+1/+1</b> — взаимная война.
+    Клавиши: <kbd>Пробел</kbd> — пауза, <kbd>←</kbd>/<kbd>→</kbd> — поколения.
+  </p>
+
+  <div class="panels">
+    <div class="panel">
+      <h3>Доли популяции по поколениям</h3>
+      <canvas id="chart"></canvas>
+    </div>
+    <div class="panel" id="leaderboard">
+      <h3>Таблица лидеров</h3>
+      <table>
+        <thead><tr><th>#</th><th>Фракция</th><th>Доля</th><th>Δ</th><th>Фитнес</th></tr></thead>
+        <tbody id="lbBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div id="dossiers">
+    <div class="panel">
+      <h3>Досье стратегий</h3>
+      <div class="cards" id="cardGrid"></div>
+    </div>
+  </div>
+
+  <footer>Арена Сунь-Цзы · данные вшиты в <code>replay.js</code> · страница работает с диска, офлайн</footer>
+</div>
+
+<script src="replay.js"></script>
+<script>
+(() => {
+  // ── Валидация данных ────────────────────────────────────────────────
+  function fail(msg) {
+    document.getElementById('app').innerHTML =
+      '<div class="error-box"><h2>Данные реплея не найдены</h2><p>' + msg +
+      '</p><p>Сгенерируйте их командой <code>node sim/run.js --all</code> в каталоге проекта.</p></div>';
+    throw new Error(msg);
+  }
+  const DATA = window.ARENA_DATA;
+  if (!DATA || typeof DATA !== 'object') fail('Файл <code>viz/replay.js</code> отсутствует или не задал <code>window.ARENA_DATA</code>.');
+  if (!Array.isArray(DATA.seeds) || DATA.seeds.length === 0 || !DATA.runs) fail('В <code>ARENA_DATA</code> нет ни одного прогона.');
+  for (const s of DATA.seeds) {
+    const run = DATA.runs[s];
+    if (!run || !Array.isArray(run.strategies) || !Array.isArray(run.generations) ||
+        !run.meta || !run.outcome || !Array.isArray(run.finalShares)) {
+      fail('Прогон сида ' + s + ' повреждён: не хватает обязательных полей.');
+    }
+  }
+
+  // ── Состояние ───────────────────────────────────────────────────────
+  const WAVE_MS = 2800; // длительность волны-поколения при ×1
+  const MARCH_END = 0.32, CLASH_END = 0.78; // фазы внутри волны
+  const state = {
+    seed: DATA.seeds.includes(42) ? 42 : DATA.seeds[0],
+    pos: 0, // непрерывная позиция: поколение + фаза
+    playing: false,
+    speed: 1,
+    lastTs: null,
+    lastWholeGen: 0, // для одноразовых событий на границе поколений
+  };
+  const run = () => DATA.runs[state.seed];
+  const G = () => run().meta.generations;
+  const N = () => run().strategies.length;
+
+  // Кэши на прогон
+  let extinctionGen = {}; // индекс стратегии → поколение гибели
+  let laneCache = {}; // gen → массив дуэлей для дорожек
+  let chartCache = null; // офскрин-канвас area-графика
+
+  function rebuildRunCaches() {
+    extinctionGen = {};
+    laneCache = {};
+    for (const g of run().generations) {
+      for (const i of g.extinct) extinctionGen[i] = g.gen;
+    }
+    buildChartCache();
+    buildDossiers();
+  }
+
+  // Дуэли поколения: три самых весомых фронта (вес = произведение долей).
+  function lanesFor(gi) {
+    if (laneCache[gi]) return laneCache[gi];
+    const gen = run().generations[gi];
+    const duels = gen.matches
+      .filter((m) => m.a !== m.b && gen.sharesBefore[m.a] > 0 && gen.sharesBefore[m.b] > 0)
+      .map((m) => ({ ...m, stake: gen.sharesBefore[m.a] * gen.sharesBefore[m.b] }))
+      .sort((x, y) => y.stake - x.stake)
+      .slice(0, 3);
+    laneCache[gi] = duels;
+    return duels;
+  }
+
+  // Доли на непрерывной позиции (интерполяция в фазе исхода).
+  function sharesAt(pos) {
+    const total = G();
+    if (pos <= 0) return run().generations[0].sharesBefore;
+    if (pos >= total) return run().generations[total - 1].sharesAfter;
+    const gi = Math.floor(pos);
+    const frac = pos - gi;
+    const gen = run().generations[gi];
+    if (frac < CLASH_END) return gen.sharesBefore;
+    const t = (frac - CLASH_END) / (1 - CLASH_END);
+    return gen.sharesBefore.map((x, i) => x + (gen.sharesAfter[i] - x) * t);
+  }
+
+  // ── DOM ─────────────────────────────────────────────────────────────
+  const canvas = document.getElementById('battlefield');
+  const ctx = canvas.getContext('2d');
+  const chartCanvas = document.getElementById('chart');
+  const chartCtx = chartCanvas.getContext('2d');
+  const btnPlay = document.getElementById('btnPlay');
+  const genSlider = document.getElementById('genSlider');
+  const genLabel = document.getElementById('genLabel');
+  const lbBody = document.getElementById('lbBody');
+  const victoryEl = document.getElementById('victory');
+
+  let W = 0, H = 0, CHART_W = 0, CHART_H = 0;
+  const DPR = Math.min(window.devicePixelRatio || 1, 2);
+
+  function layout() {
+    W = canvas.parentElement.clientWidth;
+    H = Math.max(380, Math.round(W * 0.42));
+    canvas.width = W * DPR;
+    canvas.height = H * DPR;
+    canvas.style.height = H + 'px';
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    CHART_W = chartCanvas.parentElement.clientWidth - 32;
+    CHART_H = 200;
+    chartCanvas.width = CHART_W * DPR;
+    chartCanvas.height = CHART_H * DPR;
+    chartCanvas.style.height = CHART_H + 'px';
+    chartCtx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    buildChartCache();
+  }
+
+  // ── Сиды и управление ───────────────────────────────────────────────
+  const seedTabs = document.getElementById('seedTabs');
+  for (const s of DATA.seeds) {
+    const b = document.createElement('button');
+    b.textContent = 'сид ' + s;
+    b.dataset.seed = s;
+    if (Number(s) === state.seed) b.classList.add('active');
+    b.addEventListener('click', () => {
+      state.seed = Number(s);
+      state.pos = 0;
+      state.lastWholeGen = 0;
+      particles.length = 0;
+      floats.length = 0;
+      announcements.length = 0;
+      for (const el of seedTabs.querySelectorAll('button')) el.classList.toggle('active', el === b);
+      genSlider.max = G();
+      rebuildRunCaches();
+      updateHud(true);
+    });
+    seedTabs.appendChild(b);
+  }
+
+  function setPlaying(on) {
+    state.playing = on;
+    if (on && state.pos >= G()) state.pos = 0; // повтор с начала
+    btnPlay.textContent = on ? '❚❚ Пауза' : '▶ Играть';
+  }
+  btnPlay.addEventListener('click', () => setPlaying(!state.playing));
+  document.getElementById('btnReplay').addEventListener('click', () => {
+    state.pos = 0;
+    state.lastWholeGen = 0;
+    setPlaying(true);
+  });
+
+  document.getElementById('speedGroup').addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-speed]');
+    if (!b) return;
+    state.speed = Number(b.dataset.speed);
+    for (const el of document.querySelectorAll('#speedGroup button')) el.classList.toggle('active', el === b);
+  });
+
+  genSlider.addEventListener('input', () => {
+    state.pos = Number(genSlider.value);
+    state.lastWholeGen = Math.floor(state.pos);
+    updateHud(true);
+  });
+
+  chartCanvas.addEventListener('click', (e) => {
+    const rect = chartCanvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const t = Math.max(0, Math.min(1, (x - CHART_PAD.l) / (CHART_W - CHART_PAD.l - CHART_PAD.r)));
+    state.pos = t * G();
+    state.lastWholeGen = Math.floor(state.pos);
+    updateHud(true);
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.code === 'Space') { e.preventDefault(); setPlaying(!state.playing); }
+    if (e.code === 'ArrowRight') { state.pos = Math.min(G(), Math.floor(state.pos) + 1); state.lastWholeGen = Math.floor(state.pos); updateHud(true); }
+    if (e.code === 'ArrowLeft') { state.pos = Math.max(0, Math.ceil(state.pos) - 1); state.lastWholeGen = Math.floor(state.pos); updateHud(true); }
+  });
+
+  // ── Эффекты: частицы, всплывающие числа, тряска, анонсы ─────────────
+  const particles = []; // {x,y,vx,vy,life,color,size}
+  const floats = []; // {x,y,text,color,life,vy}
+  const announcements = []; // {text,color,life}
+  let shake = 0;
+
+  function burst(x, y, color, count, power) {
+    for (let i = 0; i < count; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const v = (0.4 + Math.random() * 0.6) * power;
+      particles.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 0.5, life: 1, color, size: 1.5 + Math.random() * 2.5 });
+    }
+  }
+  function floatText(x, y, text, color) {
+    floats.push({ x, y, text, color, life: 1, vy: -0.55 });
+  }
+  function announce(text, color) {
+    announcements.push({ text, color, life: 6 });
+  }
+
+  // Детерминированный «шумок» для строя юнитов (без ГПСЧ — чистая функция).
+  function jitter(n) {
+    const s = Math.sin(n * 127.1 + 311.7) * 43758.5453;
+    return s - Math.floor(s);
+  }
+
+  // ── Отрисовка поля боя ──────────────────────────────────────────────
+  function laneGeometry() {
+    const top = 64, bottom = 40;
+    const usable = H - top - bottom;
+    const laneH = usable / 3;
+    return { top, laneH };
+  }
+
+  function unitCount(share) {
+    return Math.max(3, Math.min(22, 3 + Math.round(share * 55)));
+  }
+
+  function drawTower(x, y, color, hp, dead, laneH) {
+    const w = 30, h = Math.min(64, laneH * 0.62);
+    ctx.save();
+    ctx.translate(x, y);
+    if (dead) { ctx.globalAlpha = 0.35; ctx.rotate(0.12); }
+    // корпус
+    ctx.fillStyle = '#232a3a';
+    ctx.strokeStyle = '#38415a';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.rect(-w / 2, -h, w, h);
+    ctx.fill(); ctx.stroke();
+    // зубцы
+    ctx.fillStyle = '#2c3448';
+    for (let i = -1; i <= 1; i++) ctx.fillRect(i * 10 - 4, -h - 7, 8, 7);
+    // знамя
+    ctx.strokeStyle = '#4a5470';
+    ctx.beginPath(); ctx.moveTo(0, -h - 7); ctx.lineTo(0, -h - 26); ctx.stroke();
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.moveTo(0, -h - 26); ctx.lineTo(16, -h - 21); ctx.lineTo(0, -h - 16);
+    ctx.closePath(); ctx.fill();
+    ctx.restore();
+    if (!dead) {
+      // прочность = доля к порогу доминации 60 %
+      const bw = 46, frac = Math.max(0, Math.min(1, hp / 0.6));
+      ctx.fillStyle = '#0a0c10';
+      ctx.fillRect(x - bw / 2, y + 6, bw, 5);
+      ctx.fillStyle = color;
+      ctx.fillRect(x - bw / 2, y + 6, bw * frac, 5);
+      ctx.strokeStyle = '#38415a';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(x - bw / 2 + 0.5, y + 6.5, bw, 5);
+    } else {
+      ctx.fillStyle = 'rgba(232,228,216,0.5)';
+      ctx.font = '12px ' + getComputedStyle(document.body).fontFamily;
+      ctx.textAlign = 'center';
+      ctx.fillText('☠', x, y + 14);
+    }
+  }
+
+  function drawUnits(side, faction, share, fromX, frontX, laneY, laneH, frac, time, clashing) {
+    const strat = run().strategies[faction];
+    const count = unitCount(share);
+    const cols = Math.ceil(count / 4);
+    const dir = side === 'L' ? 1 : -1;
+    // прогресс марша: 0 у башни → 1 у фронта
+    const march = frac < MARCH_END ? frac / MARCH_END : 1;
+    const ease = 1 - Math.pow(1 - march, 3);
+    for (let u = 0; u < count; u++) {
+      const col = Math.floor(u / 4), row = u % 4;
+      const backOff = col * 13 + jitter(faction * 97 + u) * 6;
+      const targetX = frontX - dir * (14 + backOff);
+      const x = fromX + (targetX - fromX) * ease;
+      const y = laneY + 14 + row * ((laneH - 34) / 4) + (jitter(faction * 31 + u * 7) - 0.5) * 6;
+      const bob = Math.sin(time * 0.012 + u * 1.7) * (clashing ? 2.2 : 1.2);
+      ctx.fillStyle = strat.color;
+      ctx.strokeStyle = 'rgba(0,0,0,0.45)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.arc(x, y + bob, 4.6, 0, Math.PI * 2);
+      ctx.fill(); ctx.stroke();
+      // «копьё» — направление атаки
+      ctx.strokeStyle = strat.color;
+      ctx.beginPath();
+      ctx.moveTo(x + dir * 4, y + bob);
+      ctx.lineTo(x + dir * 9, y + bob);
+      ctx.stroke();
+    }
+  }
+
+  function drawBattlefield(time, dt) {
+    ctx.clearRect(0, 0, W, H);
+    // фон
+    const bgGrad = ctx.createLinearGradient(0, 0, 0, H);
+    bgGrad.addColorStop(0, '#10131b');
+    bgGrad.addColorStop(1, '#0a0c10');
+    ctx.fillStyle = bgGrad;
+    ctx.fillRect(0, 0, W, H);
+
+    ctx.save();
+    if (shake > 0.2) {
+      ctx.translate((Math.random() - 0.5) * shake, (Math.random() - 0.5) * shake);
+    }
+    shake *= Math.pow(0.92, dt / 16);
+
+    const total = G();
+    const atEnd = state.pos >= total;
+    const gi = Math.min(Math.floor(state.pos), total - 1);
+    const frac = atEnd ? 1 : state.pos - gi;
+    const gen = run().generations[gi];
+    const duels = lanesFor(gi);
+    const { top, laneH } = laneGeometry();
+    const shares = sharesAt(state.pos);
+
+    // река посередине
+    const riverW = 26;
+    ctx.fillStyle = 'rgba(38, 60, 92, 0.55)';
+    ctx.fillRect(W / 2 - riverW / 2, top - 12, riverW, H - top - 22);
+    ctx.strokeStyle = 'rgba(90, 140, 190, 0.35)';
+    ctx.lineWidth = 1.2;
+    for (let k = 0; k < 4; k++) {
+      ctx.beginPath();
+      for (let y = top - 6; y < H - 34; y += 6) {
+        const x = W / 2 + Math.sin(y * 0.05 + time * 0.0015 + k * 1.9) * (riverW / 2 - 5);
+        y === top - 6 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+    }
+
+    // заголовок волны
+    ctx.textAlign = 'left';
+    ctx.fillStyle = 'rgba(232,228,216,0.9)';
+    ctx.font = '600 15px ' + getComputedStyle(document.body).fontFamily;
+    const phaseName = atEnd ? 'итог кампании' : frac < MARCH_END ? 'марш' : frac < CLASH_END ? 'сеча' : 'исход';
+    ctx.fillText('Поколение ' + Math.min(gi + 1, total) + ' / ' + total + ' — ' + phaseName, 14, 24);
+
+    // дорожки-дуэли
+    duels.forEach((duel, li) => {
+      const laneY = top + li * laneH + 4;
+      const laneMidY = laneY + (laneH - 10) / 2;
+      // подложка дорожки
+      ctx.fillStyle = li % 2 ? 'rgba(21,25,35,0.5)' : 'rgba(27,33,48,0.5)';
+      ctx.fillRect(10, laneY, W - 20, laneH - 10);
+      ctx.strokeStyle = 'rgba(42,50,69,0.8)';
+      ctx.strokeRect(10.5, laneY + 0.5, W - 21, laneH - 11);
+
+      const sa = run().strategies[duel.a], sb = run().strategies[duel.b];
+      // линия фронта: смещается к проигравшему в фазе сечи
+      const clashProg = frac < MARCH_END ? 0 : Math.min(1, (frac - MARCH_END) / (CLASH_END - MARCH_END));
+      const shift = ((duel.sa - duel.sb) / 5) * (W * 0.14) * clashProg;
+      const frontX = W / 2 + shift;
+
+      // фронт-линия
+      if (frac >= MARCH_END && !atEnd) {
+        ctx.strokeStyle = 'rgba(212,175,55,0.5)';
+        ctx.setLineDash([4, 4]);
+        ctx.beginPath();
+        ctx.moveTo(frontX, laneY + 4);
+        ctx.lineTo(frontX, laneY + laneH - 14);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+
+      // армии
+      const clashing = frac >= MARCH_END && frac < CLASH_END && !atEnd;
+      drawUnits('L', duel.a, shares[duel.a], 54, frontX, laneY, laneH, frac, time, clashing);
+      drawUnits('R', duel.b, shares[duel.b], W - 54, frontX, laneY, laneH, frac, time, clashing);
+
+      // башни фракций дуэли
+      const deadA = shares[duel.a] <= 0, deadB = shares[duel.b] <= 0;
+      drawTower(34, laneY + laneH - 18, sa.color, shares[duel.a], deadA, laneH);
+      drawTower(W - 34, laneY + laneH - 18, sb.color, shares[duel.b], deadB, laneH);
+      // подписи фракций
+      ctx.font = '11.5px ' + getComputedStyle(document.body).fontFamily;
+      ctx.fillStyle = sa.color; ctx.textAlign = 'left';
+      ctx.fillText(sa.name + ' ' + (shares[duel.a] * 100).toFixed(1) + '%', 62, laneY + 13);
+      ctx.fillStyle = sb.color; ctx.textAlign = 'right';
+      ctx.fillText((shares[duel.b] * 100).toFixed(1) + '% ' + sb.name, W - 62, laneY + 13);
+
+      // battle juice: искры и числа во время сечи
+      if (clashing && state.playing) {
+        duel._acc = (duel._acc || 0) + dt * state.speed;
+        const every = 240;
+        while (duel._acc > every) {
+          duel._acc -= every;
+          const y = laneMidY + (Math.random() - 0.5) * (laneH * 0.5);
+          const r = Math.random();
+          const pCC = duel.ca * duel.cb;
+          const pDC = (1 - duel.ca) * duel.cb; // a предал доверчивого b
+          const pCD = duel.ca * (1 - duel.cb); // b предал доверчивого a
+          if (r < pCC) {
+            floatText(frontX - 26, y, '+3', '#7bd389');
+            floatText(frontX + 26, y, '+3', '#7bd389');
+            burst(frontX, y, '#7bd389', 4, 1.1);
+          } else if (r < pCC + pDC) {
+            floatText(frontX - 26, y, '+5', '#ff6b6b');
+            floatText(frontX + 26, y, '0', '#5f6875');
+            burst(frontX, y, sa.color, 7, 1.9);
+            shake = Math.min(shake + 1.6, 7);
+          } else if (r < pCC + pDC + pCD) {
+            floatText(frontX - 26, y, '0', '#5f6875');
+            floatText(frontX + 26, y, '+5', '#ff6b6b');
+            burst(frontX, y, sb.color, 7, 1.9);
+            shake = Math.min(shake + 1.6, 7);
+          } else {
+            floatText(frontX - 26, y, '+1', '#9aa0a6');
+            floatText(frontX + 26, y, '+1', '#9aa0a6');
+            burst(frontX, y, '#6b7280', 3, 0.8);
+          }
+        }
+      }
+    });
+
+    if (duels.length === 0) {
+      ctx.textAlign = 'center';
+      ctx.fillStyle = 'rgba(232,228,216,0.6)';
+      ctx.font = '15px ' + getComputedStyle(document.body).fontFamily;
+      ctx.fillText('Империя без соперников: на поле осталась одна фракция', W / 2, H / 2);
+    }
+
+    // частицы
+    for (let i = particles.length - 1; i >= 0; i--) {
+      const p = particles[i];
+      p.x += p.vx * dt * 0.06;
+      p.y += p.vy * dt * 0.06;
+      p.vy += dt * 0.002;
+      p.life -= dt / 700;
+      if (p.life <= 0) { particles.splice(i, 1); continue; }
+      ctx.globalAlpha = Math.max(0, p.life);
+      ctx.fillStyle = p.color;
+      ctx.fillRect(p.x, p.y, p.size, p.size);
+    }
+    ctx.globalAlpha = 1;
+
+    // всплывающие числа
+    ctx.font = '600 13px ' + getComputedStyle(document.body).fontFamily;
+    ctx.textAlign = 'center';
+    for (let i = floats.length - 1; i >= 0; i--) {
+      const f = floats[i];
+      f.y += f.vy * dt * 0.06;
+      f.life -= dt / 900;
+      if (f.life <= 0) { floats.splice(i, 1); continue; }
+      ctx.globalAlpha = Math.max(0, Math.min(1, f.life * 1.5));
+      ctx.fillStyle = f.color;
+      ctx.fillText(f.text, f.x, f.y);
+    }
+    ctx.globalAlpha = 1;
+
+    // анонсы (падения фракций, доминация)
+    ctx.font = '600 14px ' + getComputedStyle(document.body).fontFamily;
+    announcements.forEach((a, idx) => {
+      a.life -= dt / 1000;
+      ctx.globalAlpha = Math.max(0, Math.min(1, a.life));
+      ctx.fillStyle = a.color;
+      ctx.textAlign = 'center';
+      ctx.fillText(a.text, W / 2, 44 + idx * 20);
+    });
+    for (let i = announcements.length - 1; i >= 0; i--) {
+      if (announcements[i].life <= 0) announcements.splice(i, 1);
+    }
+    ctx.globalAlpha = 1;
+    ctx.restore();
+  }
+
+  // ── Area-график долей ───────────────────────────────────────────────
+  const CHART_PAD = { l: 34, r: 10, t: 8, b: 22 };
+  function buildChartCache() {
+    if (!CHART_W) return;
+    chartCache = document.createElement('canvas');
+    chartCache.width = CHART_W * DPR;
+    chartCache.height = CHART_H * DPR;
+    const c = chartCache.getContext('2d');
+    c.setTransform(DPR, 0, 0, DPR, 0, 0);
+    const total = G(), n = N();
+    const iw = CHART_W - CHART_PAD.l - CHART_PAD.r;
+    const ih = CHART_H - CHART_PAD.t - CHART_PAD.b;
+    const xAt = (k) => CHART_PAD.l + (k / total) * iw;
+    const yAt = (v) => CHART_PAD.t + (1 - v) * ih;
+    // границы поколений: точка 0 — старт, k — после поколения k
+    const pts = [];
+    for (let k = 0; k <= total; k++) {
+      pts.push(k === 0 ? run().generations[0].sharesBefore : run().generations[k - 1].sharesAfter);
+    }
+    // стеки
+    let base = new Array(total + 1).fill(0);
+    for (let i = 0; i < n; i++) {
+      const topLine = base.map((b, k) => b + pts[k][i]);
+      c.beginPath();
+      for (let k = 0; k <= total; k++) c.lineTo(xAt(k), yAt(topLine[k]));
+      for (let k = total; k >= 0; k--) c.lineTo(xAt(k), yAt(base[k]));
+      c.closePath();
+      c.fillStyle = run().strategies[i].color;
+      c.globalAlpha = 0.82;
+      c.fill();
+      c.globalAlpha = 1;
+      base = topLine;
+    }
+    // сетка и подписи
+    c.strokeStyle = 'rgba(42,50,69,0.9)';
+    c.fillStyle = '#9aa3b5';
+    c.font = '10.5px ' + getComputedStyle(document.body).fontFamily;
+    c.textAlign = 'center';
+    for (let k = 0; k <= total; k += 5) {
+      c.beginPath();
+      c.moveTo(xAt(k), CHART_PAD.t);
+      c.lineTo(xAt(k), CHART_H - CHART_PAD.b);
+      c.stroke();
+      c.fillText(String(k), xAt(k), CHART_H - 7);
+    }
+    c.textAlign = 'right';
+    for (const v of [0, 0.5, 1]) {
+      c.fillText((v * 100).toFixed(0) + '%', CHART_PAD.l - 5, yAt(v) + 4);
+    }
+  }
+
+  function drawChart() {
+    chartCtx.clearRect(0, 0, CHART_W, CHART_H);
+    if (chartCache) chartCtx.drawImage(chartCache, 0, 0, CHART_W, CHART_H);
+    // курсор текущей позиции
+    const iw = CHART_W - CHART_PAD.l - CHART_PAD.r;
+    const x = CHART_PAD.l + (Math.min(state.pos, G()) / G()) * iw;
+    chartCtx.strokeStyle = '#d4af37';
+    chartCtx.lineWidth = 1.5;
+    chartCtx.beginPath();
+    chartCtx.moveTo(x, CHART_PAD.t);
+    chartCtx.lineTo(x, CHART_H - CHART_PAD.b);
+    chartCtx.stroke();
+  }
+
+  // ── Лидерборд и досье ───────────────────────────────────────────────
+  let lastLbAt = 0;
+  function updateLeaderboard(force) {
+    const now = performance.now();
+    if (!force && now - lastLbAt < 200) return;
+    lastLbAt = now;
+    const shares = sharesAt(state.pos);
+    const gi = Math.min(Math.floor(state.pos), G() - 1);
+    const gen = run().generations[gi];
+    const prev = gi > 0 ? run().generations[gi - 1].sharesAfter : run().generations[0].sharesBefore;
+    const rows = run().strategies
+      .map((s, i) => ({ s, i, share: shares[i], delta: gen.sharesAfter[i] - prev[i], fit: gen.fitness[i] }))
+      .sort((a, b) => b.share - a.share);
+    lbBody.innerHTML = rows
+      .map((r, rank) => {
+        const dead = r.share <= 0;
+        const deadGen = extinctionGen[r.i];
+        const delta = dead ? '' : (r.delta >= 0.0005 ? '<span class="delta-up">▲</span>' : r.delta <= -0.0005 ? '<span class="delta-down">▼</span>' : '·');
+        return '<tr class="' + (dead ? 'dead' : '') + '">' +
+          '<td>' + (dead ? '☠' : rank + 1) + '</td>' +
+          '<td><span class="swatch" style="background:' + r.s.color + '"></span>' + r.s.name +
+          (dead && deadGen ? ' <small>†' + deadGen + '</small>' : '') + '</td>' +
+          '<td>' + (r.share * 100).toFixed(1) + '%</td>' +
+          '<td>' + delta + '</td>' +
+          '<td>' + (r.fit == null ? '—' : r.fit.toFixed(2)) + '</td>' +
+          '</tr>';
+      })
+      .join('');
+  }
+
+  function buildDossiers() {
+    const grid = document.getElementById('cardGrid');
+    grid.innerHTML = run().strategies
+      .map((s, i) => {
+        return '<div class="card" data-idx="' + i + '" style="border-left-color:' + s.color + '">' +
+          '<h4 style="color:' + s.color + '">' + s.name + '</h4>' +
+          '<div class="epithet">' + s.epithet + ' · <code>' + s.id + '</code></div>' +
+          '<div class="quote">«' + s.dossier.quote + '»</div>' +
+          '<div class="principle">' + s.dossier.principle + '</div>' +
+          '<ul>' + s.dossier.strengths.map((t) => '<li class="plus">' + t + '</li>').join('') + '</ul>' +
+          '<ul>' + s.dossier.weaknesses.map((t) => '<li class="minus">' + t + '</li>').join('') + '</ul>' +
+          '<div class="targets">Цель: ' + s.dossier.targets + '</div>' +
+          '<div class="status"></div>' +
+          '</div>';
+      })
+      .join('');
+    updateDossierStatus();
+  }
+
+  function updateDossierStatus() {
+    const shares = sharesAt(state.pos);
+    for (const card of document.querySelectorAll('.card')) {
+      const i = Number(card.dataset.idx);
+      const s = shares[i];
+      const status = card.querySelector('.status');
+      if (s <= 0) {
+        card.classList.add('dead');
+        status.textContent = '☠ Пала в поколении ' + extinctionGen[i];
+        status.style.color = 'var(--red)';
+      } else {
+        card.classList.remove('dead');
+        status.textContent = '⚑ В строю — ' + (s * 100).toFixed(1) + '% популяции';
+        status.style.color = run().strategies[i].color;
+      }
+    }
+  }
+
+  // ── Победа ──────────────────────────────────────────────────────────
+  function updateVictory() {
+    const show = state.pos >= G();
+    victoryEl.classList.toggle('show', show);
+    if (!show) return;
+    const r = run();
+    const w = r.strategies[r.outcome.winner];
+    document.getElementById('victoryName').textContent = w.name;
+    document.getElementById('victoryName').style.color = w.color;
+    const condText = {
+      domination: 'Доминация: более 60 % популяции к поколению ' + r.outcome.conditionGen,
+      extermination: 'Тотальная победа: все соперники истреблены к поколению ' + r.outcome.conditionGen,
+      plurality: 'Победа по доле: ' + (r.outcome.winnerShare * 100).toFixed(1) + '% популяции после ' + r.meta.generations + ' поколений',
+    }[r.outcome.condition];
+    document.getElementById('victoryCond').textContent =
+      condText + ' · выжило фракций: ' + r.outcome.aliveAtEnd + ' из ' + r.strategies.length;
+    const podium = r.strategies
+      .map((s, i) => ({ s, share: r.finalShares[i] }))
+      .sort((a, b) => b.share - a.share)
+      .slice(0, 3);
+    document.getElementById('victoryPodium').innerHTML = podium
+      .map((p, k) => '<div>' + ['🥇', '🥈', '🥉'][k] +
+        ' <span class="swatch" style="background:' + p.s.color + '"></span>' +
+        p.s.name + ' — ' + (p.share * 100).toFixed(1) + '%</div>')
+      .join('');
+  }
+
+  // ── HUD и главный цикл ──────────────────────────────────────────────
+  function updateHud(force) {
+    const gi = Math.min(Math.floor(state.pos), G());
+    // Подпись согласована с канвасом: показываем номер идущей волны.
+    const wave = state.pos >= G() ? G() : gi + 1;
+    genLabel.textContent = 'Поколение ' + wave + ' / ' + G();
+    if (document.activeElement !== genSlider) genSlider.value = gi;
+    updateLeaderboard(force);
+    if (force) updateDossierStatus();
+    updateVictory();
+  }
+
+  function onGenBoundary(newGen) {
+    // одноразовые события при проигрывании: гибель фракций, доминация
+    const gen = run().generations[newGen - 1];
+    if (!gen) return;
+    for (const i of gen.extinct) {
+      const s = run().strategies[i];
+      announce('☠ ' + s.name + ' — фракция пала (поколение ' + gen.gen + ')', s.color);
+      shake = Math.min(shake + 6, 10);
+      burst(W / 2, H / 2, s.color, 26, 3);
+    }
+    if (run().outcome.conditionGen === newGen && run().outcome.condition === 'domination') {
+      const w = run().strategies[run().outcome.winner];
+      announce('⚑ ' + w.name + ' достигает доминации: больше 60 % популяции', '#d4af37');
+    }
+    updateDossierStatus();
+  }
+
+  function tick(ts) {
+    const dt = state.lastTs == null ? 16 : Math.min(64, ts - state.lastTs);
+    state.lastTs = ts;
+    if (state.playing) {
+      state.pos += (dt * state.speed) / WAVE_MS;
+      if (state.pos >= G()) {
+        state.pos = G();
+        setPlaying(false);
+      }
+      const whole = Math.floor(state.pos);
+      if (whole > state.lastWholeGen) {
+        for (let g = state.lastWholeGen + 1; g <= whole; g++) onGenBoundary(g);
+        state.lastWholeGen = whole;
+      }
+      updateHud(false);
+    }
+    drawBattlefield(ts, dt);
+    drawChart();
+    requestAnimationFrame(tick);
+  }
+
+  // ── Старт ───────────────────────────────────────────────────────────
+  window.addEventListener('resize', layout);
+  layout();
+  genSlider.max = G();
+  rebuildRunCaches();
+  updateHud(true);
+  requestAnimationFrame(tick);
+})();
+</script>
+</body>
+</html>
