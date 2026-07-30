@@ -94,14 +94,21 @@ async function loadChallengers() {
   return { accepted, rejected };
 }
 
-/** Круговая таблица: средний счёт за раунд по matchesPerPair сидированных матчей. */
+/**
+ * Круговая таблица: средний счёт за раунд по matchesPerPair сидированных
+ * матчей. Помимо таблицы возвращает агрегаты пар (счёт и частоты кооперации)
+ * — из них строятся персональные логи для субагентов-авторов.
+ */
 function roundRobin(participants, { rounds = 200, noise = 0.05, matchesPerPair = 10 } = {}) {
   const n = participants.length;
   const table = Array.from({ length: n }, () => new Array(n).fill(0));
+  const pairs = [];
   for (let i = 0; i < n; i++) {
     for (let j = i; j < n; j++) {
       let sumA = 0;
       let sumB = 0;
+      let coopA = 0;
+      let coopB = 0;
       for (let k = 0; k < matchesPerPair; k++) {
         const res = playMatch(participants[i], participants[j], {
           rounds,
@@ -110,6 +117,8 @@ function roundRobin(participants, { rounds = 200, noise = 0.05, matchesPerPair =
         });
         sumA += res.avgA;
         sumB += res.avgB;
+        coopA += res.coopA;
+        coopB += res.coopB;
       }
       if (i === j) {
         table[i][i] = round3((sumA + sumB) / (2 * matchesPerPair));
@@ -117,9 +126,17 @@ function roundRobin(participants, { rounds = 200, noise = 0.05, matchesPerPair =
         table[i][j] = round3(sumA / matchesPerPair);
         table[j][i] = round3(sumB / matchesPerPair);
       }
+      pairs.push({
+        a: i,
+        b: j,
+        sa: round3(sumA / matchesPerPair),
+        sb: round3(sumB / matchesPerPair),
+        ca: round3(coopA / matchesPerPair),
+        cb: round3(coopB / matchesPerPair),
+      });
     }
   }
-  return table;
+  return { table, pairs };
 }
 
 async function main() {
@@ -135,7 +152,7 @@ async function main() {
   console.log(`Претенденты: ${accepted.map((s) => `${s.name} (${s.id})`).join(', ')}`);
   for (const r of rejected) console.log(`  ДИСКВАЛИФИКАЦИЯ ${r.file}: ${r.reason}`);
 
-  const table = roundRobin(participants);
+  const { table, pairs } = roundRobin(participants);
   console.log('\nКруговая таблица (средние очки за раунд, 10 матчей на пару):');
   const header = ['            '].concat(participants.map((p) => p.id.slice(0, 11).padStart(12))).join('');
   console.log(header);
@@ -172,6 +189,7 @@ async function main() {
     participants: participants.map((p) => ({ id: p.id, name: p.name, epithet: p.epithet, color: p.color })),
     rejected,
     roundRobin: table,
+    roundRobinPairs: pairs,
     roundRobinMeans: totals.map(round3),
     evolution: {
       finalShares: evo.finalShares,

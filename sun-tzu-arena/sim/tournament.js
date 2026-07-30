@@ -21,7 +21,7 @@ function round3(x) {
  *   matches — записи для реплея: { a, b, sa, sb, ca, cb } (a < b или a === b).
  */
 export function runTournament(strategies, shares, opts) {
-  const { seed, gen, rounds, noise } = opts;
+  const { seed, gen, rounds, noise, payoffs } = opts;
   const n = strategies.length;
   const matrix = Array.from({ length: n }, () => new Array(n).fill(0));
   const matches = [];
@@ -34,6 +34,7 @@ export function runTournament(strategies, shares, opts) {
       const res = playMatch(strategies[i], strategies[j], {
         rounds,
         noise,
+        payoffs,
         seed: matchSeed,
       });
       if (i === j) {

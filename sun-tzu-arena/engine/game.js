@@ -11,10 +11,10 @@ export const D = 'D';
 
 export const PAYOFFS = { R: 3, P: 1, T: 5, S: 0 };
 
-/** Выплата игроку, сыгравшему myMove против oppMove. */
-export function payoff(myMove, oppMove) {
-  if (myMove === C) return oppMove === C ? PAYOFFS.R : PAYOFFS.S;
-  return oppMove === C ? PAYOFFS.T : PAYOFFS.P;
+/** Выплата игроку, сыгравшему myMove против oppMove (матрица переопределяема). */
+export function payoff(myMove, oppMove, P = PAYOFFS) {
+  if (myMove === C) return oppMove === C ? P.R : P.S;
+  return oppMove === C ? P.T : P.P;
 }
 
 function flip(move) {
@@ -46,6 +46,7 @@ export function playMatch(stratA, stratB, opts = {}) {
   const rounds = opts.rounds ?? 200;
   const noise = opts.noise ?? 0.05;
   const seed = opts.seed ?? 0;
+  const P = opts.payoffs ?? PAYOFFS;
 
   const rngNoise = opts.rngNoise ?? mulberry32(combineSeed(seed, 1));
   const rngA = opts.rngA ?? mulberry32(combineSeed(seed, 2));
@@ -76,8 +77,8 @@ export function playMatch(stratA, stratB, opts = {}) {
 
     movesA.push(actualA);
     movesB.push(actualB);
-    scoreA += payoff(actualA, actualB);
-    scoreB += payoff(actualB, actualA);
+    scoreA += payoff(actualA, actualB, P);
+    scoreB += payoff(actualB, actualA, P);
     if (actualA === C) coopA++;
     if (actualB === C) coopB++;
   }

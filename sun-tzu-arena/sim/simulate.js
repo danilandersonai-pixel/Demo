@@ -36,6 +36,7 @@ export function simulate(options) {
     rounds = 200,
     noise = 0.05,
     strategies = STRATEGIES,
+    payoffs = PAYOFFS,
   } = options;
   if (!Number.isInteger(seed)) {
     throw new Error('simulate: нужен целочисленный seed');
@@ -53,6 +54,7 @@ export function simulate(options) {
       gen: g,
       rounds,
       noise,
+      payoffs,
     });
     const step = replicatorStep(shares, matrix);
 
@@ -97,7 +99,7 @@ export function simulate(options) {
       generations,
       rounds,
       noise,
-      payoffs: PAYOFFS,
+      payoffs,
       extinctionThreshold: EXTINCTION_THRESHOLD,
       dominationShare: DOMINATION_SHARE,
     },
