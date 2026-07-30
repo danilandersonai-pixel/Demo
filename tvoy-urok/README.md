@@ -22,9 +22,9 @@ python -m generator.cli fixtures/vasiliy-iii.json --prompt-layer  # слой Ф�
 python -m generator.cli fixtures/vasiliy-iii.json --fgos-brief    # задание ФГОС-инспектору
 python -m generator.cli fixtures/vasiliy-iii.json --schema        # JSON Schema для LLM
 
-python -m tests.test_pipeline   # 54 проверки рендера
+python -m tests.test_pipeline   # 57 проверок рендера
 python -m tests.test_fgos       # 122 проверки соответствия ФГОС
-python -m tests.test_skills     # 89 проверок навыков и сборки промпта
+python -m tests.test_skills     # 101 проверка навыков и сборки промпта
 ```
 
 Флаг `--strict` останавливает сборку при ошибках валидации и при

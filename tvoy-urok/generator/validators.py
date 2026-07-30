@@ -32,6 +32,19 @@ CONTENT_ROLES = {
     Role.ARTIFACT,
 }
 
+# Какой лейаут какой слот отрисовывает. Рендерер диспатчится ТОЛЬКО по
+# layout, поэтому слот, заполненный при неподходящем лейауте, молча
+# выбрасывается: сравнение не появится на карточном слайде, определение —
+# на слайде с таймлайном. Ошибки при этом не будет ни одной — просто пустой
+# слайд. Здесь и ловим.
+_SLOT_LAYOUTS: Dict[str, set] = {
+    "definition": {"definition_top"},
+    "compare": {"compare_two_cols"},
+    "timeline_items": {"timeline_rows"},
+    "quiz": {"quiz_list"},
+    "bullets": {"bullets_summary", "wide_diagram_bullets"},
+}
+
 # Слова, где «ё» обязательно и «е»-написание однозначно ошибочно.
 # Намеренно без пар вроде все/всё — там «е» может быть корректным.
 YO_STEMS = [
@@ -138,6 +151,23 @@ def validate_slide(slide: Slide, idx: int) -> List[Issue]:
         letters = [c for c in slide.title if c.isalpha()]
         if letters and all(c.isupper() for c in letters) and len(letters) > 3:
             issues.append(Issue("warn", "title-caps", "заголовок капсом", idx))
+
+    # Слот без своего лейаута не отрисуется — данные пропадут молча
+    for slot, layouts in _SLOT_LAYOUTS.items():
+        value = getattr(slide, slot, None)
+        if not value:
+            continue
+        if slide.layout.value not in layouts:
+            issues.append(
+                Issue(
+                    "error",
+                    "slot-layout-mismatch",
+                    f"слот «{slot}» заполнен, но лейаут «{slide.layout.value}» его "
+                    f"не отрисовывает — данные потеряются; нужен "
+                    f"{' или '.join(sorted(layouts))}",
+                    idx,
+                )
+            )
 
     # Объём контентного слайда
     if slide.role in CONTENT_ROLES:

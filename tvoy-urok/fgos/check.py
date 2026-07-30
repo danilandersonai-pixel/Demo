@@ -22,6 +22,7 @@
 
 from __future__ import annotations
 
+import os
 import re
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional
@@ -403,13 +404,19 @@ def brief(deck: Deck, report: FgosReport) -> dict:
                 "Проверяют ли вопросы планируемые результаты, а не только память?",
             ]
         ),
+        # Нумерация слайдов везде в brief — индекс в массиве slides, с нуля.
+        # `attached` говорит вызывающей стороне, какие файлы реально есть на
+        # диске и потому могут быть приложены к запросу: без файла инспектор
+        # проверяет только промпт, и обещать ему «смотри картинку» нечестно.
+        "slide_numbering": "индекс в массиве slides, с нуля",
         "images_to_inspect": [
             {
-                "slide": i,
+                "slide_index": i,
                 "title": s.title,
                 "prompt": s.image.prompt,
                 "alt": s.image.alt,
                 "path": s.image.path,
+                "attached": bool(s.image.path and os.path.exists(s.image.path)),
                 "sensitive": s.image.sensitive,
             }
             for i, s in enumerate(deck.slides)

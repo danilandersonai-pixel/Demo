@@ -341,7 +341,7 @@ def test_modes() -> None:
     check("brief(off): вопросы только про достоверность и возраст",
           not any("дидактическая единица" in q for q in b_off["questions_for_model"]),
           str(b_off["questions_for_model"]))
-    check("brief(off): изображения всё равно осматриваются",
+    check("brief(off): изображения всё равно перечислены",
           len(b_off["images_to_inspect"]) > 5)
     b_full = brief(bad, rep_full)
     check("brief(full): вопрос про дидактические единицы есть",

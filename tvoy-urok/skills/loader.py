@@ -32,12 +32,19 @@ ROLES = ("author", "reviewer", "fgos-inspector", "illustrator", "helper")
 #       "era"  — только границы эпохи и запрет анахронизмов (роль отвечает
 #                за достоверность, но не за программу);
 #       None   — не нужен вовсе.
+#
+# schema: "response"  — роль САМА возвращает дек по этой схеме (автор);
+#         "reference" — роль читает дек и должна понимать его устройство, но
+#                       возвращает своё (отчёт, список правок). Подсунуть ей
+#                       схему дека как «схему ответа» — значит потребовать
+#                       вернуть дек вместо отчёта;
+#         False       — схема не нужна вовсе.
 _NEEDS: Dict[str, Dict[str, Any]] = {
-    "author":         {"norms": True,  "schema": True,  "fgos": "full", "age": True},
-    "reviewer":       {"norms": True,  "schema": True,  "fgos": "era",  "age": True},
-    "fgos-inspector": {"norms": True,  "schema": True,  "fgos": "full", "age": True},
-    "illustrator":    {"norms": False, "schema": False, "fgos": "era",  "age": False},
-    "helper":         {"norms": False, "schema": False, "fgos": None,   "age": True},
+    "author":         {"norms": True,  "schema": "response",  "fgos": "full", "age": True},
+    "reviewer":       {"norms": True,  "schema": "reference", "fgos": "era",  "age": True},
+    "fgos-inspector": {"norms": True,  "schema": "reference", "fgos": "full", "age": True},
+    "illustrator":    {"norms": False, "schema": False,       "fgos": "era",  "age": False},
+    "helper":         {"norms": False, "schema": False,       "fgos": None,   "age": True},
 }
 
 # Минимальная длина кэшируемого префикса у Claude — 1024 токена (Sonnet 5,
@@ -70,7 +77,12 @@ def norms_block() -> str:
         "[НОРМЫ ОБЪЁМА]\n"
         f"Содержательный слайд: {V.MIN_WORDS_PER_CONTENT_SLIDE}–"
         f"{V.MAX_WORDS_PER_CONTENT_SLIDE} слов суммарно.\n"
-        f"Тезис: одно предложение, {lo}–{hi} слов. До 6 тезисов на слайд.\n"
+        # Возрастной профиль задаёт более узкую целевую длину внутри этого
+        # коридора. Без явной оговорки два блока промпта противоречат друг
+        # другу: здесь «8–16 слов», ниже для 2 класса «6–10».
+        f"Тезис: одно предложение. Допустимый коридор — {lo}–{hi} слов; "
+        f"целевую длину бери из возрастного профиля ниже, он строже. "
+        f"До 6 тезисов на слайд.\n"
         f"Заголовок слайда: {tlo}–{thi} слов, обязателен на каждом слайде.\n"
         f"Определение термина: {dlo}–{dhi} слов, формат «Термин — определение».\n"
         f"Вывод-callout: {clo}–{chi} слов.\n"
@@ -152,19 +164,32 @@ def build_prompt(
     if needs["norms"]:
         stable.append(norms_block())
     if include_schema and needs["schema"]:
-        stable.append(
-            "[СХЕМА ОТВЕТА]\nВерни строго JSON по этой схеме:\n"
-            # sort_keys — иначе порядок ключей поплывёт между запусками
-            # и побайтовый кэш будет промахиваться на ровном месте.
-            + json.dumps(json_schema(), ensure_ascii=False, sort_keys=True)
-        )
+        # sort_keys — иначе порядок ключей поплывёт между запусками и
+        # побайтовый кэш будет промахиваться на ровном месте.
+        body = json.dumps(json_schema(), ensure_ascii=False, sort_keys=True)
+        if needs["schema"] == "response":
+            stable.append("[СХЕМА ОТВЕТА]\nВерни строго JSON по этой схеме:\n" + body)
+        else:
+            stable.append(
+                "[СХЕМА ДЕКА]\nТак устроен дек, который ты получаешь на вход. "
+                "Ссылайся на слайды по их индексу в массиве slides. Формат "
+                "ТВОЕГО ответа задаётся отдельно вызывающей стороной — это не "
+                "схема дека, дек возвращать не нужно.\n" + body
+            )
     # --- Блок 2: ФГОС + возрастной профиль. Стабильны для {предмет, класс}. ---
     contextual: List[str] = []
     if needs["fgos"]:
         # Роль, отвечающая только за достоверность, получает лишь границы
-        # эпохи. Роль, отвечающая за соответствие, — весь слой, но не строже
-        # режима, который выбрал учитель.
-        mode = "off" if needs["fgos"] == "era" else fgos_mode
+        # эпохи.
+        if needs["fgos"] == "era":
+            mode = "off"
+        elif role == "fgos-inspector" and fgos_mode == "check":
+            # В справочном режиме программу не навязывают АВТОРУ, но отчёт
+            # всё равно составляется — значит, инспектору требования нужны.
+            # Иначе он остаётся без чек-листа ровно там, где его и зовут.
+            mode = "full"
+        else:
+            mode = fgos_mode
         layer = _fgos_layer(subject, grade, topic, mode)
         if layer:
             contextual.append(layer)

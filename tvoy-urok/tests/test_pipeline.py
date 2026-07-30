@@ -193,6 +193,24 @@ def test_validators_catch_defects() -> None:
     codes = {i.code for i in validate_slide(bad_bold, 0)}
     check("ловит несуществующий bold-термин", "bold-missing" in codes, str(codes))
 
+    # Слот без своего лейаута молча потерялся бы при рендере
+    from generator.schema import Compare, CompareSide
+    lost = Slide(role=Role.COMPARE, layout=Layout.CARD_LEFT_IMAGE_RIGHT,
+                 title="Сравнение не туда",
+                 compare=Compare(left=CompareSide(label="А", points=["раз"]),
+                                 right=CompareSide(label="Б", points=["два"])))
+    codes = {i.code for i in validate_slide(lost, 0)}
+    check("ловит слот при неподходящем лейауте", "slot-layout-mismatch" in codes, str(codes))
+    check("это ошибка, а не предупреждение",
+          any(i.code == "slot-layout-mismatch" and i.level == "error"
+              for i in validate_slide(lost, 0)))
+    ok_layout = Slide(role=Role.COMPARE, layout=Layout.COMPARE_TWO_COLS,
+                      title="Сравнение",
+                      compare=Compare(left=CompareSide(label="А", points=["раз"]),
+                                      right=CompareSide(label="Б", points=["два"])))
+    check("правильный лейаут не ругается",
+          "slot-layout-mismatch" not in {i.code for i in validate_slide(ok_layout, 0)})
+
     # Дедупликация фактов между слайдами
     dup_text = "Псков окончательно вошёл в состав единого Российского государства навсегда."
     dup_deck = Deck(

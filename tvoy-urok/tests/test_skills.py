@@ -216,6 +216,42 @@ def test_age_profile() -> None:
     check("запрет канцелярита во всех", all("канцелярит" in p for p in (p2, p6, p9, p11)))
 
 
+def test_response_contracts() -> None:
+    print("\n[8b] Контракт ответа у каждой роли")
+    common = dict(subject="История России", grade=6, topic="Правление Василия III")
+
+    def joined(role: str, **kw) -> str:
+        return "\n".join(b["text"] for b in build_prompt(role, **common, **kw))
+
+    author, reviewer = joined("author"), joined("reviewer")
+    inspector = joined("fgos-inspector")
+
+    # Автор возвращает дек — ему схема как СХЕМА ОТВЕТА
+    check("автору схема подана как схема ответа", "[СХЕМА ОТВЕТА]" in author)
+    # Проверяющий и инспектор дек НЕ возвращают: подать им ту же схему как
+    # «схему ответа» — значит потребовать вернуть дек вместо отчёта
+    for name, txt in (("проверяющий", reviewer), ("инспектор", inspector)):
+        check(f"{name}: схема подана как справочная", "[СХЕМА ДЕКА]" in txt)
+        check(f"{name}: не требуют вернуть дек", "[СХЕМА ОТВЕТА]" not in txt)
+        check(f"{name}: сказано, что формат задаёт вызов",
+              "задаётся отдельно вызывающей стороной" in txt)
+
+    # Нормы и возрастной профиль не должны противоречить друг другу
+    for grade in (2, 6, 9):
+        txt = "\n".join(b["text"] for b in build_prompt(
+            "author", subject="История России", grade=grade, topic="Тема"))
+        check(f"{grade} кл.: коридор норм и цель не спорят",
+              "целевую длину бери из возрастного профиля" in txt)
+
+    # Инспектор в справочном режиме без требований бесполезен
+    adv = joined("fgos-inspector", fgos_mode="check")
+    check("инспектор получает требования и в справочном режиме",
+          "[СЛОЙ 4" in adv)
+    author_adv = joined("author", fgos_mode="check")
+    check("а автору в справочном режиме их по-прежнему не навязывают",
+          "[СЛОЙ 4" not in author_adv)
+
+
 def test_uncovered_subject() -> None:
     print("\n[8] Непокрытый предмет не ломает сборку")
     blocks = build_prompt("author", "Астрономия", 10, "Чёрные дыры")
@@ -251,6 +287,7 @@ def main() -> int:
     test_per_role_needs()
     test_fgos_modes()
     test_age_profile()
+    test_response_contracts()
     test_uncovered_subject()
     test_estimate()
     print(f"\n{'=' * 46}\nПройдено: {_passed}, провалено: {_failed}")
