@@ -443,6 +443,9 @@
       delSpan.appendChild(document.createTextNode(' удалено'));
       legend.appendChild(addSpan);
       legend.appendChild(delSpan);
+      // Дифф, восстановленный из транскрипта, помечаем явно: он показывает
+      // одну правку Клода, а не всю разницу с сохранённой версией.
+      if (f.reconstructed) legend.appendChild(el('span', null, 'по транскрипту'));
       box.appendChild(legend);
 
       if (f.binary) {
