@@ -25,6 +25,15 @@ var humanize = require('./lib/humanize');
 var glossary = require('./lib/glossary');
 var filedoc = require('./lib/filedoc');
 var monitorMod = require('./lib/monitor');
+var configMod = require('./lib/config');
+var netinfo = require('./lib/netinfo');
+var authMod = require('./lib/auth');
+var shortcuts = require('./lib/shortcuts');
+
+// qrcode — единственная (и необязательная) зависимость: без неё просто
+// не будет картинки-QR, ссылка останется
+var qrcode = null;
+try { qrcode = require('qrcode'); } catch (e) { /* обойдёмся ссылкой */ }
 
 var args = cli.parseArgs(process.argv);
 if (args.help) {
@@ -37,7 +46,17 @@ if (args.error) {
 }
 if (args.warning) console.warn(args.warning);
 
-var PORT = args.port;
+if (args.command === 'shortcuts') {
+  var made = shortcuts.writeShortcuts(process.cwd());
+  console.log('Готово! Ярлыки созданы:');
+  made.forEach(function (p) { console.log('  · ' + p); });
+  console.log('Двойной клик по ярлыку поднимет «Штурман» для этой папки.');
+  process.exit(0);
+}
+
+var SHARE = args.share;
+var cfg = configMod.loadConfig();
+var basePort = args.portGiven ? args.port : cfg.port;
 
 var VERSION = '0.0.0';
 try {
@@ -53,6 +72,13 @@ args.projects.forEach(function (p) {
     process.exit(1);
   }
 });
+
+// конфиг: запоминаем последние проекты и явный выбор порта
+configMod.rememberProjects(cfg, args.projects);
+if (args.portGiven) cfg.port = args.port;
+configMod.saveConfig(cfg);
+
+var auth = authMod.createAuth(SHARE);
 
 /* ------------------------------------------------------------------ */
 /* Мониторы проектов                                                   */
@@ -138,13 +164,34 @@ function sendStatic(res, rel) {
 /**
  * Защита от DNS rebinding: браузер на чужом сайте может заставить запрос
  * прийти на 127.0.0.1, но заголовок Host там будет чужим — отклоняем всё,
- * что пришло не на localhost-имя.
+ * что пришло не на localhost-имя. В share-режиме дополнительно пускаем
+ * IP-литералы (телефон ходит по http://192.168.х.х:порт); домены — нет,
+ * а без токена чужой запрос всё равно не пройдёт.
  */
 function hostAllowed(req) {
   var host = String(req.headers.host || '').toLowerCase();
   var name = host.replace(/:\d+$/, '');
-  return name === '127.0.0.1' || name === 'localhost' || name === '[::1]' || name === '::1';
+  if (name === '127.0.0.1' || name === 'localhost' || name === '[::1]' || name === '::1') return true;
+  if (SHARE) {
+    if (/^\d{1,3}(\.\d{1,3}){3}$/.test(name)) return true;   // IPv4-литерал
+    if (/^\[[0-9a-f:]+\]$/.test(name)) return true;           // IPv6-литерал
+  }
+  return false;
 }
+
+/** Статика, которую можно отдавать по имени (включая PWA-файлы). */
+var STATIC_ROUTES = {
+  '/': 'index.html',
+  '/app.js': 'app.js',
+  '/style.css': 'style.css',
+  '/favicon.svg': 'favicon.svg',
+  '/manifest.json': 'manifest.json',
+  '/sw.js': 'sw.js',
+  '/offline.html': 'offline.html',
+  '/icons/icon-192.png': 'icons/icon-192.png',
+  '/icons/icon-512.png': 'icons/icon-512.png',
+  '/icons/icon-maskable-512.png': 'icons/icon-maskable-512.png'
+};
 
 var server = http.createServer(function (req, res) {
   var parsed = url.parse(req.url, true);
@@ -154,6 +201,18 @@ var server = http.createServer(function (req, res) {
   if (!hostAllowed(req)) {
     sendJson(res, 403, { error: 'Запрос пришёл с неожиданным именем хоста.' });
     return;
+  }
+  // share-режим: чужие устройства обязаны предъявить токен из ссылки/QR
+  var access = auth.check(req);
+  if (!access.ok) {
+    sendJson(res, 403, {
+      error: 'Нет доступа. Откройте панель по ссылке с токеном — её выдаёт QR-код на компьютере (экран «Подключение»).'
+    });
+    return;
+  }
+  if (access.viaQueryToken) {
+    // токен пришёл в ссылке — ставим cookie, дальше можно ходить без ?t=
+    res.setHeader('Set-Cookie', auth.cookieHeader());
   }
   if (req.method === 'POST' && route === '/api/ask') {
     return handleAsk(req, res);
@@ -165,13 +224,11 @@ var server = http.createServer(function (req, res) {
 
   var mon = pickMonitor(q);
 
+  if (STATIC_ROUTES[route]) {
+    return sendStatic(res, STATIC_ROUTES[route]);
+  }
+
   switch (route) {
-    case '/':
-      return sendStatic(res, 'index.html');
-    case '/app.js':
-    case '/style.css':
-    case '/favicon.svg':
-      return sendStatic(res, route.slice(1));
 
     case '/events':
       return hub.attach(req, res);
@@ -297,6 +354,33 @@ var server = http.createServer(function (req, res) {
 
     case '/api/pulse':
       return sendJson(res, 200, mon.pulse.snapshot());
+
+    case '/api/share': {
+      // экран «Подключение»: полную ссылку с токеном и QR видит только
+      // хозяин (запрос с самой машины) — телефону хватит знать, что доступ есть
+      var payload = {
+        share: SHARE,
+        owner: !!access.owner,
+        addresses: SHARE ? netinfo.lanAddresses().map(function (a) { return a.address; }) : [],
+        port: PORT
+      };
+      if (!SHARE || !access.owner) {
+        return sendJson(res, 200, payload);
+      }
+      var urls = payload.addresses.map(function (ip) {
+        return netinfo.buildShareUrl(ip, PORT, auth.getToken());
+      });
+      payload.urls = urls;
+      if (qrcode && urls.length) {
+        return qrcode.toDataURL(urls[0], { margin: 1, width: 320 }).then(function (dataUrl) {
+          payload.qr = dataUrl;
+          sendJson(res, 200, payload);
+        }).catch(function () {
+          sendJson(res, 200, payload);
+        });
+      }
+      return sendJson(res, 200, payload);
+    }
   }
 
   sendJson(res, 404, { error: 'Такой страницы нет.' });
@@ -362,28 +446,118 @@ function handleAsk(req, res) {
   });
 }
 
-server.listen(PORT, '127.0.0.1', function () {
-  console.log('');
-  if (monitors.length === 1) {
-    console.log('  ⛵ «Штурман» смотрит за проектом: ' + monitors[0].root);
+/* ------------------------------------------------------------------ */
+/* Запуск: свободный порт → баннер → браузер                            */
+/* ------------------------------------------------------------------ */
+
+var PORT = basePort; // уточнится после подбора свободного
+var LISTEN_HOST = SHARE ? '0.0.0.0' : '127.0.0.1';
+
+/** Открыть браузер по-родному для каждой ОС; неудача — не беда. */
+function openBrowser(targetUrl) {
+  var spawn = require('node:child_process').spawn;
+  var cmd, cmdArgs;
+  if (process.platform === 'win32') {
+    cmd = 'cmd';
+    cmdArgs = ['/c', 'start', '', targetUrl];
+  } else if (process.platform === 'darwin') {
+    cmd = 'open';
+    cmdArgs = [targetUrl];
   } else {
-    console.log('  ⛵ «Штурман» смотрит за проектами:');
-    monitors.forEach(function (m) { console.log('     · ' + m.root); });
+    cmd = 'xdg-open';
+    cmdArgs = [targetUrl];
   }
-  console.log('  Панель: http://127.0.0.1:' + PORT);
-  console.log('  Источник данных: ' + (monitors[0].level() === 'A'
+  if (args.app) {
+    // режим киоска: отдельное окно без адресной строки (Chrome/Edge/Chromium)
+    var chromes = process.platform === 'win32'
+      ? ['chrome', 'msedge']
+      : process.platform === 'darwin'
+        ? ['/Applications/Google Chrome.app/Contents/MacOS/Google Chrome']
+        : ['google-chrome', 'chromium', 'chromium-browser'];
+    for (var i = 0; i < chromes.length; i++) {
+      try {
+        var child = spawn(chromes[i], ['--app=' + targetUrl], { detached: true, stdio: 'ignore' });
+        child.on('error', function () { /* следующий кандидат не пробуем — упадём в обычный */ });
+        child.unref();
+        return;
+      } catch (e) { /* пробуем следующий */ }
+    }
+  }
+  try {
+    var opener = spawn(cmd, cmdArgs, { detached: true, stdio: 'ignore' });
+    opener.on('error', function () { /* нет открывалки — адрес есть в баннере */ });
+    opener.unref();
+  } catch (e) { /* ок */ }
+}
+
+function banner() {
+  var lines = [];
+  lines.push('');
+  lines.push('  ┌──────────────────────────────────────────────┐');
+  lines.push('  │  ⛵ Штурман v' + VERSION + ' — панель для Claude Code   │');
+  lines.push('  └──────────────────────────────────────────────┘');
+  if (monitors.length === 1) {
+    lines.push('  Смотрю за проектом: ' + monitors[0].root);
+  } else {
+    lines.push('  Смотрю за проектами:');
+    monitors.forEach(function (m) { lines.push('    · ' + m.root); });
+  }
+  lines.push('  Источник данных: ' + (monitors[0].level() === 'A'
     ? 'транскрипты Claude Code + файлы + git (уровень A)'
-    : 'файлы + git (уровень B — транскрипты Claude Code не найдены)'));
-  console.log('  Остановить: Ctrl+C');
-  console.log('');
+    : 'файлы + git (уровень B — транскрипты появятся, когда Claude Code поработает здесь)'));
+  lines.push('');
+  lines.push('  Панель на этом компьютере:  http://127.0.0.1:' + PORT);
+  if (SHARE) {
+    var addrs = netinfo.lanAddresses();
+    if (addrs.length) {
+      lines.push('  Доступ по локальной сети ВКЛЮЧЁН (--share):');
+      addrs.forEach(function (a) {
+        lines.push('    📱 ' + netinfo.buildShareUrl(a.address, PORT, auth.getToken()) + '  (' + a.iface + ')');
+      });
+      lines.push('  Ссылка защищена одноразовым токеном; сервер только читает проект.');
+    } else {
+      lines.push('  ⚠ --share включён, но адрес в локальной сети не найден.');
+    }
+  } else {
+    lines.push('  Телефон: перезапустите с флагом --share, появится QR-код.');
+  }
+  lines.push('  Остановить: Ctrl+C');
+  lines.push('');
+  console.log(lines.join('\n'));
+}
+
+netinfo.findFreePort(basePort, LISTEN_HOST).then(function (freePort) {
+  PORT = freePort;
+  server.listen(PORT, LISTEN_HOST, function () {
+    banner();
+    if (PORT !== basePort) {
+      console.log('  (порт ' + basePort + ' был занят — взял свободный ' + PORT + ')');
+      console.log('');
+    }
+    if (SHARE && qrcode) {
+      var addrs = netinfo.lanAddresses();
+      if (addrs.length) {
+        qrcode.toString(netinfo.buildShareUrl(addrs[0].address, PORT, auth.getToken()),
+          { type: 'terminal', small: true },
+          function (err, art) {
+            if (!err && art) {
+              console.log('  Наведите камеру телефона:');
+              console.log(art.split('\n').map(function (l) { return '  ' + l; }).join('\n'));
+            }
+          });
+      }
+    }
+    if (cfg.openBrowser && !args.noOpen) {
+      openBrowser('http://127.0.0.1:' + PORT);
+    }
+  });
+}).catch(function (err) {
+  console.error('Не удалось запустить сервер: ' + (err && err.message));
+  process.exit(1);
 });
 
 server.on('error', function (err) {
-  if (err && err.code === 'EADDRINUSE') {
-    console.error('Порт ' + PORT + ' уже занят. Попробуйте другой: node server.js --port ' + (PORT + 1));
-  } else {
-    console.error('Не удалось запустить сервер: ' + (err && err.message));
-  }
+  console.error('Не удалось запустить сервер: ' + (err && err.message));
   process.exit(1);
 });
 

@@ -11,5 +11,11 @@
     "node": ">=18"
   },
   "private": true,
-  "license": "MIT"
+  "license": "MIT",
+  "dependencies": {
+    "qrcode": "^1.5.4"
+  },
+  "bin": {
+    "shturman": "./bin/shturman.js"
+  }
 }
