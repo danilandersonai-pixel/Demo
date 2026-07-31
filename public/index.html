@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="ru-RU">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Штурман — что сейчас делает Клод</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%2312161d'/%3E%3Cpath d='M16 5l3.2 7.8L27 16l-7.8 3.2L16 27l-3.2-7.8L5 16l7.8-3.2z' fill='%237dd3fc'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+
+<!-- ══ Шапка ══════════════════════════════════════════════════════════ -->
+<header class="topbar" id="topbar">
+  <div class="topbar__brand">
+    <span class="topbar__mark" aria-hidden="true">🧭</span>
+    <span class="topbar__name">Штурман</span>
+  </div>
+
+  <div class="topbar__project" id="projectInfo">
+    <span class="topbar__project-name" id="projectName">…</span>
+    <span class="topbar__project-path" id="projectPath"></span>
+  </div>
+
+  <div class="topbar__status">
+    <span class="chip" id="levelChip" title="Откуда Штурман берёт данные">
+      <span class="chip__dot" id="levelDot"></span>
+      <span id="levelText">подключение…</span>
+    </span>
+    <span class="chip" id="stateChip">
+      <span class="chip__dot" id="stateDot"></span>
+      <span id="stateText">—</span>
+    </span>
+  </div>
+
+  <div class="topbar__actions">
+    <button class="btn btn--ghost" id="btnBell" title="Проверить звук и разрешить уведомления">🔔 Сигнал</button>
+    <button class="btn btn--ghost" id="btnDigest" title="Скачать итоги сессии в markdown">📄 Итоги</button>
+    <button class="btn btn--ghost" id="btnGlossary" title="Словарь терминов">📚 Словарь</button>
+    <button class="btn btn--ghost" id="btnTour" title="Показать тур по панели">🎓 Тур</button>
+    <button class="btn btn--ghost" id="btnSettings" title="Настройки">⚙️</button>
+  </div>
+</header>
+
+<!-- ══ Полоса предупреждений ══════════════════════════════════════════ -->
+<div class="notice" id="notice" hidden>
+  <span class="notice__icon" id="noticeIcon">⚠️</span>
+  <span class="notice__text" id="noticeText"></span>
+  <button class="notice__close" id="noticeClose" aria-label="Скрыть">✕</button>
+</div>
+
+<!-- ══ Пульс сессии ═══════════════════════════════════════════════════ -->
+<section class="pulse" id="pulse" aria-label="Пульс сессии">
+  <div class="pulse__item">
+    <div class="pulse__value" id="pulseFiles">0</div>
+    <div class="pulse__label">файлов затронуто</div>
+  </div>
+  <div class="pulse__item">
+    <div class="pulse__value" id="pulseCommands">0</div>
+    <div class="pulse__label">команд выполнено</div>
+  </div>
+  <div class="pulse__item">
+    <div class="pulse__value" id="pulseErrors">0</div>
+    <div class="pulse__label">ошибок замечено</div>
+  </div>
+  <div class="pulse__item">
+    <div class="pulse__value" id="pulseDuration">0 с</div>
+    <div class="pulse__label">длится сессия</div>
+  </div>
+  <div class="pulse__item pulse__item--wide">
+    <div class="pulse__value pulse__value--sm" id="pulseTokens">—</div>
+    <div class="pulse__label">
+      токенов, приблизительно
+      <button class="term" data-term="token" aria-label="Что такое токены">?</button>
+    </div>
+  </div>
+</section>
+
+<!-- ══ Основная сетка ═════════════════════════════════════════════════ -->
+<main class="grid">
+
+  <!-- ─── Лента ─────────────────────────────────────────────────────── -->
+  <section class="panel panel--feed" id="panelFeed">
+    <header class="panel__head">
+      <h2 class="panel__title">Что происходит</h2>
+      <div class="panel__tools">
+        <div class="seg" role="group" aria-label="Режим показа">
+          <button class="seg__btn is-active" id="modeSimple">Просто</button>
+          <button class="seg__btn" id="modeDetail">Подробно</button>
+        </div>
+        <button class="btn btn--sm" id="btnPause" title="Остановить прокрутку ленты">⏸ Пауза</button>
+      </div>
+    </header>
+
+    <div class="filters">
+      <input class="input input--search" id="feedSearch" type="search"
+             placeholder="Поиск по ленте…" aria-label="Поиск по ленте">
+      <div class="filters__chips" id="feedFilters">
+        <button class="fchip is-active" data-filter="all">Всё</button>
+        <button class="fchip" data-filter="edit">📝 правки</button>
+        <button class="fchip" data-filter="read">📖 чтение</button>
+        <button class="fchip" data-filter="run">🔧 команды</button>
+        <button class="fchip" data-filter="search">🔍 поиск</button>
+        <button class="fchip" data-filter="error">⛔ ошибки</button>
+        <button class="fchip" data-filter="talk">💬 диалог</button>
+        <button class="fchip" data-filter="git">🌿 git</button>
+      </div>
+    </div>
+
+    <ol class="feed" id="feed" aria-live="polite"></ol>
+
+    <div class="feed__empty" id="feedEmpty">
+      <div class="feed__empty-icon">🛰</div>
+      <p class="feed__empty-title">Пока тихо</p>
+      <p class="feed__empty-text" id="feedEmptyText">
+        Штурман подключился и ждёт первых действий. Начните говорить с Клодом
+        в терминале — всё, что он сделает, появится здесь.
+      </p>
+    </div>
+
+    <div class="feed__paused" id="feedPaused" hidden>
+      Лента на паузе. Новые события копятся: <b id="pausedCount">0</b>.
+      <button class="btn btn--sm" id="btnResume">Показать</button>
+    </div>
+  </section>
+
+  <!-- ─── Правая колонка ────────────────────────────────────────────── -->
+  <div class="column">
+
+    <!-- Карта проекта -->
+    <section class="panel panel--tree" id="panelTree">
+      <header class="panel__head">
+        <h2 class="panel__title">Карта проекта</h2>
+        <button class="btn btn--sm" id="btnTreeRefresh" title="Перечитать дерево">⟳</button>
+      </header>
+      <input class="input input--search" id="treeSearch" type="search"
+             placeholder="Поиск по файлам…" aria-label="Поиск по файлам">
+      <div class="tree" id="tree"></div>
+      <p class="tree__hint" id="treeHint">Свежие изменения подсвечиваются и постепенно гаснут.</p>
+    </section>
+
+    <!-- Git -->
+    <section class="panel panel--git" id="panelGit">
+      <header class="panel__head">
+        <h2 class="panel__title">
+          Git
+          <button class="term" data-term="git" aria-label="Что такое git">?</button>
+        </h2>
+        <div class="seg seg--sm" role="group" aria-label="Раздел git">
+          <button class="seg__btn is-active" data-gittab="now">Сейчас</button>
+          <button class="seg__btn" data-gittab="history">История</button>
+        </div>
+      </header>
+      <div id="gitNow"></div>
+      <div id="gitHistory" hidden></div>
+    </section>
+
+    <!-- Внимание Клода -->
+    <section class="panel panel--attention" id="panelAttention">
+      <header class="panel__head">
+        <h2 class="panel__title">Куда смотрит Клод</h2>
+      </header>
+      <div class="attention" id="attentionMap">
+        <p class="muted">Пока никуда — ждём первых чтений и правок.</p>
+      </div>
+    </section>
+
+    <!-- Журнал сессий -->
+    <section class="panel panel--sessions" id="panelSessions">
+      <header class="panel__head">
+        <h2 class="panel__title">Прошлые сессии</h2>
+        <button class="btn btn--sm" id="btnSessionsRefresh">⟳</button>
+      </header>
+      <div class="sessions" id="sessions"><p class="muted">Загружаем…</p></div>
+    </section>
+
+  </div>
+</main>
+
+<!-- ══ Боковая карточка деталей ═══════════════════════════════════════ -->
+<aside class="drawer" id="drawer" hidden aria-label="Подробности">
+  <header class="drawer__head">
+    <h3 class="drawer__title" id="drawerTitle">Подробности</h3>
+    <button class="btn btn--ghost" id="drawerClose" aria-label="Закрыть">✕</button>
+  </header>
+  <div class="drawer__body" id="drawerBody"></div>
+</aside>
+
+<!-- ══ Модальные окна ═════════════════════════════════════════════════ -->
+<div class="modal" id="modal" hidden>
+  <div class="modal__backdrop" id="modalBackdrop"></div>
+  <div class="modal__box" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <header class="modal__head">
+      <h3 class="modal__title" id="modalTitle">—</h3>
+      <button class="btn btn--ghost" id="modalClose" aria-label="Закрыть">✕</button>
+    </header>
+    <div class="modal__body" id="modalBody"></div>
+  </div>
+</div>
+
+<!-- ══ Тур ════════════════════════════════════════════════════════════ -->
+<div class="tour" id="tour" hidden>
+  <div class="tour__backdrop"></div>
+  <div class="tour__spot" id="tourSpot"></div>
+  <div class="tour__card" id="tourCard">
+    <div class="tour__step" id="tourStep">Шаг 1 из 5</div>
+    <h3 class="tour__title" id="tourTitle">—</h3>
+    <p class="tour__text" id="tourText">—</p>
+    <div class="tour__actions">
+      <button class="btn btn--ghost" id="tourSkip">Пропустить</button>
+      <button class="btn btn--ghost" id="tourPrev">Назад</button>
+      <button class="btn btn--primary" id="tourNext">Дальше</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ Всплывающая подсказка термина ══════════════════════════════════ -->
+<div class="tip" id="tip" hidden role="tooltip">
+  <div class="tip__term" id="tipTerm"></div>
+  <div class="tip__text" id="tipText"></div>
+</div>
+
+<!-- ══ Сигнал «Клод ждёт» ═════════════════════════════════════════════ -->
+<div class="alarm" id="alarm" hidden role="alert">
+  <div class="alarm__icon">🔔</div>
+  <div class="alarm__body">
+    <div class="alarm__title" id="alarmTitle">Клод остановился и ждёт вас</div>
+    <div class="alarm__text" id="alarmText"></div>
+  </div>
+  <button class="btn btn--primary" id="alarmOk">Понял</button>
+</div>
+
+<script src="/app.js"></script>
+</body>
+</html>
