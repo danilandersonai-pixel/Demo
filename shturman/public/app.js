@@ -1053,6 +1053,16 @@
       digestBtn.style.marginBottom = '12px';
       digestBtn.addEventListener('click', downloadDigest);
       body.appendChild(digestBtn);
+      if (navigator.share) {
+        // телефон: дайджест уходит в системное меню «Поделиться»
+        var shareBtn = el('button', '', '📤 Поделиться дайджестом');
+        shareBtn.style.margin = '0 0 12px 8px';
+        shareBtn.addEventListener('click', function () {
+          navigator.share({ title: 'Дневник сессии Claude Code', text: buildDigest() })
+            .catch(function () { /* человек передумал — ок */ });
+        });
+        body.appendChild(shareBtn);
+      }
       if (!d.sessions || !d.sessions.length) {
         body.appendChild(el('div', 'empty-note',
           'Сессий Claude Code для этой папки не найдено. Запустите Claude Code здесь — и сессии появятся.'));
@@ -1562,6 +1572,7 @@
           'домашней сети. Сервер только читает проект: с телефона (как и отсюда) ' +
           'ничего изменить нельзя.</p>';
         body.appendChild(on);
+        renderDevices(body);
         return;
       }
       var remote = el('div');
@@ -1574,6 +1585,46 @@
       body.innerHTML = '<div class="empty-note">Не удалось узнать состояние share-режима.</div>';
     });
   }
+  /** Бонус: кто сейчас смотрит панель + кнопка «отозвать доступ». */
+  function renderDevices(container) {
+    fetch(api('/api/devices')).then(function (r) { return r.json(); }).then(function (d) {
+      if (!d.devices) return;
+      var box = el('div');
+      var head = el('p');
+      head.innerHTML = '<b>Подключённые устройства (' + d.devices.length + '):</b>';
+      box.appendChild(head);
+      d.devices.forEach(function (dev) {
+        var row = el('div', 'kv');
+        var what = dev.isThisComputer ? '💻 этот компьютер' : '📱 ' + dev.ip;
+        var ua = dev.ua ? shortUa(dev.ua) : '';
+        row.textContent = what + (ua ? ' · ' + ua : '') + ' · подключился ' + fmtAgo(dev.sinceMs);
+        box.appendChild(row);
+      });
+      var others = d.devices.filter(function (dev) { return !dev.isThisComputer; });
+      var revoke = el('button', '', '🚫 Отозвать доступ' + (others.length ? ' (' + others.length + ')' : ''));
+      revoke.style.marginTop = '8px';
+      revoke.addEventListener('click', function () {
+        revoke.disabled = true;
+        fetch('/api/revoke', { method: 'POST' }).then(function (r) { return r.json(); }).then(function (resp) {
+          openShare(); // новый QR и пустой список чужих устройств
+        }).catch(function () { revoke.disabled = false; });
+      });
+      box.appendChild(revoke);
+      box.appendChild(el('div', 'muted', 'Отзыв меняет токен: старая ссылка и QR перестают работать, чужие подключения обрываются.'));
+      container.appendChild(box);
+    }).catch(function () { /* не критично */ });
+  }
+
+  function shortUa(ua) {
+    if (/Android/i.test(ua)) return 'Android';
+    if (/iPhone|iPad/i.test(ua)) return 'iPhone/iPad';
+    if (/Mobile/i.test(ua)) return 'телефон';
+    if (/Windows/i.test(ua)) return 'Windows';
+    if (/Macintosh/i.test(ua)) return 'macOS';
+    if (/Linux/i.test(ua)) return 'Linux';
+    return 'браузер';
+  }
+
   $('btn-share').addEventListener('click', openShare);
   document.body.addEventListener('click', function (e) {
     if (e.target.closest('[data-open-share]')) {

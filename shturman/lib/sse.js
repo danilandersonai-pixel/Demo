@@ -31,7 +31,12 @@ function createHub() {
       if (buffer[i].id > lastId) writeEvent(res, buffer[i]);
     }
 
-    var client = { res: res };
+    var client = {
+      res: res,
+      ip: (req.socket && req.socket.remoteAddress) || '',
+      ua: String((req.headers && req.headers['user-agent']) || '').slice(0, 200),
+      sinceMs: Date.now()
+    };
     clients.push(client);
     var ping = setInterval(function () {
       try { res.write(': ping\n\n'); } catch (e) { /* закрыто */ }
@@ -79,6 +84,21 @@ function createHub() {
     broadcast: broadcast,
     transient: transient,
     clientCount: function () { return clients.length; },
+    /** Кто сейчас смотрит панель (для экрана «Подключённые устройства»). */
+    clientsInfo: function () {
+      return clients.map(function (c) {
+        return { ip: c.ip, ua: c.ua, sinceMs: c.sinceMs };
+      });
+    },
+    /** Оборвать соединения, не прошедшие фильтр (отзыв доступа). */
+    dropClients: function (keep) {
+      clients.slice().forEach(function (c) {
+        if (keep(c)) return;
+        try { c.res.end(); } catch (e) { /* уже мёртв */ }
+        var idx = clients.indexOf(c);
+        if (idx !== -1) clients.splice(idx, 1);
+      });
+    },
     bufferedEvents: function () { return buffer.slice(); }
   };
 }

@@ -88,6 +88,8 @@ var hub = sse.createHub();
 var monitors = [];      // в порядке аргументов; первый — по умолчанию
 var byId = {};          // id → монитор
 
+var feedTail = []; // последние события для --tui
+
 args.projects.forEach(function (root) {
   // id считаем заранее: монитор шлёт первые события ещё из фабрики,
   // до присваивания переменной mon
@@ -95,6 +97,8 @@ args.projects.forEach(function (root) {
   var mon = monitorMod.createMonitor(root, {
     onFeed: function (item) {
       item.project = id;
+      feedTail.push({ ts: item.ts, icon: item.icon, title: item.title });
+      if (feedTail.length > 12) feedTail.shift();
       hub.broadcast('feed', item);
     },
     onTransient: function (type, data) {
@@ -216,6 +220,16 @@ var server = http.createServer(function (req, res) {
   }
   if (req.method === 'POST' && route === '/api/ask') {
     return handleAsk(req, res);
+  }
+  if (req.method === 'POST' && route === '/api/revoke') {
+    // отзыв доступа: новый токен + обрыв всех чужих подключений.
+    // Проект это не трогает — меняется только пропуск в панель.
+    if (!access.owner) {
+      return sendJson(res, 403, { error: 'Отозвать доступ может только компьютер-хозяин.' });
+    }
+    auth.rotate();
+    hub.dropClients(function (c) { return auth.isLoopback(c.ip); });
+    return sendJson(res, 200, { ok: true, message: 'Доступ отозван: старая ссылка больше не работает, чужие подключения оборваны. Новый QR — на этом экране.' });
   }
   if (req.method !== 'GET') {
     sendJson(res, 405, { error: 'Только чтение: «Штурман» ничего не меняет в проекте.' });
@@ -354,6 +368,22 @@ var server = http.createServer(function (req, res) {
 
     case '/api/pulse':
       return sendJson(res, 200, mon.pulse.snapshot());
+
+    case '/api/devices': {
+      // кто сейчас смотрит панель — видит только хозяин
+      if (!access.owner) return sendJson(res, 403, { error: 'Список устройств видит только компьютер-хозяин.' });
+      return sendJson(res, 200, {
+        share: SHARE,
+        devices: hub.clientsInfo().map(function (c) {
+          return {
+            ip: c.ip.replace(/^::ffff:/, ''),
+            ua: c.ua,
+            sinceMs: c.sinceMs,
+            isThisComputer: auth.isLoopback(c.ip)
+          };
+        })
+      });
+    }
 
     case '/api/share': {
       // экран «Подключение»: полную ссылку с токеном и QR видит только
@@ -526,9 +556,52 @@ function banner() {
   console.log(lines.join('\n'));
 }
 
+/* --tui: компактный живой статус прямо в терминале (для второго монитора) */
+function startTui() {
+  function fmtDur(ms) {
+    var s = Math.floor(ms / 1000);
+    if (s < 60) return s + ' с';
+    if (s < 3600) return Math.floor(s / 60) + ' мин';
+    return Math.floor(s / 3600) + ' ч ' + Math.floor((s % 3600) / 60) + ' мин';
+  }
+  function render() {
+    var p = monitors[0].pulse.snapshot();
+    var state = '⚪ жду начала сессии';
+    if (p.sessionStartMs != null) {
+      if (p.idle && p.idleReason === 'end-turn') state = '🔔 КЛОД ЖДЁТ ВАС';
+      else if (p.idle) state = '🕰 Клод давно молчит';
+      else state = '🟢 Клод работает';
+    }
+    var lines = [];
+    lines.push('⛵ Штурман --tui · ' + monitors.map(function (m) { return m.name; }).join(', ') +
+      ' · панель: http://127.0.0.1:' + PORT);
+    lines.push('');
+    lines.push('  ' + state +
+      (p.quietMs != null ? '   (тишина ' + Math.round(p.quietMs / 1000) + ' с)' : ''));
+    lines.push('  файлов: ' + p.filesTouched + ' · команд: ' + p.commandsRun +
+      ' · ошибок: ' + p.errorsSeen + ' · сессия: ' + fmtDur(p.durationMs || 0) +
+      (p.tokens.approxOutput ? ' · токены ≈' + Math.round(p.tokens.approxOutput / 1000) + ' тыс' : ''));
+    lines.push('');
+    feedTail.slice(-6).forEach(function (f) {
+      var t = f.ts ? new Date(f.ts).toLocaleTimeString('ru-RU').slice(0, 5) : '  :  ';
+      lines.push('  ' + t + '  ' + f.icon + ' ' + f.title.slice(0, 90));
+    });
+    lines.push('');
+    lines.push('  Ctrl+C — выход');
+    process.stdout.write('\x1b[2J\x1b[H' + lines.join('\n') + '\n');
+  }
+  var t = setInterval(render, 2000);
+  if (t.unref) t.unref();
+  render();
+}
+
 netinfo.findFreePort(basePort, LISTEN_HOST).then(function (freePort) {
   PORT = freePort;
   server.listen(PORT, LISTEN_HOST, function () {
+    if (args.tui) {
+      startTui();
+      return;
+    }
     banner();
     if (PORT !== basePort) {
       console.log('  (порт ' + basePort + ' был занят — взял свободный ' + PORT + ')');
