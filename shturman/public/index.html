@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="ru-RU">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Штурман — что делает Клод</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+</head>
+<body>
+
+<header class="topbar">
+  <span class="logo">⛵ Штурман</span>
+  <span class="project" id="project-path" title="">…</span>
+  <span class="badge" id="level-badge" title="">…</span>
+  <span id="claude-state" class="unknown">
+    <span class="dot"></span>
+    <span id="claude-state-text">подключаюсь…</span>
+  </span>
+  <span class="spacer"></span>
+  <button id="btn-sessions" title="Прошлые сессии Claude Code">🗓 Сессии</button>
+  <button id="btn-gloss" title="Словарь терминов для новичка">📚 Словарь</button>
+  <button id="btn-settings" title="Звук, уведомления, пороги">⚙ Настройки</button>
+  <button id="btn-tour" title="Показать тур по панели заново">🧭 Тур</button>
+</header>
+
+<main class="layout">
+  <!-- Левая колонка: лента -->
+  <div class="col">
+    <section class="panel" id="panel-feed">
+      <h2>Что происходит
+        <span class="qm" data-term="транскрипт сессии">?</span>
+        <span class="sub" id="feed-count"></span>
+      </h2>
+      <div class="feed-notice" id="feed-notice">
+        <span id="feed-notice-text"></span>
+        <button id="feed-notice-btn">К живой ленте</button>
+      </div>
+      <div class="feed-controls">
+        <button id="btn-pause" title="Остановить прокрутку ленты">⏸ Пауза</button>
+        <button id="btn-detail" title="Показывать сырые данные событий">Просто</button>
+        <input type="search" id="feed-search" placeholder="Поиск по ленте…">
+      </div>
+      <div class="chips" id="feed-chips">
+        <span class="chip on" data-cat="all">все</span>
+        <span class="chip" data-cat="edit">правки</span>
+        <span class="chip" data-cat="read">чтение</span>
+        <span class="chip" data-cat="run">команды</span>
+        <span class="chip" data-cat="search">поиск</span>
+        <span class="chip" data-cat="git">git</span>
+        <span class="chip" data-cat="files">файлы</span>
+        <span class="chip" data-cat="talk">разговор</span>
+        <span class="chip" data-cat="signal">сигналы</span>
+      </div>
+      <div style="height:10px"></div>
+      <div id="feed">
+        <div class="feed-empty" id="feed-empty">Пока тихо. Запустите Claude Code в этой папке —<br>и здесь появится живая лента его действий.</div>
+      </div>
+    </section>
+  </div>
+
+  <!-- Правая колонка: пульс, карта, git -->
+  <div class="col">
+    <section class="panel" id="panel-pulse">
+      <h2>Пульс сессии <span class="qm" data-term="сессия">?</span></h2>
+      <div class="pulse-row">
+        <div class="pulse-cell"><div class="num" id="p-files">0</div><div class="lbl">файлов затронуто</div></div>
+        <div class="pulse-cell"><div class="num" id="p-cmds">0</div><div class="lbl">команд выполнено</div></div>
+        <div class="pulse-cell" id="p-errors-cell"><div class="num" id="p-errors">0</div><div class="lbl">ошибок замечено</div></div>
+        <div class="pulse-cell"><div class="num" id="p-duration">—</div><div class="lbl">длится сессия</div></div>
+        <div class="pulse-cell"><div class="num" id="p-tokens">—</div><div class="lbl">токенов <span class="qm" data-term="токены">?</span></div></div>
+      </div>
+      <div class="token-note" id="token-note"></div>
+    </section>
+
+    <section class="panel" id="panel-map">
+      <h2>Карта проекта <span class="sub">недавно изменённое подсвечено</span></h2>
+      <div class="tree-controls">
+        <input type="search" id="tree-search" placeholder="Найти файл…">
+      </div>
+      <div id="tree"></div>
+    </section>
+
+    <section class="panel" id="panel-git">
+      <h2>Git для новичка <span class="qm" data-term="репозиторий">?</span></h2>
+      <div id="git-body">
+        <div class="empty-note">Смотрю, есть ли здесь git…</div>
+      </div>
+    </section>
+  </div>
+</main>
+
+<!-- Модальное окно: словарь -->
+<div class="modal-back" id="modal-gloss">
+  <div class="modal">
+    <h3>📚 Словарь новичка <button class="x" data-close="modal-gloss">Закрыть</button></h3>
+    <input type="search" id="gloss-search" placeholder="Найти термин…" style="width:100%; margin-bottom:12px;">
+    <div id="gloss-list"></div>
+  </div>
+</div>
+
+<!-- Модальное окно: карточка файла -->
+<div class="modal-back" id="modal-file">
+  <div class="modal">
+    <h3 id="file-title">Файл <button class="x" data-close="modal-file">Закрыть</button></h3>
+    <div id="file-body"></div>
+  </div>
+</div>
+
+<!-- Модальное окно: дифф коммита -->
+<div class="modal-back" id="modal-commit">
+  <div class="modal">
+    <h3 id="commit-title">Коммит <button class="x" data-close="modal-commit">Закрыть</button></h3>
+    <div id="commit-body"></div>
+  </div>
+</div>
+
+<!-- Модальное окно: сессии -->
+<div class="modal-back" id="modal-sessions">
+  <div class="modal">
+    <h3>🗓 Сессии Claude Code в этом проекте <button class="x" data-close="modal-sessions">Закрыть</button></h3>
+    <div id="sessions-body"></div>
+  </div>
+</div>
+
+<!-- Модальное окно: настройки -->
+<div class="modal-back" id="modal-settings">
+  <div class="modal">
+    <h3>⚙ Настройки <button class="x" data-close="modal-settings">Закрыть</button></h3>
+    <div class="set-row">
+      <div class="grow">Звуковой сигнал, когда Клод остановился<div class="note">короткий мягкий аккорд, без повторов</div></div>
+      <label class="switch"><input type="checkbox" id="set-sound" checked><span class="sl"></span></label>
+    </div>
+    <div class="set-row">
+      <div class="grow">Уведомления браузера<div class="note" id="notif-note">чтобы узнать о паузе, даже если вкладка не активна</div></div>
+      <label class="switch"><input type="checkbox" id="set-notif"><span class="sl"></span></label>
+    </div>
+    <div class="set-row">
+      <div class="grow">Порог «Клод давно молчит», секунд<div class="note">затишье в транскрипте дольше этого времени считается остановкой</div></div>
+      <input type="number" id="set-quiet" min="15" max="600" step="15" value="90" style="width:80px">
+    </div>
+    <div class="set-row">
+      <div class="grow">Проверить сигнал<div class="note">проиграть звук и показать уведомление прямо сейчас</div></div>
+      <button id="btn-test-signal">Проверить</button>
+    </div>
+  </div>
+</div>
+
+<!-- Тур: затемнение и карточка — соседи, чтобы карточка была поверх подсвеченной панели -->
+<div id="tour-back"></div>
+<div id="tour-box">
+  <h4 id="tour-title"></h4>
+  <p id="tour-text"></p>
+  <div class="row">
+    <span class="step-n" id="tour-step"></span>
+    <button id="tour-skip">Пропустить</button>
+    <button id="tour-next" class="active">Дальше</button>
+  </div>
+</div>
+
+<script src="/app.js"></script>
+</body>
+</html>

@@ -35,8 +35,12 @@ function createPulse(emit, opts) {
   /** Транскриптное событие → учёт статистики. */
   function feed(event) {
     var t = now();
-    if (state.sessionStartMs === null) state.sessionStartMs = t;
-    state.lastEventMs = t;
+    // Берём время из самой записи транскрипта: тогда длительность сессии и
+    // затишье честные даже после перезапуска «Штурмана» (реплей истории).
+    var evT = event.ts ? Date.parse(event.ts) : NaN;
+    if (!isFinite(evT) || evT > t) evT = t;
+    if (state.sessionStartMs === null) state.sessionStartMs = evT;
+    if (state.lastEventMs === null || evT > state.lastEventMs) state.lastEventMs = evT;
 
     switch (event.kind) {
       case 'user-prompt':
