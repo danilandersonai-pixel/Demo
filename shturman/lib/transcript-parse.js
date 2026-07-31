@@ -369,6 +369,10 @@ function createParser(options) {
   var pending = new Map();     // tool_use_id -> описание вызова
   var tokens = createTokenAccumulator();
   var lastAssistantText = null;
+  // Один и тот же промпт приходит дважды: сначала как queue-operation
+  // (постановка в очередь), потом как user-запись (собственно ход). Второй
+  // раз в ленту не пускаем.
+  var lastPromptText = null;
   var counters = { tools: 0, errors: 0, edits: 0, reads: 0, commands: 0 };
 
   // Путь приводим к относительному, если он внутри проекта. Файл снаружи
@@ -401,6 +405,8 @@ function createParser(options) {
       // --- реплика человека -------------------------------------------------
       var prompt = humanPrompt(record);
       if (prompt !== null && prompt !== undefined) {
+        if (prompt === lastPromptText) return events;   // повтор queue-operation
+        lastPromptText = prompt;
         var ev = base(record, 'user', 'prompt');
         ev.text = prompt;
         events.push(ev);
