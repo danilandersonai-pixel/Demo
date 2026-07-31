@@ -869,6 +869,7 @@
 
     renderStateChip(p.detector);
     renderAttention(p.recentFiles || []);
+    renderAttentionGraph(p.attention);
   }
 
   function renderStateChip(d) {
@@ -910,6 +911,114 @@
       box.appendChild(chip);
     });
   }
+
+  // ── 9a. Граф внимания ─────────────────────────────────────────────────────
+
+  var SVG_NS = 'http://www.w3.org/2000/svg';
+
+  function svg(tag, attrs) {
+    var node = document.createElementNS(SVG_NS, tag);
+    Object.keys(attrs || {}).forEach(function (k) { node.setAttribute(k, attrs[k]); });
+    return node;
+  }
+
+  /**
+   * Радиальная раскладка: файл, которым Клод занят прямо сейчас, — в центре,
+   * остальные по кольцу в порядке свежести. Физической симуляции нет
+   * намеренно: узлов мало, а прыгающий граф отвлекал бы.
+   */
+  function renderAttentionGraph(att) {
+    var box = $('attentionGraph');
+    clear(box);
+    var W = box.clientWidth || 380;
+    var H = 210;
+    var root = svg('svg', { class: 'attgraph', viewBox: '0 0 ' + W + ' ' + H });
+
+    if (!att || att.empty || !att.nodes.length) {
+      root.appendChild(Object.assign(
+        svg('text', { class: 'attgraph__empty', x: W / 2, y: H / 2 }),
+        { textContent: 'Пока никуда — ждём первых чтений и правок.' }
+      ));
+      box.appendChild(root);
+      return;
+    }
+
+    var cx = W / 2;
+    var cy = H / 2;
+    var ring = Math.min(W, H) / 2 - 30;
+    var pos = {};
+
+    att.nodes.forEach(function (n, i) {
+      if (i === 0) { pos[n.file] = { x: cx, y: cy, r: 11 }; return; }
+      var count = att.nodes.length - 1;
+      // Смещаем кольцо на четверть шага, чтобы подписи реже налезали.
+      var angle = ((i - 1) / count) * Math.PI * 2 - Math.PI / 2 + 0.35;
+      pos[n.file] = {
+        x: cx + Math.cos(angle) * ring,
+        y: cy + Math.sin(angle) * ring * 0.82,
+        r: 6 + Math.min(4, n.touches)
+      };
+    });
+
+    // Связи рисуем первыми, чтобы узлы легли поверх.
+    att.links.forEach(function (l) {
+      var a = pos[l.from];
+      var b = pos[l.to];
+      if (!a || !b) return;
+      root.appendChild(svg('line', {
+        class: 'attgraph__link',
+        x1: a.x.toFixed(1), y1: a.y.toFixed(1),
+        x2: b.x.toFixed(1), y2: b.y.toFixed(1),
+        'stroke-width': (1 + l.strength * 2).toFixed(1),
+        'stroke-opacity': (0.25 + l.strength * 0.5).toFixed(2)
+      }));
+    });
+
+    att.nodes.forEach(function (n, i) {
+      var p = pos[n.file];
+      var g = svg('g', {
+        class: 'attgraph__node attgraph__node--' + n.kind + (i === 0 ? ' attgraph__node--focus' : ''),
+        opacity: (0.35 + 0.65 * n.freshness).toFixed(2)
+      });
+      g.appendChild(svg('circle', { class: 'attgraph__dot', cx: p.x.toFixed(1), cy: p.y.toFixed(1), r: p.r }));
+      g.appendChild(Object.assign(
+        svg('text', { class: 'attgraph__glyph', x: p.x.toFixed(1), y: (p.y + 3.5).toFixed(1) }),
+        { textContent: n.kind === 'edit' ? '✎' : '👁' }
+      ));
+      g.appendChild(Object.assign(
+        svg('text', { class: 'attgraph__label', x: p.x.toFixed(1), y: (p.y + p.r + 12).toFixed(1) }),
+        { textContent: shortName(n.name) }
+      ));
+
+      var title = svg('title');
+      title.textContent = n.file + '\n' +
+        withPlural(n.reads, 'чтение', 'чтения', 'чтений') + ', ' +
+        withPlural(n.edits, 'правка', 'правки', 'правок') + '\n' +
+        'последний раз ' + duration(n.ageMs) + ' назад';
+      g.appendChild(title);
+
+      g.addEventListener('click', function () { openFileCard(n.file); });
+      root.appendChild(g);
+    });
+
+    box.appendChild(root);
+  }
+
+  function shortName(name) {
+    return name.length > 16 ? name.slice(0, 15) + '…' : name;
+  }
+
+  Array.prototype.forEach.call(document.querySelectorAll('[data-atttab]'), function (btn) {
+    btn.addEventListener('click', function () {
+      var isGraph = btn.dataset.atttab === 'graph';
+      Array.prototype.forEach.call(document.querySelectorAll('[data-atttab]'), function (b) {
+        b.classList.toggle('is-active', b === btn);
+      });
+      $('attentionGraph').hidden = !isGraph;
+      $('attentionMap').hidden = isGraph;
+      store.set('attTab', btn.dataset.atttab);
+    });
+  });
 
   // ── 10. Сигнал «Клод остановился» ─────────────────────────────────────────
 
