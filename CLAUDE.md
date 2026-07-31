@@ -20,8 +20,9 @@ code in this repository.
 - `.claude/` — инфраструктура Claude Code (скилл `repo-map` и список
   разрешённых вызовов);
 - `shturman/` — **«Штурман»**, отдельное приложение: локальная панель-наставник,
-  которая показывает новичку простым русским языком, что делает Claude Code.
-  К свадебному сайту отношения не имеет.
+  которая показывает новичку простым русским языком, что делает Claude Code,
+  и звонит, когда тот остановился. Открывается и с телефона по QR-коду
+  (`--share`), ставится как PWA. К свадебному сайту отношения не имеет.
 
 Все три слоя не пересекаются: правки в одном не касаются остальных.
 
@@ -47,8 +48,11 @@ code in this repository.
 │   ├── PROGRESS.md                 — состояние работы и что дальше
 │   ├── server.js                   — сервер на стандартной библиотеке Node
 │   ├── lib/                        — модули (парсеры, git, вотчер, humanize)
-│   ├── public/                     — клиент: index.html + app.js + styles.css
-│   └── tests/                      — 198 проверок на node:test
+│   ├── bin/shturman.js             — команда `shturman`
+│   ├── public/                     — клиент: index.html + app.js + styles.css,
+│   │                                 manifest.json, sw.js, offline.html, icons/
+│   ├── tools/make-icons.js         — генератор PNG-иконок
+│   └── tests/                      — 273 проверки на node:test + ручной аудит
 └── yegor-diana-wedding/            — САМ САЙТ (публикуется в корень Pages)
     ├── index.html                  — вся разметка, одна страница (~670 строк)
     ├── favicon.svg                 — монограмма «Е&Д»
@@ -78,9 +82,18 @@ node --check yegor-diana-wedding/assets/js/main.js
 
 ```bash
 cd shturman
-npm test                 # 198 проверок на node:test — гонять перед коммитом
+npm test                 # 273 проверки на node:test — гонять перед коммитом
 node server.js --check   # самодиагностика окружения
 node server.js           # панель на http://127.0.0.1:4517
+node server.js --share   # плюс QR-код для телефона
+```
+
+Правки интерфейса проверять не только тестами: раскладка меняется на телефоне
+и на компьютере, и часть ошибок видна лишь глазами.
+
+```bash
+node server.js --port 4517 --quiet --no-open &
+node tests/manual/audit-v2.js    # прогон на 1500px и на 360px, ожидается 31/31
 ```
 
 ## Деплой и ветки

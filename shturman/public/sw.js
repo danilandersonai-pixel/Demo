@@ -11,7 +11,7 @@
    сегодняшнюю — хуже, чем честно сказать, что связи нет.
    =========================================================================== */
 
-var VERSION = 'shturman-v2';
+var VERSION = 'shturman-v2-2';
 var SHELL = VERSION + '-shell';
 
 var SHELL_FILES = [
@@ -73,8 +73,13 @@ self.addEventListener('fetch', function (event) {
     return;
   }
 
-  // Навигация: сначала сеть (панель должна быть свежей), при отказе —
-  // кэш, а если и там пусто — страница «сервер не запущен».
+  // Навигация: сначала сеть — панель должна быть свежей.
+  //
+  // При отказе показываем именно страницу «сервер не запущен», а НЕ
+  // закэшированную оболочку. Оболочка без сервера бесполезна: все данные
+  // приходят из /api, и человек увидел бы пустую панель с фильтрами вместо
+  // объяснения, что делать. Кэш оболочки нужен для быстрого старта, когда
+  // сервер жив, а не как замена ему.
   if (req.mode === 'navigate') {
     event.respondWith(
       fetch(req).then(function (res) {
@@ -82,8 +87,11 @@ self.addEventListener('fetch', function (event) {
         caches.open(SHELL).then(function (c) { c.put('/', copy); });
         return res;
       }).catch(function () {
-        return caches.match('/').then(function (cached) {
-          return cached || caches.match('/offline.html');
+        return caches.match('/offline.html').then(function (page) {
+          if (page) return page;
+          // Офлайн-страницы в кэше не оказалось — отдаём хоть оболочку,
+          // она сама покажет «связь потеряна».
+          return caches.match('/');
         });
       })
     );
