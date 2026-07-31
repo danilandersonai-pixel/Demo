@@ -28,6 +28,12 @@ var glossary = require('./lib/glossary');
 var digestLib = require('./lib/digest');
 var textdiff = require('./lib/textdiff');
 var doctor = require('./lib/doctor');
+var configLib = require('./lib/config');
+var netLib = require('./lib/net');
+var tokenLib = require('./lib/token');
+var qr = require('./lib/qr');
+var shortcuts = require('./lib/shortcuts');
+var banner = require('./lib/banner');
 var humanize = require('./lib/humanize');
 var paths = require('./lib/paths');
 
@@ -485,10 +491,12 @@ function readBody(req, limit) {
   });
 }
 
-function createServer(appOrRegistry, opts) {
+function createServer(appOrRegistry, opts, sharedGuard) {
   var registry = asRegistry(appOrRegistry, opts);
+  // Без --share охранник пускает всех: сервер и так слушает только петлю.
+  var guard = sharedGuard || tokenLib.createGuard({ enabled: !!(opts && opts.share) });
 
-  return http.createServer(function (req, res) {
+  var server = http.createServer(function (req, res) {
     var parsed = url.parse(req.url, true);
     var pathname = decodeURIComponent(parsed.pathname);
     var q = parsed.query;
@@ -502,6 +510,50 @@ function createServer(appOrRegistry, opts) {
     res.setHeader('X-Frame-Options', 'DENY');
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Referrer-Policy', 'no-referrer');
+
+    // --- проверка ключа доступа ---------------------------------------------
+    // Всё, кроме страницы отказа и манифеста, требует ключа в share-режиме.
+    var verdict = guard.check(req, q);
+    if (!verdict.allowed && !isPublicPath(pathname)) {
+      return sendDenied(res, pathname, verdict);
+    }
+    // Пришли по ссылке с ключом — кладём его в куку, чтобы дальше работало
+    // без «хвоста» в адресе и переживало переходы по страницам.
+    if (verdict.allowed && guard.enabled() && q[tokenLib.QUERY_NAME]) {
+      var cookie = guard.cookieHeader();
+      if (cookie) res.setHeader('Set-Cookie', cookie);
+    }
+
+    // --- подключение с телефона -------------------------------------------------
+    if (pathname === '/api/connect') {
+      return sendJson(res, 200, connectInfo(guard, opts));
+    }
+
+    // QR-код отдаём картинкой: в разметке он не нужен, а <img> кэшируется.
+    if (pathname === '/api/connect/qr.svg') {
+      var info = connectInfo(guard, opts);
+      if (!info.url) return sendText(res, 404, 'Нет адреса в локальной сети', 'text/plain; charset=utf-8');
+      var svg = qr.toSvg(info.url, { scale: 8, dark: '#0d1117', light: '#ffffff' });
+      return sendText(res, 200, svg, 'image/svg+xml; charset=utf-8');
+    }
+
+    // Сброс ключа: все выданные ссылки перестают работать.
+    if (pathname === '/api/connect/rotate' && req.method === 'POST') {
+      if (!guard.enabled()) {
+        return sendJson(res, 400, { error: 'Общий доступ выключен — сбрасывать нечего.' });
+      }
+      guard.rotate();
+      return sendJson(res, 200, connectInfo(guard, opts));
+    }
+
+    // Кто сейчас смотрит панель.
+    if (pathname === '/api/connect/devices') {
+      return sendJson(res, 200, {
+        devices: guard.devices(),
+        rejected: guard.rejectedCount(),
+        enabled: guard.enabled()
+      });
+    }
 
     // --- список проектов ------------------------------------------------------
     if (pathname === '/api/projects') {
@@ -758,6 +810,106 @@ function createServer(appOrRegistry, opts) {
 
     return serveStatic(res, pathname);
   });
+
+  // Охранник доступен снаружи: тесты и режим --share обращаются к нему.
+  server.guard = guard;
+  return server;
+}
+
+// Что отдаётся без ключа доступа: сама страница отказа, иконки и манифест.
+// Пускать сюда безопасно — ничего о проекте эти адреса не рассказывают.
+function isPublicPath(pathname) {
+  return pathname === '/denied' ||
+    pathname === '/manifest.json' ||
+    pathname === '/sw.js' ||
+    pathname === '/offline.html' ||
+    pathname.indexOf('/icons/') === 0;
+}
+
+// Отказ без ключа. Для браузера — понятная страница, для API — JSON.
+function sendDenied(res, pathname, verdict) {
+  if (pathname.indexOf('/api/') === 0) {
+    return sendJson(res, 401, {
+      error: 'Нужен ключ доступа',
+      reason: verdict.reason,
+      hint: 'Откройте панель по ссылке из QR-кода — ключ уже вшит в неё.'
+    });
+  }
+  var html = [
+    '<!DOCTYPE html><html lang="ru-RU"><head><meta charset="utf-8">',
+    '<meta name="viewport" content="width=device-width, initial-scale=1">',
+    '<title>Штурман — нужен ключ доступа</title>',
+    '<style>',
+    'body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;',
+    'background:#0d1117;color:#e6edf5;font:16px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;padding:24px}',
+    '.b{max-width:420px;text-align:center}h1{font-size:20px;margin:16px 0 8px}',
+    'p{color:#9aa8bb;font-size:15px}.i{font-size:52px}code{color:#7dd3fc;font-size:13px}',
+    '</style></head><body><div class="b">',
+    '<div class="i">🔒</div>',
+    '<h1>Нужен ключ доступа</h1>',
+    '<p>Эта панель открыта в локальной сети, и войти в неё можно только по ссылке ' +
+    'с ключом — той самой, что зашита в QR-код.</p>',
+    '<p>Отсканируйте код заново на экране «Подключение» на компьютере, ' +
+    'где запущен Штурман.</p>',
+    '<p><code>' + escapeHtml(verdict.reason || '') + '</code></p>',
+    '</div></body></html>'
+  ].join('');
+  var body = Buffer.from(html, 'utf8');
+  res.writeHead(401, {
+    'Content-Type': 'text/html; charset=utf-8',
+    'Content-Length': body.length,
+    'Cache-Control': 'no-store'
+  });
+  res.end(body);
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, function (c) {
+    return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c];
+  });
+}
+
+/**
+ * Данные экрана «Подключение»: адреса, ссылка, состояние доступа.
+ * Собираются на каждый запрос — интерфейсы могут меняться на ходу
+ * (человек перевтыкает Wi-Fi, поднимает VPN).
+ */
+function connectInfo(guard, opts, addressList) {
+  var port = (opts && opts.port) || 4517;
+  // Список адресов можно подать снаружи — так экран подключения проверяется
+  // на выдуманных Wi-Fi и Docker, не завися от машины, где идут тесты.
+  var addresses = addressList || netLib.lanAddresses();
+  var best = addresses.filter(function (a) { return a.kind !== 'virtual'; })[0] || addresses[0] || null;
+  var enabled = guard.enabled();
+
+  return {
+    enabled: enabled,
+    port: port,
+    localUrl: 'http://127.0.0.1:' + port + '/',
+    url: enabled && best ? netLib.buildUrl(best.address, port, guard.token()) : null,
+    address: best ? best.address : null,
+    addresses: addresses.map(function (a) {
+      return {
+        address: a.address,
+        label: a.label,
+        kind: a.kind,
+        url: enabled ? netLib.buildUrl(a.address, port, guard.token()) : null
+      };
+    }),
+    hasNetwork: addresses.length > 0,
+    rotatedAt: guard.rotatedAt(),
+    devices: guard.devices(),
+    rejected: guard.rejectedCount(),
+    // Объяснение простыми словами — показывается прямо на экране.
+    explain: enabled
+      ? 'Панель видна другим устройствам в вашей сети — телефону, планшету, ' +
+        'второму компьютеру. Войти можно только по ссылке с ключом: она в QR-коде ниже. ' +
+        'Штурман по-прежнему только смотрит — изменить что-то в проекте с телефона нельзя.'
+      : 'Сейчас панель открывается только на этом компьютере — так безопаснее по умолчанию: ' +
+        'она показывает содержимое ваших файлов и вывод команд, и по умолчанию этого не ' +
+        'должен видеть никто, кроме вас. Чтобы смотреть с телефона, перезапустите Штурман ' +
+        'с флагом --share.'
+  };
 }
 
 // Дополняем состояние сведениями о реестре: клиенту нужен свой ключ и
@@ -871,6 +1023,10 @@ function main(argv) {
     return Promise.resolve();
   }
 
+  // Сохранённые настройки. Флаг всегда сильнее конфига.
+  var loaded = configLib.load();
+  opts = argsLib.applyConfig(opts, loaded.config);
+
   // Папки проверяем до всего остального: понятная ошибка лучше стека.
   var missing = opts.projects.filter(function (p) { return !fs.existsSync(p); });
   if (missing.length) {
@@ -881,6 +1037,11 @@ function main(argv) {
     return Promise.resolve();
   }
 
+  // Ярлыки — отдельная команда: положили файлы и вышли, сервер не поднимаем.
+  if (opts.installShortcuts) {
+    return installShortcuts(opts);
+  }
+
   // Самодиагностика вместо запуска: ничего не поднимаем, только смотрим.
   if (opts.check) {
     return doctor.run(opts).then(function (report) {
@@ -889,28 +1050,86 @@ function main(argv) {
     });
   }
 
+  var host = opts.share ? '0.0.0.0' : '127.0.0.1';
+  var guard = tokenLib.createGuard({ enabled: opts.share });
+
   var registry = createRegistry(opts);
   var app = registry.get();
-  var server = createServer(registry, opts);
+  var resolvedPort = opts.port;
+  // Запоминаем до подмены: иначе в баннере окажется «порт 4518 был занят»
+  // как раз на том порту, где панель и поднялась.
+  var requestedPort = opts.port;
 
-  return registry.startAll().then(function () {
+  return netLib.findFreePort(opts.port, host).then(function (found) {
+    // Порт, заданный руками, не подменяем молча: человек мог настроить под
+    // него проброс или закладку. Скажем прямо, что он занят.
+    if (found.shifted && opts.portExplicit) {
+      var err = new Error('busy');
+      err.code = 'EADDRINUSE';
+      err.wanted = opts.port;
+      throw err;
+    }
+    resolvedPort = found.port;
+    opts.port = found.port;
+    opts.portShifted = found.shifted;
+    return registry.startAll();
+  }).then(function () {
     return probeClaude();
   }).then(function (hasClaude) {
-    registry.all().forEach(function (a) { a.state.askAvailable = hasClaude; });
+    registry.all().forEach(function (a) {
+      a.state.askAvailable = hasClaude;
+      a.state.share = opts.share;
+      a.guard = guard;
+      a.port = resolvedPort;
+    });
+    var server = createServer(registry, opts, guard);
     return new Promise(function (resolve, reject) {
       server.on('error', reject);
-      // Только петля. Никакого 0.0.0.0 — см. DECISIONS.md, решение 10.
-      server.listen(opts.port, '127.0.0.1', resolve);
+      // Без --share слушаем только петлю, как в первой версии.
+      server.listen(resolvedPort, host, function () { resolve(server); });
     });
-  }).then(function () {
-    var addr = 'http://127.0.0.1:' + opts.port;
-    if (!opts.quiet) printBanner(registry, opts, addr);
-    if (opts.open) openBrowser(addr);
+  }).then(function (server) {
+    var localUrl = 'http://127.0.0.1:' + resolvedPort + '/';
+    var addresses = opts.share ? netLib.lanAddresses() : [];
+    var best = addresses.length ? addresses[0] : null;
+    var shareUrl = best ? netLib.buildUrl(best.address, resolvedPort, guard.token()) : null;
+
+    // Запоминаем проект и порт — в следующий раз поднимется там же.
+    var cfg = loaded.config;
+    opts.projects.forEach(function (p) { configLib.rememberProject(cfg, p, resolvedPort); });
+    cfg.port = resolvedPort;
+    configLib.pruneMissing(cfg);
+    configLib.save(cfg);
+
+    if (!opts.quiet && !opts.tui) {
+      process.stdout.write(banner.render({
+        localUrl: localUrl,
+        port: resolvedPort,
+        requestedPort: requestedPort,
+        portShifted: !!opts.portShifted,
+        share: !!opts.share,
+        shareUrl: shareUrl,
+        addresses: addresses,
+        projects: registry.all().map(function (a) {
+          var st = a.publicState();
+          return {
+            project: st.project,
+            level: st.level,
+            levelReason: st.levelReason,
+            branch: a.state.git && a.state.git.available ? a.state.git.branch : null
+          };
+        })
+      }));
+    }
+
+    if (opts.open) openBrowser(localUrl, opts.app);
+    var tui = opts.tui ? startTui(app) : null;
 
     var shuttingDown = false;
     function shutdown() {
       if (shuttingDown) return;
       shuttingDown = true;
+      if (tui) tui.stop();
       process.stdout.write('\n  Штурман закрывается. В вашем проекте ничего не изменено.\n\n');
       registry.stopAll();
       server.close(function () { process.exit(0); });
@@ -919,11 +1138,13 @@ function main(argv) {
     }
     process.on('SIGINT', shutdown);
     process.on('SIGTERM', shutdown);
-    return { app: app, registry: registry, server: server };
+    return { app: app, registry: registry, server: server, guard: guard, port: resolvedPort };
   }).catch(function (e) {
     if (e && e.code === 'EADDRINUSE') {
-      process.stderr.write('\n  Порт ' + opts.port + ' уже занят другой программой.' +
-        '\n  Запустите с другим портом: node server.js --port ' + (opts.port + 1) + '\n\n');
+      var wanted = e.wanted || opts.port;
+      process.stderr.write('\n  Порт ' + wanted + ' занят другой программой.' +
+        '\n  Уберите флаг --port — Штурман сам найдёт свободный,' +
+        '\n  либо укажите другой: shturman --port ' + (wanted + 1) + '\n\n');
     } else {
       process.stderr.write('\n  Не удалось запустить Штурман: ' + (e && e.message) + '\n\n');
     }
@@ -931,41 +1152,86 @@ function main(argv) {
   });
 }
 
-function printBanner(registry, opts, addr) {
-  var lines = [
-    '',
-    '  ╭──────────────────────────────────────────────╮',
-    '  │  ШТУРМАН — панель-наставник для Claude Code  │',
-    '  ╰──────────────────────────────────────────────╯',
-    '',
-    '  Панель:   ' + addr,
-    ''
-  ];
+// --- ярлыки ------------------------------------------------------------------
 
-  registry.all().forEach(function (app) {
-    var s = app.publicState();
-    lines.push('  Проект:   ' + s.project);
-    lines.push('  Источник: ' + (s.level === 'A'
-      ? 'уровень A — транскрипты Claude Code + файлы + git'
-      : 'уровень B — только файлы и git (' + (s.levelReason || '') + ')'));
-    lines.push('  Git:      ' + (app.state.git && app.state.git.available
-      ? 'ветка ' + app.state.git.branch
-      : 'недоступен — панель работает без него'));
-    lines.push('');
+function installShortcuts(opts) {
+  var target = opts.projectAbs;
+  var results = shortcuts.install(target, {
+    serverPath: path.join(__dirname, 'server.js')
   });
 
-  if (registry.size() > 1) {
-    lines.push('  Проектов: ' + registry.size() + ' — переключаются в шапке панели.');
-    lines.push('');
-  }
-
-  lines.push('  Откройте адрес в браузере. Остановить — Ctrl+C.');
-  lines.push('  Штурман только наблюдает: он ничего не меняет в вашем проекте.');
+  var lines = ['', '  Ярлыки запуска в ' + target, ''];
+  results.forEach(function (r) {
+    if (r.status === 'created') {
+      lines.push('  ✔ ' + r.name + ' — двойной клик на ' + r.os);
+    } else if (r.status === 'skipped') {
+      lines.push('  · ' + r.name + ' — ' + r.reason);
+    } else {
+      lines.push('  ✖ ' + r.name + ' — не получилось: ' + r.reason);
+    }
+  });
+  lines.push('');
+  lines.push('  Теперь Штурман запускается двойным кликом по файлу.');
+  lines.push('  В macOS первый запуск может потребовать «Открыть всё равно»');
+  lines.push('  в Системных настройках → Конфиденциальность и безопасность.');
   lines.push('');
   process.stdout.write(lines.join('\n'));
+
+  if (results.some(function (r) { return r.status === 'failed'; })) process.exitCode = 1;
+  return Promise.resolve();
 }
 
-function openBrowser(addr) {
+// --- компактный режим для терминала -------------------------------------------
+
+function startTui(app) {
+  // Перерисовываем одну строку на месте: второй монитор не должен
+  // превращаться в бесконечную простыню.
+  var timer = setInterval(function () {
+    var pulse = app.pulse();
+    var events = app.bus.all();
+    var last = events.length ? events[events.length - 1] : null;
+    var text = banner.tuiLine({
+      detectorState: pulse.detector.state,
+      files: pulse.filesTouched,
+      commands: pulse.commands,
+      errors: pulse.errors,
+      duration: pulse.durationText,
+      branch: app.state.git && app.state.git.available ? app.state.git.branch : null,
+      lastTitle: last ? humanize.shorten(last.title, 48) : null
+    });
+    if (process.stdout.isTTY) {
+      process.stdout.write('\r\u001b[2K  ' + text);
+    } else {
+      process.stdout.write('  ' + text + '\n');
+    }
+  }, 1000);
+  if (timer.unref) timer.unref();
+  return { stop: function () { clearInterval(timer); process.stdout.write('\n'); } };
+}
+
+function openBrowser(addr, appMode) {
+  // Режим киоска: отдельное окно без адресной строки и вкладок. Работает в
+  // Chrome, Edge и других браузерах на Chromium; если такого нет, просто
+  // открываем обычным способом.
+  if (appMode) {
+    var candidates = process.platform === 'darwin'
+      ? ['/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+         '/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge',
+         '/Applications/Yandex.app/Contents/MacOS/Yandex']
+      : process.platform === 'win32'
+        ? ['chrome', 'msedge']
+        : ['google-chrome', 'chromium', 'chromium-browser', 'microsoft-edge'];
+
+    var tryNext = function (i) {
+      if (i >= candidates.length) return openBrowser(addr, false);
+      execFile(candidates[i], ['--app=' + addr], { windowsHide: true }, function (err) {
+        if (err) tryNext(i + 1);
+      });
+    };
+    tryNext(0);
+    return;
+  }
+
   var cmd = process.platform === 'darwin' ? 'open'
     : process.platform === 'win32' ? 'cmd' : 'xdg-open';
   var args = process.platform === 'win32' ? ['/c', 'start', '', addr] : [addr];
@@ -977,7 +1243,10 @@ module.exports = {
   createRegistry: createRegistry,
   createServer: createServer,
   main: main,
-  askClaude: askClaude
+  askClaude: askClaude,
+  installShortcuts: installShortcuts,
+  connectInfo: connectInfo,
+  isPublicPath: isPublicPath
 };
 
 if (require.main === module) {
