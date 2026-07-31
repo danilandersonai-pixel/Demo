@@ -220,6 +220,47 @@ body {
   max-width: 380px;
 }
 
+/* Переключатель проектов: виден, только когда папок больше одной */
+.switcher {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-left: 16px;
+  border-left: 1px solid var(--line);
+  min-width: 0;
+}
+.switcher__label {
+  font-size: 11px;
+  color: var(--text-mute);
+  text-transform: uppercase;
+  letter-spacing: .4px;
+  white-space: nowrap;
+}
+.switcher__chips { display: flex; gap: 5px; overflow-x: auto; }
+.pchip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font: inherit;
+  font-size: var(--fs-xs);
+  color: var(--text-dim);
+  background: var(--bg-sunken);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 4px 12px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all .15s var(--ease);
+}
+.pchip:hover { border-color: #2f3b4d; color: var(--text); }
+.pchip.is-active {
+  color: var(--accent);
+  border-color: rgba(125, 211, 252, .5);
+  background: rgba(125, 211, 252, .12);
+}
+/* Точка на вкладке проекта, где Клод остановился и ждёт */
+.pchip__flag { width: 7px; height: 7px; border-radius: 50%; background: var(--warn); }
+
 .topbar__status { display: flex; gap: 8px; margin-left: auto; }
 .topbar__actions { display: flex; gap: 6px; }
 

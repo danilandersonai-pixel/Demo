@@ -521,6 +521,66 @@ test('сервер: наблюдаемый проект остаётся нет�
   }
 });
 
+test('сервер: несколько проектов в одной панели', async function () {
+  var a = makeProject(false);
+  var b = makeProject(false);
+  fs.writeFileSync(path.join(a, 'только-в-первом.txt'), 'а\n');
+  fs.writeFileSync(path.join(b, 'только-во-втором.txt'), 'б\n');
+
+  var port = 4795;
+  var opts = argsLib.parse(['--project', a, '--project', b, '--port', String(port), '--tail-only']);
+  assert.strictEqual(opts.projects.length, 2);
+
+  var registry = server.createRegistry(opts);
+  var srv = server.createServer(registry, opts);
+  try {
+    await registry.startAll();
+    await new Promise(function (r) { srv.listen(port, '127.0.0.1', r); });
+
+    var list = JSON.parse((await get(port, '/api/projects')).body);
+    assert.strictEqual(list.projects.length, 2);
+    var keyA = list.projects[0].key;
+    var keyB = list.projects[1].key;
+    assert.notStrictEqual(keyA, keyB, 'ключи проектов различаются');
+    assert.strictEqual(list.active, keyA, 'по умолчанию — первый');
+
+    // Каждый проект видит только свои файлы.
+    var treeA = JSON.parse((await get(port, '/api/tree?project=' + encodeURIComponent(keyA))).body);
+    var treeB = JSON.parse((await get(port, '/api/tree?project=' + encodeURIComponent(keyB))).body);
+    var namesA = treeA.nodes.map(function (n) { return n.path; });
+    var namesB = treeB.nodes.map(function (n) { return n.path; });
+    assert.ok(namesA.indexOf('только-в-первом.txt') !== -1);
+    assert.ok(namesA.indexOf('только-во-втором.txt') === -1);
+    assert.ok(namesB.indexOf('только-во-втором.txt') !== -1);
+
+    // Состояние тоже своё у каждого.
+    var stateB = JSON.parse((await get(port, '/api/state?project=' + encodeURIComponent(keyB))).body);
+    assert.strictEqual(stateB.state.project, path.resolve(b));
+    assert.strictEqual(stateB.state.projectKey, keyB);
+    assert.strictEqual(stateB.state.projects.length, 2);
+
+    // Неизвестный ключ не роняет панель, а отдаёт основной проект.
+    var fallback = JSON.parse((await get(port,
+      '/api/state?project=' + encodeURIComponent('такого-нет'))).body);
+    assert.strictEqual(fallback.state.project, path.resolve(a));
+  } finally {
+    registry.stopAll();
+    await new Promise(function (r) { srv.close(r); });
+    rm(a); rm(b);
+  }
+});
+
+test('реестр: одинаковые имена папок получают разные ключи', function () {
+  var opts = argsLib.parse(['--project', '/tmp/шт-1/общее', '--project', '/tmp/шт-2/общее']);
+  var registry = server.createRegistry(opts);
+  try {
+    var keys = registry.list().map(function (p) { return p.key; });
+    assert.strictEqual(new Set(keys).size, 2, 'ключи уникальны: ' + keys.join(', '));
+    assert.strictEqual(keys[0], 'общее');
+    assert.strictEqual(keys[1], 'общее-2');
+  } finally { registry.stopAll(); }
+});
+
 test('сервер: уровень B остаётся полезным без транскриптов', async function () {
   var home = fs.mkdtempSync(path.join(os.tmpdir(), 'shturman-nohome-'));
   var saved = process.env.CLAUDE_CONFIG_DIR;

@@ -37,7 +37,7 @@ var PUBLIC_DIR = path.join(__dirname, 'public');
 // ---------------------------------------------------------------------------
 
 function createApp(opts) {
-  var projectRoot = opts.projectAbs;
+  var projectRoot = opts.projectAbs || (opts.projects && opts.projects[0]);
 
   var bus = busLib.createBus();
   var hub = sseLib.createHub();
@@ -324,6 +324,94 @@ function createApp(opts) {
 }
 
 // ---------------------------------------------------------------------------
+// Реестр проектов
+// ---------------------------------------------------------------------------
+
+// Панель умеет следить сразу за несколькими папками: каждая получает свой
+// экземпляр приложения, а клиент выбирает нужную параметром ?project=<ключ>.
+// Ключ — короткое имя папки; при совпадении имён добавляется номер.
+function createRegistry(opts) {
+  var byKey = new Map();
+  var order = [];
+
+  (opts.projects || [opts.projectAbs]).forEach(function (abs) {
+    var base = paths.baseName(abs) || abs;
+    var key = base;
+    var n = 2;
+    while (byKey.has(key)) key = base + '-' + (n++);
+    var appOpts = Object.assign({}, opts, { projectAbs: abs, project: abs });
+    var app = createApp(appOpts);
+    byKey.set(key, { key: key, app: app, opts: appOpts, path: abs });
+    order.push(key);
+  });
+
+  return {
+    // Неизвестный ключ молча отдаёт основной проект: панель не должна
+    // ломаться от старой ссылки в закладках.
+    get: function (key) {
+      var entry = key && byKey.get(String(key));
+      return (entry || byKey.get(order[0])).app;
+    },
+    entry: function (key) {
+      return (key && byKey.get(String(key))) || byKey.get(order[0]);
+    },
+    keyOf: function (key) {
+      return (key && byKey.has(String(key))) ? String(key) : order[0];
+    },
+    list: function () {
+      return order.map(function (k) {
+        var e = byKey.get(k);
+        return {
+          key: k,
+          path: e.path,
+          name: paths.baseName(e.path) || e.path,
+          level: e.app.state.level,
+          branch: e.app.state.git && e.app.state.git.branch,
+          waiting: e.app.detector.state() === 'waiting'
+        };
+      });
+    },
+    all: function () { return order.map(function (k) { return byKey.get(k).app; }); },
+    size: function () { return order.length; },
+    startAll: function () {
+      return order.reduce(function (chain, k) {
+        return chain.then(function () { return byKey.get(k).app.start(); });
+      }, Promise.resolve());
+    },
+    stopAll: function () {
+      order.forEach(function (k) { byKey.get(k).app.stop(); });
+    }
+  };
+}
+
+// Одиночное приложение тоже приводим к виду реестра — так маршруты не
+// разветвляются на «один проект / много проектов».
+function asRegistry(appOrRegistry, opts) {
+  if (appOrRegistry && typeof appOrRegistry.get === 'function' && typeof appOrRegistry.list === 'function') {
+    return appOrRegistry;
+  }
+  var app = appOrRegistry;
+  var key = paths.baseName(opts.projectAbs) || 'project';
+  return {
+    get: function () { return app; },
+    entry: function () { return { key: key, app: app, opts: opts, path: opts.projectAbs }; },
+    keyOf: function () { return key; },
+    list: function () {
+      return [{
+        key: key, path: opts.projectAbs, name: key,
+        level: app.state.level,
+        branch: app.state.git && app.state.git.branch,
+        waiting: app.detector.state() === 'waiting'
+      }];
+    },
+    all: function () { return [app]; },
+    size: function () { return 1; },
+    startAll: function () { return app.start(); },
+    stopAll: function () { app.stop(); }
+  };
+}
+
+// ---------------------------------------------------------------------------
 // HTTP
 // ---------------------------------------------------------------------------
 
@@ -395,13 +483,17 @@ function readBody(req, limit) {
   });
 }
 
-function createServer(app, opts) {
-  var projectRoot = opts.projectAbs;
+function createServer(appOrRegistry, opts) {
+  var registry = asRegistry(appOrRegistry, opts);
 
   return http.createServer(function (req, res) {
     var parsed = url.parse(req.url, true);
     var pathname = decodeURIComponent(parsed.pathname);
     var q = parsed.query;
+
+    // Какой проект имеется в виду. Всё ниже работает с этой парой.
+    var app = registry.get(q.project);
+    var projectRoot = registry.entry(q.project).path;
 
     // Панель локальная, но заголовок явно запрещает встраивание в чужие
     // страницы: чужой сайт не должен видеть содержимое ваших файлов.
@@ -409,12 +501,20 @@ function createServer(app, opts) {
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Referrer-Policy', 'no-referrer');
 
+    // --- список проектов ------------------------------------------------------
+    if (pathname === '/api/projects') {
+      return sendJson(res, 200, {
+        projects: registry.list(),
+        active: registry.keyOf(q.project)
+      });
+    }
+
     // --- поток событий ------------------------------------------------------
     if (pathname === '/api/stream') {
       var lastId = Number(req.headers['last-event-id'] || q.lastId || 0);
       app.hub.attach(req, res, {
         snapshot: {
-          state: app.publicState(),
+          state: withProject(app.publicState(), registry, q.project),
           events: app.bus.since(lastId),
           pulse: app.pulse(),
           git: app.state.git
@@ -427,7 +527,7 @@ function createServer(app, opts) {
     // --- состояние ----------------------------------------------------------
     if (pathname === '/api/state') {
       return sendJson(res, 200, {
-        state: app.publicState(),
+        state: withProject(app.publicState(), registry, q.project),
         pulse: app.pulse(),
         git: app.state.git,
         events: app.bus.all()
@@ -645,6 +745,15 @@ function createServer(app, opts) {
   });
 }
 
+// Дополняем состояние сведениями о реестре: клиенту нужен свой ключ и
+// список соседних проектов, чтобы нарисовать переключатель.
+function withProject(state, registry, key) {
+  return Object.assign({}, state, {
+    projectKey: registry.keyOf(key),
+    projects: registry.list()
+  });
+}
+
 function diffNote(d) {
   if (!d) return 'Дифф недоступен.';
   if (d.source === 'work') return 'Незакоммиченные изменения — то, что отличается от последнего сохранения.';
@@ -711,21 +820,24 @@ function main(argv) {
     return Promise.resolve();
   }
 
-  // Папку проверяем до всего остального: понятная ошибка лучше стека.
-  if (!fs.existsSync(opts.projectAbs)) {
-    process.stderr.write('\n  Папки не существует: ' + opts.projectAbs +
+  // Папки проверяем до всего остального: понятная ошибка лучше стека.
+  var missing = opts.projects.filter(function (p) { return !fs.existsSync(p); });
+  if (missing.length) {
+    process.stderr.write('\n  ' + (missing.length === 1 ? 'Папки не существует' : 'Этих папок не существует') +
+      ':\n' + missing.map(function (p) { return '    ' + p; }).join('\n') +
       '\n  Укажите правильный путь флагом --project.\n\n');
     process.exitCode = 2;
     return Promise.resolve();
   }
 
-  var app = createApp(opts);
-  var server = createServer(app, opts);
+  var registry = createRegistry(opts);
+  var app = registry.get();
+  var server = createServer(registry, opts);
 
-  return app.start().then(function () {
+  return registry.startAll().then(function () {
     return probeClaude();
   }).then(function (hasClaude) {
-    app.state.askAvailable = hasClaude;
+    registry.all().forEach(function (a) { a.state.askAvailable = hasClaude; });
     return new Promise(function (resolve, reject) {
       server.on('error', reject);
       // Только петля. Никакого 0.0.0.0 — см. DECISIONS.md, решение 10.
@@ -733,7 +845,7 @@ function main(argv) {
     });
   }).then(function () {
     var addr = 'http://127.0.0.1:' + opts.port;
-    if (!opts.quiet) printBanner(app, opts, addr);
+    if (!opts.quiet) printBanner(registry, opts, addr);
     if (opts.open) openBrowser(addr);
 
     var shuttingDown = false;
@@ -741,14 +853,14 @@ function main(argv) {
       if (shuttingDown) return;
       shuttingDown = true;
       process.stdout.write('\n  Штурман закрывается. В вашем проекте ничего не изменено.\n\n');
-      app.stop();
+      registry.stopAll();
       server.close(function () { process.exit(0); });
       // Если соединения висят, не ждём их вечно.
       setTimeout(function () { process.exit(0); }, 1500).unref();
     }
     process.on('SIGINT', shutdown);
     process.on('SIGTERM', shutdown);
-    return { app: app, server: server };
+    return { app: app, registry: registry, server: server };
   }).catch(function (e) {
     if (e && e.code === 'EADDRINUSE') {
       process.stderr.write('\n  Порт ' + opts.port + ' уже занят другой программой.' +
@@ -760,8 +872,7 @@ function main(argv) {
   });
 }
 
-function printBanner(app, opts, addr) {
-  var s = app.publicState();
+function printBanner(registry, opts, addr) {
   var lines = [
     '',
     '  ╭──────────────────────────────────────────────╮',
@@ -769,18 +880,29 @@ function printBanner(app, opts, addr) {
     '  ╰──────────────────────────────────────────────╯',
     '',
     '  Панель:   ' + addr,
-    '  Проект:   ' + s.project,
-    '  Источник: ' + (s.level === 'A'
-      ? 'уровень A — транскрипты Claude Code + файлы + git'
-      : 'уровень B — только файлы и git (' + (s.levelReason || '') + ')'),
-    '  Git:      ' + (app.state.git && app.state.git.available
-      ? 'ветка ' + app.state.git.branch
-      : 'недоступен — панель работает без него'),
-    '',
-    '  Откройте адрес в браузере. Остановить — Ctrl+C.',
-    '  Штурман только наблюдает: он ничего не меняет в вашем проекте.',
     ''
   ];
+
+  registry.all().forEach(function (app) {
+    var s = app.publicState();
+    lines.push('  Проект:   ' + s.project);
+    lines.push('  Источник: ' + (s.level === 'A'
+      ? 'уровень A — транскрипты Claude Code + файлы + git'
+      : 'уровень B — только файлы и git (' + (s.levelReason || '') + ')'));
+    lines.push('  Git:      ' + (app.state.git && app.state.git.available
+      ? 'ветка ' + app.state.git.branch
+      : 'недоступен — панель работает без него'));
+    lines.push('');
+  });
+
+  if (registry.size() > 1) {
+    lines.push('  Проектов: ' + registry.size() + ' — переключаются в шапке панели.');
+    lines.push('');
+  }
+
+  lines.push('  Откройте адрес в браузере. Остановить — Ctrl+C.');
+  lines.push('  Штурман только наблюдает: он ничего не меняет в вашем проекте.');
+  lines.push('');
   process.stdout.write(lines.join('\n'));
 }
 
@@ -791,7 +913,13 @@ function openBrowser(addr) {
   execFile(cmd, args, { windowsHide: true }, function () { /* не открылось — не беда */ });
 }
 
-module.exports = { createApp: createApp, createServer: createServer, main: main, askClaude: askClaude };
+module.exports = {
+  createApp: createApp,
+  createRegistry: createRegistry,
+  createServer: createServer,
+  main: main,
+  askClaude: askClaude
+};
 
 if (require.main === module) {
   main(process.argv.slice(2));

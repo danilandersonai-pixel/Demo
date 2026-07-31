@@ -111,7 +111,30 @@ test('args: понятные ошибки вместо стека', function () 
   assert.throws(function () { argsLib.parse(['--port', 'абв']); }, /целым числом/);
   assert.throws(function () { argsLib.parse(['--port', '99999']); }, /должно быть от 1 до 65535/);
   assert.throws(function () { argsLib.parse(['--idle', '1']); }, /от 5 до 3600/);
-  assert.throws(function () { argsLib.parse(['a', 'b']); }, /Лишние аргументы/);
+});
+
+test('args: несколько --project дают список проектов', function () {
+  var a = argsLib.parse(['--project', '/tmp/один', '--project', '/tmp/два']);
+  assert.strictEqual(a.projects.length, 2);
+  assert.strictEqual(a.projects[0], path.resolve('/tmp/один'));
+  assert.strictEqual(a.projects[1], path.resolve('/tmp/два'));
+  assert.strictEqual(a.projectAbs, a.projects[0], 'основной проект — первый');
+});
+
+test('args: повторы одной папки схлопываются', function () {
+  var a = argsLib.parse(['--project', '/tmp/один', '--project', '/tmp/один', '/tmp/один']);
+  assert.strictEqual(a.projects.length, 1,
+    'два наблюдателя на одну папку удвоили бы события в ленте');
+});
+
+test('args: позиционные пути тоже становятся проектами', function () {
+  var a = argsLib.parse(['../первый', '../второй']);
+  assert.strictEqual(a.projects.length, 2);
+});
+
+test('args: без указания проекта берётся текущая папка', function () {
+  var a = argsLib.parse([]);
+  assert.deepStrictEqual(a.projects, [path.resolve('.')]);
 });
 
 test('args: --host принимается, но игнорируется — слушаем только петлю', function () {
