@@ -521,6 +521,14 @@ body {
   border-left-color: var(--warn);
   background: rgba(251, 191, 36, .08);
 }
+/* Работа помощника-субагента: сдвинута и приглушена, чтобы её было
+   видно как отдельный поток, а не как действия самого Клода. */
+.ev--agent {
+  border-left-color: var(--violet);
+  padding-left: 30px;
+  background: rgba(196, 181, 253, .04);
+}
+.ev--agent .ev__title { color: var(--text-dim); }
 
 /* Появление новой карточки: одно короткое, спокойное движение */
 .ev.is-new { animation: slideIn .28s var(--ease); }
