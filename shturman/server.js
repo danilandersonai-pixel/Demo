@@ -550,6 +550,45 @@ function createServer(appOrRegistry, opts, sharedGuard) {
       return sendJson(res, 200, connectInfo(guard, opts));
     }
 
+    // Включение и выключение общего доступа на лету, без перезапуска.
+    // Просить новичка «остановите Ctrl+C и запустите заново с флагом» —
+    // ровно тот барьер, который это задание и убирает.
+    if (pathname === '/api/connect/share' && req.method === 'POST') {
+      return readBody(req).then(function (body) {
+        var data = {};
+        try { data = JSON.parse(body || '{}'); } catch (e) { /* пустой запрос */ }
+        var want = data.enabled !== false;
+
+        // Включать общий доступ можно только с самого компьютера: иначе
+        // зашедший по ссылке гость смог бы им управлять.
+        var fromHere = tokenLib.isLoopback(req.socket && req.socket.remoteAddress);
+        if (!fromHere) {
+          return sendJson(res, 403, {
+            error: 'Включать и выключать общий доступ можно только на самом компьютере.'
+          });
+        }
+
+        var action = want ? opts.enableShare : opts.disableShare;
+        if (typeof action !== 'function') {
+          return sendJson(res, 501, {
+            error: 'Переключение на лету недоступно — перезапустите Штурман с флагом --share.'
+          });
+        }
+        return action().then(function (result) {
+          if (result && result.error) return sendJson(res, 500, result);
+          var info = connectInfo(guard, opts);
+          info.justChanged = true;
+          registry.all().forEach(function (a) {
+            a.state.share = guard.enabled();
+            a.hub.broadcast('state', a.publicState());
+          });
+          sendJson(res, 200, info);
+        });
+      }).catch(function (e) {
+        sendJson(res, 400, { error: e.message });
+      });
+    }
+
     // Кто сейчас смотрит панель.
     if (pathname === '/api/connect/devices') {
       return sendJson(res, 200, {
@@ -1067,8 +1106,11 @@ function main(argv) {
     });
   }
 
-  var host = opts.share ? '0.0.0.0' : '127.0.0.1';
+  // Петлю слушаем всегда; сеть — вторым, отдельным слушателем. Так включение
+  // общего доступа на лету не рвёт уже открытые соединения панели, а
+  // выключение гарантированно закрывает именно сетевой сокет.
   var guard = tokenLib.createGuard({ enabled: opts.share });
+  var lanServers = [];
 
   var registry = createRegistry(opts);
   var app = registry.get();
@@ -1077,7 +1119,7 @@ function main(argv) {
   // как раз на том порту, где панель и поднялась.
   var requestedPort = opts.port;
 
-  return netLib.findFreePort(opts.port, host).then(function (found) {
+  return netLib.findFreePort(opts.port, '127.0.0.1').then(function (found) {
     // Порт, заданный руками, не подменяем молча: человек мог настроить под
     // него проброс или закладку. Скажем прямо, что он занят.
     if (found.shifted && opts.portExplicit) {
@@ -1100,10 +1142,71 @@ function main(argv) {
       a.port = resolvedPort;
     });
     var server = createServer(registry, opts, guard);
+
+    // Сетевые слушатели — по одному на каждый реальный адрес машины.
+    //
+    // Не 0.0.0.0: этот адрес включает и петлю, а она уже занята основным
+    // сервером, и привязка упала бы с EADDRINUSE. Привязка к конкретным
+    // адресам рядом с петлёй разрешена — и заодно она честнее: слушаем
+    // ровно те интерфейсы, которые показали человеку в QR-коде.
+    function openLan() {
+      if (lanServers.length) return Promise.resolve({ ok: true });
+      var addresses = netLib.lanAddresses();
+      if (!addresses.length) {
+        // Сети нет — но доступ всё равно включаем: адрес может появиться
+        // позже, а панель уже расскажет, что делать.
+        guard.setEnabled(true);
+        return Promise.resolve({ ok: true, noNetwork: true });
+      }
+      var handler = server.listeners('request')[0];
+      return Promise.all(addresses.map(function (a) {
+        return new Promise(function (resolve) {
+          var lan = http.createServer(handler);
+          lan.on('error', function (e) { resolve({ error: a.address + ': ' + e.message }); });
+          lan.listen(resolvedPort, a.address, function () {
+            lanServers.push(lan);
+            resolve({ ok: true, address: a.address });
+          });
+        });
+      })).then(function (results) {
+        var failed = results.filter(function (r) { return r.error; });
+        if (!lanServers.length) {
+          return { error: 'Не удалось открыть доступ по сети: ' +
+            failed.map(function (f) { return f.error; }).join('; ') };
+        }
+        guard.setEnabled(true);
+        return { ok: true, opened: lanServers.length, failed: failed.length };
+      });
+    }
+
+    function closeLan() {
+      guard.setEnabled(false);
+      if (!lanServers.length) return Promise.resolve({ ok: true });
+      var list = lanServers;
+      lanServers = [];
+      return Promise.all(list.map(function (lan) {
+        return new Promise(function (resolve) {
+          lan.close(function () { resolve(); });
+          // Уже открытые соединения гостей рвём принудительно: «выключил
+          // доступ» должно означать именно это.
+          if (lan.closeAllConnections) lan.closeAllConnections();
+        });
+      })).then(function () { return { ok: true }; });
+    }
+
+    opts.enableShare = openLan;
+    opts.disableShare = closeLan;
+
     return new Promise(function (resolve, reject) {
       server.on('error', reject);
-      // Без --share слушаем только петлю, как в первой версии.
-      server.listen(resolvedPort, host, function () { resolve(server); });
+      // Петля — всегда. Сеть — отдельным слушателем, если попросили.
+      server.listen(resolvedPort, '127.0.0.1', function () {
+        if (!opts.share) return resolve(server);
+        openLan().then(function (r) {
+          if (r.error) process.stderr.write('\n  ' + r.error + '\n');
+          resolve(server);
+        });
+      });
     });
   }).then(function (server) {
     var localUrl = 'http://127.0.0.1:' + resolvedPort + '/';
@@ -1149,6 +1252,7 @@ function main(argv) {
       if (tui) tui.stop();
       process.stdout.write('\n  Штурман закрывается. В вашем проекте ничего не изменено.\n\n');
       registry.stopAll();
+      lanServers.forEach(function (l) { try { l.close(); } catch (e) { /* уже закрыт */ } });
       server.close(function () { process.exit(0); });
       // Если соединения висят, не ждём их вечно.
       setTimeout(function () { process.exit(0); }, 1500).unref();
