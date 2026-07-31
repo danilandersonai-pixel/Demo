@@ -279,8 +279,11 @@ var server = http.createServer(function (req, res) {
     sendJson(res, 403, { error: 'Запрос пришёл с неожиданным именем хоста.' });
     return;
   }
+  if (req.method === 'POST' && route === '/api/ask') {
+    return handleAsk(req, res);
+  }
   if (req.method !== 'GET') {
-    sendJson(res, 405, { error: 'Только чтение: «Штурман» ничего не меняет.' });
+    sendJson(res, 405, { error: 'Только чтение: «Штурман» ничего не меняет в проекте.' });
     return;
   }
 
@@ -414,6 +417,66 @@ var server = http.createServer(function (req, res) {
 
   sendJson(res, 404, { error: 'Такой страницы нет.' });
 });
+
+/* ------------------------------------------------------------------ */
+/* «Спроси Клода» (бонус, по умолчанию выключен в настройках панели)    */
+/* ------------------------------------------------------------------ */
+
+var askBusy = false;
+
+/**
+ * POST /api/ask {context: "..."} → короткое объяснение от `claude -p`.
+ * Расходует лимиты пользователя, поэтому кнопка в панели появляется только
+ * после явного включения в настройках. Проект при этом не трогается:
+ * claude запускается в нейтральном каталоге, наружу уходит только текст
+ * события, который пользователь и так видит на экране.
+ */
+function handleAsk(req, res) {
+  if (askBusy) {
+    return sendJson(res, 429, { error: 'Предыдущий вопрос ещё обрабатывается — подождите.' });
+  }
+  var body = '';
+  var tooBig = false;
+  req.on('data', function (chunk) {
+    body += chunk;
+    if (body.length > 32768) {
+      tooBig = true;
+      req.destroy();
+    }
+  });
+  req.on('end', function () {
+    if (tooBig) return sendJson(res, 413, { error: 'Слишком большой запрос.' });
+    var context = '';
+    try {
+      context = String(JSON.parse(body || '{}').context || '').slice(0, 8000);
+    } catch (e) {
+      return sendJson(res, 400, { error: 'Непонятное тело запроса.' });
+    }
+    if (!context.trim()) return sendJson(res, 400, { error: 'Пустой вопрос.' });
+
+    var prompt = 'Ты наставник новичка, который осваивает Claude Code и программирование. ' +
+      'Ниже — событие из его сессии Claude Code. Объясни по-русски, простыми словами и ' +
+      'без снисходительности, что это значит и зачем это было нужно. 2–4 предложения, без markdown.\n\n' +
+      'Событие:\n' + context;
+
+    askBusy = true;
+    require('node:child_process').execFile('claude', ['-p', prompt], {
+      timeout: 120000,
+      maxBuffer: 1024 * 1024,
+      cwd: require('node:os').tmpdir(),
+      windowsHide: true
+    }, function (err, stdout, stderr) {
+      askBusy = false;
+      if (err) {
+        var why = err.code === 'ENOENT'
+          ? 'Команда claude не найдена — «Спроси Клода» работает только там, где установлен Claude Code CLI.'
+          : 'Не получилось спросить Клода: ' + String(stderr || err.message).slice(0, 300);
+        return sendJson(res, 502, { error: why });
+      }
+      sendJson(res, 200, { answer: String(stdout).trim().slice(0, 4000) });
+    });
+  });
+}
 
 /** Похожа ли папка на проект (для мягкого сообщения при первом запуске). */
 function looksLikeProject() {

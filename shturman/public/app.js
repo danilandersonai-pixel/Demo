@@ -9,7 +9,8 @@
     notif: false,
     quietSec: 90,
     tourDone: false,
-    detail: false
+    detail: false,
+    ask: false
   };
   try {
     var saved = JSON.parse(localStorage.getItem('shturman-settings') || '{}');
@@ -245,7 +246,45 @@
       det.appendChild(preRaw);
     }
     if (!det.children.length) det.appendChild(el('div', 'muted', 'У этого события нет дополнительных данных.'));
+    if (settings.ask) det.appendChild(buildAskBlock(item));
     return det;
+  }
+
+  /** «Спроси Клода»: объяснение события через claude -p (бонус, opt-in). */
+  function buildAskBlock(item) {
+    var wrap = el('div');
+    wrap.style.marginTop = '8px';
+    var btn = el('button', '', '🤔 Спросить Клода, что это значит');
+    var out = el('div', 'muted');
+    out.style.marginTop = '6px';
+    btn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      btn.disabled = true;
+      out.textContent = 'Спрашиваю Клода… (это может занять до минуты)';
+      var context = item.title +
+        (item.input ? '\nПараметры: ' + JSON.stringify(item.input).slice(0, 2000) : '') +
+        (item.output ? '\nРезультат: ' + String(item.output).slice(0, 2000) : '');
+      fetch('/api/ask', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ context: context })
+      }).then(function (r) { return r.json(); }).then(function (d) {
+        btn.disabled = false;
+        if (d.answer) {
+          out.className = '';
+          out.style.fontSize = '14px';
+          out.textContent = '💡 ' + d.answer;
+        } else {
+          out.textContent = d.error || 'Не получилось.';
+        }
+      }).catch(function () {
+        btn.disabled = false;
+        out.textContent = 'Сервер не ответил.';
+      });
+    });
+    wrap.appendChild(btn);
+    wrap.appendChild(out);
+    return wrap;
   }
 
   function renderFeedItem(item) {
@@ -757,10 +796,71 @@
 
   /* ---------------- сессии ---------------- */
 
+  /** Бонус: дайджест «Что мы сегодня сделали» — markdown-дневник новичка. */
+  function buildDigest() {
+    var p = lastPulse || {};
+    var g = gitState || {};
+    var lines = [];
+    lines.push('# Дневник сессии Claude Code — ' + new Date().toLocaleString('ru-RU'));
+    lines.push('');
+    lines.push('Проект: `' + ($('project-path').textContent || '') + '`');
+    if (g.branch) lines.push('Ветка: `' + g.branch + '` — ' + (g.branchMeaning || ''));
+    lines.push('');
+    lines.push('## Итоги в цифрах');
+    lines.push('');
+    lines.push('- Сессия длилась: ' + fmtDuration(p.durationMs || 0));
+    lines.push('- Файлов затронуто: ' + (p.filesTouched || 0));
+    lines.push('- Команд выполнено: ' + (p.commandsRun || 0));
+    lines.push('- Ошибок замечено: ' + (p.errorsSeen || 0));
+    if (p.tokens && p.tokens.approxOutput) {
+      lines.push('- Токенов потрачено (приблизительно): ~' + p.tokens.approxOutput.toLocaleString('ru-RU'));
+    }
+    lines.push('');
+    if (g.commits && g.commits.length) {
+      lines.push('## Свежие коммиты');
+      lines.push('');
+      g.commits.slice(0, 10).forEach(function (c) {
+        lines.push('- `' + c.short + '` ' + c.subject);
+      });
+      lines.push('');
+    }
+    lines.push('## Хроника (последние события, свежее внизу)');
+    lines.push('');
+    var interesting = feedItems.filter(function (it) {
+      return it.kind !== 'tool-result' || it.isError; // «инструмент отработал» — шум
+    }).slice(-120);
+    interesting.forEach(function (it) {
+      lines.push('- ' + (fmtTime(it.ts) || '·') + ' ' + it.icon + ' ' + it.title);
+    });
+    lines.push('');
+    lines.push('---');
+    lines.push('_Составлено панелью «Штурман» автоматически. Числа токенов — оценка._');
+    return lines.join('\n');
+  }
+
+  function downloadDigest() {
+    var text = buildDigest();
+    var blob = new Blob([text], { type: 'text/markdown;charset=utf-8' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    var stamp = new Date().toISOString().slice(0, 10);
+    a.download = 'shturman-digest-' + stamp + '.md'; // латиница: кириллицу в download режут некоторые браузеры
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(function () {
+      URL.revokeObjectURL(a.href);
+      a.remove();
+    }, 1000);
+  }
+
   function openSessions() {
     fetch('/api/sessions').then(function (r) { return r.json(); }).then(function (d) {
       var body = $('sessions-body');
       body.innerHTML = '';
+      var digestBtn = el('button', '', '📝 Скачать дайджест текущей сессии (markdown)');
+      digestBtn.style.marginBottom = '12px';
+      digestBtn.addEventListener('click', downloadDigest);
+      body.appendChild(digestBtn);
       if (!d.sessions || !d.sessions.length) {
         body.appendChild(el('div', 'empty-note',
           'Сессий Claude Code для этой папки не найдено. Запустите Claude Code здесь — и сессии появятся.'));
@@ -879,6 +979,12 @@
     } else {
       this.value = settings.quietSec;
     }
+  });
+
+  $('set-ask').checked = settings.ask;
+  $('set-ask').addEventListener('change', function () {
+    settings.ask = this.checked;
+    saveSettings();
   });
 
   $('btn-test-signal').addEventListener('click', function () {
