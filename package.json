@@ -1,0 +1,19 @@
+{
+  "name": "shturman",
+  "version": "1.0.0",
+  "description": "«Штурман» — локальная панель-наставник: показывает новичку простым русским языком, что прямо сейчас делает Claude Code",
+  "main": "server.js",
+  "bin": {
+    "shturman": "server.js"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test tests/"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {},
+  "private": true,
+  "license": "MIT"
+}
