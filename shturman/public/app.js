@@ -1127,6 +1127,7 @@
       document.querySelectorAll('.modal-back.show').forEach(function (m) { m.classList.remove('show'); });
       $('tour-back').classList.remove('show');
       $('tour-box').classList.remove('show');
+      $('mobile-menu').classList.remove('open');
       clearTourHighlight();
     }
   });
@@ -1414,8 +1415,14 @@
     document.querySelectorAll('#tabbar button').forEach(function (b) {
       b.classList.toggle('on', b.getAttribute('data-tab-btn') === name);
     });
+    try { sessionStorage.setItem('shturman-tab', name); } catch (e) { /* ок */ }
     window.scrollTo(0, 0);
   }
+  // вкладка переживает перезагрузку страницы (например, pull-to-refresh)
+  try {
+    var savedTab = sessionStorage.getItem('shturman-tab');
+    if (savedTab) setTab(savedTab);
+  } catch (e) { /* ок */ }
 
   $('tabbar').addEventListener('click', function (e) {
     var btn = e.target.closest('[data-tab-btn]');
@@ -1467,6 +1474,9 @@
       t = window.matchMedia && matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
     }
     document.documentElement.setAttribute('data-theme', t);
+    // цвет системной рамки PWA/мобильного браузера — в тон теме
+    var meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute('content', t === 'light' ? '#f1efe9' : '#14171d');
   }
   if (window.matchMedia) {
     matchMedia('(prefers-color-scheme: light)').addEventListener('change', function () {
