@@ -1,12 +1,24 @@
 /* ===========================================================================
    Штурман — клиентская часть.
-   Ванильный JS, без сборки и без библиотек. Один IIFE, разделённый
-   комментарными блоками по назначению.
+
+   Ванильный JS, без сборки и библиотек. Одна разметка на телефон и
+   компьютер: раскладку меняет CSS, а этот файл лишь переключает активную
+   секцию и следит, чтобы всё оставалось доступным на обоих форм-факторах.
+
+   Разделы:
+     0  помощники              8  словарь и подсказки
+     1  состояние              9  шторка (детали, настройки, подключение)
+     2  вкладки и жесты       10  пульс и граф внимания
+     3  тема                  11  сигнал «Клод остановился»
+     4  лента (виртуализация) 12  журнал сессий
+     5  детали события        13  сообщения и состояние
+     6  карта проекта         14  поток событий (SSE)
+     7  git                   15  управление, горячие клавиши, тур, старт
    =========================================================================== */
 (function () {
   'use strict';
 
-  // ── 0. Мелкие помощники ───────────────────────────────────────────────────
+  // ── 0. Помощники ──────────────────────────────────────────────────────────
 
   var $ = function (id) { return document.getElementById(id); };
   var reduceMotion = window.matchMedia &&
@@ -19,17 +31,13 @@
     return node;
   }
 
-  function clear(node) {
-    while (node.firstChild) node.removeChild(node.firstChild);
-  }
-
+  function clear(node) { while (node.firstChild) node.removeChild(node.firstChild); }
   function pad2(n) { return (n < 10 ? '0' : '') + n; }
 
   function clock(ts) {
     var d = new Date(ts);
     return pad2(d.getHours()) + ':' + pad2(d.getMinutes()) + ':' + pad2(d.getSeconds());
   }
-
   function dateTime(ts) {
     var d = new Date(ts);
     return pad2(d.getDate()) + '.' + pad2(d.getMonth() + 1) + ' ' +
@@ -70,7 +78,7 @@
   }
 
   // Все обращения к серверу проходят через один адресный сборщик: он
-  // подставляет выбранный проект, чтобы переключатель работал сам собой.
+  // подставляет выбранный проект и ключ доступа, если мы пришли по ссылке.
   function href(pathStr, params) {
     var u = pathStr;
     var parts = [];
@@ -84,14 +92,19 @@
   }
 
   function api(pathStr, options, params) {
-    return fetch(href(pathStr, params), options).then(function (r) {
+    var opts = options || {};
+    // Ключ доступа шлём заголовком: он же лежит в куке, но при первом
+    // заходе по ссылке кука может ещё не примениться к fetch.
+    if (app.token) {
+      opts.headers = Object.assign({ 'X-Shturman-Token': app.token }, opts.headers || {});
+    }
+    return fetch(href(pathStr, params), opts).then(function (r) {
+      if (r.status === 401) throw new Error('Нужен ключ доступа');
       if (!r.ok && r.status >= 500) throw new Error('Сервер ответил ошибкой ' + r.status);
       return r.json();
     });
   }
 
-  // Настройки живут в localStorage: сервер о них ничего не знает и
-  // ничего не пишет на диск пользователя.
   var store = {
     get: function (key, fallback) {
       try {
@@ -104,40 +117,179 @@
     }
   };
 
-  // ── 1. Состояние страницы ─────────────────────────────────────────────────
+  // ── 1. Состояние ──────────────────────────────────────────────────────────
 
   var app = {
     state: null,
     git: null,
     pulse: null,
-    events: [],              // всё, что пришло (до 800 карточек в памяти)
-    queued: [],              // накопленное, пока лента на паузе
+    events: [],
+    queued: [],
     paused: false,
     detailed: store.get('detailed', false),
     filter: 'all',
     query: '',
+    visible: [],             // отфильтрованный срез для виртуализации
     treeNodes: [],
     treeQuery: '',
-    collapsed: {},           // свёрнутые папки
-    heat: {},                // path -> timestamp последнего изменения
+    collapsed: {},
+    heat: {},
     selectedFile: null,
     gitTab: 'now',
-    archive: null,           // открытая архивная сессия
-    projectKey: null,        // выбранный проект (когда их несколько)
+    archive: null,
+    projectKey: null,
     projects: [],
+    view: 'feed',
     sound: store.get('sound', true),
-    notify: store.get('notify', true)
+    notify: store.get('notify', true),
+    theme: store.get('theme', 'auto'),
+    token: null,
+    unseen: { feed: 0, git: 0 }
   };
 
-  var MAX_EVENTS = 800;
-  var HEAT_MS = 90000;       // тепловой след гаснет за полторы минуты
+  var MAX_EVENTS = 1500;
+  var HEAT_MS = 90000;
 
-  // ── 2. Лента ──────────────────────────────────────────────────────────────
+  // Ключ доступа приходит в ссылке из QR-кода. Забираем его и убираем из
+  // адресной строки: незачем светить ключ в истории браузера и в заголовке.
+  (function pickToken() {
+    var m = /[?&]t=([^&]+)/.exec(window.location.search);
+    if (!m) return;
+    app.token = decodeURIComponent(m[1]);
+    try {
+      var clean = window.location.pathname + window.location.hash;
+      window.history.replaceState(null, '', clean);
+    } catch (e) { /* не дали — не страшно, кука уже поставлена */ }
+  })();
+
+  // ── 2. Вкладки и жесты ────────────────────────────────────────────────────
+
+  var VIEWS = ['feed', 'map', 'git', 'pulse'];
+
+  function isNarrow() { return window.matchMedia('(max-width: 900px)').matches; }
+
+  function setView(name, direction) {
+    if (VIEWS.indexOf(name) === -1) return;
+    var prev = app.view;
+    app.view = name;
+    document.body.dataset.view = name;
+    store.set('view', name);
+
+    Array.prototype.forEach.call(document.querySelectorAll('.tab'), function (t) {
+      var on = t.dataset.tab === name;
+      t.classList.toggle('is-active', on);
+      t.setAttribute('aria-current', on ? 'page' : 'false');
+    });
+
+    // Счётчик непрочитанного снимается, когда вкладку открыли.
+    if (name === 'feed') { app.unseen.feed = 0; }
+    if (name === 'git') { app.unseen.git = 0; }
+    renderBadges();
+
+    if (direction && prev !== name && !reduceMotion) {
+      var section = document.querySelector('.view[data-view="' + name + '"]');
+      if (section) {
+        var cls = direction > 0 ? 'is-sliding-left' : 'is-sliding-right';
+        section.classList.remove('is-sliding-left', 'is-sliding-right');
+        void section.offsetWidth;                 // перезапуск анимации
+        section.classList.add(cls);
+        setTimeout(function () { section.classList.remove(cls); }, 260);
+      }
+    }
+    // Лента виртуализируется — при возврате на вкладку пересчитываем окно.
+    if (name === 'feed') requestAnimationFrame(renderWindow);
+  }
+
+  function shiftView(delta) {
+    var i = VIEWS.indexOf(app.view);
+    var next = Math.min(VIEWS.length - 1, Math.max(0, i + delta));
+    if (next !== i) setView(VIEWS[next], delta);
+  }
+
+  function renderBadges() {
+    [['feed', 'tabBadgeFeed'], ['git', 'tabBadgeGit']].forEach(function (pair) {
+      var n = app.unseen[pair[0]];
+      var node = $(pair[1]);
+      if (!node) return;
+      node.hidden = !n || app.view === pair[0];
+      node.textContent = n > 99 ? '99+' : String(n);
+    });
+  }
+
+  Array.prototype.forEach.call(document.querySelectorAll('.tab'), function (t) {
+    t.addEventListener('click', function () {
+      var from = VIEWS.indexOf(app.view);
+      var to = VIEWS.indexOf(t.dataset.tab);
+      setView(t.dataset.tab, to > from ? 1 : -1);
+    });
+  });
+
+  // Свайп между вкладками. Слушаем только на узких экранах и только когда
+  // жест горизонтальный — иначе он мешал бы обычной прокрутке списка.
+  (function swipes() {
+    var x0 = null, y0 = null, decided = null;
+    var grid = $('grid');
+
+    grid.addEventListener('touchstart', function (e) {
+      if (!isNarrow() || e.touches.length !== 1) return;
+      x0 = e.touches[0].clientX;
+      y0 = e.touches[0].clientY;
+      decided = null;
+    }, { passive: true });
+
+    grid.addEventListener('touchmove', function (e) {
+      if (x0 === null || e.touches.length !== 1) return;
+      var dx = e.touches[0].clientX - x0;
+      var dy = e.touches[0].clientY - y0;
+      if (decided === null && (Math.abs(dx) > 10 || Math.abs(dy) > 10)) {
+        decided = Math.abs(dx) > Math.abs(dy) * 1.4 ? 'x' : 'y';
+      }
+    }, { passive: true });
+
+    grid.addEventListener('touchend', function (e) {
+      if (x0 === null) return;
+      var dx = (e.changedTouches[0] || {}).clientX - x0;
+      if (decided === 'x' && Math.abs(dx) > 60) shiftView(dx < 0 ? 1 : -1);
+      x0 = y0 = decided = null;
+    }, { passive: true });
+  })();
+
+  // ── 3. Тема ───────────────────────────────────────────────────────────────
+
+  function applyTheme(theme) {
+    app.theme = theme;
+    store.set('theme', theme);
+    if (theme === 'auto') document.documentElement.removeAttribute('data-theme');
+    else document.documentElement.setAttribute('data-theme', theme);
+
+    var label = { auto: '🌗', dark: '🌙', light: '☀️' }[theme] || '🌗';
+    var title = {
+      auto: 'Тема: как в системе',
+      dark: 'Тема: тёмная',
+      light: 'Тема: светлая'
+    }[theme];
+    $('btnTheme').textContent = label;
+    $('btnTheme').title = title + ' — нажмите, чтобы сменить';
+  }
+
+  $('btnTheme').addEventListener('click', function () {
+    var order = ['auto', 'dark', 'light'];
+    applyTheme(order[(order.indexOf(app.theme) + 1) % order.length]);
+  });
+
+  // ── 4. Лента с виртуализацией ─────────────────────────────────────────────
 
   var feed = $('feed');
+  var feedScroll = $('feedScroll');
   var feedEmpty = $('feedEmpty');
+  var feedTop = $('feedTop');
+  var feedBottom = $('feedBottom');
 
-  // Соответствие «кнопка фильтра → какие события пропускать».
+  // Высота карточки оценивается по факту: в подробном режиме и на узком
+  // экране она заметно больше, и фиксированное число врало бы.
+  var ROW_H = 74;
+  var OVERSCAN = 8;
+
   var FILTERS = {
     all: function () { return true; },
     edit: function (e) { return e.kind === 'tool' && (e.action === 'edit' || e.action === 'write'); },
@@ -159,7 +311,6 @@
     return hay.indexOf(app.query) !== -1;
   }
 
-  // Класс-модификатор карточки: чем ярче событие, тем заметнее полоска слева.
   function evClass(ev) {
     var cls = ['ev'];
     if (ev.level === 'error') cls.push('ev--error');
@@ -175,36 +326,22 @@
   function renderEvent(ev, isNew) {
     var li = el('li', evClass(ev) + (isNew && !reduceMotion ? ' is-new' : ''));
     li.dataset.id = ev.id;
-
     li.appendChild(el('span', 'ev__icon', ev.icon || '•'));
     li.appendChild(el('span', 'ev__title', ev.title || ''));
     li.appendChild(el('span', 'ev__time', clock(ev.ts)));
-
     if (ev.hint) li.appendChild(el('span', 'ev__hint', ev.hint));
-
-    // Режим «Подробно»: сырые данные прямо в карточке, без похода на сервер.
-    if (app.detailed) {
-      var raw = el('pre', 'ev__raw', rawText(ev));
-      li.appendChild(raw);
-    }
-
+    if (app.detailed) li.appendChild(el('pre', 'ev__raw', rawText(ev)));
     li.addEventListener('click', function () { openEventDetails(ev); });
     return li;
   }
 
-  // Что показывать в подробном режиме: осмысленный срез, а не весь JSON —
-  // иначе карточка превращается в простыню.
   function rawText(ev) {
     var out = {
-      kind: ev.kind,
-      action: ev.action,
-      source: ev.source,
-      tool: ev.tool || undefined,
-      file: ev.file || undefined,
-      command: ev.command || undefined,
-      pattern: ev.pattern || undefined,
-      ok: ev.ok,
-      stats: ev.stats || undefined,
+      kind: ev.kind, action: ev.action, source: ev.source,
+      tool: ev.tool || undefined, file: ev.file || undefined,
+      command: ev.command || undefined, pattern: ev.pattern || undefined,
+      ok: ev.ok, stats: ev.stats || undefined,
+      sidechain: ev.sidechain || undefined,
       toolUseId: ev.toolUseId || undefined,
       ts: new Date(ev.ts).toISOString()
     };
@@ -217,16 +354,86 @@
     return text;
   }
 
+  // Пересчёт списка видимых событий. Отдельно от отрисовки, чтобы фильтр и
+  // поиск не трогали прокрутку.
+  function recomputeVisible() {
+    var source = app.archive ? app.archive.events : app.events;
+    app.visible = source.filter(function (ev) {
+      if (ev.kind === 'result' && ev.ok) return false;   // успех схлопнут в вызов
+      return matches(ev);
+    });
+    feedEmpty.hidden = app.visible.length > 0;
+  }
+
+  /**
+   * Виртуализация: в разметке живут только видимые карточки плюс запас,
+   * высоту прокрутки держат распорки сверху и снизу. Без этого на телефоне
+   * лента из тысячи событий отвечает с заметной задержкой.
+   */
+  function renderWindow() {
+    var total = app.visible.length;
+    var h = feedScroll.clientHeight || 600;
+    var perScreen = Math.ceil(h / ROW_H) + OVERSCAN * 2;
+
+    // Пока событий немного, виртуализация только мешает — рисуем всё.
+    if (total <= perScreen) {
+      feedTop.style.height = '0px';
+      feedBottom.style.height = '0px';
+      drawRows(0, total);
+      return;
+    }
+
+    // Окно обязательно прижимается к границам списка. Без этого после смены
+    // режима «Просто/Подробно» (карточки становятся выше или ниже) старый
+    // scrollTop уводил окно за конец списка, и лента оказывалась пустой.
+    var maxFirst = Math.max(0, total - perScreen);
+    var first = Math.floor(feedScroll.scrollTop / ROW_H) - OVERSCAN;
+    first = Math.max(0, Math.min(first, maxFirst));
+    var last = Math.min(total, first + perScreen);
+
+    feedTop.style.height = (first * ROW_H) + 'px';
+    feedBottom.style.height = Math.max(0, (total - last) * ROW_H) + 'px';
+    drawRows(first, last);
+  }
+
+  var drawnKey = '';
+  function drawRows(from, to) {
+    var key = from + ':' + to + ':' + app.visible.length + ':' + (app.detailed ? 'd' : 's');
+    if (key === drawnKey) return;
+    drawnKey = key;
+    clear(feed);
+    for (var i = from; i < to; i++) {
+      feed.appendChild(renderEvent(app.visible[i], false));
+    }
+  }
+
+  var scrollTicking = false;
+  feedScroll.addEventListener('scroll', function () {
+    if (scrollTicking) return;
+    scrollTicking = true;
+    requestAnimationFrame(function () {
+      scrollTicking = false;
+      renderWindow();
+    });
+  }, { passive: true });
+
+  function atBottom() {
+    return feedScroll.scrollHeight - feedScroll.scrollTop - feedScroll.clientHeight < 120;
+  }
+
+  function scrollToBottom() {
+    // Сначала пересчитываем распорки под текущую высоту карточки, и только
+    // потом прыгаем вниз — иначе scrollHeight ещё старый и прыжок промахнётся.
+    renderWindow();
+    feedScroll.scrollTop = feedScroll.scrollHeight;
+    renderWindow();
+  }
+
   function addEvent(ev) {
     app.events.push(ev);
     if (app.events.length > MAX_EVENTS) app.events.splice(0, app.events.length - MAX_EVENTS);
 
-    // Результат инструмента дополняет уже показанную карточку вызова,
-    // а не плодит вторую строку — кроме ошибок, их видеть надо отдельно.
-    if (ev.kind === 'result' && ev.ok && ev.toolUseId) {
-      annotateCall(ev);
-      return;
-    }
+    if (ev.kind === 'result' && ev.ok && ev.toolUseId) { annotateCall(ev); return; }
 
     if (app.paused) {
       app.queued.push(ev);
@@ -235,14 +442,16 @@
     }
     if (!matches(ev)) return;
 
-    var atBottom = feed.scrollHeight - feed.scrollTop - feed.clientHeight < 90;
-    feed.appendChild(renderEvent(ev, true));
-    trimFeedDom();
-    feedEmpty.hidden = feed.childElementCount > 0;
-    if (atBottom) feed.scrollTop = feed.scrollHeight;
+    // Счётчик непрочитанного на вкладке — на телефоне видна одна секция.
+    if (isNarrow() && app.view !== 'feed') { app.unseen.feed++; renderBadges(); }
+
+    var stick = atBottom();
+    recomputeVisible();
+    drawnKey = '';
+    renderWindow();
+    if (stick) scrollToBottom();
   }
 
-  // Дописываем статистику правки в карточку вызова, когда пришёл результат.
   function annotateCall(result) {
     var call = null;
     for (var i = app.events.length - 1; i >= 0; i--) {
@@ -262,43 +471,14 @@
     }
   }
 
-  function trimFeedDom() {
-    while (feed.childElementCount > 400) feed.removeChild(feed.firstChild);
-  }
-
   function rebuildFeed() {
-    clear(feed);
-    var source = app.archive ? app.archive.events : app.events;
-    source.filter(function (ev) {
-      if (ev.kind === 'result' && ev.ok) return false;   // успехи схлопнуты в вызов
-      return matches(ev);
-    }).forEach(function (ev) {
-      feed.appendChild(renderEvent(ev, false));
-    });
-    trimFeedDom();
-    feedEmpty.hidden = feed.childElementCount > 0;
-    feed.scrollTop = feed.scrollHeight;
+    recomputeVisible();
+    drawnKey = '';
+    renderWindow();
+    scrollToBottom();
   }
 
-  // ── 3. Детали события ─────────────────────────────────────────────────────
-
-  var drawer = $('drawer');
-  var drawerBody = $('drawerBody');
-
-  function openDrawer(title) {
-    $('drawerTitle').textContent = title;
-    clear(drawerBody);
-    drawer.hidden = false;
-    return drawerBody;
-  }
-
-  function closeDrawer() {
-    drawer.hidden = true;
-    app.selectedFile = null;
-    Array.prototype.forEach.call(document.querySelectorAll('.node.is-selected'), function (n) {
-      n.classList.remove('is-selected');
-    });
-  }
+  // ── 5. Детали события ─────────────────────────────────────────────────────
 
   function section(parent, title) {
     var s = el('div', 'sec');
@@ -318,23 +498,19 @@
   }
 
   function openEventDetails(ev) {
-    var body = openDrawer((ev.icon || '') + ' ' + (ev.title || 'Событие'));
-
-    if (ev.hint) {
-      var p = el('p', 'card__what', ev.hint);
-      body.appendChild(p);
-    }
+    var body = openSheet((ev.icon || '') + ' ' + (ev.title || 'Событие'));
+    if (ev.hint) body.appendChild(el('p', 'card__what', ev.hint));
 
     facts(body, [
       ['Когда', dateTime(ev.ts)],
       ['Источник', sourceRu(ev.source)],
+      ['Кто', ev.sidechain ? 'помощник-субагент' : ''],
       ['Инструмент', ev.tool || ''],
       ['Файл', ev.file || ''],
       ['Команда', ev.command || ''],
       ['Шаблон поиска', ev.pattern || '']
     ]);
 
-    // Результат вызова: вывод команды или ошибка.
     var res = ev.result || (ev.kind === 'result' ? ev : null);
     if (res) {
       if (res.stdout && res.stdout.trim()) {
@@ -356,7 +532,6 @@
         Object.assign(el('pre', 'out'), { textContent: ev.text.slice(0, 20000) }));
     }
 
-    // Дифф по файлу — подгружаем с сервера, если он под git.
     if (ev.file && (ev.action === 'edit' || ev.action === 'write' || ev.kind === 'file')) {
       var sec = section(body, 'Что изменилось в файле');
       var loading = el('p', 'muted', 'Смотрим дифф…');
@@ -366,17 +541,11 @@
         if (d.error) return sec.appendChild(el('p', 'muted', d.error));
         if (d.note) sec.appendChild(el('p', 'muted', d.note));
         renderDiff(sec, d.diff);
-      }).catch(function () {
-        loading.textContent = 'Дифф получить не удалось.';
-      });
+      }).catch(function () { loading.textContent = 'Дифф получить не удалось.'; });
     }
 
-    // Кнопка «Спроси Клода» — только если функция включена при запуске.
-    if (app.state && app.state.askEnabled && app.state.askAvailable) {
-      addAskButton(body, ev);
-    }
+    if (app.state && app.state.askEnabled && app.state.askAvailable) addAskButton(body, ev);
 
-    // Сырые данные — внизу, чтобы не мешали, но были под рукой.
     var rawSec = section(body, 'Сырые данные события');
     rawSec.appendChild(Object.assign(el('pre', 'out'), { textContent: rawText(ev) }));
   }
@@ -397,8 +566,7 @@
     var answer = el('div');
     sec.appendChild(btn);
     sec.appendChild(answer);
-    sec.appendChild(el('p', 'muted',
-      'Вопрос уйдёт в claude -p и израсходует часть ваших лимитов.'));
+    sec.appendChild(el('p', 'muted', 'Вопрос уйдёт в claude -p и израсходует часть ваших лимитов.'));
 
     btn.addEventListener('click', function () {
       btn.disabled = true;
@@ -426,8 +594,6 @@
     });
   }
 
-  // ── 4. Дифф ───────────────────────────────────────────────────────────────
-
   function renderDiff(parent, files) {
     if (!files || !files.length) {
       parent.appendChild(el('p', 'muted', 'Изменений не нашлось.'));
@@ -437,16 +603,14 @@
       var box = el('div', 'diff');
       var legend = el('div', 'diff__legend');
       legend.appendChild(el('span', null, f.path || ''));
-      var addSpan = el('span', null, '');
+      var addSpan = el('span');
       addSpan.appendChild(el('b', null, '+' + (f.added || 0)));
       addSpan.appendChild(document.createTextNode(' добавлено'));
-      var delSpan = el('span', null, '');
+      var delSpan = el('span');
       delSpan.appendChild(el('b', null, '−' + (f.removed || 0)));
       delSpan.appendChild(document.createTextNode(' удалено'));
       legend.appendChild(addSpan);
       legend.appendChild(delSpan);
-      // Дифф, восстановленный из транскрипта, помечаем явно: он показывает
-      // одну правку Клода, а не всю разницу с сохранённой версией.
       if (f.reconstructed) legend.appendChild(el('span', null, 'по транскрипту'));
       box.appendChild(legend);
 
@@ -462,7 +626,7 @@
           var line = el('div', 'diff__line diff__line--' + l.type);
           line.appendChild(el('span', 'diff__sign',
             l.type === 'add' ? '+' : l.type === 'del' ? '−' : ' '));
-          line.appendChild(el('span', null, l.text));
+          line.appendChild(el('span', 'diff__text', l.text));
           box.appendChild(line);
         });
       });
@@ -470,7 +634,7 @@
     });
   }
 
-  // ── 5. Карта проекта ──────────────────────────────────────────────────────
+  // ── 6. Карта проекта ──────────────────────────────────────────────────────
 
   var treeBox = $('tree');
 
@@ -478,8 +642,7 @@
     return api('/api/tree').then(function (t) {
       app.treeNodes = t.nodes || [];
       if (t.truncated) {
-        notice('Проект очень большой — карта показывает первые ' +
-          app.treeNodes.length + ' элементов.');
+        notice('Проект очень большой — карта показывает первые ' + app.treeNodes.length + ' элементов.');
       }
       renderTree();
     }).catch(function () {
@@ -494,14 +657,10 @@
     var nodes = app.treeNodes;
 
     if (q) {
-      // В режиме поиска показываем плоский список — так быстрее находится.
       var found = nodes.filter(function (n) {
         return n.type === 'file' && n.path.toLowerCase().indexOf(q) !== -1;
       }).slice(0, 200);
-      if (!found.length) {
-        treeBox.appendChild(el('p', 'muted', 'Ничего не нашлось.'));
-        return;
-      }
+      if (!found.length) { treeBox.appendChild(el('p', 'muted', 'Ничего не нашлось.')); return; }
       found.forEach(function (n) { treeBox.appendChild(nodeRow(n, true)); });
       return;
     }
@@ -510,8 +669,6 @@
       treeBox.appendChild(el('p', 'muted', 'В папке нет файлов, которые стоит показывать.'));
       return;
     }
-
-    // Скрываем содержимое свёрнутых папок.
     nodes.forEach(function (n) {
       if (isHidden(n)) return;
       treeBox.appendChild(nodeRow(n, false));
@@ -534,13 +691,10 @@
     var row = el('div', 'node' + (n.type === 'dir' ? ' node--dir' : ''));
     row.dataset.path = n.path;
     if (!flat) row.style.paddingLeft = (8 + n.depth * 13) + 'px';
-
     if (n.type === 'dir') {
-      var caret = el('span', 'node__caret', '▾');
-      row.appendChild(caret);
+      row.appendChild(el('span', 'node__caret', '▾'));
       if (app.collapsed[n.path]) row.classList.add('is-collapsed');
     }
-
     row.appendChild(el('span', 'node__icon', n.type === 'dir' ? '📁' : (n.icon || '📄')));
     row.appendChild(el('span', 'node__name', flat ? n.path : n.name));
     if (n.type === 'file') row.appendChild(el('span', 'node__meta', bytes(n.size)));
@@ -558,8 +712,6 @@
     return row;
   }
 
-  // Тепловой след. Один общий таймер на всё дерево — так дешевле, чем
-  // отдельная анимация на каждом узле, и ничего не мигает.
   function applyHeat() {
     var now = Date.now();
     Array.prototype.forEach.call(treeBox.querySelectorAll('.node'), function (row) {
@@ -586,21 +738,14 @@
   function touchFile(pathStr) {
     if (!pathStr) return;
     app.heat[pathStr] = Date.now();
-    // Файл может быть новым — тогда дерево надо перечитать, но не чаще
-    // раза в пару секунд, чтобы шквал изменений не положил панель.
-    if (!app.treeNodes.some(function (n) { return n.path === pathStr; })) {
-      scheduleTreeReload();
-    }
+    if (!app.treeNodes.some(function (n) { return n.path === pathStr; })) scheduleTreeReload();
     applyHeat();
   }
 
   var treeReloadTimer = null;
   function scheduleTreeReload() {
     if (treeReloadTimer) return;
-    treeReloadTimer = setTimeout(function () {
-      treeReloadTimer = null;
-      loadTree();
-    }, 1500);
+    treeReloadTimer = setTimeout(function () { treeReloadTimer = null; loadTree(); }, 1500);
   }
 
   function openFileCard(pathStr) {
@@ -609,27 +754,21 @@
       n.classList.toggle('is-selected', n.dataset.path === pathStr);
     });
 
-    var body = openDrawer('📄 ' + pathStr);
+    var body = openSheet('📄 ' + pathStr);
     body.appendChild(el('p', 'muted', 'Загружаем…'));
 
     api('/api/file', null, { path: pathStr }).then(function (card) {
       clear(body);
-      if (card.error && !card.title) {
-        body.appendChild(el('p', 'muted', card.error));
-        return;
-      }
-      $('drawerTitle').textContent = (card.icon || '📄') + ' ' + card.name;
-
+      if (card.error && !card.title) { body.appendChild(el('p', 'muted', card.error)); return; }
+      setSheetTitle((card.icon || '📄') + ' ' + card.name);
       body.appendChild(el('span', 'card__kind', card.title));
       body.appendChild(el('p', 'card__what', card.text));
-
       facts(body, [
         ['Путь', card.path],
         ['Размер', card.sizeText || '—'],
         ['Изменён', card.mtime ? dateTime(card.mtime) : '—'],
         ['Состояние', card.exists === false ? 'файла больше нет' : 'на месте']
       ]);
-
       var sec = section(body, 'Последние изменения');
       if (card.diffNote) sec.appendChild(el('p', 'muted', card.diffNote));
       renderDiff(sec, card.diff);
@@ -639,9 +778,10 @@
     });
   }
 
-  // ── 6. Git ────────────────────────────────────────────────────────────────
+  // ── 7. Git ────────────────────────────────────────────────────────────────
 
   function renderGit(g) {
+    var prevDirty = app.git && app.git.summary ? app.git.summary.total : null;
     app.git = g;
     var now = $('gitNow');
     var hist = $('gitHistory');
@@ -649,8 +789,7 @@
     clear(hist);
 
     if (!g || !g.available) {
-      var msg = el('p', 'muted', (g && g.reason) || 'Git недоступен.');
-      now.appendChild(msg);
+      now.appendChild(el('p', 'muted', (g && g.reason) || 'Git недоступен.'));
       now.appendChild(el('p', 'muted',
         'Остальные разделы Штурмана работают как обычно — карта проекта и лента ' +
         'не зависят от git.'));
@@ -658,7 +797,6 @@
       return;
     }
 
-    // --- «Сейчас» ---------------------------------------------------------
     var line = el('div', 'gitline');
     line.appendChild(el('span', 'gitline__label', 'Ветка'));
     var b = el('span', 'gitline__value');
@@ -669,16 +807,14 @@
     now.appendChild(el('p', 'git__explain', g.branchExplain || ''));
 
     if (g.aheadBehind) {
-      var ab = el('p', 'muted');
-      ab.textContent = 'Относительно ' + g.aheadBehind.upstream + ': ' +
-        'у вас на ' + withPlural(g.aheadBehind.ahead, 'коммит', 'коммита', 'коммитов') + ' больше, ' +
-        'не забрано ' + withPlural(g.aheadBehind.behind, 'коммит', 'коммита', 'коммитов') + '.';
-      now.appendChild(ab);
+      now.appendChild(el('p', 'muted',
+        'Относительно ' + g.aheadBehind.upstream + ': у вас на ' +
+        withPlural(g.aheadBehind.ahead, 'коммит', 'коммита', 'коммитов') + ' больше, не забрано ' +
+        withPlural(g.aheadBehind.behind, 'коммит', 'коммита', 'коммитов') + '.'));
     }
 
     var count = el('div', 'git__count');
-    var num = el('div', 'git__count-num' + (g.summary.total === 0 ? ' is-clean' : ''), g.summary.total);
-    count.appendChild(num);
+    count.appendChild(el('div', 'git__count-num' + (g.summary.total === 0 ? ' is-clean' : ''), g.summary.total));
     var ct = el('div', 'git__count-text', g.summary.explain);
     ct.appendChild(termButton('commit'));
     count.appendChild(ct);
@@ -707,7 +843,6 @@
       now.appendChild(ul);
     }
 
-    // --- «История» --------------------------------------------------------
     if (!g.commits.length) {
       hist.appendChild(el('p', 'muted', 'Коммитов пока нет — история начнётся с первого сохранения.'));
     } else {
@@ -715,18 +850,24 @@
       g.commits.forEach(function (c) {
         var li = el('li', 'tl' + (c.merge ? ' tl--merge' : ''));
         li.appendChild(el('div', 'tl__subject', c.subject));
-        li.appendChild(el('div', 'tl__meta',
-          c.short + ' · ' + c.author + ' · ' + dateTime(c.ts)));
+        li.appendChild(el('div', 'tl__meta', c.short + ' · ' + c.author + ' · ' + dateTime(c.ts)));
         li.appendChild(el('div', 'tl__explain', c.explain || ''));
         li.addEventListener('click', function () { openCommit(c); });
         tl.appendChild(li);
       });
       hist.appendChild(tl);
     }
+
+    // Значок на вкладке git, если появились новые несохранённые правки.
+    if (isNarrow() && app.view !== 'git' && prevDirty !== null &&
+        g.summary.total > prevDirty) {
+      app.unseen.git += g.summary.total - prevDirty;
+      renderBadges();
+    }
   }
 
   function openCommit(c) {
-    var body = openDrawer('📌 ' + c.subject);
+    var body = openSheet('📌 ' + c.subject);
     facts(body, [
       ['Идентификатор', c.short],
       ['Автор', c.author],
@@ -744,7 +885,7 @@
     });
   }
 
-  // ── 7. Словарь и подсказки ────────────────────────────────────────────────
+  // ── 8. Словарь и подсказки ────────────────────────────────────────────────
 
   var glossary = { terms: [], byId: {} };
 
@@ -756,7 +897,7 @@
         glossary.byId[t.id] = t;
         (t.aliases || []).forEach(function (a) { glossary.byId[String(a).toLowerCase()] = t; });
       });
-    });
+    }).catch(function () { /* словарь не критичен для показа ленты */ });
   }
 
   function termButton(id) {
@@ -768,7 +909,6 @@
 
   var tip = $('tip');
 
-  // Одно делегирование на весь документ: значки «?» появляются динамически.
   document.addEventListener('click', function (e) {
     var t = e.target.closest && e.target.closest('.term');
     if (!t) { tip.hidden = true; return; }
@@ -779,10 +919,7 @@
 
   function showTip(button) {
     var term = glossary.byId[button.dataset.term];
-    if (!term) {
-      tip.hidden = true;
-      return;
-    }
+    if (!term) { tip.hidden = true; return; }
     $('tipTerm').textContent = term.term;
     $('tipText').textContent = term.text;
     tip.hidden = false;
@@ -798,14 +935,14 @@
   document.addEventListener('scroll', function () { tip.hidden = true; }, true);
 
   function openGlossary() {
-    var body = openModal('📚 Словарь новичка');
+    var body = openSheet('📚 Словарь новичка');
     var search = el('input', 'input gl__search');
     search.type = 'search';
     search.placeholder = 'Найти термин…';
+    search.setAttribute('enterkeyhint', 'search');
     body.appendChild(search);
 
-    var count = el('p', 'gl__count', 'Терминов в словаре: ' + glossary.terms.length + '.');
-    body.appendChild(count);
+    body.appendChild(el('p', 'gl__count', 'Терминов в словаре: ' + glossary.terms.length + '.'));
     var list = el('div');
     body.appendChild(list);
 
@@ -817,10 +954,7 @@
         return (t.term + ' ' + t.text + ' ' + (t.aliases || []).join(' '))
           .toLowerCase().indexOf(query) !== -1;
       });
-      if (!items.length) {
-        list.appendChild(el('p', 'muted', 'Такого слова в словаре пока нет.'));
-        return;
-      }
+      if (!items.length) { list.appendChild(el('p', 'muted', 'Такого слова в словаре пока нет.')); return; }
       items.forEach(function (t) {
         var item = el('div', 'gl__item');
         item.appendChild(el('div', 'gl__term', t.term));
@@ -830,26 +964,339 @@
     }
     search.addEventListener('input', function () { draw(search.value); });
     draw('');
-    search.focus();
+    if (!isNarrow()) search.focus();
   }
 
-  // ── 8. Модальное окно ─────────────────────────────────────────────────────
+  // ── 9. Шторка ─────────────────────────────────────────────────────────────
 
-  var modal = $('modal');
+  var sheet = $('sheet');
+  var sheetBody = $('sheetBody');
 
-  function openModal(title) {
-    $('modalTitle').textContent = title;
-    var body = $('modalBody');
-    clear(body);
-    modal.hidden = false;
-    return body;
+  function openSheet(title) {
+    setSheetTitle(title);
+    clear(sheetBody);
+    sheet.hidden = false;
+    sheetBody.scrollTop = 0;
+    return sheetBody;
   }
-  function closeModal() { modal.hidden = true; }
+  function setSheetTitle(t) { $('sheetTitle').textContent = t; }
+  function closeSheet() {
+    sheet.hidden = true;
+    app.selectedFile = null;
+    Array.prototype.forEach.call(document.querySelectorAll('.node.is-selected'), function (n) {
+      n.classList.remove('is-selected');
+    });
+  }
 
-  $('modalClose').addEventListener('click', closeModal);
-  $('modalBackdrop').addEventListener('click', closeModal);
+  $('sheetClose').addEventListener('click', closeSheet);
+  $('sheetBackdrop').addEventListener('click', closeSheet);
 
-  // ── 9. Пульс и «куда смотрит Клод» ────────────────────────────────────────
+  // Смахивание шторки вниз — привычный жест на телефоне.
+  (function sheetSwipe() {
+    var box = $('sheetBox');
+    var y0 = null;
+    box.addEventListener('touchstart', function (e) {
+      if (!isNarrow() || sheetBody.scrollTop > 0) return;
+      y0 = e.touches[0].clientY;
+    }, { passive: true });
+    box.addEventListener('touchmove', function (e) {
+      if (y0 === null) return;
+      var dy = e.touches[0].clientY - y0;
+      if (dy > 0) box.style.transform = 'translateY(' + Math.min(dy, 400) + 'px)';
+    }, { passive: true });
+    box.addEventListener('touchend', function (e) {
+      if (y0 === null) return;
+      var dy = (e.changedTouches[0] || {}).clientY - y0;
+      box.style.transform = '';
+      if (dy > 110) closeSheet();
+      y0 = null;
+    }, { passive: true });
+  })();
+
+  // --- экран «Подключение» ---------------------------------------------------
+
+  function openConnect() {
+    var body = openSheet('📱 Открыть на телефоне');
+    body.appendChild(el('p', 'muted', 'Смотрим сеть…'));
+
+    api('/api/connect').then(function (info) {
+      clear(body);
+      var box = el('div', 'conn');
+      body.appendChild(box);
+      box.appendChild(el('p', 'conn__explain', info.explain));
+
+      if (!info.enabled) {
+        var off = el('div', 'conn__off');
+        off.appendChild(document.createTextNode(
+          'Чтобы открыть панель на телефоне, остановите Штурман (Ctrl+C) ' +
+          'и запустите заново вот так:'));
+        off.appendChild(el('code', 'conn__cmd', 'shturman --share'));
+        box.appendChild(off);
+        return;
+      }
+
+      if (!info.hasNetwork) {
+        box.appendChild(el('div', 'conn__off',
+          'Компьютер не подключён к локальной сети — открыть панель с телефона ' +
+          'не получится. Проверьте Wi-Fi или кабель.'));
+        return;
+      }
+
+      var img = el('img', 'conn__qr');
+      img.src = href('/api/connect/qr.svg', { _: Date.now() });
+      img.alt = 'QR-код со ссылкой на панель';
+      box.appendChild(img);
+      box.appendChild(el('p', 'muted', 'Наведите камеру телефона на код — панель откроется сама.'));
+      box.appendChild(el('div', 'conn__url', info.url));
+
+      if (info.addresses.length > 1) {
+        var sec = section(body, 'Если первый адрес не открылся');
+        info.addresses.slice(1).forEach(function (a) {
+          var row = el('div', 'conn__addr');
+          row.appendChild(el('span', 'conn__addr-ip', a.address));
+          row.appendChild(el('span', 'conn__addr-label', a.label));
+          sec.appendChild(row);
+        });
+      }
+
+      // Кто сейчас смотрит + сброс ключа.
+      var devSec = section(body, 'Кто сейчас смотрит панель');
+      renderDevices(devSec, info.devices, info.rejected);
+
+      var reset = el('button', 'btn', '🔑 Сбросить ключ доступа');
+      reset.addEventListener('click', function () {
+        reset.disabled = true;
+        reset.textContent = 'Сбрасываем…';
+        api('/api/connect/rotate', { method: 'POST' }).then(function () {
+          openConnect();
+        });
+      });
+      var resetSec = section(body, 'Отозвать доступ');
+      resetSec.appendChild(el('p', 'muted',
+        'Все выданные ссылки перестанут работать, а QR-код нужно будет ' +
+        'отсканировать заново. Пригодится, если ссылка попала не туда.'));
+      resetSec.appendChild(reset);
+    }).catch(function (e) {
+      clear(body);
+      body.appendChild(el('p', 'muted', 'Не получилось: ' + e.message));
+    });
+  }
+
+  function renderDevices(parent, devices, rejected) {
+    if (!devices || !devices.length) {
+      parent.appendChild(el('p', 'muted', 'Пока никто не подключался.'));
+    } else {
+      devices.forEach(function (d) {
+        var row = el('div', 'device');
+        var what = el('div');
+        what.appendChild(el('div', 'device__what',
+          d.shortAgent + (d.loopback ? ' (этот компьютер)' : '')));
+        what.appendChild(el('div', 'device__ip', d.ip));
+        row.appendChild(what);
+        row.appendChild(el('span', 'device__when', duration(Date.now() - d.lastSeen) + ' назад'));
+        parent.appendChild(row);
+      });
+    }
+    if (rejected) {
+      parent.appendChild(el('p', 'muted',
+        'Отклонено обращений без ключа: ' + rejected + '. Это нормально — так и должно быть.'));
+    }
+  }
+
+  // --- настройки --------------------------------------------------------------
+
+  function openSettings() {
+    var body = openSheet('⚙️ Настройки');
+
+    body.appendChild(settingRow('Звуковой сигнал',
+      'Короткий сигнал, когда Клод остановился и ждёт вас.',
+      app.sound, function (v) { app.sound = v; store.set('sound', v); saveServerSettings({ sound: v }); }));
+
+    body.appendChild(settingRow('Уведомления браузера',
+      'Всплывающее уведомление системы — видно, даже если вкладка свёрнута.',
+      app.notify, function (v) {
+        app.notify = v;
+        store.set('notify', v);
+        saveServerSettings({ notify: v });
+        if (v && 'Notification' in window && Notification.permission === 'default') {
+          Notification.requestPermission();
+        }
+      }));
+
+    // Тема
+    var themeRow = el('div', 'set__row');
+    var tl = el('div', 'set__label');
+    tl.appendChild(el('b', null, 'Тема оформления'));
+    tl.appendChild(el('span', null, 'По умолчанию — как в системе.'));
+    themeRow.appendChild(tl);
+    var themeSeg = el('div', 'seg seg--sm set__control');
+    [['auto', 'Как в системе'], ['dark', 'Тёмная'], ['light', 'Светлая']].forEach(function (pair) {
+      var b = el('button', 'seg__btn' + (app.theme === pair[0] ? ' is-active' : ''), pair[1]);
+      b.addEventListener('click', function () {
+        applyTheme(pair[0]);
+        saveServerSettings({ theme: pair[0] });
+        Array.prototype.forEach.call(themeSeg.children, function (c) {
+          c.classList.toggle('is-active', c === b);
+        });
+      });
+      themeSeg.appendChild(b);
+    });
+    themeRow.appendChild(themeSeg);
+    body.appendChild(themeRow);
+
+    // Режим ленты
+    var modeRow = el('div', 'set__row');
+    var ml = el('div', 'set__label');
+    ml.appendChild(el('b', null, 'Режим ленты'));
+    ml.appendChild(el('span', null, 'В подробном режиме под каждым событием видны сырые данные.'));
+    modeRow.appendChild(ml);
+    var modeSeg = el('div', 'seg seg--sm set__control');
+    [['simple', 'Просто'], ['detailed', 'Подробно']].forEach(function (pair) {
+      var b = el('button', 'seg__btn' + ((app.detailed ? 'detailed' : 'simple') === pair[0] ? ' is-active' : ''), pair[1]);
+      b.addEventListener('click', function () {
+        setDetailed(pair[0] === 'detailed');
+        saveServerSettings({ feedMode: pair[0] });
+        Array.prototype.forEach.call(modeSeg.children, function (c) {
+          c.classList.toggle('is-active', c === b);
+        });
+      });
+      modeSeg.appendChild(b);
+    });
+    modeRow.appendChild(modeSeg);
+    body.appendChild(modeRow);
+
+    // Порог тишины
+    var idleRow = el('div', 'set__row');
+    var lbl = el('div', 'set__label');
+    lbl.appendChild(el('b', null, 'Через сколько тишины считать, что Клод ждёт'));
+    lbl.appendChild(el('span', null, 'Сейчас: ' + (app.state ? app.state.idleSeconds : 45) + ' с. ' +
+      'Слишком мало — сигнал будет срабатывать между шагами Клода.'));
+    idleRow.appendChild(lbl);
+    var input = el('input', 'input set__control');
+    input.type = 'number';
+    input.min = '5';
+    input.max = '600';
+    input.style.width = '96px';
+    input.value = app.state ? app.state.idleSeconds : 45;
+    input.addEventListener('change', function () {
+      api('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ idleSeconds: Number(input.value) })
+      }).then(renderState);
+    });
+    idleRow.appendChild(input);
+    body.appendChild(idleRow);
+
+    // Доступ по сети
+    var shareRow = el('div', 'set__row');
+    var sl = el('div', 'set__label');
+    sl.appendChild(el('b', null, 'Доступ с телефона'));
+    sl.appendChild(el('span', null, app.state && app.state.share
+      ? 'Включён. Панель видна в вашей локальной сети — только по ссылке с ключом.'
+      : 'Выключен. Панель открывается только на этом компьютере.'));
+    shareRow.appendChild(sl);
+    var shareBtn = el('button', 'btn set__control', 'Открыть экран');
+    shareBtn.addEventListener('click', openConnect);
+    shareRow.appendChild(shareBtn);
+    body.appendChild(shareRow);
+
+    // Справка
+    var info = el('div', 'set__row');
+    var il = el('div', 'set__label');
+    il.appendChild(el('b', null, '«Спроси Клода»'));
+    il.appendChild(el('span', null, app.state && app.state.askEnabled
+      ? (app.state.askAvailable
+        ? 'Включена. Кнопка появляется в карточке события. Расходует ваши лимиты.'
+        : 'Включена флагом --ask, но команда claude не найдена в PATH.')
+      : 'Выключена. Чтобы включить, перезапустите Штурман с флагом --ask.'));
+    info.appendChild(il);
+    body.appendChild(info);
+
+    var about = el('div', 'set__row');
+    var al = el('div', 'set__label');
+    al.appendChild(el('b', null, 'О наблюдении'));
+    al.appendChild(el('span', null, app.state
+      ? 'Уровень ' + app.state.level +
+        ' · файлы: ' + (app.state.watchMode === 'native' ? 'системное наблюдение' : 'периодический опрос') +
+        ' · Node ' + app.state.node + ' · Штурман ' + app.state.version
+      : ''));
+    about.appendChild(al);
+    body.appendChild(about);
+
+    var keys = el('div', 'set__row');
+    var kl = el('div', 'set__label');
+    kl.appendChild(el('b', null, 'Горячие клавиши'));
+    kl.appendChild(el('span', null, '1–4 — вкладки · / — поиск · m — звук · t — тема · Esc — закрыть'));
+    keys.appendChild(kl);
+    body.appendChild(keys);
+  }
+
+  function settingRow(title, text, value, onChange) {
+    var row = el('div', 'set__row');
+    var lbl = el('div', 'set__label');
+    lbl.appendChild(el('b', null, title));
+    lbl.appendChild(el('span', null, text));
+    row.appendChild(lbl);
+    var btn = el('button', 'btn set__control' + (value ? ' is-on' : ''), value ? 'Включено' : 'Выключено');
+    btn.addEventListener('click', function () {
+      value = !value;
+      btn.textContent = value ? 'Включено' : 'Выключено';
+      btn.classList.toggle('is-on', value);
+      onChange(value);
+    });
+    row.appendChild(btn);
+    return row;
+  }
+
+  // Настройки дублируются на сервер: так они переживают смену браузера и
+  // одинаковы на телефоне и компьютере.
+  function saveServerSettings(patch) {
+    api('/api/settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(patch)
+    }).catch(function () { /* не сохранилось — останется хотя бы локально */ });
+  }
+
+  // --- дайджест ---------------------------------------------------------------
+
+  function openDigest() {
+    var body = openSheet('📄 Что мы сегодня сделали');
+    body.appendChild(el('p', 'muted', 'Собираем дайджест…'));
+    api('/api/digest').then(function (d) {
+      clear(body);
+      var actions = el('div', 'set__row');
+      var dl = el('button', 'btn btn--primary', '⬇ Скачать .md');
+      dl.addEventListener('click', function () {
+        window.location.href = href('/api/digest', { download: 1 });
+      });
+      actions.appendChild(dl);
+
+      // На телефоне — системное меню «Поделиться».
+      if (navigator.share) {
+        var sh = el('button', 'btn', '📤 Поделиться');
+        sh.addEventListener('click', function () {
+          navigator.share({ title: 'Итоги сессии — Штурман', text: d.markdown })
+            .catch(function () { /* передумали — не беда */ });
+        });
+        actions.appendChild(sh);
+      }
+      if (navigator.clipboard) {
+        var copy = el('button', 'btn', '📋 Скопировать');
+        copy.addEventListener('click', function () {
+          navigator.clipboard.writeText(d.markdown).then(function () {
+            copy.textContent = '✓ Скопировано';
+          });
+        });
+        actions.appendChild(copy);
+      }
+      body.appendChild(actions);
+      body.appendChild(Object.assign(el('pre', 'out'), { textContent: d.markdown }));
+    });
+  }
+
+  // ── 10. Пульс и граф внимания ─────────────────────────────────────────────
 
   function renderPulse(p) {
     app.pulse = p;
@@ -860,14 +1307,10 @@
     errNode.classList.toggle('is-bad', p.errors > 0);
     $('pulseDuration').textContent = duration(p.durationMs);
 
-    if (p.tokens && p.tokens.messages) {
-      $('pulseTokens').textContent =
-        '↑ ' + fmtNum(p.tokens.input + p.tokens.cacheCreate) +
-        '  ↓ ' + fmtNum(p.tokens.output) +
-        '  (кеш ' + fmtNum(p.tokens.cacheRead) + ')';
-    } else {
-      $('pulseTokens').textContent = 'нет данных в транскрипте';
-    }
+    $('pulseTokens').textContent = (p.tokens && p.tokens.messages)
+      ? '↑ ' + fmtNum(p.tokens.input + p.tokens.cacheCreate) +
+        '  ↓ ' + fmtNum(p.tokens.output) + '  (кеш ' + fmtNum(p.tokens.cacheRead) + ')'
+      : 'нет данных в транскрипте';
 
     renderStateChip(p.detector);
     renderAttention(p.recentFiles || []);
@@ -879,6 +1322,7 @@
     var text = $('stateText');
     if (!d) return;
     dot.className = 'chip__dot';
+    document.body.classList.toggle('is-waiting', d.state === 'waiting');
     if (d.state === 'working') {
       dot.classList.add('chip__dot--live');
       if (!reduceMotion) dot.classList.add('chip__dot--pulse');
@@ -890,7 +1334,7 @@
       dot.classList.add('chip__dot--error');
       text.textContent = 'сессия затихла';
     } else {
-      text.textContent = 'ждём первых действий';
+      text.textContent = 'ждём действий';
     }
   }
 
@@ -914,23 +1358,16 @@
     });
   }
 
-  // ── 9a. Граф внимания ─────────────────────────────────────────────────────
-
   var SVG_NS = 'http://www.w3.org/2000/svg';
-
   function svg(tag, attrs) {
     var node = document.createElementNS(SVG_NS, tag);
     Object.keys(attrs || {}).forEach(function (k) { node.setAttribute(k, attrs[k]); });
     return node;
   }
 
-  /**
-   * Радиальная раскладка: файл, которым Клод занят прямо сейчас, — в центре,
-   * остальные по кольцу в порядке свежести. Физической симуляции нет
-   * намеренно: узлов мало, а прыгающий граф отвлекал бы.
-   */
   function renderAttentionGraph(att) {
     var box = $('attentionGraph');
+    if (box.hidden) return;
     clear(box);
     var W = box.clientWidth || 380;
     var H = 240;
@@ -939,16 +1376,13 @@
     if (!att || att.empty || !att.nodes.length) {
       root.appendChild(Object.assign(
         svg('text', { class: 'attgraph__empty', x: W / 2, y: H / 2 }),
-        { textContent: 'Пока никуда — ждём первых чтений и правок.' }
-      ));
+        { textContent: 'Пока никуда — ждём первых чтений и правок.' }));
       box.appendChild(root);
       return;
     }
 
     var cx = W / 2;
     var cy = H / 2;
-    // Кольцо эллиптическое: панель широкая и низкая, и круг радиусом по
-    // высоте сбивал бы все узлы в кучу посередине.
     var rx = Math.max(70, W / 2 - 58);
     var ry = Math.max(48, H / 2 - 34);
     var pos = {};
@@ -956,7 +1390,6 @@
     att.nodes.forEach(function (n, i) {
       if (i === 0) { pos[n.file] = { x: cx, y: cy, r: 11 }; return; }
       var count = att.nodes.length - 1;
-      // Смещаем кольцо на четверть шага, чтобы подписи реже налезали.
       var angle = ((i - 1) / count) * Math.PI * 2 - Math.PI / 2 + 0.35;
       pos[n.file] = {
         x: cx + Math.cos(angle) * rx,
@@ -965,7 +1398,6 @@
       };
     });
 
-    // Связи рисуем первыми, чтобы узлы легли поверх.
     att.links.forEach(function (l) {
       var a = pos[l.from];
       var b = pos[l.to];
@@ -988,12 +1420,10 @@
       g.appendChild(svg('circle', { class: 'attgraph__dot', cx: p.x.toFixed(1), cy: p.y.toFixed(1), r: p.r }));
       g.appendChild(Object.assign(
         svg('text', { class: 'attgraph__glyph', x: p.x.toFixed(1), y: (p.y + 3.5).toFixed(1) }),
-        { textContent: n.kind === 'edit' ? '✎' : '👁' }
-      ));
+        { textContent: n.kind === 'edit' ? '✎' : '👁' }));
       g.appendChild(Object.assign(
         svg('text', { class: 'attgraph__label', x: p.x.toFixed(1), y: (p.y + p.r + 12).toFixed(1) }),
-        { textContent: shortName(n.name) }
-      ));
+        { textContent: n.name.length > 16 ? n.name.slice(0, 15) + '…' : n.name }));
 
       var title = svg('title');
       title.textContent = n.file + '\n' +
@@ -1001,16 +1431,11 @@
         withPlural(n.edits, 'правка', 'правки', 'правок') + '\n' +
         'последний раз ' + duration(n.ageMs) + ' назад';
       g.appendChild(title);
-
       g.addEventListener('click', function () { openFileCard(n.file); });
       root.appendChild(g);
     });
 
     box.appendChild(root);
-  }
-
-  function shortName(name) {
-    return name.length > 16 ? name.slice(0, 15) + '…' : name;
   }
 
   Array.prototype.forEach.call(document.querySelectorAll('[data-atttab]'), function (btn) {
@@ -1021,15 +1446,14 @@
       });
       $('attentionGraph').hidden = !isGraph;
       $('attentionMap').hidden = isGraph;
-      store.set('attTab', btn.dataset.atttab);
+      if (isGraph && app.pulse) renderAttentionGraph(app.pulse.attention);
     });
   });
 
-  // ── 10. Сигнал «Клод остановился» ─────────────────────────────────────────
+  // ── 11. Сигнал «Клод остановился» ─────────────────────────────────────────
 
   var audioCtx = null;
 
-  // Звук генерируем на лету: бинарный файл в проекте без сборки — лишний вес.
   function beep() {
     if (!app.sound) return;
     try {
@@ -1046,7 +1470,7 @@
         osc.frequency.value = i === 0 ? 660 : 880;
         var t0 = audioCtx.currentTime + delay;
         gain.gain.setValueAtTime(0, t0);
-        gain.gain.linearRampToValueAtTime(0.18, t0 + 0.02);
+        gain.gain.linearRampToValueAtTime(0.2, t0 + 0.02);
         gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.16);
         osc.connect(gain).connect(audioCtx.destination);
         osc.start(t0);
@@ -1056,13 +1480,25 @@
   }
 
   function browserNotify(title, text) {
-    if (!app.notify) return;
-    if (!('Notification' in window)) return;
-    if (Notification.permission === 'granted') {
-      try {
-        var n = new Notification('Штурман: ' + title, { body: text, tag: 'shturman-attention' });
-        n.onclick = function () { window.focus(); n.close(); };
-      } catch (e) { /* некоторые браузеры требуют service worker */ }
+    if (!app.notify || !('Notification' in window)) return;
+    if (Notification.permission !== 'granted') return;
+    try {
+      var n = new Notification('Штурман: ' + title, {
+        body: text, tag: 'shturman-attention',
+        icon: '/icons/icon-192.png', badge: '/icons/icon-192.png',
+        vibrate: [120, 60, 120]
+      });
+      n.onclick = function () { window.focus(); n.close(); };
+    } catch (e) {
+      // На Android уведомления создаются только через service worker.
+      if (navigator.serviceWorker && navigator.serviceWorker.ready) {
+        navigator.serviceWorker.ready.then(function (reg) {
+          reg.showNotification('Штурман: ' + title, {
+            body: text, tag: 'shturman-attention',
+            icon: '/icons/icon-192.png', vibrate: [120, 60, 120]
+          }).catch(function () { /* и так бывает */ });
+        });
+      }
     }
   }
 
@@ -1072,19 +1508,30 @@
     $('alarm').hidden = false;
     beep();
     browserNotify(data.title || 'Клод ждёт вас', data.text || '');
-    // Заголовок вкладки — чтобы сигнал был виден в фоне, даже без уведомлений.
+    // Заголовок вкладки и вибрация — сигнал должен дойти и в фоне.
     document.title = '🔔 Клод ждёт — Штурман';
+    if (navigator.vibrate) { try { navigator.vibrate([120, 60, 120]); } catch (e) { /* не все умеют */ } }
+    setBadge(1);
   }
 
   function clearAlarm() {
     $('alarm').hidden = true;
     document.title = 'Штурман — что сейчас делает Клод';
+    setBadge(0);
+  }
+
+  // Бейдж на иконке установленного приложения.
+  function setBadge(n) {
+    try {
+      if (n && navigator.setAppBadge) navigator.setAppBadge(n);
+      else if (navigator.clearAppBadge) navigator.clearAppBadge();
+    } catch (e) { /* поддерживают не все */ }
   }
 
   $('alarmOk').addEventListener('click', clearAlarm);
 
   $('btnBell').addEventListener('click', function () {
-    // Клик — это тот самый «жест пользователя», после которого браузер
+    // Клик — тот самый «жест пользователя», после которого браузер
     // разрешает звук и позволяет спросить про уведомления.
     beep();
     if ('Notification' in window && Notification.permission === 'default') {
@@ -1092,20 +1539,19 @@
     }
     raiseAlarm({
       title: 'Так выглядит сигнал',
-      text: 'Именно это вы увидите и услышите, когда Клод остановится и будет ждать вашего ответа.'
+      text: 'Именно это вы увидите и услышите, когда Клод остановится и будет ждать ответа.'
     });
     setTimeout(clearAlarm, 4000);
   });
 
-  // ── 11. Журнал сессий ─────────────────────────────────────────────────────
+  // ── 12. Журнал сессий ─────────────────────────────────────────────────────
 
   function loadSessions() {
     var box = $('sessions');
     return api('/api/sessions').then(function (data) {
       clear(box);
       if (data.note || !data.sessions.length) {
-        box.appendChild(el('p', 'muted', data.note ||
-          'Прошлых сессий пока нет — эта первая.'));
+        box.appendChild(el('p', 'muted', data.note || 'Прошлых сессий пока нет — эта первая.'));
         return;
       }
       data.sessions.forEach(function (s) {
@@ -1114,12 +1560,9 @@
         top.appendChild(el('span', 'session__when', dateTime(s.startedAt)));
         if (s.id === data.active) top.appendChild(el('span', 'session__badge', 'сейчас'));
         item.appendChild(top);
-        if (s.firstPrompt) {
-          item.appendChild(el('div', 'session__prompt', s.firstPrompt));
-        }
+        if (s.firstPrompt) item.appendChild(el('div', 'session__prompt', s.firstPrompt));
         item.appendChild(el('div', 'session__meta',
-          (s.branch ? s.branch + ' · ' : '') +
-          duration(s.durationMs) + ' · ' + bytes(s.size)));
+          (s.branch ? s.branch + ' · ' : '') + duration(s.durationMs) + ' · ' + bytes(s.size)));
         item.addEventListener('click', function () { openArchive(s); });
         box.appendChild(item);
       });
@@ -1130,24 +1573,23 @@
   }
 
   function openArchive(s) {
-    var isCurrent = app.state && s.id === app.state.sessionId;
-    if (isCurrent) { exitArchive(); return; }
+    if (app.state && s.id === app.state.sessionId) { exitArchive(); return; }
     api('/api/session/' + encodeURIComponent(s.id)).then(function (data) {
       if (data.error) { notice(data.error); return; }
       app.archive = data;
       rebuildFeed();
       showArchiveBar(s, data);
+      setView('feed');
     });
   }
 
   function showArchiveBar(s, data) {
     notice('Показана прошлая сессия от ' + dateTime(s.startedAt) + ' (' +
       withPlural(data.events.length, 'событие', 'события', 'событий') +
-      '). Нажмите «Вернуться к живой ленте», чтобы продолжить наблюдение.',
-      'archive');
+      '). Нажмите «Вернуться», чтобы продолжить наблюдение.', 'archive');
     var bar = $('notice');
     if (!bar.querySelector('.btn')) {
-      var back = el('button', 'btn btn--sm', 'Вернуться к живой ленте');
+      var back = el('button', 'btn btn--sm', 'Вернуться');
       back.addEventListener('click', exitArchive);
       bar.insertBefore(back, $('noticeClose'));
     }
@@ -1159,13 +1601,12 @@
     rebuildFeed();
   }
 
-  // ── 12. Полоса сообщений ──────────────────────────────────────────────────
+  // ── 13. Сообщения и состояние ─────────────────────────────────────────────
 
   function notice(text, kind) {
     var bar = $('notice');
     $('noticeText').textContent = text;
     $('noticeIcon').textContent = kind === 'archive' ? '🕰' : '⚠️';
-    // Кнопку «вернуться» из архивного режима убираем, чтобы не залипала.
     var stale = bar.querySelector('.btn');
     if (stale && kind !== 'archive') bar.removeChild(stale);
     bar.hidden = false;
@@ -1179,11 +1620,8 @@
   }
 
   $('noticeClose').addEventListener('click', function () {
-    if (app.archive) exitArchive();
-    else hideNotice();
+    if (app.archive) exitArchive(); else hideNotice();
   });
-
-  // ── 13. Состояние подключения ─────────────────────────────────────────────
 
   function renderState(s) {
     app.state = s;
@@ -1205,6 +1643,9 @@
         '. Панель работает, но действия Клода в ленту не попадают.';
     }
 
+    // Кнопка «Подключение» полезна всегда: без share она объясняет, как включить.
+    $('btnConnect').classList.toggle('is-on', !!s.share);
+
     if (s.projectCheck && !s.projectCheck.isProject && s.projectCheck.reason && !app.archive) {
       notice(s.projectCheck.reason);
     }
@@ -1215,23 +1656,16 @@
         'Убедитесь, что Claude Code запущен в той же папке: ' + s.project;
   }
 
-  // ── 13a. Переключатель проектов ───────────────────────────────────────────
-
-  // Панель показывает переключатель, только если Штурман запущен с
-  // несколькими --project. С одним проектом лишний элемент в шапке не нужен.
   function renderSwitcher(list, activeKey) {
     app.projects = list;
     var box = $('switcher');
     if (!list || list.length < 2) { box.hidden = true; return; }
     box.hidden = false;
-
     var chips = $('switcherChips');
     clear(chips);
     list.forEach(function (p) {
       var btn = el('button', 'pchip' + (p.key === activeKey ? ' is-active' : ''));
-      btn.title = p.path + (p.branch ? ' · ветка ' + p.branch : '') +
-        ' · уровень ' + p.level;
-      // Точка на вкладке чужого проекта: там Клод уже ждёт ответа.
+      btn.title = p.path + (p.branch ? ' · ветка ' + p.branch : '') + ' · уровень ' + p.level;
       if (p.waiting && p.key !== activeKey) btn.appendChild(el('span', 'pchip__flag'));
       btn.appendChild(el('span', null, p.name));
       btn.addEventListener('click', function () { switchProject(p.key); });
@@ -1239,9 +1673,6 @@
     });
   }
 
-  // Переключение — это полная смена контекста: своя лента, своё дерево,
-  // свой git. Поэтому всё локальное состояние сбрасывается, а поток
-  // переподключается уже к другому проекту.
   function switchProject(key) {
     if (key === app.projectKey) return;
     app.projectKey = key;
@@ -1253,32 +1684,31 @@
     app.collapsed = {};
     clearAlarm();
     hideNotice();
-    closeDrawer();
-    clear(feed);
-    feedEmpty.hidden = false;
+    closeSheet();
+    recomputeVisible();
+    drawnKey = '';
+    renderWindow();
     store.set('project', key);
     loadTree();
     loadSessions();
     connect();
   }
 
-  // Список проектов обновляем и сами: на соседней вкладке Клод мог
-  // остановиться, и об этом полезно узнать, не переключаясь туда.
   function pollProjects() {
     if (!app.projects || app.projects.length < 2) return;
     api('/api/projects').then(function (d) {
       renderSwitcher(d.projects, app.projectKey);
-    }).catch(function () { /* сервер закрылся — SSE об этом уже сказал */ });
+    }).catch(function () { /* сервер закрылся — SSE об этом скажет */ });
   }
   setInterval(pollProjects, 5000);
 
   // ── 14. Поток событий (SSE) ───────────────────────────────────────────────
 
   var source = null;
-  var lastEventId = 0;
+  var reconnectTimer = null;
 
   function connect() {
-    if (source) source.close();
+    if (source) { source.close(); source = null; }
     source = new EventSource(href('/api/stream'));
 
     source.addEventListener('snapshot', function (e) {
@@ -1286,9 +1716,9 @@
       renderState(data.state);
       if (data.git) renderGit(data.git);
       if (data.pulse) renderPulse(data.pulse);
+      app.events = [];
       (data.events || []).forEach(function (ev) {
         app.events.push(ev);
-        lastEventId = Math.max(lastEventId, ev.id);
         if (ev.file) app.heat[ev.file] = ev.ts;
       });
       if (!app.archive) rebuildFeed();
@@ -1296,15 +1726,12 @@
 
     source.addEventListener('event', function (e) {
       var ev = JSON.parse(e.data);
-      lastEventId = Math.max(lastEventId, ev.id);
       if (ev.file) touchFile(ev.file);
       if (ev.kind === 'session' && ev.action === 'resumed') clearAlarm();
-      if (app.archive) { app.events.push(ev); return; }   // копим молча
+      if (app.archive) { app.events.push(ev); return; }
       addEvent(ev);
     });
 
-    // Событие файловой системы, поглощённое дедупликацией: ленту не трогает,
-    // но карту проекта греет.
     source.addEventListener('fs', function (e) {
       var ev = JSON.parse(e.data);
       if (ev.file) touchFile(ev.file);
@@ -1315,14 +1742,45 @@
     source.addEventListener('state', function (e) { renderState(JSON.parse(e.data)); });
     source.addEventListener('attention', function (e) { raiseAlarm(JSON.parse(e.data)); });
 
+    source.onopen = function () {
+      if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
+    };
+
     source.onerror = function () {
-      // EventSource переподключается сам; наше дело — показать это человеку.
-      $('levelText').textContent = 'связь с Штурманом потеряна…';
+      $('levelText').textContent = 'связь потеряна…';
       $('levelDot').className = 'chip__dot chip__dot--error';
+      $('stateText').textContent = 'нет связи с Штурманом';
+      $('stateDot').className = 'chip__dot chip__dot--error';
     };
   }
 
-  // ── 15. Управление лентой ─────────────────────────────────────────────────
+  function disconnect() {
+    if (source) { source.close(); source = null; }
+  }
+
+  /**
+   * Экономия на телефоне: пока вкладка свёрнута, поток не нужен — он держит
+   * соединение и будит радиомодуль. Отключаемся через минуту в фоне и
+   * подключаемся заново при возвращении.
+   */
+  (function visibility() {
+    var sleepTimer = null;
+    document.addEventListener('visibilitychange', function () {
+      if (document.hidden) {
+        sleepTimer = setTimeout(function () {
+          disconnect();
+          sleepTimer = null;
+        }, 60000);
+      } else {
+        if (sleepTimer) { clearTimeout(sleepTimer); sleepTimer = null; }
+        if (!source) connect();
+        // Пока спали, могло произойти что угодно — обновляем срез.
+        api('/api/pulse').then(renderPulse).catch(function () { /* переподключимся */ });
+      }
+    });
+  })();
+
+  // ── 15. Управление, горячие клавиши, тур, старт ───────────────────────────
 
   $('modeSimple').addEventListener('click', function () { setDetailed(false); });
   $('modeDetail').addEventListener('click', function () { setDetailed(true); });
@@ -1332,34 +1790,29 @@
     store.set('detailed', v);
     $('modeSimple').classList.toggle('is-active', !v);
     $('modeDetail').classList.toggle('is-active', v);
+    ROW_H = v ? 190 : 74;              // в подробном режиме карточки выше
+    drawnKey = '';
     rebuildFeed();
   }
 
-  $('btnPause').addEventListener('click', function () {
-    app.paused = !app.paused;
-    $('btnPause').textContent = app.paused ? '▶ Продолжить' : '⏸ Пауза';
+  $('btnPause').addEventListener('click', function () { togglePause(); });
+  $('btnResume').addEventListener('click', function () { togglePause(false); });
+
+  function togglePause(force) {
+    app.paused = force === undefined ? !app.paused : force;
+    $('btnPause').innerHTML = '';
+    $('btnPause').appendChild(document.createTextNode(app.paused ? '▶' : '⏸'));
+    $('btnPause').appendChild(el('span', 'btn__label', app.paused ? ' Продолжить' : ' Пауза'));
     $('btnPause').classList.toggle('is-on', app.paused);
     $('feedPaused').hidden = !app.paused;
     if (!app.paused) flushQueue();
-  });
-
-  $('btnResume').addEventListener('click', function () {
-    app.paused = false;
-    $('btnPause').textContent = '⏸ Пауза';
-    $('btnPause').classList.remove('is-on');
-    $('feedPaused').hidden = true;
-    flushQueue();
-  });
+  }
 
   function flushQueue() {
-    app.queued.forEach(function (ev) {
-      if (matches(ev)) feed.appendChild(renderEvent(ev, false));
-    });
+    app.queued.forEach(function (ev) { app.events.push(ev); });
     app.queued = [];
     $('pausedCount').textContent = '0';
-    trimFeedDom();
-    feedEmpty.hidden = feed.childElementCount > 0;
-    feed.scrollTop = feed.scrollHeight;
+    rebuildFeed();
   }
 
   $('feedFilters').addEventListener('click', function (e) {
@@ -1375,26 +1828,50 @@
   $('feedSearch').addEventListener('input', function () {
     var v = this.value.trim().toLowerCase();
     clearTimeout(searchTimer);
-    searchTimer = setTimeout(function () {
-      app.query = v;
-      rebuildFeed();
-    }, 180);
+    searchTimer = setTimeout(function () { app.query = v; rebuildFeed(); }, 180);
   });
 
   var treeSearchTimer = null;
   $('treeSearch').addEventListener('input', function () {
     var v = this.value.trim().toLowerCase();
     clearTimeout(treeSearchTimer);
-    treeSearchTimer = setTimeout(function () {
-      app.treeQuery = v;
-      renderTree();
-    }, 180);
+    treeSearchTimer = setTimeout(function () { app.treeQuery = v; renderTree(); }, 180);
   });
 
   $('btnTreeRefresh').addEventListener('click', loadTree);
   $('btnSessionsRefresh').addEventListener('click', loadSessions);
-  $('drawerClose').addEventListener('click', closeDrawer);
   $('btnGlossary').addEventListener('click', openGlossary);
+  $('btnConnect').addEventListener('click', openConnect);
+  $('btnDigest').addEventListener('click', openDigest);
+  $('btnSettings').addEventListener('click', openSettings);
+
+  // «⋯» на телефоне: то же самое, что кнопки в шапке на компьютере.
+  // Список строится из них же, поэтому разойтись они не могут.
+  $('btnMore').addEventListener('click', function () {
+    var body = openSheet('⋯ Ещё');
+    [
+      ['📱', 'Открыть на телефоне', 'QR-код и ссылка для другого устройства', openConnect],
+      ['📚', 'Словарь', glossary.terms.length + ' терминов простыми словами', openGlossary],
+      ['📄', 'Итоги сессии', 'Дневник в markdown: что просили, что менялось', openDigest],
+      ['🌗', 'Тема оформления', 'Сейчас: ' + ({ auto: 'как в системе', dark: 'тёмная', light: 'светлая' })[app.theme],
+        function () {
+          var order = ['auto', 'dark', 'light'];
+          applyTheme(order[(order.indexOf(app.theme) + 1) % order.length]);
+          closeSheet();
+        }],
+      ['🎓', 'Тур по панели', 'Пять шагов: что где смотреть', function () { closeSheet(); startTour(); }],
+      ['⚙️', 'Настройки', 'Звук, уведомления, тема, порог сигнала', openSettings]
+    ].forEach(function (item) {
+      var row = el('div', 'set__row');
+      var lbl = el('div', 'set__label');
+      lbl.appendChild(el('b', null, item[0] + '  ' + item[1]));
+      lbl.appendChild(el('span', null, item[2]));
+      row.appendChild(lbl);
+      row.style.cursor = 'pointer';
+      row.addEventListener('click', item[3]);
+      body.appendChild(row);
+    });
+  });
 
   Array.prototype.forEach.call(document.querySelectorAll('[data-gittab]'), function (btn) {
     btn.addEventListener('click', function () {
@@ -1407,155 +1884,130 @@
     });
   });
 
-  $('btnDigest').addEventListener('click', function () {
-    var body = openModal('📄 Что мы сегодня сделали');
-    body.appendChild(el('p', 'muted', 'Собираем дайджест…'));
-    api('/api/digest').then(function (d) {
-      clear(body);
-      var actions = el('div', 'set__row');
-      var dl = el('button', 'btn btn--primary', '⬇ Скачать .md');
-      dl.addEventListener('click', function () {
-        window.location.href = href('/api/digest', { download: 1 });
-      });
-      var copy = el('button', 'btn', '📋 Скопировать');
-      copy.addEventListener('click', function () {
-        if (navigator.clipboard) {
-          navigator.clipboard.writeText(d.markdown).then(function () {
-            copy.textContent = '✓ Скопировано';
-          });
-        }
-      });
-      actions.appendChild(dl);
-      actions.appendChild(copy);
-      body.appendChild(actions);
-      body.appendChild(Object.assign(el('pre', 'out'), { textContent: d.markdown }));
-    });
-  });
-
-  $('btnSettings').addEventListener('click', function () {
-    var body = openModal('⚙️ Настройки');
-
-    body.appendChild(settingRow(
-      'Звуковой сигнал', 'Короткий сигнал, когда Клод остановился и ждёт вас.',
-      app.sound, function (v) { app.sound = v; store.set('sound', v); }));
-
-    body.appendChild(settingRow(
-      'Уведомления браузера', 'Всплывающее уведомление системы — видно, даже если вкладка свёрнута.',
-      app.notify, function (v) {
-        app.notify = v;
-        store.set('notify', v);
-        if (v && 'Notification' in window && Notification.permission === 'default') {
-          Notification.requestPermission();
-        }
-      }));
-
-    var idleRow = el('div', 'set__row');
-    var lbl = el('div', 'set__label');
-    lbl.appendChild(el('b', null, 'Через сколько тишины считать, что Клод ждёт'));
-    lbl.appendChild(el('span', null, 'Сейчас: ' + (app.state ? app.state.idleSeconds : 45) + ' с. ' +
-      'Слишком мало — сигнал будет срабатывать между шагами Клода.'));
-    idleRow.appendChild(lbl);
-    var input = el('input', 'input');
-    input.type = 'number';
-    input.min = '5';
-    input.max = '600';
-    input.style.width = '90px';
-    input.value = app.state ? app.state.idleSeconds : 45;
-    input.addEventListener('change', function () {
-      api('/api/settings', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ idleSeconds: Number(input.value) })
-      }).then(renderState);
-    });
-    idleRow.appendChild(input);
-    body.appendChild(idleRow);
-
-    var info = el('div', 'set__row');
-    var il = el('div', 'set__label');
-    il.appendChild(el('b', null, '«Спроси Клода»'));
-    il.appendChild(el('span', null, app.state && app.state.askEnabled
-      ? (app.state.askAvailable
-        ? 'Включена. Кнопка появляется в карточке события. Расходует ваши лимиты.'
-        : 'Включена флагом --ask, но команда claude не найдена в PATH.')
-      : 'Выключена. Чтобы включить, перезапустите Штурман с флагом --ask. ' +
-        'Функция отправляет вопрос в claude -p и расходует ваши лимиты.'));
-    info.appendChild(il);
-    body.appendChild(info);
-
-    var about = el('div', 'set__row');
-    var al = el('div', 'set__label');
-    al.appendChild(el('b', null, 'О наблюдении'));
-    al.appendChild(el('span', null, app.state
-      ? 'Файлы: ' + (app.state.watchMode === 'native' ? 'системное наблюдение' : 'периодический опрос') +
-        ' · Транскрипт: ' + (app.state.transcriptFile || 'не найден') +
-        ' · Node ' + app.state.node + ' · Штурман ' + app.state.version
-      : ''));
-    about.appendChild(al);
-    body.appendChild(about);
-  });
-
-  function settingRow(title, text, value, onChange) {
-    var row = el('div', 'set__row');
-    var lbl = el('div', 'set__label');
-    lbl.appendChild(el('b', null, title));
-    lbl.appendChild(el('span', null, text));
-    row.appendChild(lbl);
-    var btn = el('button', 'btn' + (value ? ' is-on' : ''), value ? 'Включено' : 'Выключено');
-    btn.addEventListener('click', function () {
-      value = !value;
-      btn.textContent = value ? 'Включено' : 'Выключено';
-      btn.classList.toggle('is-on', value);
-      onChange(value);
-    });
-    row.appendChild(btn);
-    return row;
-  }
-
+  // Горячие клавиши. Не срабатывают при вводе в поле — иначе «/» нельзя
+  // было бы напечатать в поиске.
   document.addEventListener('keydown', function (e) {
     if (e.key === 'Escape') {
-      if (!modal.hidden) closeModal();
-      else if (!drawer.hidden) closeDrawer();
+      if (!sheet.hidden) closeSheet();
       else if (!$('tour').hidden) endTour();
       tip.hidden = true;
+      return;
+    }
+    var tag = (e.target.tagName || '').toLowerCase();
+    if (tag === 'input' || tag === 'textarea' || e.metaKey || e.ctrlKey || e.altKey) return;
+
+    if (e.key >= '1' && e.key <= '4') {
+      e.preventDefault();
+      setView(VIEWS[Number(e.key) - 1]);
+    } else if (e.key === '/') {
+      e.preventDefault();
+      setView('feed');
+      $('feedSearch').focus();
+      $('feedSearch').select();
+    } else if (e.key === 'm' || e.key === 'ь') {
+      app.sound = !app.sound;
+      store.set('sound', app.sound);
+      notice(app.sound ? 'Звуковой сигнал включён.' : 'Звуковой сигнал выключен.');
+      setTimeout(hideNotice, 1800);
+    } else if (e.key === 't' || e.key === 'е') {
+      var order = ['auto', 'dark', 'light'];
+      applyTheme(order[(order.indexOf(app.theme) + 1) % order.length]);
+    } else if (e.key === 'p' || e.key === 'з') {
+      togglePause();
     }
   });
 
-  // ── 16. Тур первого запуска ───────────────────────────────────────────────
+  // Перетаскивание границы панелей на компьютере.
+  (function resizer() {
+    var grid = $('grid');
+    var bar = el('div', 'resizer');
+    grid.appendChild(bar);
+
+    var saved = store.get('gridSplit', null);
+    function apply(fr) {
+      if (isNarrow()) return;
+      grid.style.gridTemplateColumns = fr;
+    }
+    if (saved) apply(saved);
+
+    var dragging = false;
+    function place() {
+      if (isNarrow()) { bar.hidden = true; return; }
+      bar.hidden = false;
+      var feedPanel = $('panelFeed');
+      var r = feedPanel.getBoundingClientRect();
+      bar.style.left = (r.right - grid.getBoundingClientRect().left + 6) + 'px';
+    }
+
+    bar.addEventListener('mousedown', function (e) {
+      dragging = true;
+      bar.classList.add('is-dragging');
+      e.preventDefault();
+    });
+    document.addEventListener('mousemove', function (e) {
+      if (!dragging) return;
+      var r = grid.getBoundingClientRect();
+      var left = Math.min(Math.max(e.clientX - r.left, 320), r.width - 320);
+      var cols = window.matchMedia('(max-width: 1400px)').matches
+        ? left + 'px 1fr'
+        : left + 'px 1fr 1fr';
+      apply(cols);
+      store.set('gridSplit', cols);
+      place();
+    });
+    document.addEventListener('mouseup', function () {
+      if (!dragging) return;
+      dragging = false;
+      bar.classList.remove('is-dragging');
+    });
+    window.addEventListener('resize', place);
+    setTimeout(place, 300);
+  })();
+
+  window.addEventListener('resize', function () {
+    drawnKey = '';
+    renderWindow();
+    if (app.pulse) renderAttentionGraph(app.pulse.attention);
+  });
+
+  // --- тур ---------------------------------------------------------------------
 
   var TOUR = [
     {
-      target: '#panelFeed',
+      target: function () { return isNarrow() ? $('tabbar') : $('panelFeed'); },
       title: 'Лента «Что происходит»',
       text: 'Здесь по-русски описано каждое действие Клода: что он прочитал, что изменил, ' +
-        'какую команду запустил и чем она закончилась. Нажмите на любую строку — откроются подробности: ' +
-        'дифф, вывод команды, сырые данные.'
+        'какую команду запустил и чем она закончилась. Нажмите на любую строку — откроются ' +
+        'подробности: дифф, вывод команды, сырые данные. ' +
+        'На телефоне разделы переключаются вкладками внизу или свайпом.'
     },
     {
-      target: '#panelTree',
+      target: function () { return isNarrow() ? $('tabbar') : $('panelTree'); },
       title: 'Карта проекта',
-      text: 'Живое дерево файлов. Только что изменённые подсвечиваются жёлтым, и подсветка постепенно гаснет — ' +
-        'так видно, где именно кипит работа. Клик по файлу открывает карточку: что это за файл ' +
+      text: 'Живое дерево файлов. Только что изменённые подсвечиваются, и подсветка постепенно ' +
+        'гаснет — так видно, где кипит работа. Клик по файлу открывает карточку: что это за файл ' +
         'простыми словами, размер и последние изменения.'
     },
     {
-      target: '#panelGit',
+      target: function () { return isNarrow() ? $('tabbar') : $('panelGit'); },
       title: 'Git без страха',
-      text: 'Текущая ветка и её смысл, счётчик несохранённых изменений и история как линия времени. ' +
-        'Значки «?» рядом с терминами открывают объяснение — в словаре больше тридцати слов.'
+      text: 'Текущая ветка и её смысл, счётчик несохранённых изменений и история как линия ' +
+        'времени. Значки «?» рядом с терминами открывают объяснение — в словаре больше ' +
+        'тридцати слов.'
     },
     {
-      target: '#pulse',
-      title: 'Пульс сессии',
-      text: 'Сколько файлов затронуто, сколько команд выполнено, сколько ошибок встретилось и как долго ' +
-        'идёт работа. Расход токенов считается по транскрипту и всегда приблизительный.'
+      target: function () { return $('btnConnect'); },
+      title: 'Смотреть с телефона',
+      text: 'Если запустить Штурман командой «shturman --share», эта кнопка покажет QR-код. ' +
+        'Наводите камеру телефона — панель откроется там же, со всеми разделами. ' +
+        'Ссылка содержит ключ доступа, без него никто посторонний не войдёт.'
     },
     {
-      target: '#btnBell',
+      target: function () { return $('btnBell'); },
       title: 'Главное: сигнал «Клод ждёт»',
-      text: 'Когда Клод остановится и будет ждать вашего ответа, Штурман подаст звуковой сигнал и покажет ' +
-        'уведомление — можно спокойно уйти за чаем. Нажмите эту кнопку сейчас, чтобы разрешить звук ' +
-        'и уведомления: браузер требует вашего явного действия.'
+      text: 'Когда Клод остановится и будет ждать вашего ответа, Штурман подаст звуковой сигнал ' +
+        'и покажет уведомление — можно спокойно уйти за чаем. Нажмите эту кнопку сейчас, чтобы ' +
+        'разрешить звук и уведомления: браузер требует вашего явного действия.'
     }
   ];
 
@@ -1569,7 +2021,7 @@
 
   function drawTour() {
     var step = TOUR[tourStep];
-    var target = document.querySelector(step.target);
+    var target = typeof step.target === 'function' ? step.target() : document.querySelector(step.target);
     $('tourStep').textContent = 'Шаг ' + (tourStep + 1) + ' из ' + TOUR.length;
     $('tourTitle').textContent = step.title;
     $('tourText').textContent = step.text;
@@ -1587,14 +2039,20 @@
     spot.style.width = (r.width + pad * 2) + 'px';
     spot.style.height = (r.height + pad * 2) + 'px';
 
-    // Карточку ставим туда, где есть место: справа, слева или снизу.
-    var cw = card.offsetWidth || 400;
+    var cw = card.offsetWidth || 380;
     var ch = card.offsetHeight || 200;
-    var left = r.right + 16;
-    if (left + cw > window.innerWidth - 12) left = r.left - cw - 16;
-    if (left < 12) left = Math.max(12, Math.min(r.left, window.innerWidth - cw - 12));
-    var top = r.top;
-    if (top + ch > window.innerHeight - 12) top = Math.max(12, window.innerHeight - ch - 12);
+    var left, top;
+    if (isNarrow()) {
+      // На телефоне карточка ставится над или под подсвеченным местом.
+      left = Math.max(12, Math.min((window.innerWidth - cw) / 2, window.innerWidth - cw - 12));
+      top = r.top > window.innerHeight / 2 ? r.top - ch - 16 : r.bottom + 16;
+      top = Math.max(12, Math.min(top, window.innerHeight - ch - 12));
+    } else {
+      left = r.right + 16;
+      if (left + cw > window.innerWidth - 12) left = r.left - cw - 16;
+      if (left < 12) left = Math.max(12, Math.min(r.left, window.innerWidth - cw - 12));
+      top = Math.max(12, Math.min(r.top, window.innerHeight - ch - 12));
+    }
     card.style.left = left + 'px';
     card.style.top = top + 'px';
   }
@@ -1614,16 +2072,25 @@
   });
   $('tourSkip').addEventListener('click', endTour);
   $('btnTour').addEventListener('click', startTour);
-  window.addEventListener('resize', function () {
-    if (!$('tour').hidden) drawTour();
-  });
+  window.addEventListener('resize', function () { if (!$('tour').hidden) drawTour(); });
 
-  // ── 17. Старт ─────────────────────────────────────────────────────────────
+  // --- PWA ---------------------------------------------------------------------
 
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', function () {
+      navigator.serviceWorker.register('/sw.js').catch(function () {
+        // Без service worker панель работает как обычная страница.
+      });
+    });
+  }
+
+  // --- старт -------------------------------------------------------------------
+
+  applyTheme(app.theme);
   setDetailed(app.detailed);
+  togglePause(false);
+  setView(store.get('view', 'feed'));
 
-  // Сначала выясняем, какие проекты вообще есть, и восстанавливаем выбранный
-  // с прошлого раза — иначе первый же запрос дерева уйдёт не в тот проект.
   api('/api/projects').then(function (d) {
     var saved = store.get('project', null);
     var known = (d.projects || []).some(function (p) { return p.key === saved; });
@@ -1635,9 +2102,8 @@
     .then(loadSessions)
     .then(function () {
       connect();
-      if (!store.get('tourDone', false)) setTimeout(startTour, 700);
+      if (!store.get('tourDone', false)) setTimeout(startTour, 800);
     });
 
-  // Журнал сессий обновляем редко: он меняется от силы раз в час.
   setInterval(loadSessions, 60000);
 })();

@@ -1,0 +1,45 @@
+{
+  "name": "Штурман — панель-наставник для Claude Code",
+  "short_name": "Штурман",
+  "description": "Показывает простым русским языком, что делает Claude Code, и подаёт сигнал, когда он остановился и ждёт вас.",
+  "lang": "ru-RU",
+  "dir": "ltr",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone", "browser"],
+  "orientation": "any",
+  "background_color": "#0d1117",
+  "theme_color": "#0d1117",
+  "categories": ["developer", "productivity", "utilities"],
+  "icons": [
+    { "src": "/icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "/icons/icon-96.png", "sizes": "96x96", "type": "image/png" },
+    { "src": "/icons/icon-180.png", "sizes": "180x180", "type": "image/png" },
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icons/icon-256.png", "sizes": "256x256", "type": "image/png" },
+    { "src": "/icons/icon-384.png", "sizes": "384x384", "type": "image/png" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    {
+      "name": "Лента событий",
+      "short_name": "Лента",
+      "description": "Что Клод делает прямо сейчас",
+      "url": "/?tab=feed"
+    },
+    {
+      "name": "Карта проекта",
+      "short_name": "Карта",
+      "description": "Какие файлы менялись",
+      "url": "/?tab=map"
+    },
+    {
+      "name": "Git",
+      "short_name": "Git",
+      "description": "Ветка, изменения, история",
+      "url": "/?tab=git"
+    }
+  ]
+}

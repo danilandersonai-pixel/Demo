@@ -306,6 +306,8 @@ function createApp(opts) {
       projectCheck: state.projectCheck,
       askEnabled: state.askEnabled,
       askAvailable: state.askAvailable,
+      share: !!state.share,
+      settings: configLib.load().config,
       idleSeconds: Math.round(detector.idleMs() / 1000),
       glossarySize: glossary.count,
       version: state.version,
@@ -430,6 +432,8 @@ var MIME = {
   '.svg': 'image/svg+xml',
   '.json': 'application/json; charset=utf-8',
   '.ico': 'image/x-icon',
+  '.png': 'image/png',
+  '.webmanifest': 'application/manifest+json; charset=utf-8',
   '.md': 'text/markdown; charset=utf-8'
 };
 
@@ -796,6 +800,19 @@ function createServer(appOrRegistry, opts, sharedGuard) {
         if (data.idleSeconds !== undefined) {
           app.detector.setIdleMs(Number(data.idleSeconds) * 1000);
         }
+        // Настройки внешнего вида и звука дублируются в конфиг: так они
+        // переживают смену браузера и одинаковы на телефоне и компьютере.
+        var loaded = configLib.load();
+        var cfg = loaded.config;
+        ['theme', 'feedMode'].forEach(function (k) {
+          if (typeof data[k] === 'string') cfg[k] = data[k];
+        });
+        ['sound', 'notify'].forEach(function (k) {
+          if (typeof data[k] === 'boolean') cfg[k] = data[k];
+        });
+        if (data.idleSeconds !== undefined) cfg.idleSeconds = Number(data.idleSeconds);
+        configLib.save(cfg);
+
         var st = app.publicState();
         app.hub.broadcast('state', st);
         sendJson(res, 200, st);

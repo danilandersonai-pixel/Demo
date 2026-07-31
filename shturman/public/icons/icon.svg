@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Штурман">
+  <!-- Компас: стрелка показывает направление — ровно то, что делает панель. -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#141a23"/>
+      <stop offset="1" stop-color="#0a0e14"/>
+    </linearGradient>
+    <linearGradient id="needle" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#7dd3fc"/>
+      <stop offset="1" stop-color="#38bdf8"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+
+  <!-- Кольцо компаса -->
+  <circle cx="256" cy="256" r="168" fill="none" stroke="#232c3a" stroke-width="16"/>
+  <circle cx="256" cy="256" r="168" fill="none" stroke="#7dd3fc" stroke-width="16"
+          stroke-linecap="round" stroke-dasharray="70 985" stroke-dashoffset="-230" opacity=".85"/>
+
+  <!-- Румбы -->
+  <g fill="#6b7889">
+    <rect x="248" y="60" width="16" height="34" rx="8"/>
+    <rect x="248" y="418" width="16" height="34" rx="8"/>
+    <rect x="60" y="248" width="34" height="16" rx="8"/>
+    <rect x="418" y="248" width="34" height="16" rx="8"/>
+  </g>
+
+  <!-- Стрелка: светлая половина — север -->
+  <path d="M256 118 L316 300 L256 262 Z" fill="url(#needle)"/>
+  <path d="M256 394 L196 212 L256 250 Z" fill="#3c4a5e"/>
+  <circle cx="256" cy="256" r="26" fill="#0a0e14" stroke="#7dd3fc" stroke-width="12"/>
+</svg>
