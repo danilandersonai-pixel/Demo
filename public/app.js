@@ -1028,10 +1028,35 @@
       if (!info.enabled) {
         var off = el('div', 'conn__off');
         off.appendChild(document.createTextNode(
-          'Чтобы открыть панель на телефоне, остановите Штурман (Ctrl+C) ' +
-          'и запустите заново вот так:'));
+          'Включить можно прямо отсюда — перезапускать Штурман не нужно. ' +
+          'Или запустить его сразу с флагом:'));
         off.appendChild(el('code', 'conn__cmd', 'shturman --share'));
         box.appendChild(off);
+
+        var on = el('button', 'btn btn--primary', '📱 Включить доступ с телефона');
+        on.style.marginTop = '14px';
+        on.addEventListener('click', function () {
+          on.disabled = true;
+          on.textContent = 'Включаем…';
+          api('/api/connect/share', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ enabled: true })
+          }).then(function (r) {
+            if (r.error) {
+              on.disabled = false;
+              on.textContent = '📱 Включить доступ с телефона';
+              box.appendChild(el('p', 'muted', r.error));
+              return;
+            }
+            openConnect();
+          }).catch(function (e) {
+            on.disabled = false;
+            on.textContent = '📱 Включить доступ с телефона';
+            box.appendChild(el('p', 'muted', 'Не получилось: ' + e.message));
+          });
+        });
+        box.appendChild(on);
         return;
       }
 
@@ -1073,9 +1098,24 @@
       });
       var resetSec = section(body, 'Отозвать доступ');
       resetSec.appendChild(el('p', 'muted',
-        'Все выданные ссылки перестанут работать, а QR-код нужно будет ' +
-        'отсканировать заново. Пригодится, если ссылка попала не туда.'));
+        'Сбросить ключ — все выданные ссылки перестанут работать, а QR-код ' +
+        'нужно будет отсканировать заново. Пригодится, если ссылка попала не туда. ' +
+        'Выключить доступ — панель снова станет видна только на этом компьютере.'));
       resetSec.appendChild(reset);
+
+      var offBtn = el('button', 'btn', '🔒 Выключить доступ по сети');
+      offBtn.style.marginLeft = '8px';
+      offBtn.addEventListener('click', function () {
+        offBtn.disabled = true;
+        offBtn.textContent = 'Выключаем…';
+        api('/api/connect/share', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ enabled: false })
+        }).then(function () { openConnect(); })
+          .catch(function () { openConnect(); });
+      });
+      resetSec.appendChild(offBtn);
     }).catch(function (e) {
       clear(body);
       body.appendChild(el('p', 'muted', 'Не получилось: ' + e.message));
