@@ -27,6 +27,7 @@ var statsLib = require('./lib/stats');
 var glossary = require('./lib/glossary');
 var digestLib = require('./lib/digest');
 var textdiff = require('./lib/textdiff');
+var doctor = require('./lib/doctor');
 var humanize = require('./lib/humanize');
 var paths = require('./lib/paths');
 
@@ -878,6 +879,14 @@ function main(argv) {
       '\n  Укажите правильный путь флагом --project.\n\n');
     process.exitCode = 2;
     return Promise.resolve();
+  }
+
+  // Самодиагностика вместо запуска: ничего не поднимаем, только смотрим.
+  if (opts.check) {
+    return doctor.run(opts).then(function (report) {
+      process.stdout.write(doctor.format(report, opts));
+      if (!report.ok) process.exitCode = 1;
+    });
   }
 
   var registry = createRegistry(opts);
