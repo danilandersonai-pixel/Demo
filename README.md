@@ -373,7 +373,7 @@ shturman/
 ├── public/                — index.html, styles.css, app.js,
 │                            manifest.json, sw.js, offline.html, icons/
 ├── tools/make-icons.js    — генератор PNG-иконок
-└── tests/                 — 266 проверок на node:test + ручной аудит
+└── tests/                 — 273 проверки на node:test + ручной аудит
 ```
 
 Почему принято именно так — в [DECISIONS.md](DECISIONS.md).
@@ -383,7 +383,7 @@ shturman/
 ## Тесты
 
 ```bash
-npm test          # 266 проверок
+npm test          # 273 проверки
 
 # ручной аудит интерфейса (нужен Chromium):
 node server.js --port 4517 &
