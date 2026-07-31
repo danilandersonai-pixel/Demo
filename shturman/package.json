@@ -1,0 +1,15 @@
+{
+  "name": "shturman",
+  "version": "0.3.0",
+  "description": "Панель-наставник для новичка в Claude Code: показывает простым русским языком, что делает Клод, что меняется в файлах и git, и сигналит, когда Клод ждёт человека.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "private": true,
+  "license": "MIT"
+}
