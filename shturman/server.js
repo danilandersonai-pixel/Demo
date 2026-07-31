@@ -536,6 +536,13 @@ function banner() {
     ? 'транскрипты Claude Code + файлы + git (уровень A)'
     : 'файлы + git (уровень B — транскрипты появятся, когда Claude Code поработает здесь)'));
   lines.push('');
+  if (!monitors[0].looksLikeProject()) {
+    lines.push('');
+    lines.push('  ⚠ Эта папка не очень похожа на проект. Возможно, вы хотели одну из недавних:');
+    (cfg.recentProjects || []).slice(0, 3).forEach(function (p) {
+      if (p !== monitors[0].root) lines.push('    · shturman --project "' + p + '"');
+    });
+  }
   lines.push('  Панель на этом компьютере:  http://127.0.0.1:' + PORT);
   if (SHARE) {
     var addrs = netinfo.lanAddresses();
