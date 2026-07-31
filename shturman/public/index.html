@@ -164,8 +164,13 @@
     <section class="panel panel--attention" id="panelAttention">
       <header class="panel__head">
         <h2 class="panel__title">Куда смотрит Клод</h2>
+        <div class="seg seg--sm" role="group" aria-label="Вид карты внимания">
+          <button class="seg__btn is-active" data-atttab="graph">Граф</button>
+          <button class="seg__btn" data-atttab="list">Список</button>
+        </div>
       </header>
-      <div class="attention" id="attentionMap">
+      <div class="attention" id="attentionGraph"></div>
+      <div class="attention" id="attentionMap" hidden>
         <p class="muted">Пока никуда — ждём первых чтений и правок.</p>
       </div>
     </section>
