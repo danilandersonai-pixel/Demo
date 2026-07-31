@@ -8,7 +8,9 @@ var humanize = require('./humanize');
 function createStats(options) {
   var opts = options || {};
   var now = opts.now || Date.now;
-  var startedAt = opts.startedAt || now();
+  // Явная проверка на undefined: startedAt вполне может быть нулём
+  // (в тестах время отсчитывается от нуля), и `||` его бы потерял.
+  var startedAt = opts.startedAt === undefined ? now() : opts.startedAt;
 
   var filesTouched = new Set();
   var filesRead = new Set();

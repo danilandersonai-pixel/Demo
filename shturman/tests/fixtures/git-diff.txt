@@ -1,0 +1,16 @@
+diff --git a/engine/game.js b/engine/game.js
+index 1234567..89abcde 100644
+--- a/engine/game.js
++++ b/engine/game.js
+@@ -1,4 +1,5 @@ function start()
+ const a = require('./a')
+-const b = require('./bb')
++const b = require('./b')
++const c = require('./c')
+ 
+@@ -20,3 +21,3 @@
+-  return null
++  return result
+ }
+diff --git a/assets/logo.png b/assets/logo.png
+Binary files a/assets/logo.png and b/assets/logo.png differ

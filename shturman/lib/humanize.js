@@ -237,7 +237,7 @@ function humanize(ev) {
     case 'git': return humanizeGit(ev);
     case 'session': return humanizeSession(ev);
     case 'system': return {
-      icon: ev.level === 'error' ? '⛔' : 'ℹ️',
+      icon: ev.level === 'error' ? '⛔' : (ev.level === 'warn' ? '⚠️' : 'ℹ️'),
       title: ev.title || 'Сообщение Штурмана',
       hint: ev.hint || '',
       level: ev.level || 'info'

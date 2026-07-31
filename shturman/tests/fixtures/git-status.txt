@@ -1,0 +1,11 @@
+ M lib/humanize.js
+M  lib/git.js
+MM public/app.js
+A  tests/новый.test.js
+ D старый.js
+D  удалён-из-индекса.js
+?? scratch/
+!! ignored.log
+R  lib/old-name.js -> lib/new-name.js
+UU конфликт.js
+?? "путь с \320\272\320\270\321\200\320\270\320\273\320\273\320\270\321\206\320\265\320\271.txt"
