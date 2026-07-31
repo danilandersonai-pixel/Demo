@@ -4,11 +4,12 @@ var path = require('path');
 
 /**
  * Разбор аргументов командной строки:
- *   node server.js --project <путь> [--port 4517] [--no-open]
- * Поддерживаем и запись через «=»: --port=4600.
+ *   node server.js --project <путь> [--project <ещё путь>] [--port 4517]
+ * Поддерживаем и запись через «=»: --port=4600. Несколько --project —
+ * несколько папок в одной панели (переключатель в шапке).
  */
 function parseArgs(argv) {
-  var out = { project: process.cwd(), port: 4517, help: false };
+  var out = { projects: [], port: 4517, help: false };
   var args = argv.slice(2);
   for (var i = 0; i < args.length; i++) {
     var a = args[i];
@@ -22,7 +23,7 @@ function parseArgs(argv) {
       case '--project':
       case '-p':
         if (val === null) val = args[++i];
-        if (val) out.project = val;
+        if (val) out.projects.push(val);
         break;
       case '--port':
         if (val === null) val = args[++i];
@@ -38,14 +39,22 @@ function parseArgs(argv) {
         // не падаем на незнакомом флаге — просто предупреждаем
         if (key.indexOf('-') === 0) {
           out.warning = 'Незнакомый параметр «' + key + '» — пропускаю.';
-        } else if (!out._positionalUsed) {
+        } else {
           // «node server.js /путь/к/проекту» тоже поймём
-          out.project = key;
-          out._positionalUsed = true;
+          out.projects.push(key);
         }
     }
   }
-  out.project = path.resolve(out.project);
+  if (!out.projects.length) out.projects.push(process.cwd());
+  // резолвим и убираем дубли, сохраняя порядок
+  var seen = {};
+  out.projects = out.projects.map(function (p) { return path.resolve(p); })
+    .filter(function (p) {
+      if (seen[p]) return false;
+      seen[p] = true;
+      return true;
+    });
+  out.project = out.projects[0]; // совместимость: «главный» проект
   return out;
 }
 
@@ -55,6 +64,7 @@ var HELP = [
   'Запуск:',
   '  node server.js                     наблюдать за текущей папкой',
   '  node server.js --project <путь>    наблюдать за другой папкой',
+  '  node server.js -p <путь> -p <ещё>  несколько папок в одной панели',
   '  node server.js --port 4600         другой порт (по умолчанию 4517)',
   '',
   'Затем откройте в браузере адрес, который появится в терминале.'

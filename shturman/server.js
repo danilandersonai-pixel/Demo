@@ -5,7 +5,9 @@
  * Только наблюдает: читает транскрипты Claude Code, файловую систему и git,
  * ничего не меняя в проекте. Сервер слушает исключительно 127.0.0.1.
  *
- * Запуск: node server.js [--project <путь>] [--port 4517]
+ * Запуск: node server.js [--project <путь>]… [--port 4517]
+ * Несколько --project — несколько папок в одной панели (переключатель).
+ * Пер-проектная логика живёт в lib/monitor.js, здесь — HTTP и маршруты.
  */
 
 var http = require('node:http');
@@ -18,12 +20,11 @@ var paths = require('./lib/paths');
 var git = require('./lib/git');
 var tree = require('./lib/tree');
 var sse = require('./lib/sse');
-var pulseMod = require('./lib/pulse');
-var watcherMod = require('./lib/watcher');
 var transcript = require('./lib/transcript');
 var humanize = require('./lib/humanize');
 var glossary = require('./lib/glossary');
 var filedoc = require('./lib/filedoc');
+var monitorMod = require('./lib/monitor');
 
 var args = cli.parseArgs(process.argv);
 if (args.help) {
@@ -36,7 +37,6 @@ if (args.error) {
 }
 if (args.warning) console.warn(args.warning);
 
-var PROJECT = args.project;
 var PORT = args.port;
 
 var VERSION = '0.0.0';
@@ -44,185 +44,56 @@ try {
   VERSION = JSON.parse(fs.readFileSync(path.join(__dirname, 'package.json'), 'utf8')).version || VERSION;
 } catch (e) { /* без версии тоже жить можно */ }
 
-try {
-  if (!fs.statSync(PROJECT).isDirectory()) throw new Error('не каталог');
-} catch (e) {
-  console.error('Не могу открыть папку проекта: ' + PROJECT);
-  console.error('Проверьте путь и попробуйте ещё раз: node server.js --project <путь>');
-  process.exit(1);
-}
+args.projects.forEach(function (p) {
+  try {
+    if (!fs.statSync(p).isDirectory()) throw new Error('не каталог');
+  } catch (e) {
+    console.error('Не могу открыть папку проекта: ' + p);
+    console.error('Проверьте путь и попробуйте ещё раз: node server.js --project <путь>');
+    process.exit(1);
+  }
+});
 
 /* ------------------------------------------------------------------ */
-/* Состояние                                                           */
+/* Мониторы проектов                                                   */
 /* ------------------------------------------------------------------ */
 
 var hub = sse.createHub();
-var recentFileChanges = {};   // rel → {mtimeMs, kind} — тепловой след карты
+var monitors = [];      // в порядке аргументов; первый — по умолчанию
+var byId = {};          // id → монитор
 
-var pulse = pulseMod.createPulse(function (event) {
-  pushEvent(event);
-}, {
-  // Edit присылает абсолютный путь, вотчер — относительный: приводим к
-  // одному виду, чтобы «файлов затронуто» не считало файл дважды
-  normalizePath: function (p) { return paths.relToProject(PROJECT, path.isAbsolute(p) ? p : path.join(PROJECT, p)); }
-});
-
-/** Нормализованное событие → humanize → SSE. */
-function pushEvent(event) {
-  var card = humanize.humanizeEvent(event, PROJECT);
-  if (!card) return; // usage и прочее, что не показываем строкой
-  hub.broadcast('feed', {
-    ts: event.ts || new Date().toISOString(),
-    kind: event.kind,
-    icon: card.icon,
-    title: card.title,
-    category: card.category,
-    tool: event.tool || null,
-    input: event.input || null,
-    output: event.output != null ? event.output : null,
-    isError: !!event.isError,
-    files: event.files || null,
-    reason: event.reason || null,
-    raw: event.raw || null
-  });
-}
-
-/* --------------------------- Вотчер ФС ----------------------------- */
-
-var watcher = watcherMod.createWatcher(PROJECT, function (changes) {
-  var files = changes.map(function (c) { return c.file; }).filter(Boolean);
-  if (!files.length) return;
-  var now = Date.now();
-  changes.forEach(function (c) {
-    recentFileChanges[c.file] = { mtimeMs: now, kind: c.kind };
-  });
-  // след старше 10 минут выбрасываем, чтобы не рос без конца
-  Object.keys(recentFileChanges).forEach(function (k) {
-    if (now - recentFileChanges[k].mtimeMs > 600000) delete recentFileChanges[k];
-  });
-  pulse.feedFileChanges(files);
-  pushEvent({ kind: 'file-change', ts: new Date().toISOString(), files: files });
-  hub.transient('fs', { files: files });
-});
-
-/* --------------------------- Git-опрос ----------------------------- */
-
-var lastGit = null;
-var lastGitKey = '';
-
-function pollGit() {
-  git.collectGitInfo(PROJECT).then(function (info) {
-    lastGit = info;
-    var key = JSON.stringify([
-      info.branch,
-      info.status ? info.status.total : -1,
-      info.commits.length ? info.commits[0].hash : ''
-    ]);
-    if (lastGitKey === '') {
-      // первый опрос: запоминаем точку отсчёта, чтобы первый же коммит
-      // или смена ветки дали карточку в ленте
-      prevBranch = info.branch;
-      prevHead = info.commits.length ? info.commits[0].hash : null;
-    } else if (key !== lastGitKey) {
-      var text = describeGitChange(info);
-      if (text) pushEvent({ kind: 'git-change', ts: new Date().toISOString(), text: text });
-      hub.transient('git', publicGit(info));
-    }
-    lastGitKey = key;
-  });
-}
-
-var prevBranch = null, prevHead = null;
-function describeGitChange(info) {
-  var msgs = [];
-  if (info.branch && prevBranch && info.branch !== prevBranch) {
-    msgs.push('Переключилась ветка: теперь «' + info.branch + '»');
-  }
-  var head = info.commits.length ? info.commits[0] : null;
-  if (head && prevHead && head.hash !== prevHead) {
-    msgs.push('Появился новый коммит: «' + head.subject + '»');
-  }
-  prevBranch = info.branch;
-  prevHead = head ? head.hash : prevHead;
-  if (!msgs.length) return null;
-  return msgs.join('. ');
-}
-
-function publicGit(info) {
-  if (!info) return null;
-  return {
-    available: info.available,
-    isRepo: info.isRepo,
-    branch: info.branch,
-    branchMeaning: info.branchMeaning,
-    status: info.status,
-    commits: info.commits,
-    diffstat: info.diffstat,
-    error: info.error
-  };
-}
-
-var gitTimer = setInterval(pollGit, 4000);
-if (gitTimer.unref) gitTimer.unref();
-pollGit();
-
-/* ----------------------- Транскрипт (уровень A) --------------------- */
-
-var transcriptDir = transcript.findTranscriptDir(PROJECT);
-var level = transcriptDir ? 'A' : 'B';
-var tailer = null;
-
-if (transcriptDir) {
-  tailer = transcript.createTailer(transcriptDir, {
-    onEvents: function (events) {
-      for (var i = 0; i < events.length; i++) {
-        pulse.feed(events[i]);
-        pushEvent(events[i]);
-      }
-      hub.transient('pulse', pulse.snapshot());
+args.projects.forEach(function (root) {
+  // id считаем заранее: монитор шлёт первые события ещё из фабрики,
+  // до присваивания переменной mon
+  var id = paths.encodeProjectDir(path.resolve(root));
+  var mon = monitorMod.createMonitor(root, {
+    onFeed: function (item) {
+      item.project = id;
+      hub.broadcast('feed', item);
     },
-    onSwitch: function (sessionId) {
-      pulse.resetSession();
-      pushEvent({ kind: 'session-switch', ts: new Date().toISOString() });
-      hub.broadcast('session', { id: sessionId });
+    onTransient: function (type, data) {
+      hub.transient(type, { project: id, data: data });
+    },
+    onBroadcast: function (type, data) {
+      data.project = id;
+      hub.broadcast(type, data);
     }
   });
-  tailer.start();
-} else {
-  // Каталог транскриптов может появиться позже (человек запустит Claude Code
-  // после «Штурмана») — проверяем раз в 10 секунд.
-  var findTimer = setInterval(function () {
-    var dir = transcript.findTranscriptDir(PROJECT);
-    if (!dir) return;
-    clearInterval(findTimer);
-    transcriptDir = dir;
-    level = 'A';
-    hub.broadcast('level', { level: 'A' });
-    tailer = transcript.createTailer(dir, {
-      onEvents: function (events) {
-        for (var i = 0; i < events.length; i++) {
-          pulse.feed(events[i]);
-          pushEvent(events[i]);
-        }
-        hub.transient('pulse', pulse.snapshot());
-      },
-      onSwitch: function (sessionId) {
-        pulse.resetSession();
-        pushEvent({ kind: 'session-switch', ts: new Date().toISOString() });
-        hub.broadcast('session', { id: sessionId });
-      }
-    });
-    tailer.start();
-  }, 10000);
-  if (findTimer.unref) findTimer.unref();
+  monitors.push(mon);
+  byId[mon.id] = mon;
+});
+
+/** Монитор по параметру ?project= (по умолчанию — первый). */
+function pickMonitor(q) {
+  var id = String(q.project || '');
+  return (id && byId[id]) || monitors[0];
 }
 
-/* Детектор остановки + периодический пульс */
-var pulseTimer = setInterval(function () {
-  pulse.check();
-  hub.transient('pulse', pulse.snapshot());
-}, 3000);
-if (pulseTimer.unref) pulseTimer.unref();
+function projectsList() {
+  return monitors.map(function (m) {
+    return { id: m.id, name: m.name, path: paths.toDisplay(m.root) };
+  });
+}
 
 /* ------------------------------------------------------------------ */
 /* HTTP                                                                */
@@ -292,6 +163,8 @@ var server = http.createServer(function (req, res) {
     return;
   }
 
+  var mon = pickMonitor(q);
+
   switch (route) {
     case '/':
       return sendStatic(res, 'index.html');
@@ -304,37 +177,40 @@ var server = http.createServer(function (req, res) {
       return hub.attach(req, res);
 
     case '/api/state': {
-      var sessions = transcriptDir ? transcript.listSessions(transcriptDir) : [];
+      var tDir = mon.transcriptDir();
+      var sessions = tDir ? transcript.listSessions(tDir) : [];
       return sendJson(res, 200, {
         version: VERSION,
+        projects: projectsList(),
         project: {
-          path: paths.toDisplay(PROJECT),
-          name: path.basename(PROJECT)
+          id: mon.id,
+          path: paths.toDisplay(mon.root),
+          name: mon.name
         },
-        level: level,
-        transcriptDir: transcriptDir ? paths.toDisplay(transcriptDir) : null,
-        activeSession: tailer ? tailer.currentSession() : null,
+        level: mon.level(),
+        transcriptDir: tDir ? paths.toDisplay(tDir) : null,
+        activeSession: mon.activeSession(),
         sessionsCount: sessions.length,
-        watcherEngine: watcher.engine,
-        git: publicGit(lastGit),
-        pulse: pulse.snapshot(),
-        looksLikeProject: looksLikeProject()
+        watcherEngine: mon.watcherEngine,
+        git: mon.publicGit(),
+        pulse: mon.pulse.snapshot(),
+        looksLikeProject: mon.looksLikeProject()
       });
     }
 
     case '/api/tree': {
-      var t = tree.buildTree(PROJECT);
-      return sendJson(res, 200, { tree: t, recent: recentFileChanges });
+      var t = tree.buildTree(mon.root);
+      return sendJson(res, 200, { tree: t, recent: mon.recent() });
     }
 
     case '/api/file': {
       var rel = String(q.path || '');
-      var abs = paths.safeJoin(PROJECT, rel);
+      var abs = paths.safeJoin(mon.root, rel);
       if (!abs) return sendJson(res, 403, { error: 'Путь выходит за пределы проекта.' });
       // симлинк внутри проекта не должен выводить чтение наружу
       try {
         var realTarget = fs.realpathSync(abs);
-        var realRoot = fs.realpathSync(PROJECT);
+        var realRoot = fs.realpathSync(mon.root);
         if (realTarget !== realRoot && realTarget.indexOf(realRoot + path.sep) !== 0) {
           return sendJson(res, 403, { error: 'Путь выходит за пределы проекта (символическая ссылка).' });
         }
@@ -355,10 +231,11 @@ var server = http.createServer(function (req, res) {
         isDir: st.isDirectory(),
         description: st.isDirectory() ? 'Папка.' : filedoc.describeFile(abs)
       };
+      var lastGit = mon.lastGitInfo();
       if (st.isDirectory() || !lastGit || !lastGit.isRepo) {
         return sendJson(res, 200, info);
       }
-      return git.fileDiff(PROJECT, rel).then(function (d) {
+      return git.fileDiff(mon.root, rel).then(function (d) {
         info.diff = { source: d.source, lines: d.lines.slice(0, 400) };
         sendJson(res, 200, info);
       });
@@ -366,44 +243,45 @@ var server = http.createServer(function (req, res) {
 
     case '/api/diff': {
       var relF = String(q.path || '');
-      if (!paths.safeJoin(PROJECT, relF)) return sendJson(res, 403, { error: 'Путь выходит за пределы проекта.' });
-      return git.fileDiff(PROJECT, relF).then(function (d) {
+      if (!paths.safeJoin(mon.root, relF)) return sendJson(res, 403, { error: 'Путь выходит за пределы проекта.' });
+      return git.fileDiff(mon.root, relF).then(function (d) {
         sendJson(res, 200, d);
       });
     }
 
     case '/api/commit': {
-      return git.commitDiff(PROJECT, String(q.hash || '')).then(function (d) {
+      return git.commitDiff(mon.root, String(q.hash || '')).then(function (d) {
         sendJson(res, 200, d);
       });
     }
 
     case '/api/git':
-      return git.collectGitInfo(PROJECT).then(function (info) {
-        lastGit = info;
-        sendJson(res, 200, publicGit(info));
+      return mon.refreshGit().then(function (pub) {
+        sendJson(res, 200, pub);
       });
 
     case '/api/glossary':
       return sendJson(res, 200, { terms: glossary.TERMS });
 
     case '/api/sessions': {
-      if (!transcriptDir) return sendJson(res, 200, { sessions: [], level: 'B' });
-      var list = transcript.listSessions(transcriptDir).map(function (s) {
+      var tDir2 = mon.transcriptDir();
+      if (!tDir2) return sendJson(res, 200, { sessions: [], level: 'B' });
+      var list = transcript.listSessions(tDir2).map(function (s) {
         return { id: s.id, mtimeMs: Math.round(s.mtimeMs), size: s.size };
       });
-      return sendJson(res, 200, { sessions: list, active: tailer ? tailer.currentSession() : null });
+      return sendJson(res, 200, { sessions: list, active: mon.activeSession() });
     }
 
     case '/api/session': {
-      if (!transcriptDir) return sendJson(res, 404, { error: 'Транскрипты недоступны (уровень B).' });
+      var tDir3 = mon.transcriptDir();
+      if (!tDir3) return sendJson(res, 404, { error: 'Транскрипты недоступны (уровень B).' });
       var id = String(q.id || '');
       if (!/^[0-9a-f-]{8,64}$/i.test(id)) return sendJson(res, 400, { error: 'Странный идентификатор сессии.' });
-      var file = path.join(transcriptDir, id + '.jsonl');
+      var file = path.join(tDir3, id + '.jsonl');
       var events = transcript.readWholeSession(file, 1500);
       var feed = [];
       for (var i = 0; i < events.length; i++) {
-        var card = humanize.humanizeEvent(events[i], PROJECT);
+        var card = humanize.humanizeEvent(events[i], mon.root);
         if (!card) continue;
         feed.push({
           ts: events[i].ts,
@@ -418,7 +296,7 @@ var server = http.createServer(function (req, res) {
     }
 
     case '/api/pulse':
-      return sendJson(res, 200, pulse.snapshot());
+      return sendJson(res, 200, mon.pulse.snapshot());
   }
 
   sendJson(res, 404, { error: 'Такой страницы нет.' });
@@ -484,24 +362,16 @@ function handleAsk(req, res) {
   });
 }
 
-/** Похожа ли папка на проект (для мягкого сообщения при первом запуске). */
-function looksLikeProject() {
-  var markers = ['package.json', '.git', 'README.md', 'readme.md', 'pyproject.toml',
-    'Cargo.toml', 'go.mod', 'index.html', 'src'];
-  for (var i = 0; i < markers.length; i++) {
-    try {
-      fs.statSync(path.join(PROJECT, markers[i]));
-      return true;
-    } catch (e) { /* нет — смотрим дальше */ }
-  }
-  return false;
-}
-
 server.listen(PORT, '127.0.0.1', function () {
   console.log('');
-  console.log('  ⛵ «Штурман» смотрит за проектом: ' + PROJECT);
+  if (monitors.length === 1) {
+    console.log('  ⛵ «Штурман» смотрит за проектом: ' + monitors[0].root);
+  } else {
+    console.log('  ⛵ «Штурман» смотрит за проектами:');
+    monitors.forEach(function (m) { console.log('     · ' + m.root); });
+  }
   console.log('  Панель: http://127.0.0.1:' + PORT);
-  console.log('  Источник данных: ' + (level === 'A'
+  console.log('  Источник данных: ' + (monitors[0].level() === 'A'
     ? 'транскрипты Claude Code + файлы + git (уровень A)'
     : 'файлы + git (уровень B — транскрипты Claude Code не найдены)'));
   console.log('  Остановить: Ctrl+C');
@@ -519,7 +389,6 @@ server.on('error', function (err) {
 
 process.on('SIGINT', function () {
   console.log('\n«Штурман» останавливается. Пока!');
-  watcher.stop();
-  if (tailer) tailer.stop();
+  monitors.forEach(function (m) { m.stop(); });
   process.exit(0);
 });

@@ -198,3 +198,9 @@ test('cli: кривой порт — понятная ошибка, а не мо
   var a = cli.parseArgs(['node', 'server.js', '--port', 'abc']);
   assert.ok(a.error && a.error.indexOf('порт') !== -1);
 });
+
+test('cli: несколько --project — несколько папок, дубли схлопнуты', function () {
+  var a = cli.parseArgs(['node', 'server.js', '-p', '/tmp', '--project', '/var', '-p', '/tmp']);
+  assert.deepStrictEqual(a.projects, [path.resolve('/tmp'), path.resolve('/var')]);
+  assert.strictEqual(a.project, path.resolve('/tmp'), 'первый — главный (совместимость)');
+});

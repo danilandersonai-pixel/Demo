@@ -75,6 +75,18 @@ input:focus { border-color: var(--accent); }
 }
 
 .topbar .logo { font-size: 20px; font-weight: 600; white-space: nowrap; }
+#project-switch {
+  font-family: inherit;
+  font-size: 14px;
+  color: var(--text);
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 5px 8px;
+  max-width: 220px;
+}
+#project-switch:focus { border-color: var(--accent); outline: none; }
+
 .topbar .project {
   color: var(--text-dim);
   font-size: 14px;

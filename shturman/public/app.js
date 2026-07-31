@@ -74,7 +74,7 @@
 
   /* ---------------- состояние клиента ---------------- */
 
-  var feedItems = [];        // все события (живая лента)
+  var feedItems = [];        // все события всех проектов (с меткой project)
   var FEED_CAP = 600;
   var feedPaused = false;
   var feedFilter = 'all';
@@ -85,10 +85,28 @@
   var heat = {};             // path → mtimeMs
   var HEAT_TTL = 60000;      // Д-11: след живёт 60 секунд
   var lastPulse = null;
-  var signalledIdle = false; // уже сигналили об этой паузе?
   var gitState = null;
   var glossTerms = [];
   var level = null;
+
+  /* несколько проектов: события помечены id, панели показывают активный */
+  var projects = [];         // [{id, name, path}]
+  var activeProject = null;  // id активного проекта
+  var signalled = {};        // projectId → уже сигналили об этой паузе
+  var pulseSeen = {};        // projectId → первый пульс уже приходил
+
+  /** api('/api/tree') → '/api/tree?project=<активный>' */
+  function api(route) {
+    if (!activeProject) return route;
+    return route + (route.indexOf('?') === -1 ? '?' : '&') + 'project=' + encodeURIComponent(activeProject);
+  }
+
+  function projectName(id) {
+    for (var i = 0; i < projects.length; i++) {
+      if (projects[i].id === id) return projects[i].name;
+    }
+    return '';
+  }
 
   /* ---------------- звук и уведомления ---------------- */
 
@@ -138,17 +156,17 @@
     } catch (e) { /* ок */ }
   }
 
-  var firstPulseSeen = false; // при загрузке страницы не пищим, если Клод уже стоял
-
-  function fireIdleSignal(reason, quietMs) {
-    if (signalledIdle) return;
-    signalledIdle = true;
-    if (!firstPulseSeen) return; // молча запоминаем состояние «уже стоит»
+  function fireIdleSignal(projectId, reason, quietMs) {
+    if (signalled[projectId]) return;
+    signalled[projectId] = true;
+    if (!pulseSeen[projectId]) return; // Клод стоял ещё до открытия панели — молчим
     playChime();
+    // при нескольких проектах говорим, в каком именно
+    var where = projects.length > 1 ? ' (' + projectName(projectId) + ')' : '';
     if (reason === 'end-turn') {
-      notify('Клод закончил и ждёт вас', 'Посмотрите его ответ в Claude Code.');
+      notify('Клод закончил и ждёт вас' + where, 'Посмотрите его ответ в Claude Code.');
     } else {
-      notify('Клод давно молчит', 'Тишина уже ' + Math.round((quietMs || 0) / 1000) + ' секунд. Возможно, он ждёт подтверждения.');
+      notify('Клод давно молчит' + where, 'Тишина уже ' + Math.round((quietMs || 0) / 1000) + ' секунд. Возможно, он ждёт подтверждения.');
     }
   }
 
@@ -160,34 +178,42 @@
     $('claude-state-text').textContent = text;
   }
 
-  function updateStateFromPulse(p) {
-    lastPulse = p;
-    var isFirst = !firstPulseSeen;
+  /**
+   * Пульс приходит для каждого наблюдаемого проекта. Сигналы (звук,
+   * уведомление) обрабатываются для всех; индикатор и цифры — только для
+   * активного.
+   */
+  function updateStateFromPulse(projectId, p) {
+    var isActive = projectId === activeProject;
+    if (isActive) lastPulse = p;
     if (!p || p.sessionStartMs == null) {
-      setClaudeState('unknown', level === 'B' ? 'транскриптов нет — слежу за файлами' : 'жду начала сессии');
+      if (isActive) {
+        setClaudeState('unknown', level === 'B' ? 'транскриптов нет — слежу за файлами' : 'жду начала сессии');
+      }
       return;
     }
+    var isFirst = !pulseSeen[projectId];
     var clientQuietMs = settings.quietSec * 1000;
     if (p.idle && p.idleReason === 'end-turn') {
-      setClaudeState('waiting', 'Клод ждёт вас');
-      fireIdleSignal('end-turn', p.quietMs);
+      if (isActive) setClaudeState('waiting', 'Клод ждёт вас');
+      fireIdleSignal(projectId, 'end-turn', p.quietMs);
     } else if (p.quietMs != null && p.quietMs >= clientQuietMs) {
       // порог «давно молчит» — настройка пользователя; серверные 90 с
       // здесь не главнее: и меньшие, и большие значения работают
-      setClaudeState('waiting', 'Клод молчит…');
-      fireIdleSignal('quiet', p.quietMs);
+      if (isActive) setClaudeState('waiting', 'Клод молчит…');
+      fireIdleSignal(projectId, 'quiet', p.quietMs);
     } else if (p.idle) {
       // сервер считает паузой, но пользовательский порог ещё не истёк
-      setClaudeState('working', 'Клод работает');
+      if (isActive) setClaudeState('working', 'Клод работает');
     } else {
-      setClaudeState('working', 'Клод работает');
-      signalledIdle = false;
+      if (isActive) setClaudeState('working', 'Клод работает');
+      signalled[projectId] = false;
     }
-    firstPulseSeen = true;
-    if (isFirst && (p.idle || (p.quietMs != null && p.quietMs >= settings.quietSec * 1000))) {
-      signalledIdle = true; // Клод стоял ещё до открытия панели — без сигнала
+    pulseSeen[projectId] = true;
+    if (isFirst && (p.idle || (p.quietMs != null && p.quietMs >= clientQuietMs))) {
+      signalled[projectId] = true; // Клод стоял ещё до открытия панели — без сигнала
     }
-    renderPulse(p);
+    if (isActive) renderPulse(p);
   }
 
   function renderPulse(p) {
@@ -211,6 +237,9 @@
   /* ---------------- лента ---------------- */
 
   function passesFilter(item) {
+    // живые события фильтруем по активному проекту; у ленты старой сессии
+    // метки проекта нет — она уже загружена для нужного
+    if (!viewingOldSession && item.project && activeProject && item.project !== activeProject) return false;
     if (feedFilter !== 'all' && item.category !== feedFilter) return false;
     if (feedQuery) {
       var q = feedQuery.toLowerCase();
@@ -437,7 +466,7 @@
 
   function loadTree() {
     lastTreeLoad = Date.now();
-    fetch('/api/tree').then(function (r) { return r.json(); }).then(function (data) {
+    fetch(api('/api/tree')).then(function (r) { return r.json(); }).then(function (data) {
       treeData = data.tree;
       var now = Date.now();
       Object.keys(data.recent || {}).forEach(function (p) {
@@ -568,7 +597,7 @@
   /* карточка файла */
 
   function openFileCard(relPath) {
-    fetch('/api/file?path=' + encodeURIComponent(relPath))
+    fetch(api('/api/file?path=' + encodeURIComponent(relPath)))
       .then(function (r) { return r.json(); })
       .then(function (info) {
         $('file-title').innerHTML = '';
@@ -728,7 +757,7 @@
       fmtAgo(new Date(c.date).getTime()) + ' · <span class="mono">' + escapeHtml(c.short) + '</span></div>' +
       '<div class="muted">Загружаю изменения…</div>';
     showModal('modal-commit');
-    fetch('/api/commit?hash=' + encodeURIComponent(c.hash))
+    fetch(api('/api/commit?hash=' + encodeURIComponent(c.hash)))
       .then(function (r) { return r.json(); })
       .then(function (d) {
         body.querySelector('.muted').remove();
@@ -827,6 +856,7 @@
     lines.push('## Хроника (последние события, свежее внизу)');
     lines.push('');
     var interesting = feedItems.filter(function (it) {
+      if (it.project && activeProject && it.project !== activeProject) return false;
       return it.kind !== 'tool-result' || it.isError; // «инструмент отработал» — шум
     }).slice(-120);
     interesting.forEach(function (it) {
@@ -854,7 +884,7 @@
   }
 
   function openSessions() {
-    fetch('/api/sessions').then(function (r) { return r.json(); }).then(function (d) {
+    fetch(api('/api/sessions')).then(function (r) { return r.json(); }).then(function (d) {
       var body = $('sessions-body');
       body.innerHTML = '';
       var digestBtn = el('button', '', '📝 Скачать дайджест текущей сессии (markdown)');
@@ -891,7 +921,7 @@
   }
 
   function openOldSession(id) {
-    fetch('/api/session?id=' + encodeURIComponent(id))
+    fetch(api('/api/session?id=' + encodeURIComponent(id)))
       .then(function (r) { return r.json(); })
       .then(function (d) {
         viewingOldSession = id;
@@ -1094,31 +1124,40 @@
         // Сигнал (звук/уведомление) даёт только «пульс» — одна точка правды
         // с учётом пользовательского порога; реплей истории при подключении
         // не пищит задним числом.
-        if (item.kind === 'claude-idle') {
+        if (item.kind === 'claude-idle' && item.project) {
           var age = Date.now() - Date.parse(item.ts || 0);
-          if (!isFinite(age) || age >= 20000) signalledIdle = true;
+          if (!isFinite(age) || age >= 20000) signalled[item.project] = true;
         }
       } catch (err) { /* пропускаем битое */ }
     });
     es.addEventListener('fs', function (e) {
       try {
-        var d = JSON.parse(e.data);
-        markHot(d.files || []);
+        var d = JSON.parse(e.data); // {project, data:{files}}
+        if (d.project === activeProject) markHot((d.data && d.data.files) || []);
       } catch (err) { /* ок */ }
     });
     es.addEventListener('git', function (e) {
-      try { renderGit(JSON.parse(e.data)); } catch (err) { /* ок */ }
+      try {
+        var d = JSON.parse(e.data); // {project, data}
+        if (d.project === activeProject) renderGit(d.data);
+      } catch (err) { /* ок */ }
     });
     es.addEventListener('pulse', function (e) {
-      try { updateStateFromPulse(JSON.parse(e.data)); } catch (err) { /* ок */ }
+      try {
+        var d = JSON.parse(e.data); // {project, data}
+        updateStateFromPulse(d.project, d.data);
+      } catch (err) { /* ок */ }
     });
-    es.addEventListener('session', function () {
-      signalledIdle = false;
+    es.addEventListener('session', function (e) {
+      try {
+        var d = JSON.parse(e.data);
+        if (d.project) signalled[d.project] = false;
+      } catch (err) { /* ок */ }
     });
     es.addEventListener('level', function (e) {
       try {
         var d = JSON.parse(e.data);
-        setLevel(d.level);
+        if (!d.project || d.project === activeProject) setLevel(d.level);
       } catch (err) { /* ок */ }
     });
     es.onerror = function () {
@@ -1141,22 +1180,69 @@
     renderFeed();
   }
 
-  /* ---------------- запуск ---------------- */
+  /* ---------------- проекты и запуск ---------------- */
+
+  /** Применить состояние активного проекта из /api/state. */
+  function applyState(s, firstBoot) {
+    projects = s.projects || [{ id: s.project.id, name: s.project.name, path: s.project.path }];
+    if (!activeProject) activeProject = s.project.id;
+    $('project-path').textContent = s.project.name + ' — ' + s.project.path;
+    $('project-path').title = s.project.path;
+    if (s.version) $('about-version').textContent = '⛵ Штурман v' + s.version;
+    renderProjectSwitch();
+    setLevel(s.level);
+    if (s.git) renderGit(s.git);
+    updateStateFromPulse(s.project.id, s.pulse || null);
+    if (firstBoot && !s.looksLikeProject) {
+      var note = el('div', 'feed-notice show');
+      note.textContent = 'Эта папка не очень похожа на проект (нет package.json, .git или README). ' +
+        'Ничего страшного — «Штурман» всё равно будет наблюдать. Проверьте только, ту ли папку вы открыли: ' + s.project.path;
+      $('panel-feed').insertBefore(note, $('feed-notice'));
+    }
+  }
+
+  function renderProjectSwitch() {
+    var sel = $('project-switch');
+    if (projects.length < 2) {
+      sel.style.display = 'none';
+      return;
+    }
+    sel.style.display = '';
+    sel.innerHTML = '';
+    projects.forEach(function (p) {
+      var opt = el('option', '', '📁 ' + p.name);
+      opt.value = p.id;
+      opt.title = p.path;
+      if (p.id === activeProject) opt.selected = true;
+      sel.appendChild(opt);
+    });
+  }
+
+  function switchProject(id) {
+    if (id === activeProject) return;
+    activeProject = id;
+    // панели активного проекта — с чистого листа
+    heat = {};
+    treeData = null;
+    openPaths = { '': true };
+    lastPulse = null;
+    viewingOldSession = null;
+    oldSessionItems = [];
+    $('feed-notice').classList.remove('show');
+    fetch(api('/api/state')).then(function (r) { return r.json(); }).then(function (s) {
+      applyState(s, false);
+    });
+    loadTree();
+    renderFeed(); // лента отфильтруется по метке проекта
+  }
+
+  $('project-switch').addEventListener('change', function () {
+    switchProject(this.value);
+  });
 
   function boot() {
     fetch('/api/state').then(function (r) { return r.json(); }).then(function (s) {
-      $('project-path').textContent = s.project.name + ' — ' + s.project.path;
-      $('project-path').title = s.project.path;
-      if (s.version) $('about-version').textContent = '⛵ Штурман v' + s.version;
-      setLevel(s.level);
-      if (s.git) renderGit(s.git);
-      if (s.pulse) updateStateFromPulse(s.pulse);
-      if (!s.looksLikeProject) {
-        var note = el('div', 'feed-notice show');
-        note.textContent = 'Эта папка не очень похожа на проект (нет package.json, .git или README). ' +
-          'Ничего страшного — «Штурман» всё равно будет наблюдать. Проверьте только, ту ли папку вы открыли: ' + s.project.path;
-        $('panel-feed').insertBefore(note, $('feed-notice'));
-      }
+      applyState(s, true);
       if (!settings.tourDone) showTourStep(0);
     });
     loadTree();
@@ -1164,7 +1250,7 @@
     connectSSE();
     /* git обновляем и по таймеру — вдруг что-то поменялось мимо событий */
     setInterval(function () {
-      fetch('/api/git').then(function (r) { return r.json(); }).then(renderGit).catch(function () { /* ок */ });
+      fetch(api('/api/git')).then(function (r) { return r.json(); }).then(renderGit).catch(function () { /* ок */ });
     }, 15000);
     /* пересборка дерева раз в 20 с — mtime и новые файлы */
     setInterval(loadTree, 20000);
