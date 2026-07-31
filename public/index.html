@@ -37,7 +37,7 @@
 
   <!-- Статус Клода — главное, что видно с телефона одним взглядом -->
   <div class="topbar__status">
-    <span class="chip chip--state" id="stateChip">
+    <span class="chip chip--state" id="stateChip" role="status" aria-live="polite">
       <span class="chip__dot" id="stateDot"></span>
       <span id="stateText">—</span>
     </span>
@@ -217,19 +217,19 @@
 </main>
 
 <!-- ══ Нижние вкладки — только на телефоне ════════════════════════════ -->
-<nav class="tabbar" id="tabbar" aria-label="Разделы">
-  <button class="tab is-active" data-tab="feed">
+<nav class="tabbar" id="tabbar" role="tablist" aria-label="Разделы панели">
+  <button class="tab is-active" data-tab="feed" role="tab" aria-selected="true">
     <span class="tab__icon" aria-hidden="true">📰</span><span class="tab__text">Лента</span>
     <span class="tab__badge" id="tabBadgeFeed" hidden></span>
   </button>
-  <button class="tab" data-tab="map">
+  <button class="tab" data-tab="map" role="tab" aria-selected="false">
     <span class="tab__icon" aria-hidden="true">🗺</span><span class="tab__text">Карта</span>
   </button>
-  <button class="tab" data-tab="git">
+  <button class="tab" data-tab="git" role="tab" aria-selected="false">
     <span class="tab__icon" aria-hidden="true">🌿</span><span class="tab__text">Git</span>
     <span class="tab__badge" id="tabBadgeGit" hidden></span>
   </button>
-  <button class="tab" data-tab="pulse">
+  <button class="tab" data-tab="pulse" role="tab" aria-selected="false">
     <span class="tab__icon" aria-hidden="true">❤️</span><span class="tab__text">Пульс</span>
   </button>
 </nav>

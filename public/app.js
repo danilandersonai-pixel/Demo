@@ -178,7 +178,10 @@
     Array.prototype.forEach.call(document.querySelectorAll('.tab'), function (t) {
       var on = t.dataset.tab === name;
       t.classList.toggle('is-active', on);
-      t.setAttribute('aria-current', on ? 'page' : 'false');
+      t.setAttribute('aria-selected', on ? 'true' : 'false');
+      // Неактивные вкладки убираем из обхода Tab: по ним ходят стрелками,
+      // как и положено панели вкладок.
+      t.tabIndex = on ? 0 : -1;
     });
 
     // Счётчик непрочитанного снимается, когда вкладку открыли.
@@ -221,6 +224,19 @@
       var from = VIEWS.indexOf(app.view);
       var to = VIEWS.indexOf(t.dataset.tab);
       setView(t.dataset.tab, to > from ? 1 : -1);
+    });
+    // Стрелками между вкладками — привычное поведение для панели вкладок
+    // и единственный способ переключаться с клавиатуры на телефоне
+    // с подключённой клавиатурой.
+    t.addEventListener('keydown', function (e) {
+      var delta = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
+      if (!delta) return;
+      e.preventDefault();
+      var i = VIEWS.indexOf(t.dataset.tab);
+      var next = VIEWS[Math.min(VIEWS.length - 1, Math.max(0, i + delta))];
+      setView(next, delta);
+      var btn = document.querySelector('.tab[data-tab="' + next + '"]');
+      if (btn) btn.focus();
     });
   });
 
@@ -971,22 +987,54 @@
 
   var sheet = $('sheet');
   var sheetBody = $('sheetBody');
+  var returnFocusTo = null;
 
   function openSheet(title) {
     setSheetTitle(title);
     clear(sheetBody);
+    // Запоминаем, откуда пришли: при закрытии вернём фокус туда же, иначе
+    // человек с клавиатуры окажется в начале страницы.
+    if (sheet.hidden) returnFocusTo = document.activeElement;
     sheet.hidden = false;
     sheetBody.scrollTop = 0;
+    // Фокус переводим на заголовок шторки, чтобы читалка экрана объявила,
+    // что именно открылось.
+    setTimeout(function () { $('sheetClose').focus(); }, 0);
     return sheetBody;
   }
   function setSheetTitle(t) { $('sheetTitle').textContent = t; }
   function closeSheet() {
+    if (sheet.hidden) return;
     sheet.hidden = true;
     app.selectedFile = null;
     Array.prototype.forEach.call(document.querySelectorAll('.node.is-selected'), function (n) {
       n.classList.remove('is-selected');
     });
+    if (returnFocusTo && returnFocusTo.focus) {
+      try { returnFocusTo.focus(); } catch (e) { /* элемент исчез */ }
+    }
+    returnFocusTo = null;
   }
+
+  // Пока шторка открыта, Tab не должен уводить за её пределы: иначе фокус
+  // уходит на скрытую под затемнением панель и человек его теряет.
+  var FOCUSABLE = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
+  sheet.addEventListener('keydown', function (e) {
+    if (e.key !== 'Tab') return;
+    var items = Array.prototype.filter.call(
+      $('sheetBox').querySelectorAll(FOCUSABLE),
+      function (n) { return n.offsetParent !== null && !n.disabled; });
+    if (!items.length) return;
+    var first = items[0];
+    var last = items[items.length - 1];
+    if (e.shiftKey && document.activeElement === first) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault();
+      first.focus();
+    }
+  });
 
   $('sheetClose').addEventListener('click', closeSheet);
   $('sheetBackdrop').addEventListener('click', closeSheet);
