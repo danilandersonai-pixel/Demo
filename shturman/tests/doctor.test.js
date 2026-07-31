@@ -160,3 +160,54 @@ test('args: --check и --doctor включают диагностику', functi
   assert.strictEqual(argsLib.parse(['--doctor']).check, true);
   assert.strictEqual(argsLib.parse([]).check, false);
 });
+
+// ── Проверки, добавленные во второй версии ──────────────────────────────────
+
+test('диагностика: доступ с телефона при разных сетях', function () {
+  // Без сети и без флага — спокойно зелёная строка, без наставлений.
+  var quiet = doctor.checkShare({ share: false });
+  assert.ok([doctor.OK, doctor.WARN].indexOf(quiet.status) !== -1);
+  if (quiet.status === doctor.OK) {
+    assert.strictEqual(quiet.advice, null,
+      'у зелёной строки не должно быть совета — иначе она читается как проблема');
+  }
+
+  // С флагом, но без сети — предупреждение с объяснением.
+  var wanted = doctor.checkShare({ share: true });
+  if (/не найдено/.test(wanted.detail)) {
+    assert.strictEqual(wanted.status, doctor.WARN);
+    assert.match(wanted.advice, /одной сети/);
+  }
+});
+
+test('диагностика: файлы панели и оболочка PWA на месте', function () {
+  var r = doctor.checkPwa();
+  assert.strictEqual(r.status, doctor.OK, r.detail + ' ' + (r.advice || ''));
+  assert.match(r.detail, /оболочку для телефона/);
+});
+
+test('диагностика: настройки читаются и место названо', function () {
+  var r = doctor.checkConfig();
+  assert.strictEqual(r.status, doctor.OK);
+  assert.match(r.detail, /\.shturman\.json/);
+});
+
+test('диагностика второй версии выросла и осталась связной', async function () {
+  var dir = tmpdir('doc-v2-');
+  try {
+    var opts = argsLib.parse(['--project', dir, '--port', '4893']);
+    var report = await doctor.run(opts);
+    var names = report.checks.map(function (c) { return c.name; });
+
+    assert.ok(report.checks.length >= 12, 'проверок стало больше: ' + report.checks.length);
+    ['Доступ с телефона', 'Файлы панели', 'Настройки'].forEach(function (n) {
+      assert.ok(names.indexOf(n) !== -1, 'нет проверки «' + n + '»');
+    });
+    // Правило прежнее: у каждой не-зелёной строки обязан быть совет.
+    report.checks.forEach(function (c) {
+      if (c.status !== doctor.OK) assert.ok(c.advice, c.name + ': нет совета');
+    });
+    var text = doctor.format(report, opts);
+    assert.ok(text.indexOf('undefined') === -1);
+  } finally { rm(dir); }
+});

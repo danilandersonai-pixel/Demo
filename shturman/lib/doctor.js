@@ -126,6 +126,87 @@ function checkWatch(projectRoot) {
   });
 }
 
+/**
+ * Готовность телефонного режима: есть ли адрес, по которому телефон
+ * вообще сможет достучаться.
+ */
+function checkShare(opts) {
+  var netLib = require('./net');
+  var all = netLib.lanAddresses();
+  var usable = all.filter(function (a) { return a.kind !== 'virtual'; });
+  var wanted = opts && opts.share;
+
+  if (!all.length) {
+    // Совет прикладываем только когда доступ действительно просили: иначе
+    // зелёная строка с наставлением выглядит как скрытая проблема.
+    return wanted
+      ? check('Доступ с телефона', WARN, 'адресов в локальной сети не найдено',
+        'Компьютер не подключён к Wi-Fi или к роутеру. Панель работает, но ' +
+        'открыть её с телефона не получится: телефон и компьютер должны быть ' +
+        'в одной сети.')
+      : check('Доступ с телефона', OK,
+        'сейчас недоступен — компьютер не в локальной сети');
+  }
+  if (!usable.length) {
+    return check('Доступ с телефона', WARN,
+      'нашлись только виртуальные адаптеры (' +
+      all.map(function (a) { return a.iface; }).join(', ') + ')',
+      'Это адреса Docker, VPN или виртуальных машин — телефон до них, скорее ' +
+      'всего, не достучится. Подключите компьютер к обычной сети Wi-Fi.');
+  }
+  var best = usable[0];
+  return check('Доступ с телефона', OK,
+    (wanted ? 'включён, ' : 'готов, ') + 'адрес ' + best.address + ' — ' + best.label +
+    (usable.length > 1 ? ' (и ещё ' + (usable.length - 1) + ')' : '') +
+    (wanted ? '' : '; включается флагом --share или кнопкой в панели'));
+}
+
+/**
+ * Файлы оболочки PWA. Если их нет, установленное на телефон приложение
+ * покажет белый экран вместо объяснения — это стоит поймать заранее.
+ */
+function checkPwa() {
+  var pub = path.join(__dirname, '..', 'public');
+  var required = [
+    'index.html', 'app.js', 'styles.css',
+    'manifest.json', 'sw.js', 'offline.html',
+    path.join('icons', 'icon-192.png'),
+    path.join('icons', 'icon-512.png')
+  ];
+  var missing = required.filter(function (f) {
+    try { return !fs.statSync(path.join(pub, f)).isFile(); } catch (e) { return true; }
+  });
+  if (missing.length) {
+    return check('Файлы панели', FAIL, 'не хватает: ' + missing.join(', '),
+      'Похоже, папка Штурмана скопирована не целиком. Скачайте её заново.');
+  }
+  // Манифест должен быть разбираемым: браузер молча проигнорирует битый.
+  try {
+    var mf = JSON.parse(fs.readFileSync(path.join(pub, 'manifest.json'), 'utf8'));
+    if (!mf.name || !Array.isArray(mf.icons) || !mf.icons.length) {
+      return check('Файлы панели', WARN, 'манифест неполный',
+        'Панель работать будет, но на главный экран телефона не установится.');
+    }
+  } catch (e) {
+    return check('Файлы панели', WARN, 'манифест не разбирается: ' + e.message,
+      'Панель работать будет, но установить её как приложение не выйдет.');
+  }
+  return check('Файлы панели', OK, 'все на месте, включая оболочку для телефона');
+}
+
+/** Сохранённые настройки: где лежат и читаются ли. */
+function checkConfig() {
+  var configLib = require('./config');
+  var loaded = configLib.load();
+  if (!loaded.existed) {
+    return check('Настройки', OK, loaded.path + ' — ещё не создан, это первый запуск');
+  }
+  var recent = (loaded.config.recent || []).length;
+  return check('Настройки', OK,
+    loaded.path + ' — порт ' + loaded.config.port + ', тема ' + loaded.config.theme +
+    ', проектов в истории ' + recent);
+}
+
 function checkPort(port) {
   var net = require('net');
   return new Promise(function (resolve) {
@@ -186,7 +267,8 @@ function checkReadOnly(projectRoot) {
  */
 function run(opts) {
   var projectRoot = opts.projectAbs;
-  var results = [checkNode(), checkClaudeHome(), checkReadOnly(projectRoot)];
+  var results = [checkNode(), checkClaudeHome(), checkReadOnly(projectRoot),
+    checkShare(opts), checkPwa(), checkConfig()];
 
   return Promise.all([
     checkProject(projectRoot),
@@ -205,6 +287,9 @@ function run(opts) {
       rest[2],                    // транскрипты
       rest[3],                    // наблюдение
       rest[4],                    // порт
+      results[3],                 // доступ с телефона
+      results[4],                 // файлы панели
+      results[5],                 // настройки
       rest[5],                    // бинарь claude
       results[2]                  // только чтение
     ];
@@ -257,4 +342,8 @@ function wrap(text, width) {
   return lines;
 }
 
-module.exports = { run: run, format: format, wrap: wrap, OK: OK, WARN: WARN, FAIL: FAIL };
+module.exports = {
+  run: run, format: format, wrap: wrap,
+  checkShare: checkShare, checkPwa: checkPwa, checkConfig: checkConfig,
+  OK: OK, WARN: WARN, FAIL: FAIL
+};
