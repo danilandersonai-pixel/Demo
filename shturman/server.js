@@ -26,6 +26,7 @@ var idleLib = require('./lib/idle');
 var statsLib = require('./lib/stats');
 var glossary = require('./lib/glossary');
 var digestLib = require('./lib/digest');
+var textdiff = require('./lib/textdiff');
 var humanize = require('./lib/humanize');
 var paths = require('./lib/paths');
 
@@ -555,11 +556,12 @@ function createServer(appOrRegistry, opts) {
       }
       return treeLib.fileCard(projectRoot, rel).then(function (card) {
         if (!app.state.git || !app.state.git.available) {
-          card.diff = null;
-          card.diffNote = 'Дифф недоступен: проект не под git.';
-          return card;
+          return applyFallbackDiff(app, card, rel, 'Проект не под git');
         }
         return gitLib.fileDiff(projectRoot, rel).then(function (d) {
+          if (!d.diff || !d.diff.length) {
+            return applyFallbackDiff(app, card, rel, 'Git об этом файле ничего не знает');
+          }
           card.diff = d.diff;
           card.diffSource = d.source;
           card.diffNote = diffNote(d);
@@ -583,8 +585,20 @@ function createServer(appOrRegistry, opts) {
       if (paths.relativeToProject(projectRoot, path.resolve(projectRoot, f)) === null) {
         return sendJson(res, 403, { error: 'Файл вне проекта.' });
       }
-      return gitLib.fileDiff(projectRoot, f).then(function (d) {
-        sendJson(res, 200, { path: f, diff: d.diff, source: d.source, note: diffNote(d) });
+      var gitReady = app.state.git && app.state.git.available;
+      var pending = gitReady
+        ? gitLib.fileDiff(projectRoot, f)
+        : Promise.resolve({ source: 'none', diff: [] });
+      return pending.then(function (d) {
+        if (d.diff && d.diff.length) {
+          return sendJson(res, 200, { path: f, diff: d.diff, source: d.source, note: diffNote(d) });
+        }
+        // Git ничего не показал — пробуем восстановить из транскрипта.
+        var card = applyFallbackDiff(app, { path: f }, f,
+          gitReady ? 'Git об этом файле ничего не знает' : 'Проект не под git');
+        sendJson(res, 200, {
+          path: f, diff: card.diff || [], source: card.diffSource, note: card.diffNote
+        });
       });
     }
 
@@ -752,6 +766,42 @@ function withProject(state, registry, key) {
     projectKey: registry.keyOf(key),
     projects: registry.list()
   });
+}
+
+/**
+ * Дифф без git: восстанавливаем из транскрипта.
+ * У инструмента Edit в аргументах лежат old_string и new_string — этого
+ * достаточно, чтобы показать нормальный построчный дифф вместо строчки
+ * «недоступно». Работает на уровне B и для файлов вне контроля версий.
+ */
+function applyFallbackDiff(app, card, rel, why) {
+  var found = null;
+  var events = app.bus.all();
+  for (var i = events.length - 1; i >= 0; i--) {
+    var e = events[i];
+    if (e.kind !== 'tool' || e.file !== rel || !e.args) continue;
+    if (typeof e.args.old_string === 'string' || typeof e.args.new_string === 'string') {
+      found = { old: e.args.old_string || '', now: e.args.new_string || '', ts: e.ts };
+      break;
+    }
+    if (e.action === 'write' && typeof e.args.content === 'string') {
+      found = { old: '', now: e.args.content, ts: e.ts, created: true };
+      break;
+    }
+  }
+
+  if (!found) {
+    card.diff = null;
+    card.diffSource = 'none';
+    card.diffNote = why + ', и в этой сессии Клод его не правил — показать построчные изменения не из чего.';
+    return card;
+  }
+
+  card.diff = [textdiff.buildFileDiff(rel, found.old, found.now)];
+  card.diffSource = 'transcript';
+  card.diffNote = why + '. Изменения восстановлены из транскрипта — это ' +
+    (found.created ? 'то, чем Клод создал файл' : 'последняя правка Клода') + ', а не полная история файла.';
+  return card;
 }
 
 function diffNote(d) {
