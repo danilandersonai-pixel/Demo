@@ -301,6 +301,35 @@ input:focus { border-color: var(--accent); }
 .feed-notice.show { display: block; }
 .feed-notice button { margin-left: 8px; }
 
+/* ---------- Мини-карта внимания ---------- */
+
+#attention { min-height: 40px; }
+#attention svg { display: block; width: 100%; height: auto; }
+#attention .att-center {
+  fill: var(--panel-2);
+  stroke: var(--accent);
+  stroke-width: 1.5;
+}
+#attention .att-center-label { fill: var(--text); font-size: 13px; }
+#attention .att-node { cursor: pointer; }
+#attention .att-node circle { transition: opacity 1s linear; }
+#attention .att-node.read circle { fill: rgba(130, 170, 255, 0.8); }
+#attention .att-node.edit circle { fill: rgba(224, 175, 104, 0.9); }
+#attention .att-node text {
+  fill: var(--text-dim);
+  font-size: 11px;
+  transition: opacity 1s linear;
+}
+#attention .att-edge {
+  stroke: var(--line);
+  stroke-width: 1;
+  transition: opacity 1s linear;
+}
+#attention .att-empty { color: var(--text-faint); font-size: 13px; padding: 6px 0; }
+.att-legend { font-size: 11px; color: var(--text-faint); margin-top: 4px; }
+.att-legend .lg-read { color: var(--accent); }
+.att-legend .lg-edit { color: var(--warn); }
+
 /* ---------- Карта проекта ---------- */
 
 .tree-controls { display: flex; gap: 8px; margin-bottom: 8px; }

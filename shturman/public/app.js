@@ -404,6 +404,7 @@
 
   function addFeedItem(item) {
     item.uid = ++feedUid;
+    trackAttention(item);
     feedItems.push(item);
     if (feedItems.length > FEED_CAP) {
       var dropped = feedItems.shift();
@@ -665,6 +666,128 @@
     if (!box.children.length) box.appendChild(el('div', 'dl ctx', '(пусто)'));
     return box;
   }
+
+  /* ---------------- мини-карта внимания ---------------- */
+
+  var attention = {};            // projectId → [{file, ts, kind}]
+  var ATT_TTL = 300000;          // след живёт 5 минут
+  var ATT_MAX_NODES = 8;
+  var ATT_TOOLS = {
+    Read: 'read', Grep: 'read', NotebookEdit: 'edit',
+    Edit: 'edit', MultiEdit: 'edit', Write: 'edit'
+  };
+
+  /** Событие ленты → отметка «Клод смотрел на этот файл». */
+  function trackAttention(item) {
+    if (item.kind !== 'tool-use' || !item.project) return;
+    var mode = ATT_TOOLS[item.tool];
+    if (!mode) return;
+    var input = item.input || {};
+    var file = input.file_path || input.notebook_path || (item.tool !== 'Grep' ? input.path : null);
+    if (!file) return;
+    var rel = toProjectRel(String(file), item.project);
+    if (!rel) return;
+    if (!attention[item.project]) attention[item.project] = [];
+    var list = attention[item.project];
+    list.push({ file: rel, ts: Date.parse(item.ts) || Date.now(), kind: mode });
+    if (list.length > 60) list.shift();
+  }
+
+  /** Абсолютный путь → относительный внутри проекта (для показа и карточки). */
+  function toProjectRel(file, projectId) {
+    var f = file.replace(/\\/g, '/');
+    for (var i = 0; i < projects.length; i++) {
+      if (projects[i].id !== projectId) continue;
+      var root = projects[i].path.replace(/\\/g, '/');
+      if (f.indexOf(root + '/') === 0) return f.slice(root.length + 1);
+      if (f === root) return null; // сам корень не интересен
+    }
+    if (f.indexOf('/') !== 0 && !/^[A-Za-z]:/.test(f)) return f; // уже относительный
+    return null; // файл вне проекта — на карту не попадает
+  }
+
+  var SVG_NS = 'http://www.w3.org/2000/svg';
+  function svgEl(tag, attrs) {
+    var node = document.createElementNS(SVG_NS, tag);
+    Object.keys(attrs || {}).forEach(function (k) { node.setAttribute(k, attrs[k]); });
+    return node;
+  }
+
+  function renderAttention() {
+    var box = $('attention');
+    var now = Date.now();
+    var list = (attention[activeProject] || []).filter(function (a) { return now - a.ts < ATT_TTL; });
+    // последние упоминания каждого файла, свежие — первыми
+    var latest = {};
+    for (var i = list.length - 1; i >= 0; i--) {
+      var a = list[i];
+      if (!latest[a.file]) latest[a.file] = a;
+    }
+    var nodes = Object.keys(latest).map(function (k) { return latest[k]; })
+      .sort(function (x, y) { return y.ts - x.ts; })
+      .slice(0, ATT_MAX_NODES);
+
+    box.innerHTML = '';
+    if (!nodes.length) {
+      box.appendChild(el('div', 'att-empty',
+        level === 'B'
+          ? 'Здесь появится след внимания Клода — когда найдутся транскрипты (уровень A).'
+          : 'Пока пусто: как только Клод начнёт читать и править файлы, здесь появится его «взгляд».'));
+      return;
+    }
+
+    var W = 340, H = 190, CX = W / 2, CY = H / 2, R = 62;
+    var svg = svgEl('svg', { viewBox: '0 0 ' + W + ' ' + H });
+
+    nodes.forEach(function (n, i) {
+      // свежайший — наверху, дальше по кругу
+      var angle = -Math.PI / 2 + (i * 2 * Math.PI) / Math.max(nodes.length, 3);
+      var x = CX + R * Math.cos(angle);
+      var y = CY + R * Math.sin(angle);
+      var alpha = Math.max(0.15, 1 - (now - n.ts) / ATT_TTL);
+
+      var edge = svgEl('line', { x1: CX, y1: CY, x2: x, y2: y, 'class': 'att-edge' });
+      edge.style.opacity = (alpha * 0.8).toFixed(2);
+      svg.appendChild(edge);
+
+      var g = svgEl('g', { 'class': 'att-node ' + n.kind });
+      var c = svgEl('circle', { cx: x, cy: y, r: 4 + alpha * 4 });
+      c.style.opacity = alpha.toFixed(2);
+      g.appendChild(c);
+      var name = n.file.split('/').pop();
+      if (name.length > 22) name = name.slice(0, 20) + '…';
+      var anchor = x < CX - 6 ? 'end' : x > CX + 6 ? 'start' : 'middle';
+      var label = svgEl('text', {
+        x: x + (anchor === 'end' ? -10 : anchor === 'start' ? 10 : 0),
+        y: y + (y < CY ? -10 : 16),
+        'text-anchor': anchor
+      });
+      label.textContent = name;
+      label.style.opacity = Math.max(0.35, alpha).toFixed(2);
+      g.appendChild(label);
+      var titleEl = svgEl('title');
+      titleEl.textContent = n.file + ' — ' + (n.kind === 'edit' ? 'правил' : 'читал') + ' ' + fmtAgo(n.ts);
+      g.appendChild(titleEl);
+      g.addEventListener('click', function () { openFileCard(n.file); });
+      svg.appendChild(g);
+    });
+
+    // центр — сам Клод
+    var center = svgEl('circle', { cx: CX, cy: CY, r: 14, 'class': 'att-center' });
+    svg.appendChild(center);
+    var centerLabel = svgEl('text', {
+      x: CX, y: CY + 4, 'text-anchor': 'middle', 'class': 'att-center-label'
+    });
+    centerLabel.textContent = '🤖';
+    svg.appendChild(centerLabel);
+
+    box.appendChild(svg);
+    var legend = el('div', 'att-legend');
+    legend.innerHTML = '<span class="lg-read">● читал</span> · <span class="lg-edit">● правил</span> — ближе к непрозрачному значит свежее';
+    box.appendChild(legend);
+  }
+
+  setInterval(renderAttention, 2000);
 
   /* ---------------- git ---------------- */
 
@@ -1186,6 +1309,12 @@
   function applyState(s, firstBoot) {
     projects = s.projects || [{ id: s.project.id, name: s.project.name, path: s.project.path }];
     if (!activeProject) activeProject = s.project.id;
+    if (firstBoot) {
+      // реплей SSE мог прийти раньше списка проектов — пересобираем след
+      // внимания теперь, когда известны корни проектов
+      attention = {};
+      feedItems.forEach(trackAttention);
+    }
     $('project-path').textContent = s.project.name + ' — ' + s.project.path;
     $('project-path').title = s.project.path;
     if (s.version) $('about-version').textContent = '⛵ Штурман v' + s.version;
