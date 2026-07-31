@@ -1,0 +1,10 @@
+{"type":"user","message":{"role":"user","content":"нормальная запись"},"uuid":"u1","timestamp":"2026-07-31T10:00:00.000Z"}
+это не json вообще
+
+   
+{"type":"assistant","message":{"id":"m1","role":"assistant","content":[{"type":"tool_use","id":"t1","name":"Write","input":{"file_path":"/home/user/proj/новый файл.txt","content":"строка1\nстрока2\nстрока3"}}],"usage":{"input_tokens":1,"output_tokens":10,"cache_creation_input_tokens":0,"cache_read_input_tokens":0}},"uuid":"u2","timestamp":"2026-07-31T10:00:05.000Z","cwd":"/home/user/proj"}
+{"type":"user","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"t1","content":[{"type":"text","text":"записано"}],"is_error":false}]},"toolUseResult":"записано","uuid":"u3","timestamp":"2026-07-31T10:00:06.000Z"}
+{"type":"assistant","message":{"id":"m2","role":"assistant","content":[{"type":"tool_use","id":"t2","name":"mcp__github__list_issues","input":{"owner":"a","repo":"b"}}]},"uuid":"u4","timestamp":"2026-07-31T10:00:07.000Z"}
+{"type":"user","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"t9-неизвестный","content":"осиротевший результат","is_error":false}]},"uuid":"u5","timestamp":"2026-07-31T10:00:08.000Z"}
+{"type":"summary","summary":"служебная запись"}
+{"неполная": 
