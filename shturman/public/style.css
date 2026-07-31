@@ -1,4 +1,5 @@
-/* «Штурман» — спокойная тёмная тема. Ничего не мигает без причины. */
+/* «Штурман» — спокойная тёмная тема (и светлая по желанию).
+   Ничего не мигает без причины. */
 
 :root {
   --bg: #14171d;
@@ -18,6 +19,24 @@
   --radius: 10px;
   --font: "Segoe UI", "Helvetica Neue", Arial, "Noto Sans", sans-serif;
   --mono: "Cascadia Mono", "SF Mono", Consolas, "DejaVu Sans Mono", monospace;
+}
+
+/* светлая тема: те же переменные, другие значения */
+html[data-theme="light"] {
+  --bg: #f1efe9;
+  --bg-2: #faf9f5;
+  --panel: #ffffff;
+  --panel-2: #f2f0ea;
+  --line: #d9d5cb;
+  --text: #2b2f36;
+  --text-dim: #59616e;
+  --text-faint: #8a92a0;
+  --accent: #3b6fd4;
+  --accent-soft: rgba(59, 111, 212, 0.10);
+  --good: #3f7d1e;
+  --bad: #bf3a5c;
+  --warn: #9a6a10;
+  --heat: #9a6a10;
 }
 
 * { box-sizing: border-box; }
@@ -139,18 +158,29 @@ input:focus { border-color: var(--accent); }
 
 .layout {
   display: grid;
-  grid-template-columns: minmax(420px, 1.25fr) minmax(360px, 1fr);
-  gap: 16px;
+  /* --left-col двигается разделителем; см. #col-splitter */
+  grid-template-columns: minmax(380px, var(--left-col, 1.25fr)) 8px minmax(340px, 1fr);
+  gap: 12px;
   padding: 16px 20px 40px;
   max-width: 1600px;
   margin: 0 auto;
 }
 
-@media (max-width: 980px) {
-  .layout { grid-template-columns: 1fr; }
+#col-splitter {
+  cursor: col-resize;
+  border-radius: 4px;
+  background: transparent;
+  transition: background 0.15s ease;
+  align-self: stretch;
 }
+#col-splitter:hover, #col-splitter.dragging { background: var(--accent-soft); }
 
 .col { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+
+/* мобильное меню и нижние табы прячем на десктопе */
+#btn-menu { display: none; }
+#mobile-menu { display: none; }
+#tabbar { display: none; }
 
 .panel {
   background: var(--panel);
@@ -582,6 +612,169 @@ input:focus { border-color: var(--accent); }
 .muted { color: var(--text-faint); font-size: 13px; }
 .mono { font-family: var(--mono); }
 a { color: var(--accent); }
+
+/* ---------- Экран «Подключение» ---------- */
+
+#share-body .qr-wrap {
+  display: flex;
+  justify-content: center;
+  padding: 10px 0;
+}
+#share-body .qr-wrap img {
+  width: min(280px, 70vw);
+  border-radius: 12px;
+  background: #fff;
+  padding: 8px;
+}
+#share-body .share-url {
+  font-family: var(--mono);
+  font-size: 12px;
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 10px;
+  margin: 6px 0;
+  word-break: break-all;
+  user-select: all;
+}
+#share-body p { font-size: 14px; color: var(--text-dim); margin: 10px 0; }
+#share-body p b { color: var(--text); }
+
+/* ---------- Мобильное меню ---------- */
+
+#mobile-menu.open {
+  display: flex;
+  flex-direction: column;
+  position: fixed;
+  top: 54px;
+  right: 10px;
+  z-index: 120;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 8px;
+  gap: 4px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
+}
+#mobile-menu button {
+  text-align: left;
+  min-height: 44px;
+  border: none;
+  background: transparent;
+  font-size: 15px;
+}
+#mobile-menu button:active { background: var(--accent-soft); }
+
+/* ---------- Телефон (до 720px): табы, шторки, крупные зоны ---------- */
+
+@media (max-width: 720px) {
+  .layout {
+    display: block;
+    padding: 10px 10px calc(76px + env(safe-area-inset-bottom));
+  }
+  #col-splitter { display: none; }
+  .col { display: contents; }
+  .panel { margin-bottom: 12px; }
+
+  /* видна только панель активной вкладки */
+  .layout .panel { display: none; }
+  body[data-tab="feed"] #panel-feed,
+  body[data-tab="map"] #panel-map,
+  body[data-tab="git"] #panel-git,
+  body[data-tab="pulse"] #panel-pulse,
+  body[data-tab="pulse"] #panel-attention { display: block; }
+
+  /* компактная липкая шапка: статус Клода всегда на виду */
+  .topbar { padding: 8px 10px; gap: 8px; }
+  .topbar .project, .topbar .badge, .topbar-actions { display: none; }
+  #btn-menu {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 44px;
+    min-height: 44px;
+    font-size: 18px;
+  }
+  #project-switch { max-width: 110px; min-height: 44px; }
+  #claude-state { font-size: 14px; padding: 8px 12px; }
+
+  /* нижняя навигация */
+  #tabbar {
+    display: flex;
+    position: fixed;
+    left: 0; right: 0; bottom: 0;
+    z-index: 90;
+    background: var(--bg-2);
+    border-top: 1px solid var(--line);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  #tabbar button {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    min-height: 56px;
+    border: none;
+    border-radius: 0;
+    background: transparent;
+    font-size: 12px;
+    color: var(--text-dim);
+    padding: 8px 0 6px;
+  }
+  #tabbar button .tb-ico { font-size: 20px; }
+  #tabbar button.on { color: var(--accent); background: var(--accent-soft); }
+
+  /* зоны касания ≥ 44px */
+  button { min-height: 44px; }
+  .chip { min-height: 34px; display: inline-flex; align-items: center; padding: 3px 14px; }
+  .feed-item { padding: 12px 10px; }
+  .tnode .row { min-height: 40px; }
+  .commit { padding: 10px 8px; }
+  #git-files .gf { min-height: 40px; align-items: center; }
+  .qm { width: 22px; height: 22px; font-size: 12px; }
+
+  /* лента и дерево скроллятся вместе со страницей, а не внутри себя */
+  #feed { max-height: none; overflow: visible; }
+  #tree { max-height: 60vh; }
+  #timeline { max-height: none; }
+
+  /* модалки — нижние шторки */
+  .modal-back { padding: 0; align-items: flex-end; }
+  .modal {
+    max-width: none;
+    width: 100%;
+    max-height: 88vh;
+    border-radius: 16px 16px 0 0;
+    border-bottom: none;
+    padding: 14px 16px calc(16px + env(safe-area-inset-bottom));
+    animation: sheet-up 0.22s ease;
+  }
+  .modal::before {
+    content: "";
+    display: block;
+    width: 44px;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--line);
+    margin: 0 auto 10px;
+  }
+
+  /* дифф читается пальцем: без горизонтальной прокрутки */
+  .diff { font-size: 11.5px; max-height: 60vh; overflow-x: hidden; }
+  .diff .dl { white-space: pre-wrap; word-break: break-word; }
+
+  /* пульс — сеткой 2×N, крупно */
+  .pulse-row { grid-template-columns: repeat(2, 1fr); }
+
+  /* тур: карточка по центру снизу */
+  #tour-box { left: 12px !important; right: 12px; max-width: none; bottom: 90px; top: auto !important; }
+}
+
+@keyframes sheet-up {
+  from { transform: translateY(30px); opacity: 0.6; }
+  to { transform: none; opacity: 1; }
+}
 
 @media (prefers-reduced-motion: reduce) {
   * { animation: none !important; transition: none !important; }

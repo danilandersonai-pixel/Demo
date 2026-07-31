@@ -2,12 +2,26 @@
 <html lang="ru-RU">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Штурман — что делает Клод</title>
+  <meta name="theme-color" content="#14171d">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="apple-touch-icon" href="/icons/icon-192.png">
+  <script>
+    // тема до загрузки CSS — чтобы не мигало белым/чёрным
+    (function () {
+      var t = 'auto';
+      try { t = (JSON.parse(localStorage.getItem('shturman-settings') || '{}').theme) || 'auto'; } catch (e) { /* ок */ }
+      if (t === 'auto') {
+        t = window.matchMedia && matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+      }
+      document.documentElement.setAttribute('data-theme', t);
+    })();
+  </script>
   <link rel="stylesheet" href="/style.css">
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 </head>
-<body>
+<body data-tab="feed">
 
 <header class="topbar">
   <span class="logo">⛵ Штурман</span>
@@ -19,16 +33,29 @@
     <span id="claude-state-text">подключаюсь…</span>
   </span>
   <span class="spacer"></span>
-  <button id="btn-sessions" title="Прошлые сессии Claude Code">🗓 Сессии</button>
-  <button id="btn-gloss" title="Словарь терминов для новичка">📚 Словарь</button>
-  <button id="btn-settings" title="Звук, уведомления, пороги">⚙ Настройки</button>
-  <button id="btn-tour" title="Показать тур по панели заново">🧭 Тур</button>
+  <span class="topbar-actions">
+    <button id="btn-share" title="Открыть панель на телефоне (QR-код)">📡 Телефон</button>
+    <button id="btn-sessions" title="Прошлые сессии Claude Code">🗓 Сессии</button>
+    <button id="btn-gloss" title="Словарь терминов для новичка">📚 Словарь</button>
+    <button id="btn-settings" title="Звук, уведомления, пороги">⚙ Настройки</button>
+    <button id="btn-tour" title="Показать тур по панели заново">🧭 Тур</button>
+  </span>
+  <button id="btn-menu" title="Меню">☰</button>
 </header>
+
+<!-- мобильное меню (дублирует кнопки шапки на маленьких экранах) -->
+<div id="mobile-menu">
+  <button data-menu="btn-share">📡 Открыть на телефоне</button>
+  <button data-menu="btn-sessions">🗓 Сессии</button>
+  <button data-menu="btn-gloss">📚 Словарь</button>
+  <button data-menu="btn-settings">⚙ Настройки</button>
+  <button data-menu="btn-tour">🧭 Тур по панели</button>
+</div>
 
 <main class="layout">
   <!-- Левая колонка: лента -->
   <div class="col">
-    <section class="panel" id="panel-feed">
+    <section class="panel" id="panel-feed" data-tab="feed">
       <h2>Что происходит
         <span class="qm" data-term="транскрипт сессии">?</span>
         <span class="sub" id="feed-count"></span>
@@ -60,9 +87,11 @@
     </section>
   </div>
 
+  <div id="col-splitter" title="Потяните, чтобы изменить ширину колонок"></div>
+
   <!-- Правая колонка: пульс, карта, git -->
   <div class="col">
-    <section class="panel" id="panel-pulse">
+    <section class="panel" id="panel-pulse" data-tab="pulse">
       <h2>Пульс сессии <span class="qm" data-term="сессия">?</span></h2>
       <div class="pulse-row">
         <div class="pulse-cell"><div class="num" id="p-files">0</div><div class="lbl">файлов затронуто</div></div>
@@ -74,12 +103,12 @@
       <div class="token-note" id="token-note"></div>
     </section>
 
-    <section class="panel" id="panel-attention">
+    <section class="panel" id="panel-attention" data-tab="pulse">
       <h2>Куда смотрит Клод <span class="sub">последние файлы, след гаснет</span></h2>
       <div id="attention"></div>
     </section>
 
-    <section class="panel" id="panel-map">
+    <section class="panel" id="panel-map" data-tab="map">
       <h2>Карта проекта <span class="sub">недавно изменённое подсвечено</span></h2>
       <div class="tree-controls">
         <input type="search" id="tree-search" placeholder="Найти файл…">
@@ -87,7 +116,7 @@
       <div id="tree"></div>
     </section>
 
-    <section class="panel" id="panel-git">
+    <section class="panel" id="panel-git" data-tab="git">
       <h2>Git для новичка <span class="qm" data-term="репозиторий">?</span></h2>
       <div id="git-body">
         <div class="empty-note">Смотрю, есть ли здесь git…</div>
@@ -129,10 +158,30 @@
   </div>
 </div>
 
+<!-- Модальное окно: подключение телефона -->
+<div class="modal-back" id="modal-share">
+  <div class="modal">
+    <h3>📡 Открыть на телефоне <button class="x" data-close="modal-share">Закрыть</button></h3>
+    <div id="share-body"></div>
+  </div>
+</div>
+
 <!-- Модальное окно: настройки -->
 <div class="modal-back" id="modal-settings">
   <div class="modal">
     <h3>⚙ Настройки <button class="x" data-close="modal-settings">Закрыть</button></h3>
+    <div class="set-row">
+      <div class="grow">Тема<div class="note">«Авто» повторяет настройку системы</div></div>
+      <select id="set-theme">
+        <option value="auto">Авто</option>
+        <option value="dark">Тёмная</option>
+        <option value="light">Светлая</option>
+      </select>
+    </div>
+    <div class="set-row">
+      <div class="grow">Режим ленты по умолчанию<div class="note">«Подробно» показывает сырые данные событий</div></div>
+      <label class="switch"><input type="checkbox" id="set-detail"><span class="sl"></span></label>
+    </div>
     <div class="set-row">
       <div class="grow">Звуковой сигнал, когда Клод остановился<div class="note">короткий мягкий аккорд, без повторов</div></div>
       <label class="switch"><input type="checkbox" id="set-sound" checked><span class="sl"></span></label>
@@ -153,6 +202,10 @@
       <div class="grow">Кнопка «Спросить Клода» у событий<div class="note">объяснение события через claude -p. Расходует ваши лимиты Claude, поэтому по умолчанию выключено</div></div>
       <label class="switch"><input type="checkbox" id="set-ask"><span class="sl"></span></label>
     </div>
+    <div class="set-row">
+      <div class="grow">Доступ с телефона (share-режим)<div class="note">QR-код, адреса в сети и объяснение — на экране «Подключение»</div></div>
+      <button data-open-share>📡 Открыть</button>
+    </div>
     <div class="muted" id="about-version" style="margin-top:12px; text-align:right"></div>
   </div>
 </div>
@@ -168,6 +221,14 @@
     <button id="tour-next" class="active">Дальше</button>
   </div>
 </div>
+
+<!-- нижняя навигация (телефон) -->
+<nav id="tabbar">
+  <button data-tab-btn="feed" class="on"><span class="tb-ico">📜</span>Лента</button>
+  <button data-tab-btn="map"><span class="tb-ico">🗺</span>Карта</button>
+  <button data-tab-btn="git"><span class="tb-ico">🌿</span>Git</button>
+  <button data-tab-btn="pulse"><span class="tb-ico">💓</span>Пульс</button>
+</nav>
 
 <script src="/app.js"></script>
 </body>

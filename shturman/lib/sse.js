@@ -21,8 +21,12 @@ function createHub() {
     });
     res.write('retry: 2000\n\n');
 
-    // если клиент переподключился — дошлём только пропущенное
+    // если клиент переподключился — дошлём только пропущенное; браузерный
+    // реконнект несёт заголовок Last-Event-ID, а «экономный» реконнект
+    // после сворачивания вкладки — параметр ?after=<id>
     var lastId = parseInt(req.headers['last-event-id'] || '0', 10) || 0;
+    var afterMatch = /[?&]after=(\d+)/.exec(String(req.url || ''));
+    if (afterMatch) lastId = Math.max(lastId, parseInt(afterMatch[1], 10) || 0);
     for (var i = 0; i < buffer.length; i++) {
       if (buffer[i].id > lastId) writeEvent(res, buffer[i]);
     }

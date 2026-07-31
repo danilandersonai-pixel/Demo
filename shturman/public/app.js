@@ -10,7 +10,8 @@
     quietSec: 90,
     tourDone: false,
     detail: false,
-    ask: false
+    ask: false,
+    theme: 'auto'
   };
   try {
     var saved = JSON.parse(localStorage.getItem('shturman-settings') || '{}');
@@ -156,11 +157,21 @@
     } catch (e) { /* ок */ }
   }
 
+  var BASE_TITLE = document.title;
+
+  function setTitleBadge(on) {
+    document.title = on ? '🔔 Клод ждёт — Штурман' : BASE_TITLE;
+  }
+
   function fireIdleSignal(projectId, reason, quietMs) {
     if (signalled[projectId]) return;
     signalled[projectId] = true;
     if (!pulseSeen[projectId]) return; // Клод стоял ещё до открытия панели — молчим
     playChime();
+    setTitleBadge(true);
+    if (navigator.vibrate) {
+      try { navigator.vibrate([200, 90, 200]); } catch (e) { /* ок */ }
+    }
     // при нескольких проектах говорим, в каком именно
     var where = projects.length > 1 ? ' (' + projectName(projectId) + ')' : '';
     if (reason === 'end-turn') {
@@ -204,9 +215,15 @@
       fireIdleSignal(projectId, 'quiet', p.quietMs);
     } else if (p.idle) {
       // сервер считает паузой, но пользовательский порог ещё не истёк
-      if (isActive) setClaudeState('working', 'Клод работает');
+      if (isActive) {
+        setClaudeState('working', 'Клод работает');
+        setTitleBadge(false);
+      }
     } else {
-      if (isActive) setClaudeState('working', 'Клод работает');
+      if (isActive) {
+        setClaudeState('working', 'Клод работает');
+        setTitleBadge(false);
+      }
       signalled[projectId] = false;
     }
     pulseSeen[projectId] = true;
@@ -345,18 +362,36 @@
     return source.length ? '· событий: ' + source.length + (feedPaused ? ' (пауза)' : '') : '';
   }
 
+  /* лёгкая «виртуализация»: рисуем окно из FEED_CHUNK строк, дальше —
+     по кнопке «Показать ещё» (на телефоне длинный список иначе тормозит) */
+  var FEED_CHUNK = 100;
+  var feedRenderLimit = FEED_CHUNK;
+
   /** Полная пересборка — только для смены фильтра/поиска/режима/сессии. */
   function renderFeed() {
     var box = $('feed');
     box.innerHTML = '';
     var source = viewingOldSession ? oldSessionItems : feedItems;
     var shown = 0;
+    var hiddenRest = 0;
     for (var i = source.length - 1; i >= 0; i--) { // свежее — сверху
       var item = source[i];
       if (!passesFilter(item)) continue;
+      if (shown >= Math.min(feedRenderLimit, MAX_FEED_DOM)) {
+        hiddenRest++;
+        continue;
+      }
       box.appendChild(renderFeedItem(item));
       shown++;
-      if (shown >= MAX_FEED_DOM) break;
+    }
+    if (hiddenRest > 0 && feedRenderLimit < MAX_FEED_DOM) {
+      var more = el('button', 'feed-more', 'Показать ещё (' + hiddenRest + ')');
+      more.style.width = '100%';
+      more.addEventListener('click', function () {
+        feedRenderLimit += 200;
+        renderFeed();
+      });
+      box.appendChild(more);
     }
     if (!shown) {
       var msg = source.length
@@ -435,6 +470,8 @@
     saveSettings();
     this.textContent = settings.detail ? 'Подробно' : 'Просто';
     this.classList.toggle('active', settings.detail);
+    var mirror = $('set-detail');
+    if (mirror) mirror.checked = settings.detail;
     renderFeed();
   });
   if (settings.detail) {
@@ -444,6 +481,7 @@
 
   $('feed-search').addEventListener('input', function () {
     feedQuery = this.value.trim();
+    feedRenderLimit = FEED_CHUNK;
     renderFeed();
   });
 
@@ -453,6 +491,7 @@
     feedFilter = chip.getAttribute('data-cat');
     this.querySelectorAll('.chip').forEach(function (c) { c.classList.remove('on'); });
     chip.classList.add('on');
+    feedRenderLimit = FEED_CHUNK;
     renderFeed();
   });
 
@@ -1140,6 +1179,22 @@
     saveSettings();
   });
 
+  $('set-theme').value = settings.theme || 'auto';
+  $('set-theme').addEventListener('change', function () {
+    settings.theme = this.value;
+    saveSettings();
+    applyTheme();
+  });
+
+  $('set-detail').checked = settings.detail;
+  $('set-detail').addEventListener('change', function () {
+    settings.detail = this.checked;
+    saveSettings();
+    $('btn-detail').textContent = settings.detail ? 'Подробно' : 'Просто';
+    $('btn-detail').classList.toggle('active', settings.detail);
+    renderFeed();
+  });
+
   $('btn-test-signal').addEventListener('click', function () {
     var wasSignalled = signalledIdle;
     signalledIdle = false;
@@ -1238,9 +1293,17 @@
   /* ---------------- SSE ---------------- */
 
   var es = null;
+  var lastSeenId = 0; // для экономного реконнекта: /events?after=<id>
+
+  function noteId(e) {
+    var n = parseInt(e.lastEventId || '0', 10);
+    if (n > lastSeenId) lastSeenId = n;
+  }
+
   function connectSSE() {
-    es = new EventSource('/events');
+    es = new EventSource('/events' + (lastSeenId ? '?after=' + lastSeenId : ''));
     es.addEventListener('feed', function (e) {
+      noteId(e);
       try {
         var item = JSON.parse(e.data);
         addFeedItem(item);
@@ -1254,30 +1317,35 @@
       } catch (err) { /* пропускаем битое */ }
     });
     es.addEventListener('fs', function (e) {
+      noteId(e);
       try {
         var d = JSON.parse(e.data); // {project, data:{files}}
         if (d.project === activeProject) markHot((d.data && d.data.files) || []);
       } catch (err) { /* ок */ }
     });
     es.addEventListener('git', function (e) {
+      noteId(e);
       try {
         var d = JSON.parse(e.data); // {project, data}
         if (d.project === activeProject) renderGit(d.data);
       } catch (err) { /* ок */ }
     });
     es.addEventListener('pulse', function (e) {
+      noteId(e);
       try {
         var d = JSON.parse(e.data); // {project, data}
         updateStateFromPulse(d.project, d.data);
       } catch (err) { /* ок */ }
     });
     es.addEventListener('session', function (e) {
+      noteId(e);
       try {
         var d = JSON.parse(e.data);
         if (d.project) signalled[d.project] = false;
       } catch (err) { /* ок */ }
     });
     es.addEventListener('level', function (e) {
+      noteId(e);
       try {
         var d = JSON.parse(e.data);
         if (!d.project || d.project === activeProject) setLevel(d.level);
@@ -1287,6 +1355,29 @@
       setClaudeState('unknown', 'сервер недоступен — переподключаюсь…');
     };
   }
+
+  /* экономия на телефоне: свёрнутая вкладка через 45 с закрывает SSE,
+     возвращение — переподключает и докачивает пропущенное (?after=) */
+  var hiddenTimer = null;
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden) {
+      if (!hiddenTimer) {
+        hiddenTimer = setTimeout(function () {
+          hiddenTimer = null;
+          if (es) {
+            es.close();
+            es = null;
+          }
+        }, 45000);
+      }
+    } else {
+      if (hiddenTimer) {
+        clearTimeout(hiddenTimer);
+        hiddenTimer = null;
+      }
+      if (!es) connectSSE();
+    }
+  });
 
   function setLevel(lv) {
     level = lv;
@@ -1302,6 +1393,194 @@
     }
     renderFeed();
   }
+
+  /* ---------------- вкладки (телефон), свайп, меню ---------------- */
+
+  var TAB_ORDER = ['feed', 'map', 'git', 'pulse'];
+
+  function setTab(name) {
+    if (TAB_ORDER.indexOf(name) === -1) return;
+    document.body.setAttribute('data-tab', name);
+    document.querySelectorAll('#tabbar button').forEach(function (b) {
+      b.classList.toggle('on', b.getAttribute('data-tab-btn') === name);
+    });
+    window.scrollTo(0, 0);
+  }
+
+  $('tabbar').addEventListener('click', function (e) {
+    var btn = e.target.closest('[data-tab-btn]');
+    if (btn) setTab(btn.getAttribute('data-tab-btn'));
+  });
+
+  /* свайп влево/вправо листает вкладки (только на телефоне) */
+  var touchX = null, touchY = null;
+  document.addEventListener('touchstart', function (e) {
+    if (e.touches.length !== 1) return;
+    touchX = e.touches[0].clientX;
+    touchY = e.touches[0].clientY;
+  }, { passive: true });
+  document.addEventListener('touchend', function (e) {
+    if (touchX === null || !e.changedTouches.length) return;
+    var dx = e.changedTouches[0].clientX - touchX;
+    var dy = e.changedTouches[0].clientY - touchY;
+    touchX = touchY = null;
+    if (Math.abs(dx) < 70 || Math.abs(dy) > Math.abs(dx) * 0.6) return; // не свайп
+    if (document.querySelector('.modal-back.show')) return;             // в шторке не листаем
+    var idx = TAB_ORDER.indexOf(document.body.getAttribute('data-tab') || 'feed');
+    var next = idx + (dx < 0 ? 1 : -1);
+    if (next >= 0 && next < TAB_ORDER.length) setTab(TAB_ORDER[next]);
+  }, { passive: true });
+
+  /* мобильное меню ☰ — пункты нажимают «настоящие» кнопки шапки */
+  $('btn-menu').addEventListener('click', function (e) {
+    e.stopPropagation();
+    $('mobile-menu').classList.toggle('open');
+  });
+  $('mobile-menu').addEventListener('click', function (e) {
+    var item = e.target.closest('[data-menu]');
+    if (!item) return;
+    $('mobile-menu').classList.remove('open');
+    var target = $(item.getAttribute('data-menu'));
+    if (target) target.click();
+  });
+  document.addEventListener('click', function (e) {
+    if (!e.target.closest('#mobile-menu') && !e.target.closest('#btn-menu')) {
+      $('mobile-menu').classList.remove('open');
+    }
+  });
+
+  /* ---------------- тема ---------------- */
+
+  function applyTheme() {
+    var t = settings.theme || 'auto';
+    if (t === 'auto') {
+      t = window.matchMedia && matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+    }
+    document.documentElement.setAttribute('data-theme', t);
+  }
+  if (window.matchMedia) {
+    matchMedia('(prefers-color-scheme: light)').addEventListener('change', function () {
+      if (settings.theme === 'auto') applyTheme();
+    });
+  }
+
+  /* ---------------- горячие клавиши (компьютер) ---------------- */
+
+  document.addEventListener('keydown', function (e) {
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    var tag = (document.activeElement && document.activeElement.tagName) || '';
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+    var n = parseInt(e.key, 10);
+    if (n >= 1 && n <= 4) {
+      var name = TAB_ORDER[n - 1];
+      setTab(name);
+      // на десктопе все панели видны — подсветим и прокрутим нужную
+      var panel = document.querySelector('.panel[data-tab="' + name + '"]');
+      if (panel && window.innerWidth > 720) {
+        panel.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        panel.classList.add('tour-target');
+        setTimeout(function () { panel.classList.remove('tour-target'); }, 900);
+      }
+    } else if (e.key === '/') {
+      e.preventDefault();
+      if (window.innerWidth <= 720) setTab('feed');
+      $('feed-search').focus();
+    } else if (e.key === 'm' || e.key === 'ь') {
+      settings.sound = !settings.sound;
+      saveSettings();
+      $('set-sound').checked = settings.sound;
+      setClaudeState($('claude-state').className, settings.sound ? 'звук включён 🔔' : 'звук выключен 🔕');
+      setTimeout(function () { if (lastPulse) updateStateFromPulse(activeProject, lastPulse); }, 1200);
+    }
+  });
+
+  /* ---------------- разделитель колонок (компьютер) ---------------- */
+
+  (function initSplitter() {
+    var splitter = $('col-splitter');
+    if (!splitter) return;
+    try {
+      var savedCol = localStorage.getItem('shturman-left-col');
+      if (savedCol) document.querySelector('.layout').style.setProperty('--left-col', savedCol);
+    } catch (e) { /* ок */ }
+    var dragging = false;
+    splitter.addEventListener('mousedown', function (e) {
+      dragging = true;
+      splitter.classList.add('dragging');
+      e.preventDefault();
+    });
+    document.addEventListener('mousemove', function (e) {
+      if (!dragging) return;
+      var layout = document.querySelector('.layout');
+      var rect = layout.getBoundingClientRect();
+      var frac = (e.clientX - rect.left) / rect.width;
+      frac = Math.max(0.28, Math.min(0.72, frac));
+      var value = (frac * 100).toFixed(1) + '%';
+      layout.style.setProperty('--left-col', value);
+    });
+    document.addEventListener('mouseup', function () {
+      if (!dragging) return;
+      dragging = false;
+      splitter.classList.remove('dragging');
+      try {
+        var layoutEl = document.querySelector('.layout');
+        localStorage.setItem('shturman-left-col', layoutEl.style.getPropertyValue('--left-col'));
+      } catch (e) { /* ок */ }
+    });
+  })();
+
+  /* ---------------- экран «Подключение» (телефон по QR) ---------------- */
+
+  function openShare() {
+    var body = $('share-body');
+    body.innerHTML = '<div class="muted">Спрашиваю сервер…</div>';
+    showModal('modal-share');
+    fetch(api('/api/share')).then(function (r) { return r.json(); }).then(function (d) {
+      body.innerHTML = '';
+      if (!d.share) {
+        var off = el('div');
+        off.innerHTML =
+          '<p><b>Доступ с телефона сейчас выключен</b> — и это нормально: по умолчанию ' +
+          '«Штурман» слушает только этот компьютер (127.0.0.1), наружу не видно ничего.</p>' +
+          '<p>Чтобы смотреть панель с телефона, перезапустите сервер с флагом:</p>' +
+          '<div class="share-url">node server.js --share</div>' +
+          '<p>Появится QR-код: телефон должен быть в той же Wi-Fi-сети. ' +
+          'Ссылка защищена одноразовым токеном — без него сервер отвечает отказом. ' +
+          'И даже с токеном сервер <b>только читает</b> проект: изменить с телефона ничего нельзя.</p>';
+        body.appendChild(off);
+        return;
+      }
+      if (d.owner && d.urls && d.urls.length) {
+        var on = el('div');
+        var urlsHtml = d.urls.map(function (u) { return '<div class="share-url">' + escapeHtml(u) + '</div>'; }).join('');
+        on.innerHTML =
+          '<p><b>Доступ включён.</b> Наведите камеру телефона на QR-код ' +
+          '(телефон должен быть в той же Wi-Fi-сети):</p>' +
+          (d.qr ? '<div class="qr-wrap"><img alt="QR-код со ссылкой на панель" src="' + d.qr + '"></div>' : '') +
+          '<p>Или откройте ссылку вручную:</p>' + urlsHtml +
+          '<p>Ссылка содержит одноразовый токен — не публикуйте её за пределами ' +
+          'домашней сети. Сервер только читает проект: с телефона (как и отсюда) ' +
+          'ничего изменить нельзя.</p>';
+        body.appendChild(on);
+        return;
+      }
+      var remote = el('div');
+      remote.innerHTML =
+        '<p><b>Вы уже подключены по share-ссылке.</b> Адреса сервера в сети: ' +
+        (d.addresses || []).map(function (a) { return '<span class="mono">' + escapeHtml(a) + '</span>'; }).join(', ') +
+        '.</p><p>QR-код с токеном показывается только на самом компьютере — чтобы доступ раздавал только хозяин.</p>';
+      body.appendChild(remote);
+    }).catch(function () {
+      body.innerHTML = '<div class="empty-note">Не удалось узнать состояние share-режима.</div>';
+    });
+  }
+  $('btn-share').addEventListener('click', openShare);
+  document.body.addEventListener('click', function (e) {
+    if (e.target.closest('[data-open-share]')) {
+      hideModal('modal-settings');
+      openShare();
+    }
+  });
 
   /* ---------------- проекты и запуск ---------------- */
 
@@ -1370,6 +1649,13 @@
   });
 
   function boot() {
+    applyTheme();
+    // PWA: оболочка кэшируется, при недоступном сервере — понятная страница
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js').catch(function () {
+        /* http по локальной сети — SW недоступен, панель работает и так */
+      });
+    }
     fetch('/api/state').then(function (r) { return r.json(); }).then(function (s) {
       applyState(s, true);
       if (!settings.tourDone) showTourStep(0);

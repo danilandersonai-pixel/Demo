@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="ru-RU">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Штурман — сервер не запущен</title>
+  <style>
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #14171d;
+      color: #e6e4de;
+      font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+      padding: 24px;
+      box-sizing: border-box;
+    }
+    .card {
+      max-width: 460px;
+      background: #1e242e;
+      border: 1px solid #2e3644;
+      border-radius: 16px;
+      padding: 28px 30px;
+      text-align: center;
+    }
+    .ship { font-size: 52px; }
+    h1 { font-size: 20px; margin: 12px 0 8px; }
+    p { font-size: 15px; line-height: 1.55; color: #9aa3b2; margin: 10px 0; }
+    code {
+      background: #14171d;
+      border: 1px solid #2e3644;
+      border-radius: 6px;
+      padding: 2px 8px;
+      font-size: 13px;
+      color: #e6e4de;
+    }
+    button {
+      margin-top: 14px;
+      font-size: 15px;
+      color: #e6e4de;
+      background: #242b37;
+      border: 1px solid #2e3644;
+      border-radius: 10px;
+      padding: 12px 22px;
+      cursor: pointer;
+    }
+    button:hover { border-color: #82aaff; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="ship">⛵💤</div>
+    <h1>Сервер «Штурмана» не запущен</h1>
+    <p>Панель на месте, но ей не с кем говорить: на компьютере сейчас
+      не работает сервер наблюдения.</p>
+    <p>Запустите его на компьютере — двойным кликом по
+      <code>Штурман.bat</code> (Windows) или <code>Штурман.command</code>
+      (macOS/Linux), либо командой <code>shturman</code> в папке проекта, —
+      и нажмите кнопку ниже.</p>
+    <p>Если панель открыта с телефона: проверьте, что компьютер не уснул
+      и вы в той же Wi-Fi-сети.</p>
+    <button onclick="location.reload()">Попробовать снова</button>
+  </div>
+</body>
+</html>
