@@ -898,7 +898,13 @@
       try {
         var item = JSON.parse(e.data);
         addFeedItem(item);
-        if (item.kind === 'claude-idle') fireIdleSignal(item.reason, null);
+        if (item.kind === 'claude-idle') {
+          // сигналим только о свежей паузе: реплей истории при подключении
+          // не должен пищать задним числом
+          var age = Date.now() - Date.parse(item.ts || 0);
+          if (isFinite(age) && age < 20000) fireIdleSignal(item.reason, null);
+          else signalledIdle = true;
+        }
       } catch (err) { /* пропускаем битое */ }
     });
     es.addEventListener('fs', function (e) {

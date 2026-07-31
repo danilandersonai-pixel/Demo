@@ -57,9 +57,23 @@ function createHub() {
     return item.id;
   }
 
+  /**
+   * Служебное событие «текущее состояние» (пульс, git, файлы): уходит живым
+   * клиентам, но НЕ пишется в буфер — иначе периодика вытеснит настоящую
+   * историю ленты, а при переподключении клиент получит ворох устаревших
+   * состояний.
+   */
+  function transient(type, data) {
+    var payload = 'event: ' + type + '\n' + 'data: ' + JSON.stringify(data) + '\n\n';
+    for (var i = 0; i < clients.length; i++) {
+      try { clients[i].res.write(payload); } catch (e) { /* отвалился */ }
+    }
+  }
+
   return {
     attach: attach,
     broadcast: broadcast,
+    transient: transient,
     clientCount: function () { return clients.length; },
     bufferedEvents: function () { return buffer.slice(); }
   };

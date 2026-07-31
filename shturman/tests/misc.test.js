@@ -163,6 +163,15 @@ test('SSE: живые клиенты получают новые события,
   assert.strictEqual(hub.clientCount(), 0);
 });
 
+test('SSE: transient уходит клиентам, но не попадает в буфер', function () {
+  var hub = sse.createHub();
+  var res = fakeRes();
+  hub.attach(fakeReq(), res);
+  hub.transient('pulse', { quietMs: 5 });
+  assert.ok(res.chunks.join('').indexOf('quietMs') !== -1, 'клиент получил');
+  assert.strictEqual(hub.bufferedEvents().length, 0, 'буфер чист');
+});
+
 test('SSE: буфер ограничен, старое вытесняется', function () {
   var hub = sse.createHub();
   for (var i = 0; i < sse.BUFFER_SIZE + 50; i++) hub.broadcast('feed', { i: i });

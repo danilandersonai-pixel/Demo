@@ -93,7 +93,7 @@ var watcher = watcherMod.createWatcher(PROJECT, function (changes) {
   });
   pulse.feedFileChanges(files);
   pushEvent({ kind: 'file-change', ts: new Date().toISOString(), files: files });
-  hub.broadcast('fs', { files: files });
+  hub.transient('fs', { files: files });
 });
 
 /* --------------------------- Git-опрос ----------------------------- */
@@ -112,7 +112,7 @@ function pollGit() {
     if (lastGitKey && key !== lastGitKey) {
       var text = describeGitChange(info);
       if (text) pushEvent({ kind: 'git-change', ts: new Date().toISOString(), text: text });
-      hub.broadcast('git', publicGit(info));
+      hub.transient('git', publicGit(info));
     }
     lastGitKey = key;
   });
@@ -165,7 +165,7 @@ if (transcriptDir) {
         pulse.feed(events[i]);
         pushEvent(events[i]);
       }
-      hub.broadcast('pulse', pulse.snapshot());
+      hub.transient('pulse', pulse.snapshot());
     },
     onSwitch: function (sessionId) {
       pulse.resetSession();
@@ -190,7 +190,7 @@ if (transcriptDir) {
           pulse.feed(events[i]);
           pushEvent(events[i]);
         }
-        hub.broadcast('pulse', pulse.snapshot());
+        hub.transient('pulse', pulse.snapshot());
       },
       onSwitch: function (sessionId) {
         pulse.resetSession();
@@ -206,7 +206,7 @@ if (transcriptDir) {
 /* Детектор остановки + периодический пульс */
 var pulseTimer = setInterval(function () {
   pulse.check();
-  hub.broadcast('pulse', pulse.snapshot());
+  hub.transient('pulse', pulse.snapshot());
 }, 3000);
 if (pulseTimer.unref) pulseTimer.unref();
 
