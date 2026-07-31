@@ -184,6 +184,67 @@ test('ярлык .command: shebang и dirname', function () {
   assert.ok(c.indexOf('node "/opt/shturman/server.js" --project "$(pwd)"') !== -1);
 });
 
+/* ---------- новые флаги CLI и учёт подключений ---------- */
+
+var cli = require('../lib/cli');
+var sse = require('../lib/sse');
+
+test('cli: --share, --no-open, --app парсятся; --tui выключает автобраузер', function () {
+  var a = cli.parseArgs(['node', 'server.js', '--share', '--app']);
+  assert.strictEqual(a.share, true);
+  assert.strictEqual(a.app, true);
+  var b = cli.parseArgs(['node', 'server.js', '--tui']);
+  assert.strictEqual(b.tui, true);
+  assert.strictEqual(b.noOpen, true, '--tui сам по себе не открывает браузер');
+  var c = cli.parseArgs(['node', 'server.js']);
+  assert.strictEqual(c.share, false, 'без флага share выключен');
+});
+
+test('cli: подкоманда «ярлыки» распознаётся и не считается проектом', function () {
+  var a = cli.parseArgs(['node', 'server.js', 'ярлыки']);
+  assert.strictEqual(a.command, 'shortcuts');
+  var b = cli.parseArgs(['node', 'server.js', 'shortcuts']);
+  assert.strictEqual(b.command, 'shortcuts');
+  assert.strictEqual(b.projects[0], process.cwd(), 'проект — текущая папка, а не слово «shortcuts»');
+});
+
+function fakeSseReq(ip, ua) {
+  var handlers = {};
+  return {
+    url: '/events',
+    headers: { 'user-agent': ua || '' },
+    socket: { remoteAddress: ip },
+    on: function (ev, fn) { handlers[ev] = fn; },
+    _close: function () { if (handlers.close) handlers.close(); }
+  };
+}
+function fakeSseRes() {
+  return { ended: false, writeHead: function () {}, write: function () {}, end: function () { this.ended = true; } };
+}
+
+test('SSE: clientsInfo отдаёт IP/UA/время подключения', function () {
+  var hub = sse.createHub();
+  hub.attach(fakeSseReq('127.0.0.1', 'Desktop'), fakeSseRes());
+  hub.attach(fakeSseReq('192.168.1.7', 'Android Phone'), fakeSseRes());
+  var info = hub.clientsInfo();
+  assert.strictEqual(info.length, 2);
+  assert.strictEqual(info[1].ip, '192.168.1.7');
+  assert.strictEqual(info[1].ua, 'Android Phone');
+  assert.ok(info[0].sinceMs > 0);
+});
+
+test('SSE: dropClients обрывает чужих, своих оставляет (отзыв доступа)', function () {
+  var hub = sse.createHub();
+  var mine = fakeSseRes();
+  var alien = fakeSseRes();
+  hub.attach(fakeSseReq('127.0.0.1', 'Desktop'), mine);
+  hub.attach(fakeSseReq('192.168.1.7', 'Phone'), alien);
+  hub.dropClients(function (c) { return c.ip === '127.0.0.1'; });
+  assert.strictEqual(alien.ended, true, 'чужое соединение оборвано');
+  assert.strictEqual(mine.ended, false, 'своё живо');
+  assert.strictEqual(hub.clientCount(), 1);
+});
+
 test('writeShortcuts: создаёт оба файла, .command исполняемый', function () {
   var tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'shturman-sc-'));
   var made = shortcuts.writeShortcuts(tmp, '/x/server.js');
