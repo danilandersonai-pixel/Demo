@@ -39,6 +39,11 @@ if (args.warning) console.warn(args.warning);
 var PROJECT = args.project;
 var PORT = args.port;
 
+var VERSION = '0.0.0';
+try {
+  VERSION = JSON.parse(fs.readFileSync(path.join(__dirname, 'package.json'), 'utf8')).version || VERSION;
+} catch (e) { /* без версии тоже жить можно */ }
+
 try {
   if (!fs.statSync(PROJECT).isDirectory()) throw new Error('не каталог');
 } catch (e) {
@@ -301,6 +306,7 @@ var server = http.createServer(function (req, res) {
     case '/api/state': {
       var sessions = transcriptDir ? transcript.listSessions(transcriptDir) : [];
       return sendJson(res, 200, {
+        version: VERSION,
         project: {
           path: paths.toDisplay(PROJECT),
           name: path.basename(PROJECT)

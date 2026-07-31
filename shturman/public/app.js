@@ -1147,6 +1147,7 @@
     fetch('/api/state').then(function (r) { return r.json(); }).then(function (s) {
       $('project-path').textContent = s.project.name + ' — ' + s.project.path;
       $('project-path').title = s.project.path;
+      if (s.version) $('about-version').textContent = '⛵ Штурман v' + s.version;
       setLevel(s.level);
       if (s.git) renderGit(s.git);
       if (s.pulse) updateStateFromPulse(s.pulse);
