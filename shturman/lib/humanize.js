@@ -228,6 +228,32 @@ function humanize(ev) {
     return { icon: '•', title: 'Событие', hint: '', level: 'info' };
   }
 
+  // Работа субагента подписывается отдельно: это не Клод, а его помощник,
+  // и путать их нельзя — иначе непонятно, кто трогал файл.
+  if (ev.sidechain) {
+    var inner = humanizeMain(ev);
+    return {
+      icon: inner.icon,
+      title: 'Помощник: ' + lowerFirst(stripActor(inner.title)),
+      hint: inner.hint,
+      level: inner.level
+    };
+  }
+  return humanizeMain(ev);
+}
+
+// «Клод читает README.md» -> «читает README.md»: подлежащее подменяется
+// на помощника, а остальная формулировка остаётся прежней.
+function stripActor(title) {
+  return String(title || '').replace(/^Клод\s+/, '');
+}
+
+function lowerFirst(s) {
+  var t = String(s || '');
+  return t ? t.charAt(0).toLowerCase() + t.slice(1) : t;
+}
+
+function humanizeMain(ev) {
   switch (ev.kind) {
     case 'user': return humanizeUser(ev);
     case 'assistant': return humanizeAssistant(ev);

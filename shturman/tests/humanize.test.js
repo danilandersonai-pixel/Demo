@@ -170,6 +170,37 @@ test('ни одна формулировка не содержит undefined и�
   assert.deepStrictEqual(bad, []);
 });
 
+test('humanize: работа помощника подписана отдельно от работы Клода', function () {
+  var mine = hz.humanize({ kind: 'tool', action: 'read', file: 'a.js' });
+  var helper = hz.humanize({ kind: 'tool', action: 'read', file: 'a.js', sidechain: true });
+
+  assert.match(mine.title, /^Клод читает/);
+  assert.match(helper.title, /^Помощник: читает/);
+  assert.ok(helper.title.indexOf('Клод') === -1, 'подлежащее подменено, а не добавлено');
+  assert.strictEqual(helper.icon, mine.icon, 'иконка та же — действие ведь одинаковое');
+  assert.strictEqual(helper.hint, mine.hint);
+});
+
+test('humanize: помощник сохраняет уровень ошибки', function () {
+  var err = hz.humanize({ kind: 'result', ok: false, tool: 'Bash', stderr: 'упало', sidechain: true });
+  assert.strictEqual(err.level, 'error');
+  assert.match(err.title, /^Помощник: /);
+});
+
+test('парсер помечает записи субагента', function () {
+  var parser = tp.createParser({ projectRoot: '/proj' });
+  var main = parser.push({
+    type: 'assistant', uuid: 'a', timestamp: '2026-07-31T10:00:00.000Z',
+    message: { id: 'm1', role: 'assistant', content: [{ type: 'text', text: 'я' }] }
+  })[0];
+  var side = parser.push({
+    type: 'assistant', uuid: 'b', isSidechain: true, timestamp: '2026-07-31T10:00:01.000Z',
+    message: { id: 'm2', role: 'assistant', content: [{ type: 'text', text: 'помощник' }] }
+  })[0];
+  assert.strictEqual(main.sidechain, false);
+  assert.strictEqual(side.sidechain, true);
+});
+
 test('describeBranch: смысл ветки одной строкой', function () {
   assert.match(hz.describeBranch('main'), /Главная ветка/);
   assert.match(hz.describeBranch('master'), /Главная ветка/);

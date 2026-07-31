@@ -146,7 +146,8 @@
     search: function (e) { return e.kind === 'tool' && e.action === 'search'; },
     error: function (e) { return e.level === 'error' || e.level === 'warn'; },
     talk: function (e) { return e.kind === 'user' || e.kind === 'assistant'; },
-    git: function (e) { return e.kind === 'git' || e.kind === 'file'; }
+    git: function (e) { return e.kind === 'git' || e.kind === 'file'; },
+    agent: function (e) { return e.sidechain === true || e.action === 'agent'; }
   };
 
   function matches(ev) {
@@ -167,6 +168,7 @@
     if (ev.kind === 'tool' && (ev.action === 'edit' || ev.action === 'write')) cls.push('ev--edit');
     if (ev.kind === 'tool' && ev.action === 'run') cls.push('ev--run');
     if (ev.kind === 'session' && ev.action === 'idle') cls.push('ev--attention');
+    if (ev.sidechain) cls.push('ev--agent');
     return cls.join(' ');
   }
 
