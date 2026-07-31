@@ -27,7 +27,8 @@ var HELP = [
   '    node server.js [--project <путь>] [--port 4517]',
   '',
   '  Флаги:',
-  '    --project <путь>   папка проекта, за которой следим (по умолчанию — текущая)',
+  '    --project <путь>   папка проекта, за которой следим (по умолчанию — текущая);',
+  '                       флаг можно повторить — в панели появится переключатель',
   '    --port <номер>     порт панели (по умолчанию 4517)',
   '    --idle <секунды>   через сколько тишины считать, что Клод ждёт (по умолчанию 45)',
   '    --debounce <мс>    склейка событий файловой системы (по умолчанию 220)',
@@ -53,6 +54,7 @@ function parse(argv) {
   var args = Array.isArray(argv) ? argv.slice() : [];
   var out = Object.assign({}, DEFAULTS);
   var positional = [];
+  var projects = [];
 
   for (var i = 0; i < args.length; i++) {
     var a = args[i];
@@ -81,7 +83,9 @@ function parse(argv) {
 
     switch (key) {
       case 'project': case 'dir': case 'path':
-        out.project = nextValue();
+        // Флаг можно повторить: «--project a --project b» откроет обе папки
+        // в одной панели с переключателем.
+        projects.push(nextValue());
         break;
       case 'port':
         out.port = toInt(nextValue(), 'port', 1, 65535);
@@ -119,14 +123,24 @@ function parse(argv) {
     }
   }
 
-  // Позиционный аргумент — тоже путь к проекту: «node server.js ../myapp».
-  if (positional.length === 1 && out.project === DEFAULTS.project) {
-    out.project = positional[0];
-  } else if (positional.length > 1) {
-    throw fail('Лишние аргументы: ' + positional.slice(1).join(', ') + '. Путь к проекту указывается один раз.');
-  }
+  // Позиционные аргументы — тоже пути к проектам: «node server.js ../myapp».
+  positional.forEach(function (p) { projects.push(p); });
+  if (!projects.length) projects.push(DEFAULTS.project);
 
-  out.projectAbs = path.resolve(out.project);
+  // Одинаковые пути схлопываем, чтобы не поднимать два наблюдателя на одну
+  // папку — это удвоило бы события в ленте.
+  var seen = new Set();
+  out.projects = projects.map(function (p) {
+    return path.resolve(p);
+  }).filter(function (abs) {
+    if (seen.has(abs)) return false;
+    seen.add(abs);
+    return true;
+  });
+
+  // Основной проект — первый. Остальные доступны через переключатель.
+  out.project = out.projects[0];
+  out.projectAbs = out.projects[0];
   out.idleMs = out.idle * 1000;
   return out;
 }

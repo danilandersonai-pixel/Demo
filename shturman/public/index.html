@@ -21,6 +21,12 @@
     <span class="topbar__project-path" id="projectPath"></span>
   </div>
 
+  <!-- Появляется, только если Штурман запущен с несколькими --project -->
+  <div class="switcher" id="switcher" hidden>
+    <span class="switcher__label">Проект:</span>
+    <div class="switcher__chips" id="switcherChips"></div>
+  </div>
+
   <div class="topbar__status">
     <span class="chip" id="levelChip" title="Откуда Штурман берёт данные">
       <span class="chip__dot" id="levelDot"></span>

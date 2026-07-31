@@ -69,8 +69,22 @@
     return String(Math.round(n || 0)).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
   }
 
-  function api(path, options) {
-    return fetch(path, options).then(function (r) {
+  // Все обращения к серверу проходят через один адресный сборщик: он
+  // подставляет выбранный проект, чтобы переключатель работал сам собой.
+  function href(pathStr, params) {
+    var u = pathStr;
+    var parts = [];
+    if (app.projectKey) parts.push('project=' + encodeURIComponent(app.projectKey));
+    Object.keys(params || {}).forEach(function (k) {
+      if (params[k] === undefined || params[k] === null) return;
+      parts.push(encodeURIComponent(k) + '=' + encodeURIComponent(params[k]));
+    });
+    if (parts.length) u += (u.indexOf('?') === -1 ? '?' : '&') + parts.join('&');
+    return u;
+  }
+
+  function api(pathStr, options, params) {
+    return fetch(href(pathStr, params), options).then(function (r) {
       if (!r.ok && r.status >= 500) throw new Error('Сервер ответил ошибкой ' + r.status);
       return r.json();
     });
@@ -109,6 +123,8 @@
     selectedFile: null,
     gitTab: 'now',
     archive: null,           // открытая архивная сессия
+    projectKey: null,        // выбранный проект (когда их несколько)
+    projects: [],
     sound: store.get('sound', true),
     notify: store.get('notify', true)
   };
@@ -343,7 +359,7 @@
       var sec = section(body, 'Что изменилось в файле');
       var loading = el('p', 'muted', 'Смотрим дифф…');
       sec.appendChild(loading);
-      api('/api/git/diff?path=' + encodeURIComponent(ev.file)).then(function (d) {
+      api('/api/git/diff', null, { path: ev.file }).then(function (d) {
         sec.removeChild(loading);
         if (d.error) return sec.appendChild(el('p', 'muted', d.error));
         if (d.note) sec.appendChild(el('p', 'muted', d.note));
@@ -591,7 +607,7 @@
     var body = openDrawer('📄 ' + pathStr);
     body.appendChild(el('p', 'muted', 'Загружаем…'));
 
-    api('/api/file?path=' + encodeURIComponent(pathStr)).then(function (card) {
+    api('/api/file', null, { path: pathStr }).then(function (card) {
       clear(body);
       if (card.error && !card.title) {
         body.appendChild(el('p', 'muted', card.error));
@@ -715,7 +731,7 @@
     body.appendChild(el('p', 'card__what', c.explain || ''));
     var sec = section(body, 'Что вошло в это сохранение');
     sec.appendChild(el('p', 'muted', 'Загружаем…'));
-    api('/api/git/commit?sha=' + encodeURIComponent(c.hash)).then(function (d) {
+    api('/api/git/commit', null, { sha: c.hash }).then(function (d) {
       clear(sec);
       sec.appendChild(el('h4', 'sec__title', 'Что вошло в это сохранение'));
       if (d.error) return sec.appendChild(el('p', 'muted', d.error));
@@ -1056,6 +1072,8 @@
     app.state = s;
     $('projectName').textContent = s.projectName;
     $('projectPath').textContent = s.project;
+    if (s.projectKey) app.projectKey = s.projectKey;
+    if (s.projects) renderSwitcher(s.projects, s.projectKey);
 
     var dot = $('levelDot');
     dot.className = 'chip__dot';
@@ -1080,6 +1098,63 @@
         'Убедитесь, что Claude Code запущен в той же папке: ' + s.project;
   }
 
+  // ── 13a. Переключатель проектов ───────────────────────────────────────────
+
+  // Панель показывает переключатель, только если Штурман запущен с
+  // несколькими --project. С одним проектом лишний элемент в шапке не нужен.
+  function renderSwitcher(list, activeKey) {
+    app.projects = list;
+    var box = $('switcher');
+    if (!list || list.length < 2) { box.hidden = true; return; }
+    box.hidden = false;
+
+    var chips = $('switcherChips');
+    clear(chips);
+    list.forEach(function (p) {
+      var btn = el('button', 'pchip' + (p.key === activeKey ? ' is-active' : ''));
+      btn.title = p.path + (p.branch ? ' · ветка ' + p.branch : '') +
+        ' · уровень ' + p.level;
+      // Точка на вкладке чужого проекта: там Клод уже ждёт ответа.
+      if (p.waiting && p.key !== activeKey) btn.appendChild(el('span', 'pchip__flag'));
+      btn.appendChild(el('span', null, p.name));
+      btn.addEventListener('click', function () { switchProject(p.key); });
+      chips.appendChild(btn);
+    });
+  }
+
+  // Переключение — это полная смена контекста: своя лента, своё дерево,
+  // свой git. Поэтому всё локальное состояние сбрасывается, а поток
+  // переподключается уже к другому проекту.
+  function switchProject(key) {
+    if (key === app.projectKey) return;
+    app.projectKey = key;
+    app.events = [];
+    app.queued = [];
+    app.archive = null;
+    app.heat = {};
+    app.treeNodes = [];
+    app.collapsed = {};
+    clearAlarm();
+    hideNotice();
+    closeDrawer();
+    clear(feed);
+    feedEmpty.hidden = false;
+    store.set('project', key);
+    loadTree();
+    loadSessions();
+    connect();
+  }
+
+  // Список проектов обновляем и сами: на соседней вкладке Клод мог
+  // остановиться, и об этом полезно узнать, не переключаясь туда.
+  function pollProjects() {
+    if (!app.projects || app.projects.length < 2) return;
+    api('/api/projects').then(function (d) {
+      renderSwitcher(d.projects, app.projectKey);
+    }).catch(function () { /* сервер закрылся — SSE об этом уже сказал */ });
+  }
+  setInterval(pollProjects, 5000);
+
   // ── 14. Поток событий (SSE) ───────────────────────────────────────────────
 
   var source = null;
@@ -1087,7 +1162,7 @@
 
   function connect() {
     if (source) source.close();
-    source = new EventSource('/api/stream');
+    source = new EventSource(href('/api/stream'));
 
     source.addEventListener('snapshot', function (e) {
       var data = JSON.parse(e.data);
@@ -1223,7 +1298,7 @@
       var actions = el('div', 'set__row');
       var dl = el('button', 'btn btn--primary', '⬇ Скачать .md');
       dl.addEventListener('click', function () {
-        window.location.href = '/api/digest?download=1';
+        window.location.href = href('/api/digest', { download: 1 });
       });
       var copy = el('button', 'btn', '📋 Скопировать');
       copy.addEventListener('click', function () {
@@ -1430,7 +1505,15 @@
 
   setDetailed(app.detailed);
 
-  loadGlossary()
+  // Сначала выясняем, какие проекты вообще есть, и восстанавливаем выбранный
+  // с прошлого раза — иначе первый же запрос дерева уйдёт не в тот проект.
+  api('/api/projects').then(function (d) {
+    var saved = store.get('project', null);
+    var known = (d.projects || []).some(function (p) { return p.key === saved; });
+    app.projectKey = known ? saved : d.active;
+    renderSwitcher(d.projects, app.projectKey);
+  }).catch(function () { /* одиночный проект — переключатель не нужен */ })
+    .then(loadGlossary)
     .then(loadTree)
     .then(loadSessions)
     .then(function () {
