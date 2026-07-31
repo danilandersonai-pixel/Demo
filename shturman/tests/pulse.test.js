@@ -99,7 +99,9 @@ test('пульс: длительность сессии берётся из та
   m.p.feed({ kind: 'user-prompt', text: 'x', ts: new Date(start).toISOString() });
   m.p.feed({ kind: 'tool-use', tool: 'Bash', input: {}, ts: new Date(start + 60000).toISOString() });
   var s = m.p.snapshot();
-  assert.strictEqual(s.durationMs, 600000, 'сессия длится 10 минут, а не 0');
+  // тишина уже 9 минут (> порога) — длительность меряется до последнего
+  // события: минута работы, а не «десять минут и растёт»
+  assert.strictEqual(s.durationMs, 60000);
   assert.strictEqual(s.quietMs, 540000, 'тишина 9 минут по последнему событию');
 });
 
@@ -117,4 +119,43 @@ test('пульс: файлы от вотчера попадают в «затр�
   m.p.feed({ kind: 'user-prompt', text: 'x' });
   m.p.feedFileChanges(['a.js', 'b.js', 'a.js']);
   assert.strictEqual(m.p.snapshot().filesTouched, 2);
+});
+
+test('пульс: записи одного сообщения (msgId) не удваивают output-токены', function () {
+  var m = makePulse();
+  m.p.feed({ kind: 'usage', usage: { output: 100 }, msgId: 'msg_1' });
+  m.p.feed({ kind: 'usage', usage: { output: 100 }, msgId: 'msg_1' }); // та же запись
+  m.p.feed({ kind: 'usage', usage: { output: 50 }, msgId: 'msg_2' });
+  assert.strictEqual(m.p.snapshot().tokens.approxOutput, 150, '100 + 50, без дубля');
+});
+
+test('детектор: новый запрос человека снимает старый end_turn (нет ложного сигнала)', function () {
+  var m = makePulse();
+  m.p.feed({ kind: 'usage', usage: {}, stopReason: 'end_turn' });
+  m.p.feed({ kind: 'user-prompt', text: 'а теперь сделай ещё' });
+  m.clock.t += 10000; // Клод «думает» дольше 5 секунд
+  m.p.check();
+  assert.strictEqual(m.emitted.length, 0, 'сигнала «закончил» нет — идёт новый ход');
+});
+
+test('пульс: длительность замолчавшей сессии не растёт бесконечно', function () {
+  var m = makePulse();
+  var start = m.clock.t;
+  m.p.feed({ kind: 'user-prompt', text: 'x', ts: new Date(start).toISOString() });
+  m.clock.t = start + 300000; // часы идут вместе с сессией
+  m.p.feed({ kind: 'tool-use', tool: 'Bash', input: {}, ts: new Date(start + 300000).toISOString() });
+  m.clock.t = start + 8 * 3600000; // «Штурман» открыли через 8 часов
+  var s = m.p.snapshot();
+  assert.strictEqual(s.durationMs, 300000, '5 минут работы, а не 8 часов');
+});
+
+test('пульс: normalizePath склеивает абсолютный и относительный путь одного файла', function () {
+  var emitted = [];
+  var p = pulseMod.createPulse(function (e) { emitted.push(e); }, {
+    now: function () { return 1000; },
+    normalizePath: function (f) { return String(f).replace(/^\/proj\//, ''); }
+  });
+  p.feed({ kind: 'tool-use', tool: 'Edit', input: { file_path: '/proj/lib/a.js' } });
+  p.feedFileChanges(['lib/a.js']);
+  assert.strictEqual(p.snapshot().filesTouched, 1, 'один файл, а не два');
 });

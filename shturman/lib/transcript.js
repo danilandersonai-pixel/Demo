@@ -25,10 +25,33 @@ function claudeProjectsRoot() {
 function findTranscriptDir(projectPath, rootDir) {
   var root = rootDir || claudeProjectsRoot();
   var abs = path.resolve(projectPath);
-  var direct = path.join(root, paths.encodeProjectDir(abs));
-  try {
-    if (fs.statSync(direct).isDirectory()) return direct;
-  } catch (e) { /* нет — ищем сканированием */ }
+  var real = abs;
+  try { real = fs.realpathSync(abs); } catch (e) { /* оставим как есть */ }
+
+  // Совпадает ли cwd (с учётом симлинков: Claude Code пишет реальный путь)
+  function cwdMatches(cwd) {
+    if (!cwd) return false;
+    var c = path.resolve(cwd);
+    return c === abs || c === real;
+  }
+
+  // Кодирование имени может совпасть у разных проектов (все не-ASCII → «-»),
+  // поэтому прямое попадание сверяем по cwd внутри JSONL.
+  var tryDirs = [paths.encodeProjectDir(abs)];
+  if (real !== abs) tryDirs.push(paths.encodeProjectDir(real));
+  for (var d = 0; d < tryDirs.length; d++) {
+    var direct = path.join(root, tryDirs[d]);
+    var jf;
+    try {
+      if (!fs.statSync(direct).isDirectory()) continue;
+      jf = fs.readdirSync(direct).filter(function (f) { return f.slice(-6) === '.jsonl'; });
+    } catch (e) { continue; }
+    if (jf.length === 0) return direct; // пустой каталог — принимаем на веру
+    for (var k = 0; k < jf.length; k++) {
+      if (cwdMatches(peekCwd(path.join(direct, jf[k])))) return direct;
+    }
+    // каталог есть, но cwd чужой — коллизия кодирования, ищем дальше
+  }
 
   var dirs;
   try {
@@ -43,8 +66,7 @@ function findTranscriptDir(projectPath, rootDir) {
       files = fs.readdirSync(candidate).filter(function (f) { return f.slice(-6) === '.jsonl'; });
     } catch (e) { continue; }
     for (var j = 0; j < files.length; j++) {
-      var cwd = peekCwd(path.join(candidate, files[j]));
-      if (cwd && path.resolve(cwd) === abs) return candidate;
+      if (cwdMatches(peekCwd(path.join(candidate, files[j])))) return candidate;
     }
   }
   return null;
@@ -143,6 +165,7 @@ function entryToEvents(entry, ctx) {
     } else if (Array.isArray(content)) {
       for (var i = 0; i < content.length; i++) {
         var block = content[i];
+        if (!block || typeof block !== 'object') continue;
         if (block.type === 'tool_result') {
           var toolName = ctx.toolNames[block.tool_use_id] || null;
           events.push({
@@ -164,6 +187,7 @@ function entryToEvents(entry, ctx) {
     var blocks = Array.isArray(entry.message.content) ? entry.message.content : [];
     for (var j = 0; j < blocks.length; j++) {
       var b = blocks[j];
+      if (!b || typeof b !== 'object') continue;
       if (b.type === 'text' && b.text && b.text.trim()) {
         events.push({
           kind: 'assistant-text', ts: ts,
@@ -186,6 +210,9 @@ function entryToEvents(entry, ctx) {
       events.push({
         kind: 'usage', ts: ts,
         usage: pickUsage(entry.message.usage),
+        // одно сообщение ассистента бывает разбито на несколько записей с
+        // одинаковым usage — msgId нужен пульсу, чтобы не считать дважды
+        msgId: entry.message.id || null,
         model: entry.message.model || null,
         stopReason: entry.message.stop_reason || null
       });
@@ -286,80 +313,97 @@ function readWholeSession(file, maxEvents) {
 
 /**
  * Tailer следит за каталогом транскриптов: держит самый свежий .jsonl,
- * читает только дописанные байты, аккуратно копит оборванные строки и
- * отдаёт события через onEvents([...]). При появлении более свежего файла
- * переключается на него (onSwitch(sessionId)).
+ * читает только дописанные байты и отдаёт события через onEvents([...]).
+ *
+ * Устойчивость (по итогам ревизии):
+ * - остаток недописанной строки хранится как Buffer и режется строго по
+ *   '\n' — многобайтовый UTF-8-символ на границе чтения не портится;
+ * - смещение и контекст хранятся НА КАЖДЫЙ файл: если рядом живут две
+ *   активные сессии и «самый свежий» файл прыгает туда-сюда, возврат к
+ *   уже виденному файлу продолжает чтение с места остановки — без дублей
+ *   и перечитывания; onSwitch зовётся только для впервые увиденного файла.
  */
 function createTailer(dir, handlers) {
   var onEvents = handlers.onEvents || function () {};
   var onSwitch = handlers.onSwitch || function () {};
   var pollMs = handlers.pollMs || 1000;
+  var MAX_REMAINDER = 16 * 1024 * 1024;
 
-  var current = null;      // {file, id}
-  var offset = 0;
-  var remainder = '';      // недописанная строка с прошлого чтения
-  var ctx = { toolNames: {} };
+  var current = null;        // {file, id}
+  var fileStates = {};       // file → {offset, remainder(Buffer), ctx}
   var stopped = false;
   var lastActivityMs = 0;
   var watcher = null;
   var timer = null;
+
+  function stateFor(file) {
+    if (!fileStates[file]) {
+      fileStates[file] = { offset: 0, remainder: Buffer.alloc(0), ctx: { toolNames: {} } };
+    }
+    return fileStates[file];
+  }
 
   function pickNewest() {
     var sessions = listSessions(dir);
     return sessions.length ? sessions[0] : null;
   }
 
-  function switchTo(session, fromStart) {
+  function switchTo(session) {
+    var firstTime = !fileStates[session.file];
     current = session;
-    remainder = '';
-    ctx = { toolNames: {} };
-    var size = 0;
-    try { size = fs.statSync(session.file).size; } catch (e) { /* появится позже */ }
-    // Новую сессию читаем с нуля (история в буфер), уже идущую — тоже с нуля:
-    // буфер событий на сервере сам ограничит хвост. fromStart всегда true.
-    offset = fromStart ? 0 : size;
-    onSwitch(session.id);
+    if (firstTime) onSwitch(session.id);
     readAppended();
   }
 
   function readAppended() {
     if (!current || stopped) return;
+    var s = stateFor(current.file);
     var st;
     try {
       st = fs.statSync(current.file);
     } catch (e) {
       return;
     }
-    if (st.size < offset) {
+    if (st.size < s.offset) {
       // файл усёкся (редко, но бывает при ротации) — начинаем заново
-      offset = 0;
-      remainder = '';
+      s.offset = 0;
+      s.remainder = Buffer.alloc(0);
     }
-    if (st.size === offset) return;
+    if (st.size === s.offset) return;
     var fd;
     try {
       fd = fs.openSync(current.file, 'r');
     } catch (e) {
       return;
     }
-    var toRead = st.size - offset;
+    var toRead = st.size - s.offset;
     var buf = Buffer.alloc(Math.min(toRead, 8 * 1024 * 1024));
     var read = 0;
     try {
-      read = fs.readSync(fd, buf, 0, buf.length, offset);
+      read = fs.readSync(fd, buf, 0, buf.length, s.offset);
     } finally {
       fs.closeSync(fd);
     }
     if (read <= 0) return;
-    offset += read;
-    var chunk = remainder + buf.slice(0, read).toString('utf8');
-    var lines = chunk.split('\n');
-    remainder = lines.pop(); // последняя может быть оборвана — дочитаем потом
+    s.offset += read;
+
+    // Режем по последнему '\n': всё до него — целые строки, остальное —
+    // байтовый остаток. UTF-8 никогда не декодируется посреди символа.
+    var chunk = Buffer.concat([s.remainder, buf.slice(0, read)]);
+    var lastNl = chunk.lastIndexOf(10);
+    if (lastNl === -1) {
+      s.remainder = chunk.length > MAX_REMAINDER ? Buffer.alloc(0) : chunk;
+      return;
+    }
+    var lines = chunk.slice(0, lastNl).toString('utf8').split('\n');
+    s.remainder = chunk.slice(lastNl + 1);
+    if (s.remainder.length > MAX_REMAINDER) s.remainder = Buffer.alloc(0);
+
     var batch = [];
     for (var i = 0; i < lines.length; i++) {
       var entry = parseLine(lines[i]);
       if (!entry) continue;
-      var evs = entryToEvents(entry, ctx);
+      var evs = entryToEvents(entry, s.ctx);
       for (var j = 0; j < evs.length; j++) batch.push(evs[j]);
     }
     if (batch.length) {
@@ -372,7 +416,7 @@ function createTailer(dir, handlers) {
     if (stopped) return;
     var newest = pickNewest();
     if (newest && (!current || newest.file !== current.file)) {
-      switchTo(newest, true);
+      switchTo(newest);
       return;
     }
     readAppended();
@@ -380,7 +424,7 @@ function createTailer(dir, handlers) {
 
   function start() {
     var newest = pickNewest();
-    if (newest) switchTo(newest, true);
+    if (newest) switchTo(newest);
     try {
       watcher = fs.watch(dir, function () { setTimeout(tick, 50); });
       if (watcher.unref) watcher.unref();

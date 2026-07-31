@@ -38,6 +38,12 @@ test('parseStatus: путь в кавычках (пробелы/кириллиц
   assert.strictEqual(out.entries[0].file, 'папка/a b.txt');
 });
 
+test('parseStatus: восьмеричные escape-ы git (core.quotepath=true) декодируются', function () {
+  // так git по умолчанию выводит «за.txt»: байты UTF-8 восьмеричными кодами
+  var out = git.parseStatus('?? "\\320\\267\\320\\260.txt"\n');
+  assert.strictEqual(out.entries[0].file, 'за.txt');
+});
+
 test('parseStatus: пустой ввод — пустой результат', function () {
   var out = git.parseStatus('');
   assert.strictEqual(out.total, 0);

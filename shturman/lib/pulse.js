@@ -17,6 +17,9 @@ function createPulse(emit, opts) {
   var endTurnMs = opts.endTurnMs || ENDTURN_MS;
   var quietMs = opts.quietMs || QUIET_MS;
   var now = opts.now || function () { return Date.now(); };
+  // приведение путей к единому виду, чтобы Edit (абсолютный путь) и вотчер
+  // (относительный) не считали один файл дважды
+  var normalize = opts.normalizePath || function (p) { return p; };
 
   var state = {
     sessionStartMs: null,
@@ -27,6 +30,7 @@ function createPulse(emit, opts) {
     errorsSeen: 0,
     promptsSent: 0,
     tokens: { output: 0, lastInput: 0, lastCacheRead: 0, lastCacheCreate: 0, model: null },
+    lastUsageMsgId: null,      // одно сообщение = несколько записей с тем же usage
     lastAssistantStop: null,   // stop_reason последней usage-записи
     idle: false,               // сейчас считаем Клода остановившимся?
     idleReason: null
@@ -45,6 +49,9 @@ function createPulse(emit, opts) {
     switch (event.kind) {
       case 'user-prompt':
         state.promptsSent++;
+        // новый запрос человека: прежний end_turn больше не значит «ждёт» —
+        // иначе через 5 секунд раздумий Клода придёт ложный сигнал
+        state.lastAssistantStop = null;
         break;
       case 'tool-use':
         state.toolCalls++;
@@ -53,7 +60,7 @@ function createPulse(emit, opts) {
         var f = input.file_path || input.path || input.notebook_path;
         if (f && (event.tool === 'Edit' || event.tool === 'MultiEdit' ||
                   event.tool === 'Write' || event.tool === 'NotebookEdit')) {
-          state.filesTouched[f] = true;
+          state.filesTouched[normalize(f)] = true;
         }
         break;
       case 'tool-result':
@@ -61,7 +68,10 @@ function createPulse(emit, opts) {
         break;
       case 'usage':
         if (event.usage) {
-          state.tokens.output += event.usage.output || 0;
+          // записи одного сообщения несут один и тот же usage — считаем раз
+          var sameMsg = event.msgId && event.msgId === state.lastUsageMsgId;
+          if (!sameMsg) state.tokens.output += event.usage.output || 0;
+          if (event.msgId) state.lastUsageMsgId = event.msgId;
           state.tokens.lastInput = event.usage.input || 0;
           state.tokens.lastCacheRead = event.usage.cacheRead || 0;
           state.tokens.lastCacheCreate = event.usage.cacheCreate || 0;
@@ -100,14 +110,20 @@ function createPulse(emit, opts) {
 
   /** Файловые изменения от вотчера тоже считаются «затронутыми файлами». */
   function feedFileChanges(files) {
-    for (var i = 0; i < files.length; i++) state.filesTouched[files[i]] = true;
+    for (var i = 0; i < files.length; i++) state.filesTouched[normalize(files[i])] = true;
   }
 
   function snapshot() {
     var t = now();
+    // для давно замолчавшей сессии длительность меряем до последнего события,
+    // а не до «сейчас» — иначе вчерашняя сессия «длится» всю ночь
+    var endMs = t;
+    if (state.lastEventMs !== null && t - state.lastEventMs > quietMs) {
+      endMs = state.lastEventMs;
+    }
     return {
       sessionStartMs: state.sessionStartMs,
-      durationMs: state.sessionStartMs ? t - state.sessionStartMs : 0,
+      durationMs: state.sessionStartMs ? Math.max(0, endMs - state.sessionStartMs) : 0,
       quietMs: state.lastEventMs ? t - state.lastEventMs : null,
       filesTouched: Object.keys(state.filesTouched).length,
       commandsRun: state.commandsRun,
@@ -135,6 +151,7 @@ function createPulse(emit, opts) {
     state.errorsSeen = 0;
     state.promptsSent = 0;
     state.tokens = { output: 0, lastInput: 0, lastCacheRead: 0, lastCacheCreate: 0, model: null };
+    state.lastUsageMsgId = null;
     state.lastAssistantStop = null;
     state.idle = false;
     state.idleReason = null;

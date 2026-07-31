@@ -105,9 +105,10 @@ function createWatcher(root, onChanges, opts) {
 
   function handleRawEvent(absDir, fileName) {
     if (stopped) return;
-    if (!fileName) fileName = '';
+    if (!fileName) fileName = ''; // Windows при шквале событий не даёт имени
     var absTarget = path.join(absDir, fileName);
     var rel = path.relative(rootAbs, absTarget);
+    if (rel === '') return; // событие «сам корень проекта» бесполезно
     if (paths.isIgnored(rel)) return;
 
     var kind = 'change';

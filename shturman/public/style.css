@@ -521,6 +521,8 @@ input:focus { border-color: var(--accent); }
   outline-offset: 3px;
   border-radius: var(--radius);
 }
+/* sticky-шапка — отдельный слой: на шагах тура с целями в шапке поднимаем её целиком */
+.topbar.tour-raise { z-index: 210; }
 
 /* ---------- Пустые/аварийные состояния ---------- */
 

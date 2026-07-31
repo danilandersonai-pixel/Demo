@@ -106,6 +106,26 @@ test('крайние случаи: вложенный text в tool_result скл
   assert.strictEqual(results[0].tool, 'Grep', 'имя инструмента подтянулось из tool_use');
 });
 
+test('null-блок в content не роняет разбор (защита процесса сервера)', function () {
+  var ctx = { toolNames: {} };
+  var evs1 = transcript.entryToEvents({ type: 'user', message: { content: [null] } }, ctx);
+  assert.deepStrictEqual(evs1, []);
+  var evs2 = transcript.entryToEvents({
+    type: 'assistant',
+    message: { content: [null, { type: 'text', text: 'жив' }], stop_reason: 'end_turn' }
+  }, ctx);
+  assert.strictEqual(evs2.filter(function (e) { return e.kind === 'assistant-text'; }).length, 1);
+});
+
+test('usage-события несут msgId для дедупликации токенов', function () {
+  var evs = transcript.entryToEvents({
+    type: 'assistant',
+    message: { id: 'msg_123', content: [{ type: 'text', text: 'x' }], usage: { output_tokens: 5 } }
+  }, { toolNames: {} });
+  var usage = evs.filter(function (e) { return e.kind === 'usage'; })[0];
+  assert.strictEqual(usage.msgId, 'msg_123');
+});
+
 test('looksLikeSystemNoise отличает служебное от человеческого', function () {
   assert.strictEqual(transcript.looksLikeSystemNoise('<system-reminder>x</system-reminder>'), true);
   assert.strictEqual(transcript.looksLikeSystemNoise('Обычный вопрос про код'), false);
@@ -206,6 +226,68 @@ test('tailer: читает дописанное и правильно копит
     assert.strictEqual(afterHalf, 1, 'оборванная строка не породила событие');
     assert.strictEqual(got.length, 2);
     assert.strictEqual(got[1].text, 'второй');
+    fs.rmSync(tmp, { recursive: true, force: true });
+    done();
+  }, 50);
+});
+
+test('tailer: многобайтовый UTF-8 на границе чтения не портится', function (t, done) {
+  var tmp = makeTmp();
+  var file = path.join(tmp, 'sess.jsonl');
+  var line = JSON.stringify({ type: 'user', message: { role: 'user', content: 'привет мир' } });
+  var full = Buffer.from(line + '\n', 'utf8');
+  // режем буфер ровно посреди многобайтового символа «м»
+  var cut = full.indexOf(Buffer.from('мир', 'utf8')) + 1;
+  fs.writeFileSync(file, full.slice(0, cut));
+
+  var got = [];
+  var tailer = transcript.createTailer(tmp, {
+    pollMs: 60000,
+    onEvents: function (events) { events.forEach(function (e) { got.push(e); }); },
+    onSwitch: function () {}
+  });
+  tailer.start();
+  tailer._tick(); // прочитан кусок без '\n' — событий нет, байты в остатке
+  fs.appendFileSync(file, full.slice(cut));
+  tailer._tick();
+
+  setTimeout(function () {
+    tailer.stop();
+    assert.strictEqual(got.length, 1);
+    assert.strictEqual(got[0].text, 'привет мир', 'символ не превратился в U+FFFD');
+    fs.rmSync(tmp, { recursive: true, force: true });
+    done();
+  }, 50);
+});
+
+test('tailer: две живые сессии — возврат к файлу продолжает с места, без дублей', function (t, done) {
+  var tmp = makeTmp();
+  var fa = path.join(tmp, 'aaa.jsonl');
+  var fb = path.join(tmp, 'bbb.jsonl');
+  function line(txt) {
+    return JSON.stringify({ type: 'user', message: { role: 'user', content: txt } }) + '\n';
+  }
+  fs.writeFileSync(fa, line('a1'));
+
+  var got = [];
+  var switches = 0;
+  var tailer = transcript.createTailer(tmp, {
+    pollMs: 60000,
+    onEvents: function (events) { events.forEach(function (e) { got.push(e.text); }); },
+    onSwitch: function () { switches++; }
+  });
+  tailer.start();               // читает a1
+  fs.writeFileSync(fb, line('b1'));
+  tailer._tick();               // свежее bbb → читает b1
+  fs.appendFileSync(fa, line('a2'));
+  tailer._tick();               // свежее aaa → должен дочитать ТОЛЬКО a2
+  fs.appendFileSync(fb, line('b2'));
+  tailer._tick();               // назад к bbb → только b2
+
+  setTimeout(function () {
+    tailer.stop();
+    assert.deepStrictEqual(got, ['a1', 'b1', 'a2', 'b2'], 'ни одного дубля');
+    assert.strictEqual(switches, 2, 'onSwitch только для впервые увиденных файлов');
     fs.rmSync(tmp, { recursive: true, force: true });
     done();
   }, 50);

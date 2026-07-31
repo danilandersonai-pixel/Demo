@@ -56,6 +56,10 @@ var recentFileChanges = {};   // rel → {mtimeMs, kind} — тепловой с
 
 var pulse = pulseMod.createPulse(function (event) {
   pushEvent(event);
+}, {
+  // Edit присылает абсолютный путь, вотчер — относительный: приводим к
+  // одному виду, чтобы «файлов затронуто» не считало файл дважды
+  normalizePath: function (p) { return paths.relToProject(PROJECT, path.isAbsolute(p) ? p : path.join(PROJECT, p)); }
 });
 
 /** Нормализованное событие → humanize → SSE. */
@@ -109,7 +113,12 @@ function pollGit() {
       info.status ? info.status.total : -1,
       info.commits.length ? info.commits[0].hash : ''
     ]);
-    if (lastGitKey && key !== lastGitKey) {
+    if (lastGitKey === '') {
+      // первый опрос: запоминаем точку отсчёта, чтобы первый же коммит
+      // или смена ветки дали карточку в ленте
+      prevBranch = info.branch;
+      prevHead = info.commits.length ? info.commits[0].hash : null;
+    } else if (key !== lastGitKey) {
       var text = describeGitChange(info);
       if (text) pushEvent({ kind: 'git-change', ts: new Date().toISOString(), text: text });
       hub.transient('git', publicGit(info));
@@ -250,11 +259,26 @@ function sendStatic(res, rel) {
   });
 }
 
+/**
+ * Защита от DNS rebinding: браузер на чужом сайте может заставить запрос
+ * прийти на 127.0.0.1, но заголовок Host там будет чужим — отклоняем всё,
+ * что пришло не на localhost-имя.
+ */
+function hostAllowed(req) {
+  var host = String(req.headers.host || '').toLowerCase();
+  var name = host.replace(/:\d+$/, '');
+  return name === '127.0.0.1' || name === 'localhost' || name === '[::1]' || name === '::1';
+}
+
 var server = http.createServer(function (req, res) {
   var parsed = url.parse(req.url, true);
   var route = parsed.pathname;
   var q = parsed.query || {};
 
+  if (!hostAllowed(req)) {
+    sendJson(res, 403, { error: 'Запрос пришёл с неожиданным именем хоста.' });
+    return;
+  }
   if (req.method !== 'GET') {
     sendJson(res, 405, { error: 'Только чтение: «Штурман» ничего не меняет.' });
     return;
@@ -298,6 +322,16 @@ var server = http.createServer(function (req, res) {
       var rel = String(q.path || '');
       var abs = paths.safeJoin(PROJECT, rel);
       if (!abs) return sendJson(res, 403, { error: 'Путь выходит за пределы проекта.' });
+      // симлинк внутри проекта не должен выводить чтение наружу
+      try {
+        var realTarget = fs.realpathSync(abs);
+        var realRoot = fs.realpathSync(PROJECT);
+        if (realTarget !== realRoot && realTarget.indexOf(realRoot + path.sep) !== 0) {
+          return sendJson(res, 403, { error: 'Путь выходит за пределы проекта (символическая ссылка).' });
+        }
+      } catch (e) {
+        return sendJson(res, 404, { error: 'Файл не найден.' });
+      }
       var st;
       try {
         st = fs.statSync(abs);

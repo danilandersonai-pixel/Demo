@@ -92,6 +92,20 @@
   /* ---------------- звук и уведомления ---------------- */
 
   var audioCtx = null;
+
+  /* Браузер разрешает звук только после жеста пользователя: создаём и
+     «будим» AudioContext на первом клике/клавише, чтобы сигнал не пропал. */
+  function unlockAudio() {
+    try {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+    } catch (e) { /* звук не критичен */ }
+    document.removeEventListener('pointerdown', unlockAudio);
+    document.removeEventListener('keydown', unlockAudio);
+  }
+  document.addEventListener('pointerdown', unlockAudio);
+  document.addEventListener('keydown', unlockAudio);
+
   function playChime() {
     if (!settings.sound) return;
     try {
@@ -152,18 +166,21 @@
       setClaudeState('unknown', level === 'B' ? 'транскриптов нет — слежу за файлами' : 'жду начала сессии');
       return;
     }
-    if (p.idle) {
-      setClaudeState('waiting', p.idleReason === 'end-turn' ? 'Клод ждёт вас' : 'Клод молчит…');
-      fireIdleSignal(p.idleReason, p.quietMs);
+    var clientQuietMs = settings.quietSec * 1000;
+    if (p.idle && p.idleReason === 'end-turn') {
+      setClaudeState('waiting', 'Клод ждёт вас');
+      fireIdleSignal('end-turn', p.quietMs);
+    } else if (p.quietMs != null && p.quietMs >= clientQuietMs) {
+      // порог «давно молчит» — настройка пользователя; серверные 90 с
+      // здесь не главнее: и меньшие, и большие значения работают
+      setClaudeState('waiting', 'Клод молчит…');
+      fireIdleSignal('quiet', p.quietMs);
+    } else if (p.idle) {
+      // сервер считает паузой, но пользовательский порог ещё не истёк
+      setClaudeState('working', 'Клод работает');
     } else {
-      var clientQuietMs = settings.quietSec * 1000;
-      if (p.quietMs != null && p.quietMs >= clientQuietMs) {
-        setClaudeState('waiting', 'Клод молчит…');
-        fireIdleSignal('quiet', p.quietMs);
-      } else {
-        setClaudeState('working', 'Клод работает');
-        signalledIdle = false;
-      }
+      setClaudeState('working', 'Клод работает');
+      signalledIdle = false;
     }
     firstPulseSeen = true;
     if (isFirst && (p.idle || (p.quietMs != null && p.quietMs >= settings.quietSec * 1000))) {
@@ -202,54 +219,65 @@
     return true;
   }
 
+  var feedUid = 0;
+  var expandedIds = {};      // uid → true: раскрытые карточки переживают перерисовку
+  var MAX_FEED_DOM = 300;
+
+  function buildDetails(item) {
+    var det = el('div', 'feed-details');
+    if (item.input && Object.keys(item.input).length) {
+      det.appendChild(el('div', '', 'Параметры вызова:'));
+      var preIn = el('pre');
+      preIn.textContent = JSON.stringify(item.input, null, 2);
+      det.appendChild(preIn);
+    }
+    if (item.output) {
+      det.appendChild(el('div', '', item.isError ? 'Текст ошибки:' : 'Результат / вывод:'));
+      var preOut = el('pre');
+      preOut.textContent = item.output;
+      det.appendChild(preOut);
+    }
+    if (settings.detail && item.raw) {
+      det.appendChild(el('div', '', 'Сырая запись транскрипта:'));
+      var preRaw = el('pre');
+      try { preRaw.textContent = JSON.stringify(JSON.parse(item.raw), null, 2); }
+      catch (e) { preRaw.textContent = item.raw; }
+      det.appendChild(preRaw);
+    }
+    if (!det.children.length) det.appendChild(el('div', 'muted', 'У этого события нет дополнительных данных.'));
+    return det;
+  }
+
   function renderFeedItem(item) {
     var row = el('div', 'feed-item');
     if (item.category === 'signal') row.className += ' signal';
     if (item.isError) row.className += ' error-item';
     var ico = el('div', 'ico', item.icon || '•');
     var body = el('div', 'body');
-    var title = el('div', 'title', item.title);
-    var time = el('div', 'time', fmtTime(item.ts));
-    body.appendChild(title);
-    body.appendChild(time);
+    body.appendChild(el('div', 'title', item.title));
+    body.appendChild(el('div', 'time', fmtTime(item.ts)));
     row.appendChild(ico);
     row.appendChild(body);
 
-    var expanded = false;
+    if (expandedIds[item.uid]) body.appendChild(buildDetails(item));
     row.addEventListener('click', function () {
-      if (expanded) {
-        var d = row.querySelector('.feed-details');
-        if (d) d.remove();
-        expanded = false;
-        return;
+      var d = row.querySelector('.feed-details');
+      if (d) {
+        d.remove();
+        delete expandedIds[item.uid];
+      } else {
+        expandedIds[item.uid] = true;
+        body.appendChild(buildDetails(item));
       }
-      expanded = true;
-      var det = el('div', 'feed-details');
-      if (item.input && Object.keys(item.input).length) {
-        det.appendChild(el('div', '', 'Параметры вызова:'));
-        var preIn = el('pre');
-        preIn.textContent = JSON.stringify(item.input, null, 2);
-        det.appendChild(preIn);
-      }
-      if (item.output) {
-        det.appendChild(el('div', '', item.isError ? 'Текст ошибки:' : 'Результат / вывод:'));
-        var preOut = el('pre');
-        preOut.textContent = item.output;
-        det.appendChild(preOut);
-      }
-      if (settings.detail && item.raw) {
-        det.appendChild(el('div', '', 'Сырая запись транскрипта:'));
-        var preRaw = el('pre');
-        try { preRaw.textContent = JSON.stringify(JSON.parse(item.raw), null, 2); }
-        catch (e) { preRaw.textContent = item.raw; }
-        det.appendChild(preRaw);
-      }
-      if (!det.children.length) det.appendChild(el('div', 'muted', 'У этого события нет дополнительных данных.'));
-      body.appendChild(det);
     });
     return row;
   }
 
+  function feedCountText(source) {
+    return source.length ? '· событий: ' + source.length + (feedPaused ? ' (пауза)' : '') : '';
+  }
+
+  /** Полная пересборка — только для смены фильтра/поиска/режима/сессии. */
   function renderFeed() {
     var box = $('feed');
     box.innerHTML = '';
@@ -260,7 +288,7 @@
       if (!passesFilter(item)) continue;
       box.appendChild(renderFeedItem(item));
       shown++;
-      if (shown >= 300) break;
+      if (shown >= MAX_FEED_DOM) break;
     }
     if (!shown) {
       var msg = source.length
@@ -268,17 +296,60 @@
         : (level === 'B'
           ? 'Транскрипты Claude Code не найдены — показываю только изменения файлов и git.\nЗапустите Claude Code в этой папке, и лента оживёт полностью.'
           : 'Пока тихо. Запустите Claude Code в этой папке —\nи здесь появится живая лента его действий.');
-      var d = el('div', 'feed-empty', msg);
-      box.appendChild(d);
+      box.appendChild(el('div', 'feed-empty', msg));
     }
-    $('feed-count').textContent = source.length ? '· событий: ' + source.length : '';
+    $('feed-count').textContent = feedCountText(source);
+  }
+
+  /* Живые события НЕ пересобирают ленту: копятся и вставляются сверху одной
+     пачкой на кадр — раскрытые карточки и прокрутка остаются на месте. */
+  var pendingItems = [];
+  var flushScheduled = false;
+
+  function flushPending() {
+    flushScheduled = false;
+    if (!pendingItems.length) return;
+    var batch = pendingItems;
+    pendingItems = [];
+    if (feedPaused || viewingOldSession) return; // покажем при возврате (полный рендер)
+    var box = $('feed');
+    var emptyNote = box.querySelector('.feed-empty');
+    if (emptyNote) emptyNote.remove();
+
+    var prevScrollTop = box.scrollTop;
+    var prevHeight = box.scrollHeight;
+    var frag = document.createDocumentFragment();
+    for (var i = 0; i < batch.length; i++) {
+      if (passesFilter(batch[i])) frag.appendChild(renderFeedItem(batch[i]));
+    }
+    // свежее — сверху: пачку вставляем в начало (внутри пачки свежее выше)
+    var first = box.firstChild;
+    var nodes = Array.prototype.slice.call(frag.childNodes).reverse();
+    for (var n = 0; n < nodes.length; n++) box.insertBefore(nodes[n], first);
+    while (box.children.length > MAX_FEED_DOM) box.removeChild(box.lastChild);
+    // если человек читал что-то ниже — не дёргаем ему прокрутку
+    if (prevScrollTop > 10) {
+      box.scrollTop = prevScrollTop + (box.scrollHeight - prevHeight);
+    }
+    $('feed-count').textContent = feedCountText(feedItems);
   }
 
   function addFeedItem(item) {
+    item.uid = ++feedUid;
     feedItems.push(item);
-    if (feedItems.length > FEED_CAP) feedItems.shift();
-    if (!feedPaused && !viewingOldSession) renderFeed();
-    else $('feed-count').textContent = '· событий: ' + feedItems.length + (feedPaused ? ' (пауза)' : '');
+    if (feedItems.length > FEED_CAP) {
+      var dropped = feedItems.shift();
+      delete expandedIds[dropped.uid];
+    }
+    pendingItems.push(item);
+    if (!flushScheduled) {
+      flushScheduled = true;
+      if (window.requestAnimationFrame) requestAnimationFrame(flushPending);
+      else setTimeout(flushPending, 50);
+    }
+    if (feedPaused || viewingOldSession) {
+      $('feed-count').textContent = feedCountText(feedItems);
+    }
   }
 
   /* управление лентой */
@@ -326,6 +397,7 @@
   /* ---------------- карта проекта ---------------- */
 
   function loadTree() {
+    lastTreeLoad = Date.now();
     fetch('/api/tree').then(function (r) { return r.json(); }).then(function (data) {
       treeData = data.tree;
       var now = Date.now();
@@ -337,8 +409,11 @@
     }).catch(function () { /* сервер ответит в следующий раз */ });
   }
 
+  var openPaths = { '': true }; // раскрытые папки переживают перерисовку
+
   function renderTree() {
     var box = $('tree');
+    var prevScroll = box.scrollTop;
     box.innerHTML = '';
     if (!treeData) return;
     var query = $('tree-search').value.trim().toLowerCase();
@@ -352,6 +427,7 @@
     if (treeData.truncated) {
       box.appendChild(el('div', 'muted', 'Проект большой — показана только часть дерева.'));
     }
+    box.scrollTop = prevScroll;
   }
 
   function matchesQuery(node, query) {
@@ -385,10 +461,12 @@
         if (childNode) kids.appendChild(childNode);
       });
       wrap.appendChild(kids);
-      if (depth < 1 || query) wrap.classList.add('open');
+      if (openPaths[node.path || ''] || query) wrap.classList.add('open');
       row.addEventListener('click', function (e) {
         e.stopPropagation();
-        wrap.classList.toggle('open');
+        var isOpen = wrap.classList.toggle('open');
+        if (isOpen) openPaths[node.path || ''] = true;
+        else delete openPaths[node.path || ''];
       });
     } else {
       row.addEventListener('click', function (e) {
@@ -430,6 +508,7 @@
 
   $('tree-search').addEventListener('input', renderTree);
 
+  var lastTreeLoad = 0;
   function markHot(files) {
     var now = Date.now();
     files.forEach(function (f) {
@@ -442,7 +521,9 @@
         if (!heat[dir] || heat[dir] < now) heat[dir] = now;
       }
     });
-    loadTree(); // дерево могло измениться (новые/удалённые файлы)
+    // дерево могло измениться (новые/удалённые файлы), но не дёргаем сервер
+    // чаще, чем раз в 3 секунды — подсветка уже видна через heat
+    if (now - lastTreeLoad > 3000) loadTree();
   }
 
   /* карточка файла */
@@ -715,6 +796,7 @@
       .then(function (d) {
         viewingOldSession = id;
         oldSessionItems = d.events || [];
+        oldSessionItems.forEach(function (it) { it.uid = ++feedUid; });
         $('feed-notice-text').textContent = 'Вы смотрите прошлую сессию ' + id.slice(0, 8) + '… (' +
           oldSessionItems.length + ' событий). Живая лента продолжает записываться.';
         $('feed-notice').classList.add('show');
@@ -843,6 +925,7 @@
 
   function clearTourHighlight() {
     document.querySelectorAll('.tour-target').forEach(function (n) { n.classList.remove('tour-target'); });
+    document.querySelectorAll('.tour-raise').forEach(function (n) { n.classList.remove('tour-raise'); });
   }
 
   function showTourStep(i) {
@@ -867,6 +950,10 @@
     var box = $('tour-box');
     if (target) {
       target.classList.add('tour-target');
+      // цель в шапке: sticky-шапка образует свой слой (z-index 50), и без
+      // подъёма всей шапки подсветка останется под затемнением
+      var bar = target.closest('.topbar');
+      if (bar) bar.classList.add('tour-raise');
       target.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
       var r = target.getBoundingClientRect();
       var top = Math.min(window.innerHeight - 240, Math.max(16, r.top + 20));
@@ -898,12 +985,12 @@
       try {
         var item = JSON.parse(e.data);
         addFeedItem(item);
+        // Сигнал (звук/уведомление) даёт только «пульс» — одна точка правды
+        // с учётом пользовательского порога; реплей истории при подключении
+        // не пищит задним числом.
         if (item.kind === 'claude-idle') {
-          // сигналим только о свежей паузе: реплей истории при подключении
-          // не должен пищать задним числом
           var age = Date.now() - Date.parse(item.ts || 0);
-          if (isFinite(age) && age < 20000) fireIdleSignal(item.reason, null);
-          else signalledIdle = true;
+          if (!isFinite(age) || age >= 20000) signalledIdle = true;
         }
       } catch (err) { /* пропускаем битое */ }
     });

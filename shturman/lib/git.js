@@ -16,7 +16,10 @@ function runGit(args, cwd) {
       resolve({ ok: false, stdout: '', stderr: 'команда не из белого списка: ' + args[0] });
       return;
     }
-    execFile('git', args, { cwd: cwd, maxBuffer: 10 * 1024 * 1024, windowsHide: true },
+    // core.quotepath=false: пути с кириллицей приходят как есть, без
+    // восьмеричных escape-ов ("\320\267...")
+    var full = ['-c', 'core.quotepath=false'].concat(args);
+    execFile('git', full, { cwd: cwd, maxBuffer: 10 * 1024 * 1024, windowsHide: true },
       function (err, stdout, stderr) {
         resolve({ ok: !err, stdout: stdout || '', stderr: stderr || '', code: err ? err.code : 0 });
       });
@@ -89,12 +92,32 @@ function parseStatus(text) {
 }
 
 function unquote(s) {
-  // git берёт в кавычки пути с пробелами/не-ASCII: "a b.txt"
+  // git берёт в кавычки пути с пробелами/не-ASCII: "a b.txt".
+  // При core.quotepath=true не-ASCII приходит восьмеричными байтами
+  // ("\320\267…") — JSON.parse их не знает, поэтому декодируем сами.
   if (s.length >= 2 && s[0] === '"' && s[s.length - 1] === '"') {
+    var inner = s.slice(1, -1);
+    if (/\\[0-7]{3}/.test(inner)) {
+      var bytes = [];
+      for (var i = 0; i < inner.length; i++) {
+        if (inner[i] === '\\' && /[0-7]{3}/.test(inner.slice(i + 1, i + 4))) {
+          bytes.push(parseInt(inner.slice(i + 1, i + 4), 8));
+          i += 3;
+        } else if (inner[i] === '\\' && i + 1 < inner.length) {
+          var esc = inner[i + 1];
+          bytes.push((esc === 'n' ? '\n' : esc === 't' ? '\t' : esc).charCodeAt(0));
+          i += 1;
+        } else {
+          var enc = Buffer.from(inner[i], 'utf8');
+          for (var b = 0; b < enc.length; b++) bytes.push(enc[b]);
+        }
+      }
+      return Buffer.from(bytes).toString('utf8');
+    }
     try {
       return JSON.parse(s);
     } catch (e) {
-      return s.slice(1, -1);
+      return inner;
     }
   }
   return s;
@@ -229,11 +252,12 @@ function collectGitInfo(projectRoot) {
   return runGit(['rev-parse', '--is-inside-work-tree'], projectRoot).then(function (r) {
     if (!r.ok) {
       // git есть, но это не репозиторий? или git вообще не установлен?
-      if (/not a git repository/i.test(r.stderr)) {
+      // Отсутствие бинарника даёт err.code === 'ENOENT' при ПУСТОМ stderr.
+      if (r.code === 'ENOENT' || /not found/i.test(r.stderr)) {
+        info.available = false;
+      } else if (/not a git repository/i.test(r.stderr)) {
         info.available = true;
         info.isRepo = false;
-      } else if (r.stderr.indexOf('ENOENT') !== -1 || /not found/i.test(r.stderr)) {
-        info.available = false;
       } else {
         info.available = true;
         info.error = r.stderr.trim();
