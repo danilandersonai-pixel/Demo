@@ -54,6 +54,12 @@
 
 * { box-sizing: border-box; }
 
+/* Атрибут hidden обязан побеждать любой display из нашей разметки.
+   Без этого правила `display: flex` у оверлеев (шторка, модальное окно,
+   тур, полоса паузы) пересиливает `[hidden]` из стилей браузера, и всё
+   это показывается поверх панели, будучи «спрятанным». */
+[hidden] { display: none !important; }
+
 html, body {
   margin: 0;
   padding: 0;
@@ -385,7 +391,14 @@ body {
   overflow: hidden;
 }
 .panel--feed { min-height: 0; }
-.panel--tree { flex: 1 1 auto; min-height: 220px; }
+
+/* В правой колонке панели НЕ сжимаются: колонка прокручивается целиком.
+   Без этого flex ужимал бы git, граф внимания и журнал сессий до нескольких
+   пикселей, а overflow:hidden обрезал бы их содержимое. */
+.column > .panel { flex: 0 0 auto; }
+/* Дерево — единственное, что имеет смысл прокручивать внутри себя:
+   иначе на большом проекте всё остальное уезжает далеко вниз. */
+.panel--tree { max-height: 48vh; min-height: 240px; }
 
 .panel__head {
   display: flex;
@@ -790,7 +803,7 @@ body {
 .att { opacity: calc(.45 + .55 * var(--fresh, 1)); }
 
 /* Граф внимания: файлы вокруг того, на котором Клод сейчас сосредоточен */
-.attgraph { display: block; width: 100%; height: 210px; }
+.attgraph { display: block; width: 100%; height: 240px; }
 .attgraph__link {
   stroke: var(--line);
   stroke-linecap: round;

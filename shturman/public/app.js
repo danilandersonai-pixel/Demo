@@ -931,7 +931,7 @@
     var box = $('attentionGraph');
     clear(box);
     var W = box.clientWidth || 380;
-    var H = 210;
+    var H = 240;
     var root = svg('svg', { class: 'attgraph', viewBox: '0 0 ' + W + ' ' + H });
 
     if (!att || att.empty || !att.nodes.length) {
@@ -945,7 +945,10 @@
 
     var cx = W / 2;
     var cy = H / 2;
-    var ring = Math.min(W, H) / 2 - 30;
+    // Кольцо эллиптическое: панель широкая и низкая, и круг радиусом по
+    // высоте сбивал бы все узлы в кучу посередине.
+    var rx = Math.max(70, W / 2 - 58);
+    var ry = Math.max(48, H / 2 - 34);
     var pos = {};
 
     att.nodes.forEach(function (n, i) {
@@ -954,8 +957,8 @@
       // Смещаем кольцо на четверть шага, чтобы подписи реже налезали.
       var angle = ((i - 1) / count) * Math.PI * 2 - Math.PI / 2 + 0.35;
       pos[n.file] = {
-        x: cx + Math.cos(angle) * ring,
-        y: cy + Math.sin(angle) * ring * 0.82,
+        x: cx + Math.cos(angle) * rx,
+        y: cy + Math.sin(angle) * ry,
         r: 6 + Math.min(4, n.touches)
       };
     });
