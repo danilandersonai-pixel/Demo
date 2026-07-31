@@ -4,12 +4,22 @@
   "description": "«Штурман» — локальная панель-наставник: показывает новичку простым русским языком, что прямо сейчас делает Claude Code",
   "main": "server.js",
   "bin": {
-    "shturman": "server.js"
+    "shturman": "bin/shturman.js"
   },
+  "files": [
+    "bin/",
+    "lib/",
+    "public/",
+    "server.js",
+    "README.md"
+  ],
   "scripts": {
     "start": "node server.js",
+    "share": "node server.js --share",
+    "check": "node server.js --check",
     "test": "node --test \"tests/**/*.test.js\""
   },
+  "keywords": ["claude-code", "dashboard", "russian", "observability"],
   "engines": {
     "node": ">=18"
   },
