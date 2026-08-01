@@ -100,7 +100,8 @@ node server.js --share   # плюс QR-код для телефона
 ```bash
 node server.js --port 4517 --quiet --no-open &
 node tests/manual/audit-v2.js       # ревизия функций на 1500px и 360px, 32/32
-node tests/manual/design-probe.js   # контраст, кегли, зоны касания — «нарушений нет»
+node tests/manual/design-probe.js   # контраст, кегли, зоны касания, клавиатура
+node tests/manual/design-motion.js  # движение, reduced-motion, отзывчивость — 10/10
 node tests/manual/design-shots.js   # снимки всех экранов на обеих ширинах
 ```
 

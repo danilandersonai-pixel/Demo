@@ -476,7 +476,8 @@ npm test          # 298 проверок
 # ручные проверки интерфейса (нужен Chromium):
 node server.js --port 4517 --quiet --no-open &
 node tests/manual/audit-v2.js      # ревизия функций, ожидается 32/32
-node tests/manual/design-probe.js  # контраст, кегли, зоны касания
+node tests/manual/design-probe.js  # контраст, кегли, зоны касания, клавиатура
+node tests/manual/design-motion.js # движение, reduced-motion, отзывчивость
 node tests/manual/design-shots.js  # снимки всех экранов на 1500 и 360
 ```
 
