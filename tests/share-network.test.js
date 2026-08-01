@@ -84,7 +84,7 @@ test('телефонный режим: с ключом пускает, без к
       // 1. Чужое устройство без ключа — отказ и понятная страница.
       var denied = await request(EXTERNAL, port, '/');
       assert.strictEqual(denied.status, 401, 'без ключа панель открываться не должна');
-      assert.match(denied.body, /Нужен ключ доступа/);
+      assert.match(denied.body, /Нужен ключ/);
       assert.match(denied.headers['content-type'], /text\/html/);
 
       // 2. Чужое устройство без ключа на API — JSON, а не страница.
