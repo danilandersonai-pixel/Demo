@@ -1,6 +1,8 @@
-// Ревизия второй версии: каждая функция первой версии проверяется дважды —
-// на компьютере (1500px) и на телефоне (360px). Результат идёт в таблицу
-// AUDIT.md, строка «потеряно» недопустима.
+// Ревизия: каждая функция проверяется дважды — на компьютере (1500px) и на
+// телефоне (360px). Результат идёт в таблицу AUDIT.md, строка «потеряно»
+// недопустима. После редизайна (задание 3) селекторы обновлены под новую
+// разметку: чип состояния стал картушкой, всплывающий сигнал — её же
+// состоянием, «Просто/Подробно» — одной кнопкой-переключателем.
 //
 //   node server.js --port 4517 &
 //   node tests/manual/audit-v2.js [url]
@@ -50,9 +52,14 @@ function check(name, cond, detail) {
   // Ждём, пока по SSE придёт снимок и лента наполнится.
   await b.waitFor(`document.querySelectorAll('.ev').length > 0`, 15000);
 
-  // Тур мешает измерениям — закрываем сразу, отдельно проверив, что он был.
+  // Приветствие и тур мешают измерениям — закрываем сразу, отдельно
+  // проверив, что они были.
+  await sleep(1400);
+  const welcomeShown = await b.eval(`!!document.querySelector('.tour--welcome')`);
+  await b.eval(`var w=document.querySelector('.tour--welcome .btn--primary'); if(w) w.click()`);
+  await sleep(500);
   const tourShown = await b.eval(`!document.getElementById('tour').hidden`);
-  await b.eval(`document.getElementById('tourSkip').click()`);
+  await b.eval(`var t=document.getElementById('tourSkip'); if(t) t.click()`);
   await sleep(400);
 
   // ═══ КОМПЬЮТЕР ═══════════════════════════════════════════════════════════
@@ -76,10 +83,10 @@ function check(name, cond, detail) {
   check('Компьютер: фильтры ленты', true, filters.join(' '));
 
   // Просто/Подробно
-  await b.eval(`document.getElementById('modeDetail').click()`);
+  await b.eval(`document.getElementById('btnDetail').click()`);
   await sleep(400);
   const rawOn = await b.eval(`document.querySelectorAll('.ev__raw').length`);
-  await b.eval(`document.getElementById('modeSimple').click()`);
+  await b.eval(`document.getElementById('btnDetail').click()`);
   await sleep(400);
   check('Компьютер: режим «Подробно»', rawOn > 0, rawOn + ' блоков сырых данных');
 
@@ -179,12 +186,12 @@ function check(name, cond, detail) {
     m.tabbar.tabs.join(' / ') + `, высота ${m.tabbar.h}px`);
 
   m.touch = await b.json(`(()=>{
-      const bad=[...document.querySelectorAll('button, .node, .gitfile, .session, .fchip')]
+      const bad=[...document.querySelectorAll('button, .node, .gitfile, .session, .pill')]
         .filter(e=>{const r=e.getBoundingClientRect();
           return r.width>0 && r.height>0 && (r.height<44 || r.width<24);})
         .map(e=>(e.className||'')+ '|' + (e.textContent||'').trim().slice(0,14));
       return {bad:bad.slice(0,8), count:bad.length,
-              total:document.querySelectorAll('button, .node, .gitfile, .session, .fchip').length}})()`);
+              total:document.querySelectorAll('button, .node, .gitfile, .session, .pill').length}})()`);
   check('Телефон: зоны касания ≥44px', m.touch.count === 0,
     m.touch.count ? `мелких: ${m.touch.count} из ${m.touch.total} → ${m.touch.bad.join(' ; ')}`
                   : `все ${m.touch.total} элементов достаточно крупные`);
@@ -208,13 +215,18 @@ function check(name, cond, detail) {
   // Липкая шапка со статусом
   await b.eval(`[...document.querySelectorAll('.tab')].find(t=>t.dataset.tab==='feed').click()`);
   await sleep(400);
-  m.header = await b.json(`(()=>{const t=document.getElementById('topbar');
+  // Шапка на телефоне — это сама картушка: она вне прокручиваемой области,
+  // поэтому видна всегда, что бы ни листали.
+  await b.eval(`document.getElementById('feedScroll').scrollTop = 400`);
+  await sleep(300);
+  m.header = await b.json(`(()=>{const t=document.getElementById('head');
       const r=t.getBoundingClientRect();
-      return {top:Math.round(r.top), sticky:getComputedStyle(t).position,
-              state:document.getElementById('stateText').textContent}})()`);
-  check('Телефон: липкая шапка со статусом Клода',
-    m.header.sticky === 'sticky' && !!m.header.state,
-    `${m.header.sticky}, статус: «${m.header.state}»`);
+      return {top:Math.round(r.top), h:Math.round(r.height),
+              state:document.getElementById('roseState').textContent,
+              dial:!!document.querySelector('#rose .dial__ring')}})()`);
+  check('Телефон: картушка видна всегда и показывает состояние',
+    m.header.top <= 1 && m.header.dial && !!m.header.state,
+    `сверху ${m.header.top}px, высота ${m.header.h}px, состояние «${m.header.state}»`);
 
   // Свайп между вкладками
   await b.eval(`(()=>{
@@ -271,20 +283,23 @@ function check(name, cond, detail) {
   // Настройки на телефоне
   await b.eval(`document.getElementById('btnSettings').click()`);
   await sleep(700);
-  const setMobile = await b.json(`({rows:[...document.querySelectorAll('.set__label b')].map(e=>e.textContent)})`);
+  const setMobile = await b.json(`({rows:[...document.querySelectorAll('.row__label b')].map(e=>e.textContent)})`);
   check('Телефон: экран настроек', setMobile.rows.length >= 6, setMobile.rows.join(' | '));
   await b.eval(`document.getElementById('sheetClose').click()`);
 
-  // Сигнал
+  // Сигнал: теперь он не всплывает в углу, а зажигает картушку.
   await b.eval(`document.getElementById('btnBell').click()`);
   await sleep(600);
-  const alarmMobile = await b.json(`(()=>{const a=document.getElementById('alarm');
+  const alarmMobile = await b.json(`(()=>{const a=document.getElementById('rose');
       const r=a.getBoundingClientRect();
-      return {shown:!a.hidden, w:Math.round(r.width), inScreen:r.right<=window.innerWidth+1,
-              title:document.getElementById('alarmTitle').textContent}})()`);
-  check('Телефон: сигнал помещается в экран',
-    alarmMobile.shown && alarmMobile.inScreen, `${alarmMobile.w}px, «${alarmMobile.title}»`);
-  await b.eval(`document.getElementById('alarmOk').click()`);
+      return {state:a.dataset.state, w:Math.round(r.width), inScreen:r.right<=window.innerWidth+1,
+              title:document.getElementById('roseState').textContent,
+              act:!document.getElementById('roseAct').hidden,
+              tab:document.title}})()`);
+  check('Телефон: сигнал зажигает картушку и помещается в экран',
+    alarmMobile.state === 'waiting' && alarmMobile.inScreen && alarmMobile.act,
+    `${alarmMobile.w}px, «${alarmMobile.title}», вкладка: «${alarmMobile.tab}»`);
+  await b.eval(`document.getElementById('roseSeen').click()`);
 
   // Тур на телефоне
   await b.eval(`document.getElementById('btnTour').click()`);
@@ -320,10 +335,11 @@ function check(name, cond, detail) {
 
   const errs = await b.json(`window.__err || []`);
   check('Нет ошибок JS', errs.length === 0, errs.join(' ; '));
-  check('Тур первого запуска показывается', tourShown);
+  check('Приветствие первого запуска показывается', welcomeShown);
+  check('Приветствие переходит в тур', tourShown);
 
   // ─── отчёт ───────────────────────────────────────────────────────────────
-  console.log('\n=== РЕВИЗИЯ ВТОРОЙ ВЕРСИИ ===\n');
+  console.log('\n=== РЕВИЗИЯ ФУНКЦИЙ ===\n');
   checks.forEach((c) => {
     console.log((c.ok ? '  ✔ ' : '  ✖ ') + c.name + (c.detail ? '\n      ' + c.detail : ''));
   });

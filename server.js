@@ -879,6 +879,10 @@ function isPublicPath(pathname) {
     pathname === '/manifest.json' ||
     pathname === '/sw.js' ||
     pathname === '/offline.html' ||
+    // Токены нужны странице «панель не отвечает» и экрану отказа: без них
+    // человек без ключа увидит нестилизованный текст. Данных в них нет —
+    // только цвета и размеры.
+    pathname === '/tokens.css' ||
     pathname.indexOf('/icons/') === 0;
 }
 

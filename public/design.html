@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="ru-RU">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b1417" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#edf1f0" media="(prefers-color-scheme: light)">
+<title>Штурман — витрина дизайн-системы</title>
+<link rel="icon" href="/icons/icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/tokens.css">
+<link rel="stylesheet" href="/components.css">
+<style>
+  /* Витрина — живая документация к DESIGN.md: те же токены, те же
+     компоненты, никаких собственных значений. */
+  body { display: block; overflow: auto; }
+  .doc { max-width: 1080px; margin: 0 auto; padding: var(--s5) var(--s4) var(--s6); }
+  .doc h1 {
+    font-family: var(--font-dial);
+    font-size: var(--t-dial);
+    letter-spacing: var(--ls-dial);
+    line-height: var(--lh-tight);
+    margin: 0 0 var(--s2);
+  }
+  .doc h2 {
+    font-size: var(--t-title);
+    margin: var(--s5) 0 var(--s3);
+    padding-top: var(--s4);
+    box-shadow: 0 -1px 0 var(--line);
+  }
+  .doc h3 { font-size: var(--t-body); margin: var(--s4) 0 var(--s2); color: var(--text-dim); }
+  .doc p { color: var(--text-dim); font-size: var(--t-note); margin: 0 0 var(--s3); max-width: 68ch; }
+  .doc code { font-family: var(--font-mono); font-size: var(--t-fine); }
+
+  .bar { display: flex; gap: var(--s2); align-items: center; flex-wrap: wrap; margin-bottom: var(--s4); }
+  .strip { display: flex; gap: var(--s2); flex-wrap: wrap; align-items: center; }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: var(--s2); }
+
+  .swatch { background: var(--surface); border-radius: var(--r-sm); overflow: hidden; }
+  .swatch__chip { height: 56px; }
+  .swatch__name { padding: var(--s2) var(--s3); font-size: var(--t-fine); }
+  .swatch__name b { display: block; font-family: var(--font-mono); font-size: var(--t-fine); }
+  .swatch__name span { color: var(--text-dim); }
+
+  .demo { background: var(--surface); border-radius: var(--r-md); padding: var(--s4); margin-bottom: var(--s3); }
+  .demo__name { font-size: var(--t-fine); color: var(--text-dim); margin-bottom: var(--s3); font-family: var(--font-mono); }
+
+  .rules { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: var(--s2); }
+  .rule { background: var(--surface); border-radius: var(--r-sm); padding: var(--s2) var(--s3); font-size: var(--t-fine); }
+  .rule__bar { background: var(--accent); height: 8px; border-radius: var(--r-pill); margin-bottom: var(--s2); }
+  .rule__box { background: var(--accent-soft); height: 44px; margin-bottom: var(--s2); }
+
+  .iconwall { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: var(--s2); }
+  .iconcell {
+    background: var(--surface); border-radius: var(--r-sm);
+    padding: var(--s3) var(--s2);
+    display: flex; flex-direction: column; align-items: center; gap: var(--s2);
+    font-size: var(--t-fine); color: var(--text-dim); text-align: center;
+  }
+  .roses { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: var(--s3); }
+</style>
+</head>
+<body>
+<main class="doc">
+
+  <h1>Витрина</h1>
+  <p>Живая документация к <code>DESIGN.md</code>: все токены, компоненты и
+     состояния на одной странице. Если что-то здесь выглядит не так, как в
+     панели, — разошлись не стили, а разметка.</p>
+
+  <div class="bar">
+    <div class="seg" role="group" aria-label="Тема">
+      <button class="seg__btn is-active" data-theme-set="auto">Как в системе</button>
+      <button class="seg__btn" data-theme-set="dark">Тёмная</button>
+      <button class="seg__btn" data-theme-set="light">Светлая</button>
+    </div>
+    <div class="seg" role="group" aria-label="Плотность">
+      <button class="seg__btn is-active" data-density-set="cozy">Просторно</button>
+      <button class="seg__btn" data-density-set="compact">Компактно</button>
+    </div>
+    <a class="btn" href="/">К панели</a>
+  </div>
+
+  <h2>Палитра</h2>
+  <p>Шесть названных цветов. Всё остальное получено из них через
+     <code>color-mix</code>. Цвет означает состояние: латунь — «нужен ты»,
+     зелёный — «идёт работа, всё чисто», красный — «сломалось».</p>
+  <div class="tiles" id="palette"></div>
+
+  <h3>Производные</h3>
+  <div class="tiles" id="derived"></div>
+
+  <h2>Типографика</h2>
+  <p>Три роли: шкала приборов (Georgia, старостильные цифры) — только для
+     показаний; текст — системный гротеск в двух начертаниях; моно — цитаты
+     из машины.</p>
+  <div id="type"></div>
+
+  <h2>Ритм</h2>
+  <p>Шесть ступеней отступа и три скругления. Плотность умножает только
+     воздух — кегли и зоны касания остаются прежними.</p>
+  <div class="rules" id="space"></div>
+  <h3>Скругления</h3>
+  <div class="rules" id="radii"></div>
+
+  <h2>Картушка</h2>
+  <p>Фирменный элемент. Четыре состояния различаются тремя независимыми
+     каналами: движение, цвет, форма. Достаточно любого одного — поэтому
+     видно с трёх метров и не зависит от цветовосприятия.</p>
+  <div class="roses" id="roses"></div>
+
+  <h2>Компоненты</h2>
+
+  <div class="demo">
+    <div class="demo__name">.btn</div>
+    <div class="strip">
+      <button class="btn">Обычная</button>
+      <button class="btn btn--primary">Главная</button>
+      <button class="btn btn--quiet">Тихая</button>
+      <button class="btn is-on">Включена</button>
+      <button class="btn" disabled>Недоступна</button>
+      <button class="btn btn--icon btn--quiet" data-icon="refresh" aria-label="Обновить"></button>
+    </div>
+  </div>
+
+  <div class="demo">
+    <div class="demo__name">.field · .seg · .pill · .badge · .term</div>
+    <div class="strip">
+      <label class="field" data-icon="search" data-icon-class="i--sm" style="min-width:220px">
+        <input class="field__input" type="search" placeholder="Поиск по ленте" aria-label="Поиск">
+      </label>
+      <div class="seg" role="group" aria-label="Пример">
+        <button class="seg__btn is-active">Сейчас</button>
+        <button class="seg__btn">История</button>
+      </div>
+      <button class="pill" data-icon="edit" data-icon-class="i--sm"><span>Правки</span></button>
+      <button class="pill is-active" data-icon="run" data-icon-class="i--sm"><span>Команды</span></button>
+      <span class="badge">изменён</span>
+      <span class="badge badge--ok">новый</span>
+      <span class="badge badge--bad">удалён</span>
+      <span class="badge badge--act">сейчас</span>
+      <span>Ветка<button class="term" aria-label="Что это значит">?</button></span>
+    </div>
+  </div>
+
+  <div class="demo">
+    <div class="demo__name">.ev — событие ленты</div>
+    <ol class="feed" id="events"></ol>
+  </div>
+
+  <div class="demo">
+    <div class="demo__name">.empty — пустое состояние всегда даёт следующий шаг</div>
+    <div class="empty">
+      <div class="empty__icon" data-icon="search" data-icon-class="i--xl"></div>
+      <p class="empty__title">Ничего не нашлось</p>
+      <p class="empty__text">В ленте нет событий со словом «шхуна».</p>
+      <button class="btn">Очистить поиск</button>
+    </div>
+  </div>
+
+  <div class="demo">
+    <div class="demo__name">.diff — второе и последнее место, где линия несёт смысл</div>
+    <div class="diff">
+      <div class="diff__legend">
+        <span>public/tokens.css</span>
+        <span><b>+2</b> добавлено</span>
+        <span><b>−1</b> удалено</span>
+      </div>
+      <div class="diff__hunk">со строки 28 · палитра</div>
+      <div class="diff__line diff__line--ctx"><span class="diff__sign"> </span><span class="diff__text">:root {</span></div>
+      <div class="diff__line diff__line--del"><span class="diff__sign">−</span><span class="diff__text">  --accent: #7dd3fc;</span></div>
+      <div class="diff__line diff__line--add"><span class="diff__sign">+</span><span class="diff__text">  --c-brass: #e2a44b;</span></div>
+      <div class="diff__line diff__line--add"><span class="diff__sign">+</span><span class="diff__text">  --c-sea:   #5fbfa3;</span></div>
+    </div>
+  </div>
+
+  <div class="demo">
+    <div class="demo__name">.row — строка настройки</div>
+    <div class="row">
+      <div class="row__label"><b>Подавать звук</b><span>Короткий сигнал, когда Клод остановился и ждёт вас.</span></div>
+      <button class="btn row__control is-on">Включено</button>
+    </div>
+    <div class="row">
+      <div class="row__label"><b>Плотность</b><span>Компактно — на экран влезает примерно на треть больше событий.</span></div>
+      <div class="seg row__control">
+        <button class="seg__btn is-active">Просторно</button>
+        <button class="seg__btn">Компактно</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="demo">
+    <div class="demo__name">.panel — подложка и воздух, ни одной рамки</div>
+    <div class="panel" style="max-width:420px">
+      <header class="panel__head">
+        <h2 class="panel__title">Карта проекта</h2>
+        <div class="panel__tools">
+          <button class="btn btn--quiet btn--icon" data-icon="refresh" aria-label="Обновить"></button>
+        </div>
+      </header>
+      <div class="tree">
+        <div class="node node--dir">
+          <span class="node__caret" data-icon="down" data-icon-class="i--sm"></span>
+          <span class="node__icon" data-icon="folder" data-icon-class="i--sm"></span>
+          <span class="node__name">public</span>
+        </div>
+        <div class="node">
+          <span class="node__icon" data-icon="file" data-icon-class="i--sm"></span>
+          <span class="node__name">tokens.css</span>
+          <span class="node__meta">6,1 КБ</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <h2>Значки</h2>
+  <p>Один язык форм: сетка 24×24, штрих 1,7, скруглённые концы, цвет от
+     текста. Значки заменили 21 эмодзи от разных производителей.</p>
+  <div class="iconwall" id="icons"></div>
+
+</main>
+
+<script src="/icons.js"></script>
+<script>
+(function () {
+  'use strict';
+  var css = getComputedStyle(document.documentElement);
+  function val(name) { return css.getPropertyValue(name).trim(); }
+
+  function swatch(box, token, note) {
+    var cell = document.createElement('div');
+    cell.className = 'swatch';
+    var chip = document.createElement('div');
+    chip.className = 'swatch__chip';
+    chip.style.background = 'var(' + token + ')';
+    var name = document.createElement('div');
+    name.className = 'swatch__name';
+    var b = document.createElement('b'); b.textContent = token;
+    var s = document.createElement('span'); s.textContent = note;
+    name.appendChild(b); name.appendChild(s);
+    cell.appendChild(chip); cell.appendChild(name);
+    box.appendChild(cell);
+  }
+
+  [['--c-bg', 'глубина'], ['--c-panel', 'корпус'], ['--c-ink', 'свет'],
+   ['--c-brass', 'латунь: «нужен ты»'], ['--c-sea', 'идёт работа'], ['--c-coral', 'сломалось']]
+    .forEach(function (p) { swatch(document.getElementById('palette'), p[0], p[1]); });
+
+  [['--surface', 'подложка панели'], ['--surface-2', 'карточка'], ['--hover', 'под курсором'],
+   ['--sunken', 'утопленное'], ['--text', 'текст'], ['--text-dim', 'приглушённый'],
+   ['--line', 'единственная линия'], ['--accent-soft', 'латунь на просвет']]
+    .forEach(function (p) { swatch(document.getElementById('derived'), p[0], p[1]); });
+
+  var TYPE = [
+    ['--t-dial', 'Работает', 'показание прибора', 'var(--font-dial)'],
+    ['--t-read', '86 файлов', 'число прибора', 'var(--font-dial)'],
+    ['--t-title', 'Что происходит', 'заголовок раздела', 'var(--font-text)'],
+    ['--t-body', 'Клод читает public/app.js', 'основной текст', 'var(--font-text)'],
+    ['--t-note', 'Смотрит содержимое, файл не меняется', 'пояснение', 'var(--font-text)'],
+    ['--t-fine', 'public/tokens.css · 6,1 КБ', 'служебное', 'var(--font-mono)']
+  ];
+  var typeBox = document.getElementById('type');
+  TYPE.forEach(function (t) {
+    var row = document.createElement('div');
+    row.className = 'demo';
+    var name = document.createElement('div');
+    name.className = 'demo__name';
+    name.textContent = t[0] + ' — ' + t[2] + ' — ' + val(t[0]);
+    var line = document.createElement('div');
+    line.textContent = t[1];
+    line.style.fontFamily = t[3];
+    line.style.fontSize = 'var(' + t[0] + ')';
+    line.style.lineHeight = 'var(--lh-tight)';
+    if (t[3].indexOf('dial') !== -1) line.style.letterSpacing = 'var(--ls-dial)';
+    row.appendChild(name); row.appendChild(line);
+    typeBox.appendChild(row);
+  });
+
+  var spaceBox = document.getElementById('space');
+  ['--s1', '--s2', '--s3', '--s4', '--s5', '--s6'].forEach(function (s) {
+    var cell = document.createElement('div');
+    cell.className = 'rule';
+    var bar = document.createElement('div');
+    bar.className = 'rule__bar';
+    bar.style.width = 'var(' + s + ')';
+    var text = document.createElement('div');
+    text.textContent = s + ' · ' + val(s);
+    cell.appendChild(bar); cell.appendChild(text);
+    spaceBox.appendChild(cell);
+  });
+
+  var radiiBox = document.getElementById('radii');
+  ['--r-sm', '--r-md', '--r-pill'].forEach(function (r) {
+    var cell = document.createElement('div');
+    cell.className = 'rule';
+    var box = document.createElement('div');
+    box.className = 'rule__box';
+    box.style.borderRadius = 'var(' + r + ')';
+    var text = document.createElement('div');
+    text.textContent = r + ' · ' + val(r);
+    cell.appendChild(box); cell.appendChild(text);
+    radiiBox.appendChild(cell);
+  });
+
+  var ROSE = [
+    ['working', 'Работает', 'дуга обходит круг за 3 с'],
+    ['waiting', 'Ждёт вас', 'кольцо дышит латунью'],
+    ['ended', 'Тихо', 'движения нет, кольцо пустое'],
+    ['offline', 'Нет связи', 'кольцо пунктиром']
+  ];
+  var rosesBox = document.getElementById('roses');
+  ROSE.forEach(function (r) {
+    var box = document.createElement('section');
+    box.className = 'rose';
+    box.dataset.state = r[0];
+    box.innerHTML =
+      '<div class="rose__dial"><svg class="rose__svg" viewBox="0 0 56 56" aria-hidden="true">' +
+      '<circle class="dial__halo" cx="28" cy="28" r="22"></circle>' +
+      '<circle class="dial__disc" cx="28" cy="28" r="21"></circle>' +
+      '<circle class="dial__ring" cx="28" cy="28" r="22"></circle>' +
+      '<circle class="dial__sweep" cx="28" cy="28" r="22"></circle>' +
+      '<path class="dial__mark" d="M28 11.5 V19.5"></path></svg></div>' +
+      '<div class="rose__read"><div class="rose__state"></div><div class="rose__detail"></div></div>';
+    box.querySelector('.rose__state').textContent = r[1];
+    box.querySelector('.rose__detail').textContent = r[2];
+    rosesBox.appendChild(box);
+  });
+
+  var EVENTS = [
+    ['read', '', 'Клод читает public/app.js', 'Смотрит содержимое, файл не меняется.'],
+    ['edit', 'ev--edit', 'Клод изменил public/tokens.css (+11 −3)', '11 строк добавлено, 3 удалено.'],
+    ['run', '', 'Клод запустил npm test', 'Запускает проверки проекта.'],
+    ['error', 'ev--error', 'Команда завершилась ошибкой', 'Код возврата 1 — загляните в подробности.'],
+    ['talk', 'ev--user', 'Вы написали Клоду', 'Сделай редизайн панели.'],
+    ['bell', 'ev--attention', 'Клод остановился и ждёт вас', 'Новых действий нет уже 46 с.']
+  ];
+  var feedBox = document.getElementById('events');
+  EVENTS.forEach(function (e, i) {
+    var li = document.createElement('li');
+    li.className = 'ev ' + e[1];
+    var mark = document.createElement('span');
+    mark.className = 'ev__mark';
+    mark.appendChild(window.ICONS.svg(e[0], 'i--sm'));
+    var title = document.createElement('span');
+    title.className = 'ev__title'; title.textContent = e[2];
+    var time = document.createElement('span');
+    time.className = 'ev__time'; time.textContent = '13:0' + i + ':17';
+    var hint = document.createElement('span');
+    hint.className = 'ev__hint'; hint.textContent = e[3];
+    li.appendChild(mark); li.appendChild(title); li.appendChild(time); li.appendChild(hint);
+    feedBox.appendChild(li);
+  });
+
+  var wall = document.getElementById('icons');
+  window.ICONS.names.forEach(function (name) {
+    var cell = document.createElement('div');
+    cell.className = 'iconcell';
+    cell.appendChild(window.ICONS.svg(name, 'i--lg'));
+    var label = document.createElement('span');
+    label.textContent = name;
+    cell.appendChild(label);
+    wall.appendChild(cell);
+  });
+
+  // Значки в статичной разметке — тем же способом, что и в панели.
+  Array.prototype.forEach.call(document.querySelectorAll('[data-icon]'), function (n) {
+    if (n.querySelector('svg')) return;
+    n.insertBefore(window.ICONS.svg(n.dataset.icon, n.dataset.iconClass || ''), n.firstChild);
+  });
+
+  function pick(group, attr, apply) {
+    Array.prototype.forEach.call(document.querySelectorAll('[' + attr + ']'), function (b) {
+      b.addEventListener('click', function () {
+        Array.prototype.forEach.call(document.querySelectorAll('[' + attr + ']'), function (o) {
+          o.classList.toggle('is-active', o === b);
+        });
+        apply(b.getAttribute(attr));
+      });
+    });
+  }
+  pick('theme', 'data-theme-set', function (v) {
+    if (v === 'auto') document.documentElement.removeAttribute('data-theme');
+    else document.documentElement.setAttribute('data-theme', v);
+  });
+  pick('density', 'data-density-set', function (v) {
+    document.documentElement.setAttribute('data-density', v);
+  });
+})();
+</script>
+</body>
+</html>
