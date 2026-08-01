@@ -342,8 +342,8 @@
 
 /* ===== 7. Словарь, настройки, подключение ================================= */
 
-.gl__item { padding: var(--s3) 0; }
-.gl__item + .gl__item { box-shadow: 0 -1px 0 var(--line); }
+.gl__item { padding: var(--s3); border-radius: var(--r-sm); background: var(--surface-2); }
+.gl__item + .gl__item { margin-top: var(--s1); }
 .gl__term { font-weight: var(--w-strong); }
 .gl__text { font-size: var(--t-note); color: var(--text-dim); margin-top: 2px; }
 
@@ -386,7 +386,12 @@
   padding: var(--s2) 0;
   text-align: left;
 }
-.conn__addr + .conn__addr, .device + .device { box-shadow: 0 -1px 0 var(--line); }
+.conn__addr, .device {
+  background: var(--surface-2);
+  border-radius: var(--r-sm);
+  padding-left: var(--s3); padding-right: var(--s3);
+}
+.conn__addr + .conn__addr, .device + .device { margin-top: var(--s1); }
 .conn__addr-ip, .device__ip { font-family: var(--font-mono); font-size: var(--t-fine); }
 .conn__addr-label, .device__when { margin-left: auto; font-size: var(--t-fine); color: var(--text-dim); }
 .device__what { font-size: var(--t-note); }
