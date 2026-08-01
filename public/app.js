@@ -1637,15 +1637,22 @@
     var rx = Math.max(70, W / 2 - 58);
     var ry = Math.max(48, H / 2 - 34);
     var pos = {};
+    var labels = [];
 
+    // Подписи на плотном кольце налезали друг на друга — это была
+    // единственная строка в списке ограничений, где оформление проигрывало
+    // данным. Кольцо стало двухрядным: соседние узлы уходят на разный
+    // радиус, и подписи расходятся.
     att.nodes.forEach(function (n, i) {
       if (i === 0) { pos[n.file] = { x: cx, y: cy, r: 11 }; return; }
       var count = att.nodes.length - 1;
       var angle = ((i - 1) / count) * Math.PI * 2 - Math.PI / 2 + 0.35;
+      var ring = (count > 6 && i % 2 === 0) ? 0.72 : 1;
       pos[n.file] = {
-        x: cx + Math.cos(angle) * rx,
-        y: cy + Math.sin(angle) * ry,
-        r: 6 + Math.min(4, n.touches)
+        x: cx + Math.cos(angle) * rx * ring,
+        y: cy + Math.sin(angle) * ry * ring,
+        r: 6 + Math.min(4, n.touches),
+        ring: ring
       };
     });
 
@@ -1669,9 +1676,21 @@
         opacity: (0.35 + 0.65 * n.freshness).toFixed(2)
       });
       g.appendChild(svg('circle', { class: 'attgraph__dot', cx: p.x.toFixed(1), cy: p.y.toFixed(1), r: p.r }));
-      g.appendChild(Object.assign(
-        svg('text', { class: 'attgraph__label', x: p.x.toFixed(1), y: (p.y + p.r + 12).toFixed(1) }),
-        { textContent: n.name.length > 16 ? n.name.slice(0, 15) + '…' : n.name }));
+
+      // Подпись рисуем, только если она не наезжает на уже нарисованную:
+      // лучше показать восемь читаемых имён, чем четырнадцать слипшихся.
+      var text = n.name.length > 16 ? n.name.slice(0, 15) + '…' : n.name;
+      var half = text.length * 3.4;                 // оценка полуширины при 10px моно
+      var ly = p.y + p.r + 12;
+      var clash = labels.some(function (l) {
+        return Math.abs(l.y - ly) < 13 && Math.abs(l.x - p.x) < half + l.half + 6;
+      });
+      if (!clash || i === 0) {
+        labels.push({ x: p.x, y: ly, half: half });
+        g.appendChild(Object.assign(
+          svg('text', { class: 'attgraph__label', x: p.x.toFixed(1), y: ly.toFixed(1) }),
+          { textContent: text }));
+      }
 
       var title = svg('title');
       title.textContent = C.pulse.fileTip(n.file,
