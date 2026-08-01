@@ -37,6 +37,29 @@ function inventory() {
   };
 }
 
+// ─── обход клавиатурой ─────────────────────────────────────────────────
+// Проверяем не «объявлен ли :focus-visible», а видно ли кольцо на самом
+// деле: у поля ввода обводку рисует обёртка, и смотреть только на активный
+// элемент — значит получить ложный провал.
+const FOCUS_INFO = `(() => {
+  var a = document.activeElement;
+  if (!a || a === document.body) return null;
+  function ring(el) {
+    var cs = getComputedStyle(el);
+    var w = parseFloat(cs.outlineWidth) || 0;
+    return (cs.outlineStyle !== 'none' && w > 0) ? w : 0;
+  }
+  var w = ring(a);
+  var host = a.closest('.field, .seg, .pill');
+  if (!w && host) w = ring(host);
+  return {
+    name: a.id || String(a.className || '').slice(0, 28) || a.tagName.toLowerCase(),
+    label: (a.getAttribute('aria-label') || a.textContent || '').trim().slice(0, 24),
+    visible: a.matches(':focus-visible'),
+    ring: w
+  };
+})()`;
+
 // ─── замер в браузере ──────────────────────────────────────────────────
 const PROBE = `(() => {
   // Цвета в системе собираются через color-mix, и getComputedStyle отдаёт их
@@ -203,6 +226,44 @@ const PROBE = `(() => {
         r.noLabel.length + (r.scrollW > w ? 1 : 0);
     }
   }
+
+  // ─── обход клавиатурой ───────────────────────────────────────────────
+  await b.metrics(1500, 980, false);
+  await sleep(400);
+  await b.eval(`document.documentElement.setAttribute('data-theme','dark');
+                if (document.activeElement) document.activeElement.blur()`);
+  await sleep(300);
+
+  const walk = [];
+  for (let i = 0; i < 24; i++) {
+    await b.key('Tab', 'Tab', 9);
+    await sleep(50);
+    const info = await b.json(FOCUS_INFO);
+    if (info) walk.push(info);
+  }
+  const blind = walk.filter((w) => w.visible && !w.ring);
+  console.log('\n═══ обход клавиатурой ═══');
+  console.log('  элементов пройдено: ' + walk.length + ' — ' +
+    walk.slice(0, 12).map((w) => w.name).join(', ') + '…');
+  console.log('  без видимого кольца фокуса: ' + blind.length +
+    (blind.length ? ' → ' + blind.map((w) => w.name).join(', ') : ''));
+  bad += blind.length;
+
+  // Шторка: фокус не должен убегать наружу, Esc обязан закрывать.
+  await b.eval(`document.getElementById('btnSettings').click()`);
+  await sleep(700);
+  let escaped = 0;
+  for (let i = 0; i < 20; i++) {
+    await b.key('Tab', 'Tab', 9);
+    await sleep(40);
+    if (!await b.eval(`document.getElementById('sheetBox').contains(document.activeElement)`)) escaped++;
+  }
+  await b.key('Escape', 'Escape', 27);
+  await sleep(300);
+  const closed = await b.eval(`document.getElementById('sheet').hidden`);
+  console.log('  фокус выходил из шторки: ' + escaped + ' раз из 20');
+  console.log('  Esc закрывает шторку: ' + (closed ? 'да' : 'нет'));
+  bad += escaped + (closed ? 0 : 1);
 
   console.log('\n' + (bad === 0
     ? '✅ нарушений нет'

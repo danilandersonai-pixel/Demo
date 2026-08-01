@@ -134,6 +134,13 @@ async function launch(opts = {}) {
         features: Object.keys(features).map((name) => ({ name, value: features[name] }))
       });
     },
+    // Настоящее нажатие клавиши, а не событие из JS: только так браузер
+    // считает взаимодействие клавиатурным и включает :focus-visible.
+    async key(key, code, windowsVirtualKeyCode) {
+      const base = { key, code: code || key, windowsVirtualKeyCode, nativeVirtualKeyCode: windowsVirtualKeyCode };
+      await c.send('Input.dispatchKeyEvent', Object.assign({ type: 'rawKeyDown' }, base));
+      await c.send('Input.dispatchKeyEvent', Object.assign({ type: 'keyUp' }, base));
+    },
     async goto(url, settle = 3500) {
       await c.send('Page.navigate', { url });
       await sleep(settle);

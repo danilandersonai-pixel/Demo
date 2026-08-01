@@ -127,7 +127,15 @@ body {
   min-height: calc(var(--touch) + 2 * var(--hair));
   color: var(--text-dim);
 }
-.field:focus-within { border-color: var(--accent-edge); color: var(--accent-text); }
+/* Само поле ввода обводки не рисует (она была бы внутри рамки), поэтому
+   кольцо фокуса берёт на себя обёртка — иначе с клавиатуры не видно, где
+   ты находишься. */
+.field:focus-within {
+  border-color: var(--accent-edge);
+  color: var(--accent-text);
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
 .field__input {
   font: inherit;
   font-size: 16px;                 /* меньше 16px — Safari зумит страницу */
