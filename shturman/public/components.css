@@ -1,0 +1,685 @@
+/* ===========================================================================
+   Штурман — компоненты.
+
+   Один вид, одно поведение: компонент описан здесь один раз и используется
+   везде. Значения берутся только из tokens.css — хардкод цвета в этом файле
+   запрещён и проверяется тестом `tests/design-tokens.test.js`.
+
+   Порядок:
+     1  основа и значки            7  событие ленты
+     2  кнопки                     8  дифф
+     3  поля и переключатели       9  пустое состояние
+     4  метки и таблетки          10  шторка
+     5  панель и карточка         11  вкладки
+     6  картушка                  12  подсказка и строка настройки
+   =========================================================================== */
+
+/* ===== 1. Основа и значки ================================================= */
+
+* { box-sizing: border-box; }
+
+/* Атрибут hidden обязан побеждать любой display из нашей разметки. */
+[hidden] { display: none !important; }
+
+html, body { margin: 0; padding: 0; height: 100%; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-text);
+  font-size: var(--t-body);
+  font-weight: var(--w-normal);
+  line-height: var(--lh-text);
+  -webkit-font-smoothing: antialiased;
+  -webkit-text-size-adjust: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  overscroll-behavior-y: none;
+}
+
+::selection { background: var(--accent-soft); }
+
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: var(--line);
+  border-radius: var(--r-pill);
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover { background: var(--text-dim); background-clip: content-box; }
+
+/* Единый штриховой значок: один язык форм, одна толщина, currentColor. */
+.i {
+  width: 20px; height: 20px;
+  flex: 0 0 auto;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.i--sm { width: 16px; height: 16px; stroke-width: 1.9; }
+.i--lg { width: 26px; height: 26px; stroke-width: 1.5; }
+.i--xl { width: 44px; height: 44px; stroke-width: 1.2; }
+.i--fill { fill: currentColor; stroke: none; }
+
+.mono { font-family: var(--font-mono); font-size: var(--t-fine); }
+.dim  { color: var(--text-dim); font-size: var(--t-note); }
+.num  { font-family: var(--font-dial); font-variant-numeric: tabular-nums; }
+
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: var(--r-sm); }
+
+/* ===== 2. Кнопки ========================================================== */
+
+.btn {
+  font: inherit;
+  font-size: var(--t-note);
+  font-weight: var(--w-strong);
+  color: var(--text);
+  background: var(--surface-2);
+  border: 0;
+  border-radius: var(--r-sm);
+  padding: 0 var(--s3);
+  min-height: var(--touch);
+  min-width: var(--touch);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s2);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
+  -webkit-tap-highlight-color: transparent;
+}
+.btn:hover { background: var(--hover); }
+.btn:active { transform: translateY(1px); }
+
+/* Главная кнопка — единственное место, где латунь появляется в диалоге. */
+.btn--primary { background: var(--accent); color: var(--on-accent); }
+.btn--primary:hover { background: var(--accent); filter: brightness(1.07); }
+
+/* Тихая кнопка: без подложки, для действий, которые не должны спорить
+   с содержимым (значки в шапке, «обновить», «закрыть»). */
+.btn--quiet { background: transparent; color: var(--text-dim); }
+.btn--quiet:hover { background: var(--hover); color: var(--text); }
+
+.btn--icon { padding: 0; width: var(--touch); }
+.btn.is-on { color: var(--accent-text); background: var(--accent-soft); }
+.btn:disabled { opacity: .45; cursor: default; }
+.btn__label { display: inline; }
+
+/* ===== 3. Поля и переключатели ============================================ */
+
+/* Поле ввода — одно из двух мест, где в системе осталась 1px-линия:
+   без края поле не читается как поле. */
+.field {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  padding: 0 var(--s3);
+  background: var(--sunken);
+  border: var(--hair) solid var(--line);
+  border-radius: var(--r-sm);
+  /* Плюс две рамки: чтобы само поле ввода внутри было ровно 44px. */
+  min-height: calc(var(--touch) + 2 * var(--hair));
+  color: var(--text-dim);
+}
+.field:focus-within { border-color: var(--accent-edge); color: var(--accent-text); }
+.field__input {
+  font: inherit;
+  font-size: 16px;                 /* меньше 16px — Safari зумит страницу */
+  color: var(--text);
+  background: transparent;
+  border: 0;
+  outline: none;
+  padding: 0;
+  align-self: stretch;
+  width: 100%;
+  min-width: 0;
+}
+.field__input::placeholder { color: var(--text-dim); }
+.field__input::-webkit-search-cancel-button { filter: grayscale(1) opacity(.6); }
+
+.seg {
+  display: inline-flex;
+  background: var(--sunken);
+  border-radius: var(--r-pill);
+  padding: 3px;
+  gap: 2px;
+}
+.seg__btn {
+  font: inherit;
+  font-size: var(--t-note);
+  font-weight: var(--w-strong);
+  color: var(--text-dim);
+  background: transparent;
+  border: 0;
+  border-radius: var(--r-pill);
+  padding: 0 var(--s3);
+  min-height: calc(var(--touch) - 6px);
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
+  -webkit-tap-highlight-color: transparent;
+}
+.seg__btn:hover { color: var(--text); }
+.seg__btn.is-active { background: var(--surface-2); color: var(--text); }
+
+/* ===== 4. Метки и таблетки ================================================ */
+
+/* Одна таблетка на всё: фильтры, файлы внимания, проекты. Раньше их было
+   четыре разных класса с разными отступами. */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  font: inherit;
+  font-size: var(--t-note);
+  color: var(--text-dim);
+  background: var(--surface-2);
+  border: 0;
+  border-radius: var(--r-pill);
+  padding: 0 var(--s3);
+  min-height: var(--touch);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
+  -webkit-tap-highlight-color: transparent;
+}
+.pill:hover { background: var(--hover); color: var(--text); }
+.pill.is-active { background: var(--accent-soft); color: var(--accent-text); }
+.pill__dot { width: 7px; height: 7px; border-radius: var(--r-pill); background: var(--accent); }
+
+/* Метка состояния: точка и слово. Три вида, больше нет. */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s1);
+  font-size: var(--t-fine);
+  font-weight: var(--w-strong);
+  color: var(--text-dim);
+  background: var(--surface-2);
+  border-radius: var(--r-sm);
+  padding: 2px var(--s2);
+  white-space: nowrap;
+}
+.badge--ok  { color: var(--ok-text);  background: var(--ok-soft); }
+.badge--bad { color: var(--bad-text); background: var(--bad-soft); }
+.badge--act { color: var(--on-accent);  background: var(--accent); }
+
+/* Значок «?» рядом с термином: маленький на вид, но зона касания 44px. */
+.term {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px; height: 20px;
+  margin-left: var(--s1);
+  padding: 0;
+  font: inherit;
+  font-size: var(--t-fine);
+  font-weight: var(--w-strong);
+  color: var(--text-dim);
+  background: var(--surface-2);
+  border: 0;
+  border-radius: var(--r-pill);
+  cursor: help;
+  vertical-align: middle;
+  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
+  -webkit-tap-highlight-color: transparent;
+}
+.term::after { content: ''; position: absolute; inset: -12px; }
+.term:hover { background: var(--accent-soft); color: var(--accent-text); }
+
+/* ===== 5. Панель и карточка =============================================== */
+
+/* У панели нет рамки. Разделение — подложкой и воздухом; это единственный
+   принцип разделения в системе (DESIGN.md, раздел 3). */
+.panel {
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border-radius: var(--r-md);
+  min-height: 0;
+  overflow: hidden;
+}
+.panel__head {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  padding: var(--s3) var(--s4);
+  flex: 0 0 auto;
+  min-height: calc(var(--touch) + var(--s3));
+}
+.panel__title {
+  margin: 0;
+  font-size: var(--t-title);
+  font-weight: var(--w-strong);
+  display: flex;
+  align-items: center;
+  white-space: nowrap;         /* заголовок не переносится, ужимается поиск */
+  flex: 0 0 auto;
+}
+.panel__tools { margin-left: auto; display: flex; gap: var(--s2); align-items: center; }
+.panel__pad { padding: 0 var(--s4) var(--s3); flex: 0 0 auto; }
+.panel__scroll {
+  overflow-y: auto;
+  flex: 1 1 auto;
+  min-height: 0;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+
+/* Карточка внутри панели отличается на один шаг светлоты, а не рамкой. */
+.card {
+  background: var(--surface-2);
+  border-radius: var(--r-sm);
+  padding: var(--s3) var(--s4);
+}
+
+.sub { padding: var(--s4) 0 0; }
+.sub__head {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  padding: 0 var(--s4) var(--s2);
+}
+.sub__title {
+  margin: 0;
+  font-size: var(--t-note);
+  font-weight: var(--w-strong);
+  color: var(--text-dim);
+}
+.sub__head .seg, .sub__head .btn { margin-left: auto; }
+
+/* ===== 6. Картушка — фирменный элемент ==================================== */
+
+/* Вращающийся круг компаса: пока Клод работает, дуга обходит круг; когда
+   он ждёт — кольцо дышит латунью. Три канала различения (движение, цвет,
+   форма) работают одновременно, поэтому состояние читается с трёх метров,
+   боковым зрением и без различения цветов. DESIGN.md, раздел 4. */
+
+.rose {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  padding: var(--s3) var(--s4);
+  background: var(--surface);
+  border-radius: var(--r-md);
+  flex: 0 0 auto;
+  transition: box-shadow var(--dur-slow) var(--ease), background var(--dur-slow) var(--ease);
+}
+.rose__dial { flex: 0 0 auto; width: 56px; height: 56px; position: relative; }
+.rose__svg  { width: 100%; height: 100%; display: block; overflow: visible; }
+
+.dial__ring  { fill: none; stroke: var(--line); stroke-width: 2; }
+.dial__disc  { fill: transparent; transition: fill var(--dur-slow) var(--ease); }
+.dial__sweep { fill: none; stroke: transparent; stroke-width: 3; stroke-linecap: round; }
+.dial__mark  { stroke: var(--text-dim); stroke-width: 2; stroke-linecap: round; fill: none; }
+.dial__halo  { fill: none; stroke: transparent; stroke-width: 2; opacity: 0; }
+
+/* Работает: дуга обходит круг за три секунды — развёртка локатора. */
+.rose[data-state="working"] .dial__sweep {
+  stroke: var(--ok);
+  stroke-dasharray: 34 104;
+  transform-origin: 50% 50%;
+  animation: roseSweep var(--dur-sweep) linear infinite;
+}
+.rose[data-state="working"] .dial__mark { stroke: var(--ok); }
+
+/* Ждёт вас: обход останавливается, кольцо дышит латунью. */
+.rose[data-state="waiting"] { box-shadow: inset 0 0 0 1px var(--accent-edge); }
+.rose[data-state="waiting"] .dial__disc { fill: var(--accent); }
+.rose[data-state="waiting"] .dial__ring { stroke: var(--accent); }
+.rose[data-state="waiting"] .dial__mark { stroke: var(--on-accent); }
+.rose[data-state="waiting"] .dial__halo {
+  stroke: var(--accent);
+  transform-origin: 50% 50%;
+  animation: roseBreath var(--dur-breath) var(--ease) infinite;
+}
+.rose[data-state="waiting"] .rose__state { color: var(--accent-text); }
+
+/* Тихо: пустое тонкое кольцо, метка вниз, ни одного движения. */
+.rose[data-state="ended"] .dial__ring,
+.rose[data-state="idle"]  .dial__ring { stroke: var(--line); }
+.rose[data-state="ended"] .dial__mark,
+.rose[data-state="idle"]  .dial__mark { stroke: var(--text-dim); }
+
+/* Нет связи: кольцо пунктиром. */
+.rose[data-state="offline"] .dial__ring {
+  stroke: var(--bad);
+  stroke-dasharray: 3 6;
+  stroke-linecap: round;
+}
+.rose[data-state="offline"] .dial__mark { stroke: var(--bad); }
+.rose[data-state="offline"] .rose__state { color: var(--bad-text); }
+
+@keyframes roseSweep { to { transform: rotate(360deg); } }
+@keyframes roseBreath {
+  0%, 100% { opacity: .55; transform: scale(1); }
+  50%      { opacity: 0;   transform: scale(1.42); }
+}
+
+.rose__read { min-width: 0; flex: 1 1 0; }
+.rose__state {
+  font-family: var(--font-dial);
+  font-size: var(--t-dial);
+  line-height: var(--lh-tight);
+  letter-spacing: var(--ls-dial);
+  font-variant-numeric: tabular-nums;
+  transition: color var(--dur-slow) var(--ease);
+}
+.rose__detail {
+  font-size: var(--t-note);
+  color: var(--text-dim);
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rose__act { margin-left: auto; flex: 0 0 auto; display: flex; gap: var(--s2); }
+
+/* ===== 7. Событие ленты =================================================== */
+
+/* Разделительных линий между событиями нет: разделяет ритм и подсветка.
+   Состояние показывает значок, а не цветная полоска слева. */
+.ev {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr) auto;
+  gap: 2px var(--s3);
+  padding: var(--s3) var(--s4);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease);
+  -webkit-tap-highlight-color: transparent;
+}
+.ev:hover { background: var(--hover); }
+
+.ev__mark {
+  grid-row: 1 / span 2;
+  width: 30px; height: 30px;
+  border-radius: var(--r-pill);
+  display: grid;
+  place-items: center;
+  background: var(--surface-2);
+  color: var(--text-dim);
+}
+.ev__title {
+  font-size: var(--t-body);
+  font-weight: var(--w-strong);
+  overflow-wrap: anywhere;
+  align-self: center;
+  /* Длинные команды не должны разгонять строку ленты на шесть строк:
+     целиком они видны в карточке события. */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.ev__time {
+  font-size: var(--t-fine);
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  align-self: center;
+}
+.ev__hint {
+  grid-column: 2 / span 2;
+  font-size: var(--t-note);
+  color: var(--text-dim);
+  overflow-wrap: anywhere;
+}
+.ev__raw {
+  grid-column: 2 / span 2;
+  margin: var(--s2) 0 0;
+  padding: var(--s2) var(--s3);
+  background: var(--sunken);
+  border-radius: var(--r-sm);
+  font-family: var(--font-mono);
+  font-size: var(--t-fine);
+  color: var(--text-dim);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 220px;
+  overflow: auto;
+}
+
+/* Цвет тратится только на «сделано» и «сломалось». Чтение, команды и
+   реплики различаются формой значка, а не оттенком. */
+.ev--edit  .ev__mark { color: var(--ok-text);  background: var(--ok-soft); }
+.ev--error .ev__mark { color: var(--bad-text); background: var(--bad-soft); }
+.ev--error .ev__title { color: var(--bad-text); }
+.ev--user  .ev__mark { color: var(--surface); background: var(--text); }
+.ev--attention .ev__mark { color: var(--accent-text); background: var(--accent-soft); }
+.ev--agent { padding-left: calc(var(--s4) + var(--s3)); }
+.ev--agent .ev__title { font-weight: var(--w-normal); color: var(--text-dim); }
+
+.ev.is-new { animation: evIn var(--dur-mid) var(--ease); }
+@keyframes evIn {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* ===== 8. Дифф ============================================================ */
+
+/* Второе и последнее место, где линия несёт смысл: она отделяет фрагменты
+   файла друг от друга. */
+.diff {
+  font-family: var(--font-mono);
+  font-size: var(--t-fine);
+  line-height: 1.6;
+  background: var(--sunken);
+  border-radius: var(--r-sm);
+  overflow: hidden;
+  margin-bottom: var(--s3);
+}
+.diff__legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s3);
+  font-family: var(--font-text);
+  font-size: var(--t-fine);
+  color: var(--text-dim);
+  padding: var(--s2) var(--s3);
+}
+.diff__legend b { font-weight: var(--w-strong); color: var(--text); }
+.diff__hunk {
+  padding: var(--s1) var(--s3);
+  background: var(--surface-2);
+  color: var(--text-dim);
+  font-size: var(--t-fine);
+  border-top: var(--hair) solid var(--line);
+}
+/* Строка переносится, а не уезжает вбок: горизонтальная прокрутка внутри
+   вертикальной — верный способ промахнуться пальцем. */
+.diff__line { display: flex; padding: 0 var(--s3); white-space: pre-wrap; overflow-wrap: anywhere; }
+.diff__sign { flex: 0 0 16px; opacity: .75; user-select: none; }
+.diff__text { flex: 1 1 auto; min-width: 0; }
+.diff__line--add { background: var(--ok-soft);  color: var(--ok-text); }
+.diff__line--del { background: var(--bad-soft); color: var(--bad-text); }
+.diff__line--ctx { color: var(--text-dim); }
+
+pre.out {
+  margin: 0;
+  padding: var(--s3);
+  background: var(--sunken);
+  border-radius: var(--r-sm);
+  font-family: var(--font-mono);
+  font-size: var(--t-fine);
+  line-height: 1.6;
+  color: var(--text-dim);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 320px;
+  overflow: auto;
+}
+pre.out--error { color: var(--bad-text); }
+
+/* ===== 9. Пустое состояние ================================================ */
+
+/* Никогда не показывает одно и то же для разных причин и всегда даёт
+   следующий шаг. Аудит, место 3. */
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s3);
+  padding: var(--s6) var(--s4);
+  text-align: center;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.empty__icon { color: var(--text-dim); opacity: .5; }
+.empty__title { font-size: var(--t-title); font-weight: var(--w-strong); margin: 0; }
+.empty__text { font-size: var(--t-note); color: var(--text-dim); margin: 0; max-width: 44ch; }
+
+/* ===== 10. Шторка ========================================================= */
+
+/* Одна и та же шторка на обеих раскладках: на телефоне выезжает снизу,
+   на компьютере становится панелью справа. Разметка не меняется. */
+.sheet { position: fixed; inset: 0; z-index: 70; display: flex; }
+.sheet__backdrop { position: absolute; inset: 0; background: var(--scrim); }
+
+.sheet__box {
+  position: relative;
+  margin-top: auto;
+  width: 100%;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border-radius: var(--r-md) var(--r-md) 0 0;
+  box-shadow: var(--shadow);
+  animation: sheetUp var(--dur-slow) var(--ease);
+  padding-bottom: var(--safe-b);
+}
+@keyframes sheetUp {
+  from { transform: translateY(18px); opacity: 0; }
+  to   { transform: none; opacity: 1; }
+}
+.sheet__grip {
+  width: 40px; height: 4px;
+  border-radius: var(--r-pill);
+  background: var(--line);
+  margin: var(--s2) auto 0;
+  flex: 0 0 auto;
+}
+.sheet__head {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  padding: var(--s3) var(--s4);
+  flex: 0 0 auto;
+}
+.sheet__title {
+  margin: 0;
+  font-size: var(--t-title);
+  font-weight: var(--w-strong);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sheet__head .btn { margin-left: auto; }
+.sheet__body {
+  padding: 0 var(--s4) var(--s4);
+  overflow-y: auto;
+  flex: 1 1 auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+
+/* ===== 11. Вкладки ======================================================== */
+
+.tabbar { display: none; }              /* на компьютере видны все панели сразу */
+
+.tab {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  font: inherit;
+  font-size: var(--t-fine);
+  color: var(--text-dim);
+  background: transparent;
+  border: 0;
+  min-height: var(--tabbar-h);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: color var(--dur-fast) var(--ease);
+}
+.tab.is-active { color: var(--accent-text); }
+.tab.is-active::before {
+  content: '';
+  position: absolute; top: 0; left: 24%; right: 24%;
+  height: 2px;
+  border-radius: var(--r-pill);
+  background: var(--accent);
+}
+.tab__badge {
+  position: absolute; top: 6px; left: 50%; margin-left: var(--s2);
+  min-width: 18px; height: 18px; padding: 0 5px;
+  border-radius: var(--r-pill);
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: var(--t-fine);
+  font-weight: var(--w-strong);
+  line-height: 18px;
+}
+
+/* ===== 12. Подсказка и строка настройки =================================== */
+
+.tip {
+  position: fixed;
+  z-index: 110;
+  width: min(320px, calc(100vw - 24px));
+  padding: var(--s3);
+  background: var(--surface-2);
+  border-radius: var(--r-sm);
+  box-shadow: var(--shadow);
+  pointer-events: none;
+}
+.tip__term { font-weight: var(--w-strong); color: var(--accent-text); }
+.tip__text { font-size: var(--t-note); color: var(--text-dim); margin-top: var(--s1); }
+
+/* Строка настройки: слева смысл, справа управление. Одна и та же строка
+   используется в настройках, в списке «Ещё» и на экране подключения. */
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  padding: var(--s3) 0;
+}
+.row + .row { box-shadow: 0 -1px 0 var(--line); }
+.row__label { flex: 1 1 auto; min-width: 0; }
+.row__label b { display: block; font-size: var(--t-body); font-weight: var(--w-strong); }
+.row__label span { font-size: var(--t-note); color: var(--text-dim); }
+.row__control { flex: 0 0 auto; }
+.row--act { cursor: pointer; border-radius: var(--r-sm); padding-left: var(--s2); padding-right: var(--s2); }
+.row--act:hover { background: var(--hover); }
+.row--act .row__control { color: var(--text-dim); }
+
+/* Табличка фактов в карточке события и файла. */
+.facts {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--s1) var(--s3);
+  font-size: var(--t-note);
+  margin: 0 0 var(--s3);
+  padding: var(--s3);
+  background: var(--sunken);
+  border-radius: var(--r-sm);
+}
+.facts dt { color: var(--text-dim); }
+.facts dd { margin: 0; font-family: var(--font-mono); font-size: var(--t-fine); overflow-wrap: anywhere; }
+
+.sec { margin-top: var(--s4); }
+.sec__title {
+  font-size: var(--t-note);
+  font-weight: var(--w-strong);
+  color: var(--text-dim);
+  margin: 0 0 var(--s2);
+}

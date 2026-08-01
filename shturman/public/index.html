@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#0d1117" media="(prefers-color-scheme: dark)">
-<meta name="theme-color" content="#f6f8fb" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0b1417" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#edf1f0" media="(prefers-color-scheme: light)">
 <meta name="description" content="Штурман — панель-наставник: показывает простым языком, что делает Claude Code">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -14,234 +14,272 @@
 <link rel="manifest" href="/manifest.json">
 <link rel="icon" href="/icons/icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="/icons/icon-180.png">
+<link rel="stylesheet" href="/tokens.css">
+<link rel="stylesheet" href="/components.css">
 <link rel="stylesheet" href="/styles.css">
 </head>
-<body data-view="feed">
+<body data-view="feed" class="is-booting">
 
-<!-- ══ Шапка: липкая, всегда показывает статус Клода ══════════════════ -->
-<header class="topbar" id="topbar">
-  <div class="topbar__brand">
-    <span class="topbar__mark" aria-hidden="true">🧭</span>
-    <span class="topbar__name">Штурман</span>
-  </div>
+<!-- Слова интерфейса подставляются из copy.js по data-copy: словарь — один
+     на всё приложение, и в разметке текста нет. -->
+<noscript>
+  <p style="padding:20px">Штурман — живая панель, ей нужен JavaScript.
+  Включите его и обновите страницу.</p>
+</noscript>
 
-  <div class="topbar__project" id="projectInfo">
-    <span class="topbar__project-name" id="projectName">…</span>
-    <span class="topbar__project-path" id="projectPath"></span>
-  </div>
+<!-- ══ Запуск приборов: единственный оркестрованный момент ════════════ -->
+<div class="boot" id="boot" aria-hidden="true">
+  <svg class="boot__dial" viewBox="0 0 100 100">
+    <circle class="boot__ring" cx="50" cy="50" r="40"></circle>
+    <circle class="boot__sweep" cx="50" cy="50" r="40"></circle>
+  </svg>
+  <div class="boot__name" data-copy="app.name"></div>
+  <div class="boot__note" data-copy="app.boot"></div>
+</div>
 
-  <div class="switcher" id="switcher" hidden>
-    <span class="switcher__label">Проект:</span>
-    <div class="switcher__chips" id="switcherChips"></div>
-  </div>
+<!-- ══ Шапка и картушка ═══════════════════════════════════════════════ -->
+<div class="head" id="head">
 
-  <!-- Статус Клода — главное, что видно с телефона одним взглядом -->
-  <div class="topbar__status">
-    <span class="chip chip--state" id="stateChip" role="status" aria-live="polite">
-      <span class="chip__dot" id="stateDot"></span>
-      <span id="stateText">—</span>
-    </span>
-    <span class="chip chip--level" id="levelChip" title="Откуда Штурман берёт данные">
-      <span class="chip__dot" id="levelDot"></span>
-      <span id="levelText">подключение…</span>
-    </span>
-  </div>
+  <header class="topbar" id="topbar">
+    <div class="topbar__brand" data-icon="compass" data-icon-class="i--lg">
+      <span class="topbar__name" data-copy="app.name"></span>
+    </div>
 
-  <!-- На компьютере видны все кнопки; на телефоне остаются только «Сигнал»
-       и «⋯», за которым лежит то же самое — ничего не теряется. -->
-  <div class="topbar__actions">
-    <button class="btn btn--icon" id="btnBell" title="Проверить звук и разрешить уведомления" aria-label="Проверить сигнал">🔔</button>
-    <button class="btn btn--icon act" id="btnConnect" title="Открыть на телефоне" aria-label="Подключение">📱</button>
-    <button class="btn btn--icon act" id="btnGlossary" title="Словарь терминов" aria-label="Словарь">📚</button>
-    <button class="btn btn--icon act" id="btnDigest" title="Итоги сессии" aria-label="Итоги">📄</button>
-    <button class="btn btn--icon act" id="btnTheme" title="Тема оформления" aria-label="Тема">🌗</button>
-    <button class="btn btn--icon act" id="btnTour" title="Тур по панели" aria-label="Тур">🎓</button>
-    <button class="btn btn--icon act" id="btnSettings" title="Настройки" aria-label="Настройки">⚙️</button>
-    <button class="btn btn--icon btn--more" id="btnMore" title="Ещё" aria-label="Ещё">⋯</button>
-  </div>
-</header>
+    <div class="topbar__project" id="projectInfo">
+      <span class="topbar__project-name" id="projectName"></span>
+      <span class="topbar__project-path mono" id="projectPath"></span>
+    </div>
+
+    <div class="switcher" id="switcher" hidden>
+      <div class="switcher__chips" id="switcherChips"></div>
+    </div>
+
+    <div class="topbar__actions">
+      <button class="btn btn--quiet btn--icon" id="btnBell"
+              data-icon="bell" data-copy-label="head.bell"></button>
+      <button class="btn btn--quiet btn--icon act" id="btnConnect"
+              data-icon="phone" data-copy-label="head.connect"></button>
+      <button class="btn btn--quiet btn--icon act" id="btnGlossary"
+              data-icon="book" data-copy-label="head.glossary"></button>
+      <button class="btn btn--quiet btn--icon act" id="btnDigest"
+              data-icon="digest" data-copy-label="head.digest"></button>
+      <button class="btn btn--quiet btn--icon act" id="btnTheme"
+              data-icon="theme" data-copy-label="head.theme"></button>
+      <button class="btn btn--quiet btn--icon act" id="btnTour"
+              data-icon="tour" data-copy-label="head.tour"></button>
+      <button class="btn btn--quiet btn--icon act" id="btnSettings"
+              data-icon="settings" data-copy-label="head.settings"></button>
+      <button class="btn btn--quiet btn--icon btn--more" id="btnMore"
+              data-icon="more" data-copy-label="head.more"></button>
+    </div>
+  </header>
+
+  <!-- Картушка: главный прибор. Пока Клод работает, по кругу идёт дуга;
+       когда он ждёт — круг заливается латунью и дышит. -->
+  <section class="rose" id="rose" data-state="idle" role="status" aria-live="polite"
+           data-copy-label="rose.label">
+    <div class="rose__dial">
+      <svg class="rose__svg" viewBox="0 0 56 56" aria-hidden="true" focusable="false">
+        <circle class="dial__halo"  cx="28" cy="28" r="22"></circle>
+        <circle class="dial__disc"  cx="28" cy="28" r="21"></circle>
+        <circle class="dial__ring"  cx="28" cy="28" r="22"></circle>
+        <circle class="dial__sweep" cx="28" cy="28" r="22"></circle>
+        <path   class="dial__mark"  d="M28 11.5 V19.5"></path>
+      </svg>
+    </div>
+    <div class="rose__read">
+      <div class="rose__state" id="roseState"></div>
+      <div class="rose__detail" id="roseDetail"></div>
+    </div>
+    <div class="rose__act" id="roseAct" hidden>
+      <button class="btn btn--primary" id="roseSeen" data-copy="rose.seen"></button>
+    </div>
+  </section>
+</div>
 
 <!-- ══ Полоса сообщений ═══════════════════════════════════════════════ -->
 <div class="notice" id="notice" hidden>
-  <span class="notice__icon" id="noticeIcon">⚠️</span>
+  <span class="notice__icon" id="noticeIcon"></span>
   <span class="notice__text" id="noticeText"></span>
-  <button class="notice__close" id="noticeClose" aria-label="Скрыть">✕</button>
+  <button class="btn btn--quiet btn--icon" id="noticeClose"
+          data-icon="close" data-copy-label="common.close"></button>
 </div>
 
-<!-- ══ Основная сетка. На телефоне видна одна секция, на компьютере все ══ -->
-<main class="grid" id="grid">
+<!-- ══ Разделы ════════════════════════════════════════════════════════ -->
+<main class="deck" id="deck">
+  <div class="grid" id="grid">
 
-  <!-- ─── Лента ─────────────────────────────────────────────────────── -->
-  <section class="panel panel--feed view" data-view="feed" id="panelFeed" aria-label="Лента событий">
-    <header class="panel__head">
-      <h2 class="panel__title">Что происходит</h2>
-      <div class="panel__tools">
-        <div class="seg" role="group" aria-label="Режим показа">
-          <button class="seg__btn is-active" id="modeSimple">Просто</button>
-          <button class="seg__btn" id="modeDetail">Подробно</button>
+    <!-- ─── Лента ─────────────────────────────────────────────────── -->
+    <section class="panel panel--feed view" data-view="feed" id="panelFeed"
+             data-copy-label="feed.title">
+      <header class="panel__head">
+        <h2 class="panel__title" data-copy="feed.title"></h2>
+        <div class="panel__tools">
+          <label class="field" data-icon="search" data-icon-class="i--sm">
+            <input class="field__input" id="feedSearch" type="search"
+                   data-copy-ph="feed.search" data-copy-label="feed.search"
+                   enterkeyhint="search" autocomplete="off">
+          </label>
+          <button class="btn btn--quiet" id="btnDetail" data-icon="plan"
+                  data-copy-label="feed.detail" aria-pressed="false">
+            <span class="btn__label" data-copy="feed.detail"></span>
+          </button>
+          <button class="btn btn--quiet" id="btnPause" data-icon="pause"
+                  data-copy-label="feed.pause">
+            <span class="btn__label" id="btnPauseLabel" data-copy="feed.pause"></span>
+          </button>
         </div>
-        <button class="btn btn--sm" id="btnPause" title="Остановить прокрутку ленты">⏸<span class="btn__label"> Пауза</span></button>
+      </header>
+
+      <div class="filters">
+        <div class="filters__strip" id="feedFilters" role="group"
+             data-copy-label="feed.title"></div>
       </div>
-    </header>
 
-    <div class="filters">
-      <input class="input input--search" id="feedSearch" type="search"
-             placeholder="Поиск по ленте…" aria-label="Поиск по ленте"
-             enterkeyhint="search" autocomplete="off">
-      <div class="filters__chips" id="feedFilters" role="group" aria-label="Фильтр событий">
-        <button class="fchip is-active" data-filter="all">Всё</button>
-        <button class="fchip" data-filter="edit">📝 правки</button>
-        <button class="fchip" data-filter="read">📖 чтение</button>
-        <button class="fchip" data-filter="run">🔧 команды</button>
-        <button class="fchip" data-filter="search">🔍 поиск</button>
-        <button class="fchip" data-filter="error">⛔ ошибки</button>
-        <button class="fchip" data-filter="talk">💬 диалог</button>
-        <button class="fchip" data-filter="git">🌿 git</button>
-        <button class="fchip" data-filter="agent">🤝 помощник</button>
+      <!-- Длинная лента виртуализируется: распорки держат высоту прокрутки,
+           в разметке живут только видимые карточки. -->
+      <div class="feed__scroll" id="feedScroll">
+        <div class="feed__spacer" id="feedTop"></div>
+        <ol class="feed" id="feed" aria-live="polite" aria-relevant="additions"></ol>
+        <div class="feed__spacer" id="feedBottom"></div>
       </div>
-    </div>
 
-    <!-- Длинная лента виртуализируется: распорки сверху и снизу держат
-         высоту прокрутки, в разметке живут только видимые карточки. -->
-    <div class="feed__scroll" id="feedScroll">
-      <div class="feed__spacer" id="feedTop"></div>
-      <ol class="feed" id="feed" aria-live="polite" aria-relevant="additions"></ol>
-      <div class="feed__spacer" id="feedBottom"></div>
-    </div>
+      <div class="empty" id="feedEmpty" hidden></div>
 
-    <div class="feed__empty" id="feedEmpty">
-      <div class="feed__empty-icon">🛰</div>
-      <p class="feed__empty-title">Пока тихо</p>
-      <p class="feed__empty-text" id="feedEmptyText">
-        Штурман подключился и ждёт первых действий. Начните говорить с Клодом
-        в терминале — всё, что он сделает, появится здесь.
-      </p>
-    </div>
-
-    <div class="feed__paused" id="feedPaused" hidden>
-      Лента на паузе. Новые события копятся: <b id="pausedCount">0</b>.
-      <button class="btn btn--sm" id="btnResume">Показать</button>
-    </div>
-  </section>
-
-  <!-- ─── Карта проекта ─────────────────────────────────────────────── -->
-  <section class="panel panel--tree view" data-view="map" id="panelTree" aria-label="Карта проекта">
-    <header class="panel__head">
-      <h2 class="panel__title">Карта проекта</h2>
-      <button class="btn btn--sm" id="btnTreeRefresh" title="Перечитать дерево" aria-label="Обновить">⟳</button>
-    </header>
-    <div class="panel__pad">
-      <input class="input input--search" id="treeSearch" type="search"
-             placeholder="Поиск по файлам…" aria-label="Поиск по файлам"
-             enterkeyhint="search" autocomplete="off">
-    </div>
-    <div class="tree" id="tree"></div>
-    <p class="tree__hint" id="treeHint">Свежие изменения подсвечиваются и постепенно гаснут.</p>
-  </section>
-
-  <!-- ─── Git ───────────────────────────────────────────────────────── -->
-  <section class="panel panel--git view" data-view="git" id="panelGit" aria-label="Git">
-    <header class="panel__head">
-      <h2 class="panel__title">
-        Git
-        <button class="term" data-term="git" aria-label="Что такое git">?</button>
-      </h2>
-      <div class="seg seg--sm" role="group" aria-label="Раздел git">
-        <button class="seg__btn is-active" data-gittab="now">Сейчас</button>
-        <button class="seg__btn" data-gittab="history">История</button>
+      <div class="feed__paused" id="feedPaused" hidden>
+        <span id="pausedText"></span>
+        <button class="btn" id="btnResume" data-copy="feed.show"></button>
       </div>
-    </header>
-    <div class="panel__scroll">
-      <div id="gitNow"></div>
-      <div id="gitHistory" hidden></div>
-    </div>
-  </section>
+    </section>
 
-  <!-- ─── Пульс (на компьютере — колонка из трёх карточек) ──────────── -->
-  <section class="panel panel--pulse view" data-view="pulse" id="panelPulse" aria-label="Пульс сессии">
-    <header class="panel__head">
-      <h2 class="panel__title">Пульс сессии</h2>
-    </header>
-    <div class="panel__scroll">
+    <!-- ─── Карта проекта ─────────────────────────────────────────── -->
+    <section class="panel panel--tree view" data-view="map" id="panelTree"
+             data-copy-label="map.title">
+      <header class="panel__head">
+        <h2 class="panel__title" data-copy="map.title"></h2>
+        <div class="panel__tools">
+          <label class="field" data-icon="search" data-icon-class="i--sm">
+            <input class="field__input" id="treeSearch" type="search"
+                   data-copy-ph="map.search" data-copy-label="map.search"
+                   enterkeyhint="search" autocomplete="off">
+          </label>
+          <button class="btn btn--quiet btn--icon" id="btnTreeRefresh"
+                  data-icon="refresh" data-copy-label="map.refresh"></button>
+        </div>
+      </header>
+      <div class="tree" id="tree"></div>
+      <p class="tree__hint" id="treeHint" data-copy="map.hint"></p>
+    </section>
 
-      <div class="pulse" id="pulse">
-        <div class="pulse__item">
-          <div class="pulse__value" id="pulseFiles">0</div>
-          <div class="pulse__label">файлов затронуто</div>
-        </div>
-        <div class="pulse__item">
-          <div class="pulse__value" id="pulseCommands">0</div>
-          <div class="pulse__label">команд выполнено</div>
-        </div>
-        <div class="pulse__item">
-          <div class="pulse__value" id="pulseErrors">0</div>
-          <div class="pulse__label">ошибок замечено</div>
-        </div>
-        <div class="pulse__item">
-          <div class="pulse__value" id="pulseDuration">0 с</div>
-          <div class="pulse__label">длится сессия</div>
-        </div>
-        <div class="pulse__item pulse__item--wide">
-          <div class="pulse__value pulse__value--sm" id="pulseTokens">—</div>
-          <div class="pulse__label">
-            токенов, приблизительно
-            <button class="term" data-term="token" aria-label="Что такое токены">?</button>
+    <!-- ─── Git ───────────────────────────────────────────────────── -->
+    <section class="panel panel--git view" data-view="git" id="panelGit"
+             data-copy-label="git.title">
+      <header class="panel__head">
+        <h2 class="panel__title">
+          <span data-copy="git.title"></span>
+          <button class="term" data-term="git" data-copy-label="glossary.what">?</button>
+        </h2>
+        <div class="panel__tools">
+          <div class="seg" role="group" data-copy-label="git.title">
+            <button class="seg__btn is-active" data-gittab="now" data-copy="git.now"></button>
+            <button class="seg__btn" data-gittab="history" data-copy="git.history"></button>
           </div>
         </div>
+      </header>
+      <div class="panel__scroll">
+        <div id="gitNow"></div>
+        <div id="gitHistory" hidden></div>
       </div>
+    </section>
 
-      <section class="sub">
-        <header class="sub__head">
-          <h3 class="sub__title">Куда смотрит Клод</h3>
-          <div class="seg seg--sm" role="group" aria-label="Вид карты внимания">
-            <button class="seg__btn is-active" data-atttab="graph">Граф</button>
-            <button class="seg__btn" data-atttab="list">Список</button>
+    <!-- ─── Пульс ─────────────────────────────────────────────────── -->
+    <section class="panel panel--pulse view" data-view="pulse" id="panelPulse"
+             data-copy-label="pulse.title">
+      <header class="panel__head panel__head--bare">
+        <h2 class="panel__title" data-copy="pulse.title"></h2>
+      </header>
+      <div class="panel__scroll">
+
+        <div class="pulse" id="pulse">
+          <div class="pulse__item">
+            <div class="pulse__value" id="pulseFiles">0</div>
+            <div class="pulse__label" data-copy="pulse.files"></div>
           </div>
-        </header>
-        <div class="attention" id="attentionGraph"></div>
-        <div class="attention" id="attentionMap" hidden>
-          <p class="muted">Пока никуда — ждём первых чтений и правок.</p>
+          <div class="pulse__item">
+            <div class="pulse__value" id="pulseCommands">0</div>
+            <div class="pulse__label" data-copy="pulse.commands"></div>
+          </div>
+          <div class="pulse__item">
+            <div class="pulse__value" id="pulseErrors">0</div>
+            <div class="pulse__label" data-copy="pulse.errors"></div>
+          </div>
+          <div class="pulse__item">
+            <div class="pulse__value" id="pulseDuration">0</div>
+            <div class="pulse__label" data-copy="pulse.duration"></div>
+          </div>
+          <div class="pulse__item pulse__item--wide">
+            <div class="pulse__value pulse__value--sm" id="pulseTokens"></div>
+            <div class="pulse__label">
+              <span data-copy="pulse.tokens"></span>
+              <button class="term" data-term="token" data-copy-label="glossary.what">?</button>
+            </div>
+          </div>
         </div>
-      </section>
 
-      <section class="sub">
-        <header class="sub__head">
-          <h3 class="sub__title">Прошлые сессии</h3>
-          <button class="btn btn--sm" id="btnSessionsRefresh" aria-label="Обновить">⟳</button>
-        </header>
-        <div class="sessions" id="sessions"><p class="muted">Загружаем…</p></div>
-      </section>
+        <section class="sub">
+          <header class="sub__head">
+            <h3 class="sub__title" data-copy="pulse.attention"></h3>
+            <div class="seg" role="group" data-copy-label="pulse.attention">
+              <button class="seg__btn is-active" data-atttab="graph" data-copy="pulse.graph"></button>
+              <button class="seg__btn" data-atttab="list" data-copy="pulse.list"></button>
+            </div>
+          </header>
+          <div class="attention" id="attentionGraph"></div>
+          <div class="attention" id="attentionMap" hidden></div>
+        </section>
 
-    </div>
-  </section>
+        <section class="sub">
+          <header class="sub__head">
+            <h3 class="sub__title" data-copy="pulse.sessions"></h3>
+            <button class="btn btn--quiet btn--icon" id="btnSessionsRefresh"
+                    data-icon="refresh" data-copy-label="pulse.sessionsRefresh"></button>
+          </header>
+          <div class="sessions" id="sessions"></div>
+        </section>
+
+      </div>
+    </section>
+  </div>
 </main>
 
 <!-- ══ Нижние вкладки — только на телефоне ════════════════════════════ -->
-<nav class="tabbar" id="tabbar" role="tablist" aria-label="Разделы панели">
-  <button class="tab is-active" data-tab="feed" role="tab" aria-selected="true">
-    <span class="tab__icon" aria-hidden="true">📰</span><span class="tab__text">Лента</span>
+<nav class="tabbar" id="tabbar" role="tablist" data-copy-label="app.name">
+  <button class="tab is-active" data-tab="feed" role="tab" aria-selected="true"
+          data-icon="tab-feed">
+    <span class="tab__text" data-copy="tabs.feed"></span>
     <span class="tab__badge" id="tabBadgeFeed" hidden></span>
   </button>
-  <button class="tab" data-tab="map" role="tab" aria-selected="false">
-    <span class="tab__icon" aria-hidden="true">🗺</span><span class="tab__text">Карта</span>
+  <button class="tab" data-tab="map" role="tab" aria-selected="false" data-icon="tab-map">
+    <span class="tab__text" data-copy="tabs.map"></span>
   </button>
-  <button class="tab" data-tab="git" role="tab" aria-selected="false">
-    <span class="tab__icon" aria-hidden="true">🌿</span><span class="tab__text">Git</span>
+  <button class="tab" data-tab="git" role="tab" aria-selected="false" data-icon="tab-git">
+    <span class="tab__text" data-copy="tabs.git"></span>
     <span class="tab__badge" id="tabBadgeGit" hidden></span>
   </button>
-  <button class="tab" data-tab="pulse" role="tab" aria-selected="false">
-    <span class="tab__icon" aria-hidden="true">❤️</span><span class="tab__text">Пульс</span>
+  <button class="tab" data-tab="pulse" role="tab" aria-selected="false" data-icon="tab-pulse">
+    <span class="tab__text" data-copy="tabs.pulse"></span>
   </button>
 </nav>
 
-<!-- ══ Нижняя шторка: детали, файлы, словарь, настройки ═══════════════ -->
+<!-- ══ Шторка: подробности, файлы, словарь, настройки ═════════════════ -->
 <div class="sheet" id="sheet" hidden role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
   <div class="sheet__backdrop" id="sheetBackdrop"></div>
   <div class="sheet__box" id="sheetBox">
     <div class="sheet__grip" id="sheetGrip" aria-hidden="true"></div>
     <header class="sheet__head">
-      <h3 class="sheet__title" id="sheetTitle">Подробности</h3>
-      <button class="btn btn--icon" id="sheetClose" aria-label="Закрыть">✕</button>
+      <h3 class="sheet__title" id="sheetTitle"></h3>
+      <button class="btn btn--quiet btn--icon" id="sheetClose"
+              data-icon="close" data-copy-label="common.close"></button>
     </header>
     <div class="sheet__body" id="sheetBody"></div>
   </div>
@@ -252,13 +290,13 @@
   <div class="tour__backdrop"></div>
   <div class="tour__spot" id="tourSpot"></div>
   <div class="tour__card" id="tourCard">
-    <div class="tour__step" id="tourStep">Шаг 1 из 5</div>
-    <h3 class="tour__title" id="tourTitle">—</h3>
-    <p class="tour__text" id="tourText">—</p>
+    <div class="tour__step" id="tourStep"></div>
+    <h3 class="tour__title" id="tourTitle"></h3>
+    <p class="tour__text" id="tourText"></p>
     <div class="tour__actions">
-      <button class="btn" id="tourSkip">Пропустить</button>
-      <button class="btn" id="tourPrev">Назад</button>
-      <button class="btn btn--primary" id="tourNext">Дальше</button>
+      <button class="btn" id="tourSkip" data-copy="tour.skip"></button>
+      <button class="btn" id="tourPrev" data-copy="tour.prev"></button>
+      <button class="btn btn--primary" id="tourNext" data-copy="tour.next"></button>
     </div>
   </div>
 </div>
@@ -269,16 +307,8 @@
   <div class="tip__text" id="tipText"></div>
 </div>
 
-<!-- ══ Сигнал «Клод ждёт» ═════════════════════════════════════════════ -->
-<div class="alarm" id="alarm" hidden role="alert">
-  <div class="alarm__icon">🔔</div>
-  <div class="alarm__body">
-    <div class="alarm__title" id="alarmTitle">Клод остановился и ждёт вас</div>
-    <div class="alarm__text" id="alarmText"></div>
-  </div>
-  <button class="btn btn--primary" id="alarmOk">Понял</button>
-</div>
-
+<script src="/copy.js"></script>
+<script src="/icons.js"></script>
 <script src="/app.js"></script>
 </body>
 </html>
