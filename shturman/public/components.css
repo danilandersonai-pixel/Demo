@@ -680,9 +680,13 @@ pre.out--error { color: var(--bad-text); }
   display: flex;
   align-items: center;
   gap: var(--s3);
-  padding: var(--s3) 0;
+  padding: var(--s3);
+  border-radius: var(--r-sm);
 }
-.row + .row { box-shadow: 0 -1px 0 var(--line); }
+/* Строки разделяет подложка и зазор, а не линейка: принцип разделения в
+   системе один (DESIGN.md, раздел 3). */
+.row + .row { margin-top: var(--s1); }
+.sheet__body > .row { background: var(--surface-2); }
 .row__label { flex: 1 1 auto; min-width: 0; }
 .row__label b { display: block; font-size: var(--t-body); font-weight: var(--w-strong); }
 .row__label span { font-size: var(--t-note); color: var(--text-dim); }
