@@ -1,0 +1,248 @@
+/* ===========================================================================
+   Штурман — токены оформления.
+
+   ЕДИНСТВЕННЫЙ файл, в котором разрешено писать цвета значениями. Всё
+   остальное оформление обращается к переменным отсюда; в components.css и
+   styles.css хардкод цвета запрещён и проверяется тестом.
+
+   Система описана в DESIGN.md. Коротко:
+     • шесть названных цветов, остальное получено из них через color-mix;
+     • цвет означает состояние, а не украшение: латунь = «нужен ты»;
+     • две темы спроектированы порознь, светлая — не инверсия тёмной;
+     • шесть ступеней кегля, шесть ступеней отступа, три скругления;
+     • плотность («Просторно» / «Компактно») умножает только воздух.
+
+   Порядок:
+     1  палитра: тёмная тема          5  ритм и плотность
+     2  палитра: светлая тема         6  движение
+     3  производные значения          7  пресеты
+     4  типографика                   8  reduced-motion
+   =========================================================================== */
+
+/* ===== 1. Палитра: тёмная тема («ночная рубка») =========================== */
+
+:root {
+  color-scheme: dark light;
+
+  /* Шесть названных цветов. Больше в системе нет ни одного. */
+  --c-bg:    #0b1417;   /* глубина: тёмное стекло с зеленоватым отливом */
+  --c-panel: #16242a;   /* корпус прибора, светится изнутри */
+  --c-ink:   #e7eeee;   /* свет: текст и графика */
+  --c-brass: #e2a44b;   /* акцент. Означает «нужен ты» — и больше ничего */
+  --c-sea:   #5fbfa3;   /* сигнал 1: идёт работа, чисто, добавлено */
+  --c-coral: #f4877c;   /* сигнал 2: ошибка, удалено, связь потеряна */
+
+  /* Латунь на светлом фоне не проходит контраст, поэтому у неё два тона:
+     ночью она светится, днём она гравирована. Здесь тона совпадают. */
+  --c-brass-ink: var(--c-brass);
+  --c-sea-ink:   var(--c-sea);
+  --c-coral-ink: var(--c-coral);
+
+  /* Затемнение и тень — не цвет, а глубина: чистая прозрачная чернота. */
+  --scrim:  rgba(3, 7, 9, .66);
+  --shadow: 0 18px 48px rgba(2, 5, 7, .55);
+
+  /* Текст поверх латунной заливки. */
+  --on-accent: var(--c-bg);
+
+  /* QR читается только чёрным по белому — это требование сканера,
+     а не оформления, поэтому белый здесь настоящий в обеих темах. */
+  --paper: #ffffff;
+}
+
+/* ===== 2. Палитра: светлая тема («день на палубе») ======================== */
+
+/* Ночью подложка светлее фона (стекло светится), днём — белее страницы
+   (лист лежит на столе). Это разные материалы, а не инверсия. */
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --c-bg:    #edf1f0;
+    --c-panel: #ffffff;
+    --c-ink:   #0d1b1f;
+    --c-brass: #c98a2e;
+    --c-sea:   #116850;
+    --c-coral: #b8331f;
+
+    --c-brass-ink: #8a5a12;
+    --c-sea-ink:   #116850;
+    --c-coral-ink: #b8331f;
+
+    --scrim:  rgba(13, 27, 31, .38);
+    --shadow: 0 18px 48px rgba(13, 27, 31, .16);
+
+    --on-accent: var(--c-ink);
+    color-scheme: light;
+  }
+}
+
+/* Ручной выбор темы сильнее системного. */
+:root[data-theme="light"] {
+  --c-bg:    #edf1f0;
+  --c-panel: #ffffff;
+  --c-ink:   #0d1b1f;
+  --c-brass: #c98a2e;
+  --c-sea:   #116850;
+  --c-coral: #b8331f;
+
+  --c-brass-ink: #8a5a12;
+  --c-sea-ink:   #116850;
+  --c-coral-ink: #b8331f;
+
+  --scrim:  rgba(13, 27, 31, .38);
+  --shadow: 0 18px 48px rgba(13, 27, 31, .16);
+
+  --on-accent: var(--c-ink);
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  --c-bg:    #0b1417;
+  --c-panel: #16242a;
+  --c-ink:   #e7eeee;
+  --c-brass: #e2a44b;
+  --c-sea:   #5fbfa3;
+  --c-coral: #f4877c;
+
+  --c-brass-ink: var(--c-brass);
+  --c-sea-ink:   var(--c-sea);
+  --c-coral-ink: var(--c-coral);
+
+  --scrim:  rgba(3, 7, 9, .66);
+  --shadow: 0 18px 48px rgba(2, 5, 7, .55);
+
+  --on-accent: var(--c-bg);
+  color-scheme: dark;
+}
+
+/* ===== 3. Производные значения ============================================ */
+
+/* Направление смешивания одно и то же в обеих темах — «подмешать чернил
+   в корпус». Ночью это осветляет, днём затемняет, и оба раза правильно. */
+:root {
+  --bg:        var(--c-bg);
+  --surface:   var(--c-panel);
+  --surface-2: color-mix(in srgb, var(--c-panel) 90%, var(--c-ink));
+  --hover:     color-mix(in srgb, var(--c-panel) 84%, var(--c-ink));
+  --sunken:    color-mix(in srgb, var(--c-panel) 94%, var(--c-ink));
+
+  --text:      var(--c-ink);
+  --text-dim:  color-mix(in srgb, var(--c-ink) 68%, var(--c-panel));
+  --line:      color-mix(in srgb, var(--c-ink) 20%, var(--c-panel));
+
+  --accent:      var(--c-brass);
+  --accent-text: var(--c-brass-ink);
+  --accent-soft: color-mix(in srgb, var(--c-brass) 16%, transparent);
+  --accent-edge: color-mix(in srgb, var(--c-brass) 42%, transparent);
+
+  --ok:      var(--c-sea);
+  --ok-text: var(--c-sea-ink);
+  --ok-soft: color-mix(in srgb, var(--c-sea) 15%, transparent);
+
+  --bad:      var(--c-coral);
+  --bad-text: var(--c-coral-ink);
+  --bad-soft: color-mix(in srgb, var(--c-coral) 15%, transparent);
+
+  --focus: var(--c-brass);
+}
+
+/* ===== 4. Типографика ===================================================== */
+
+:root {
+  /* Только системные шрифты: панель работает офлайн и не ходит в сеть. */
+  --font-dial: Georgia, "Iowan Old Style", "Palatino Linotype", Palatino, "Times New Roman", serif;
+  --font-text: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", "JetBrains Mono", "Fira Code", Consolas, "Liberation Mono", monospace;
+
+  --t-dial:  44px;   /* слово состояния в картушке */
+  --t-read:  30px;   /* число прибора */
+  --t-title: 19px;   /* заголовок раздела */
+  --t-body:  16px;   /* основной текст, кнопки, поля */
+  --t-note:  15px;   /* пояснение */
+  --t-fine:  13px;   /* служебное: время, размер, хеш */
+
+  --w-normal: 400;
+  --w-strong: 600;
+
+  --ls-dial: -.022em;
+  --ls-read: -.012em;
+  --lh-tight: 1.15;
+  --lh-text:  1.5;
+}
+
+/* На телефоне мельче 15px не бывает ничего. */
+@media (max-width: 900px) {
+  :root {
+    --t-dial:  34px;
+    --t-read:  26px;
+    --t-title: 18px;
+    --t-fine:  15px;
+  }
+}
+
+/* ===== 5. Ритм и плотность ================================================ */
+
+:root {
+  /* Плотность умножает только воздух. Кегли, зоны касания и толщины
+     остаются прежними: компактный режим не имеет права ухудшать
+     читаемость и попадание пальцем. */
+  --density: 1;
+
+  --s1: calc(4px  * var(--density));
+  --s2: calc(8px  * var(--density));
+  --s3: calc(12px * var(--density));
+  --s4: calc(20px * var(--density));
+  --s5: calc(32px * var(--density));
+  --s6: calc(52px * var(--density));
+
+  --r-sm:   6px;
+  --r-md:   14px;
+  --r-pill: 999px;
+
+  --touch: 44px;              /* меньше палец не попадает */
+  --hair:  1px;               /* единственная толщина линии в системе */
+
+  --tabbar-h: 0px;            /* на компьютере нижних вкладок нет */
+  --safe-b: env(safe-area-inset-bottom, 0px);
+  --safe-t: env(safe-area-inset-top, 0px);
+}
+
+:root[data-density="compact"] { --density: .72; }
+
+/* ===== 6. Движение ======================================================== */
+
+:root {
+  --ease: cubic-bezier(.22, .61, .36, 1);
+  --dur-fast: 120ms;          /* наведение, нажатие */
+  --dur-mid:  200ms;          /* появление события, вкладка */
+  --dur-slow: 240ms;          /* шторка */
+  --dur-boot: 700ms;          /* запуск приборов — один раз за сессию */
+  --dur-sweep: 3s;            /* обход картушки: идёт работа */
+  --dur-breath: 1.6s;         /* дыхание картушки: ждёт вас */
+}
+
+/* ===== 7. Пресеты ========================================================= */
+
+/* Три готовых сочетания темы и плотности. Пресет только выставляет
+   data-theme и data-density — отдельных значений у него нет, поэтому
+   он не может разойтись с системой. */
+
+/* «Ночь»  → data-theme="dark"  + data-density="cozy»    */
+/* «День»  → data-theme="light" + data-density="cozy»    */
+/* «Фокус» → data-theme="dark"  + data-density="compact» */
+
+/* ===== 8. Уважение к prefers-reduced-motion =============================== */
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-fast: .001ms;
+    --dur-mid:  .001ms;
+    --dur-slow: .001ms;
+    --dur-boot: .001ms;
+  }
+  *, *::before, *::after {
+    animation-duration: .001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .001ms !important;
+    scroll-behavior: auto !important;
+  }
+}

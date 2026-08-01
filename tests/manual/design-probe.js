@@ -39,25 +39,57 @@ function inventory() {
 
 // ─── замер в браузере ──────────────────────────────────────────────────
 const PROBE = `(() => {
-  function lum(c){
-    var m = (c||'').match(/[\\d.]+/g); if(!m) return 0;
-    var f = m.slice(0,3).map(function(v){ v/=255;
-      return v<=0.03928 ? v/12.92 : Math.pow((v+0.055)/1.055, 2.4); });
-    return 0.2126*f[0] + 0.7152*f[1] + 0.0722*f[2];
+  // Цвета в системе собираются через color-mix, и getComputedStyle отдаёт их
+  // как color(srgb …) или oklab(…). Разбирать эти строки руками — путь к
+  // неверным числам, поэтому цвет «проявляем» через canvas: что нарисовалось,
+  // то браузер и покажет человеку.
+  var cv = document.createElement('canvas');
+  cv.width = cv.height = 1;
+  var ctx = cv.getContext('2d', { willReadFrequently: true });
+
+  function rgba(css) {
+    ctx.clearRect(0, 0, 1, 1);
+    ctx.fillStyle = 'rgba(0,0,0,0)';
+    try { ctx.fillStyle = css; } catch (e) { return [0, 0, 0, 1]; }
+    ctx.fillRect(0, 0, 1, 1);
+    var d = ctx.getImageData(0, 0, 1, 1).data;
+    return [d[0], d[1], d[2], d[3] / 255];
   }
-  function bgOf(el){
+  function over(top, bottom) {
+    var a = top[3];
+    if (a >= 0.999) return top;
+    return [
+      top[0] * a + bottom[0] * (1 - a),
+      top[1] * a + bottom[1] * (1 - a),
+      top[2] * a + bottom[2] * (1 - a),
+      1
+    ];
+  }
+  function lum(c) {
+    var f = c.slice(0, 3).map(function (v) {
+      v /= 255;
+      return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+    });
+    return 0.2126 * f[0] + 0.7152 * f[1] + 0.0722 * f[2];
+  }
+  function bgOf(el) {
+    var stack = [];
     var n = el;
-    while (n && n !== document.documentElement) {
-      var c = getComputedStyle(n).backgroundColor;
-      var m = (c||'').match(/[\\d.]+/g);
-      if (m && (m.length < 4 || Number(m[3]) > 0.85)) return c;
+    while (n) {
+      var c = rgba(getComputedStyle(n).backgroundColor);
+      if (c[3] > 0.001) {
+        stack.push(c);
+        if (c[3] >= 0.999) break;
+      }
       n = n.parentElement;
     }
-    return getComputedStyle(document.body).backgroundColor;
+    var base = [255, 255, 255, 1];
+    for (var i = stack.length - 1; i >= 0; i--) base = over(stack[i], base);
+    return base;
   }
-  function ratio(a,b){
-    var l1 = lum(a), l2 = lum(b);
-    return (Math.max(l1,l2) + 0.05) / (Math.min(l1,l2) + 0.05);
+  function ratio(fg, bg) {
+    var l1 = lum(fg), l2 = lum(bg);
+    return (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05);
   }
 
   var narrow = window.innerWidth <= 900;
@@ -70,11 +102,13 @@ const PROBE = `(() => {
       .map(function (n) { return n.textContent.trim(); }).join('');
     if (own.length < 2) return;
     var cs = getComputedStyle(el);
+    if (cs.visibility === 'hidden' || parseFloat(cs.opacity) < 0.2) return;
     var size = parseFloat(cs.fontSize);
     var sel = el.tagName.toLowerCase() + '.' + String(el.className || '').slice(0, 44);
-    var r = ratio(cs.color, bgOf(el));
-    if (r < 4.5 && !seen['c' + sel + Math.round(r*10)]) {
-      seen['c' + sel + Math.round(r*10)] = 1;
+    var bg = bgOf(el);
+    var r = ratio(over(rgba(cs.color), bg), bg);
+    if (r < 4.5 && !seen['c' + sel + Math.round(r * 10)]) {
+      seen['c' + sel + Math.round(r * 10)] = 1;
       out.contrast.push({ sel: sel, size: size, ratio: Number(r.toFixed(2)), sample: own.slice(0, 30) });
     }
     if (narrow && size < 15 && !seen['s' + sel + size]) {
@@ -88,7 +122,7 @@ const PROBE = `(() => {
       document.querySelectorAll('button, a[href], input, select, [role="tab"]'), function (el) {
       if (!el.offsetParent) return;
       var b = el.getBoundingClientRect();
-      // Некоторые значки растягивают зону касания псевдоэлементом ::after.
+      // Часть значков растягивает зону касания псевдоэлементом ::after.
       var after = getComputedStyle(el, '::after');
       var grow = 0;
       if (after && after.content !== 'none' && after.position === 'absolute') {

@@ -35,7 +35,11 @@ const URL = process.argv[2] || 'http://127.0.0.1:4517/';
   await sleep(1000);
 
   console.log('компьютер 1500×980:');
-  if (await b.eval(`!document.getElementById('tour').hidden`)) await shot('d-01-tour');
+  // Первый запуск: приветствие, из него — тур.
+  if (await b.eval(`!!document.querySelector('.tour--welcome')`)) await shot('d-01-welcome');
+  await b.eval(`var w=document.querySelector('.tour--welcome .btn--primary'); if(w) w.click()`);
+  await sleep(500);
+  if (await b.eval(`!document.getElementById('tour').hidden`)) await shot('d-01b-tour');
   await b.eval(`var t=document.getElementById('tourSkip'); if(t) t.click()`);
   await sleep(400);
 
@@ -45,9 +49,9 @@ const URL = process.argv[2] || 'http://127.0.0.1:4517/';
   await shot('d-03-main-light');
   await theme('dark');
 
-  await b.eval(`document.getElementById('modeDetail').click()`); await sleep(500);
+  await b.eval(`document.getElementById('btnDetail').click()`); await sleep(500);
   await shot('d-04-feed-detailed');
-  await b.eval(`document.getElementById('modeSimple').click()`); await sleep(300);
+  await b.eval(`document.getElementById('btnDetail').click()`); await sleep(300);
 
   const open = async (id, name, wait = 700) => {
     await b.eval(`document.getElementById('${id}').click()`);
@@ -64,8 +68,15 @@ const URL = process.argv[2] || 'http://127.0.0.1:4517/';
   await open('btnConnect', 'd-08-connect', 1000);
 
   await b.eval(`document.getElementById('btnBell').click()`); await sleep(500);
-  await shot('d-09-alarm');
-  await b.eval(`var o=document.getElementById('alarmOk'); if(o) o.click()`); await sleep(250);
+  await shot('d-09-waiting');
+  await b.eval(`document.getElementById('roseSeen').click()`); await sleep(250);
+
+  // Картушка во всех состояниях — их видно только принудительным прогоном.
+  for (const st of ['working', 'waiting', 'ended', 'offline']) {
+    await b.eval(`document.getElementById('rose').dataset.state = '${st}'`);
+    await sleep(300);
+    await shot('d-10-rose-' + st);
+  }
 
   // ─── телефон ─────────────────────────────────────────────────────────
   console.log('телефон 360×740:');
@@ -90,8 +101,8 @@ const URL = process.argv[2] || 'http://127.0.0.1:4517/';
   await b.eval(`document.getElementById('sheetClose').click()`); await sleep(250);
 
   await b.eval(`document.getElementById('btnBell').click()`); await sleep(500);
-  await shot('m-06-alarm');
-  await b.eval(`var o=document.getElementById('alarmOk'); if(o) o.click()`); await sleep(250);
+  await shot('m-06-waiting');
+  await b.eval(`document.getElementById('roseSeen').click()`); await sleep(250);
 
   await b.eval(`var s=document.getElementById('feedSearch');
                 s.value='зззнетничего'; s.dispatchEvent(new Event('input'))`);
