@@ -90,6 +90,7 @@ body {
   gap: var(--s2);
   cursor: pointer;
   white-space: nowrap;
+  text-decoration: none;
   transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
   -webkit-tap-highlight-color: transparent;
 }
@@ -454,6 +455,18 @@ body {
 .ev--attention .ev__mark { color: var(--accent-text); background: var(--accent-soft); }
 .ev--agent { padding-left: calc(var(--s4) + var(--s3)); }
 .ev--agent .ev__title { font-weight: var(--w-normal); color: var(--text-dim); }
+
+/* «Компактно» — не просто уменьшенные поля: заголовок и пояснение
+   сворачиваются в одну строку каждое. Ничего не теряется — полный текст
+   всегда в карточке события, — но на экран влезает заметно больше. */
+:root[data-density="compact"] .ev__title,
+:root[data-density="compact"] .ev__hint {
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+:root[data-density="compact"] .ev { gap: 0 var(--s3); }
 
 .ev.is-new { animation: evIn var(--dur-mid) var(--ease); }
 @keyframes evIn {

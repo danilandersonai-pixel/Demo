@@ -11,12 +11,16 @@
    сегодняшнюю — хуже, чем честно сказать, что связи нет.
    =========================================================================== */
 
-var VERSION = 'shturman-v2-2';
+var VERSION = 'shturman-v3-0';
 var SHELL = VERSION + '-shell';
 
 var SHELL_FILES = [
   '/',
+  '/tokens.css',
+  '/components.css',
   '/styles.css',
+  '/copy.js',
+  '/icons.js',
   '/app.js',
   '/offline.html',
   '/manifest.json',

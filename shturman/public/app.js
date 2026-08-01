@@ -338,8 +338,7 @@
     document.documentElement.setAttribute('data-density', density);
     // Высота карточки изменилась — окно виртуализации нужно пересчитать.
     measureRow();
-    drawnKey = '';
-    renderWindow();
+    rebuildFeed();
   }
 
   function applyPreset(name) {
@@ -383,7 +382,23 @@
 
   function measureRow() {
     var d = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--density')) || 1;
-    ROW_H = Math.round((app.detailed ? 190 : 64) + 24 * d);
+    ROW_H = Math.round((app.detailed ? 190 : 52) + 24 * d);
+  }
+
+  /**
+   * Уточняет высоту карточки по факту. Оценка нужна виртуализации, а высота
+   * зависит от плотности, режима показа и ширины окна — считать её формулой
+   * значит промахиваться на каждой второй раскладке.
+   */
+  function calibrateRow() {
+    var rows = feed.children;
+    if (rows.length < 3) return false;
+    var n = Math.min(rows.length, 12);
+    var sum = 0;
+    for (var i = 0; i < n; i++) sum += rows[i].getBoundingClientRect().height;
+    var avg = Math.round(sum / n);
+    if (avg > 20 && Math.abs(avg - ROW_H) > 6) { ROW_H = avg; return true; }
+    return false;
   }
 
   var FILTERS = {
@@ -623,6 +638,7 @@
     recomputeVisible();
     drawnKey = '';
     renderWindow();
+    if (calibrateRow()) { drawnKey = ''; renderWindow(); }
     scrollToBottom();
   }
 
@@ -2156,15 +2172,15 @@
       setView('feed');
       $('feedSearch').focus();
       $('feedSearch').select();
-    } else if (e.key === 'm' || e.key === 'ь') {
+    } else if (C.hotkeys.sound.indexOf(e.key) !== -1) {
       app.sound = !app.sound;
       store.set('sound', app.sound);
       notice(app.sound ? C.settings.soundOn : C.settings.soundOff);
       setTimeout(hideNotice, 1800);
-    } else if (e.key === 't' || e.key === 'е') {
+    } else if (C.hotkeys.theme.indexOf(e.key) !== -1) {
       var order = ['auto', 'dark', 'light'];
       applyTheme(order[(order.indexOf(app.theme) + 1) % order.length]);
-    } else if (e.key === 'p' || e.key === 'з') {
+    } else if (C.hotkeys.pause.indexOf(e.key) !== -1) {
       togglePause();
     }
   });
