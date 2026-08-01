@@ -356,6 +356,14 @@ body {
 .rose[data-state="offline"] .dial__mark { stroke: var(--bad); }
 .rose[data-state="offline"] .rose__state { color: var(--bad-text); }
 
+/* «Поменьше движения»: прибор замирает, но не гаснет. Дуга «работает»
+   остаётся на месте, свечение «ждёт вас» становится постоянным — состояние
+   по-прежнему различимо цветом, заливкой, формой и словом. */
+@media (prefers-reduced-motion: reduce) {
+  .rose[data-state="working"] .dial__sweep { animation: none; }
+  .rose[data-state="waiting"] .dial__halo { animation: none; opacity: .5; }
+}
+
 @keyframes roseSweep { to { transform: rotate(360deg); } }
 @keyframes roseBreath {
   0%, 100% { opacity: .55; transform: scale(1); }

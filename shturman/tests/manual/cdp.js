@@ -128,6 +128,12 @@ async function launch(opts = {}) {
       });
       if (mobile) await c.send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 5 });
     },
+    // Эмуляция системных настроек: тема и «поменьше движения».
+    async media(features) {
+      await c.send('Emulation.setEmulatedMedia', {
+        features: Object.keys(features).map((name) => ({ name, value: features[name] }))
+      });
+    },
     async goto(url, settle = 3500) {
       await c.send('Page.navigate', { url });
       await sleep(settle);
