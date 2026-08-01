@@ -409,7 +409,7 @@ test('запрос без ключа с чужого адреса получае
   var denied = requireDenied();
   denied(fakeRes, '/', verdict);
   assert.strictEqual(captured.code, 401);
-  assert.match(captured.body, /Нужен ключ доступа/);
+  assert.match(captured.body, /Нужен ключ/);
   assert.match(captured.headers['Content-Type'], /text\/html/);
 
   // Путь API: машиночитаемый JSON.

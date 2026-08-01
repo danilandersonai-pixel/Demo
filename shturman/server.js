@@ -895,21 +895,34 @@ function sendDenied(res, pathname, verdict) {
       hint: 'Откройте панель по ссылке из QR-кода — ключ уже вшит в неё.'
     });
   }
+  // Страница отказа берёт токены панели: человек попал сюда с телефона и
+  // должен видеть тот же Штурман, а не чужую системную заглушку.
   var html = [
     '<!DOCTYPE html><html lang="ru-RU"><head><meta charset="utf-8">',
     '<meta name="viewport" content="width=device-width, initial-scale=1">',
     '<title>Штурман — нужен ключ доступа</title>',
+    '<link rel="stylesheet" href="/tokens.css">',
     '<style>',
     'body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;',
-    'background:#0d1117;color:#e6edf5;font:16px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;padding:24px}',
-    '.b{max-width:420px;text-align:center}h1{font-size:20px;margin:16px 0 8px}',
-    'p{color:#9aa8bb;font-size:15px}.i{font-size:52px}code{color:#7dd3fc;font-size:13px}',
+    'background:var(--bg);color:var(--text);font-family:var(--font-text);',
+    'font-size:var(--t-body);line-height:var(--lh-text);padding:var(--s4)}',
+    '.b{max-width:420px;text-align:center}',
+    '.i{color:var(--accent);display:flex;justify-content:center}',
+    '.i svg{width:56px;height:56px;fill:none;stroke:currentColor;stroke-width:1.2;',
+    'stroke-linecap:round;stroke-linejoin:round}',
+    'h1{font-family:var(--font-dial);font-size:var(--t-dial);',
+    'letter-spacing:var(--ls-dial);line-height:var(--lh-tight);margin:var(--s3) 0 var(--s2)}',
+    'p{color:var(--text-dim);font-size:var(--t-note)}',
+    'code{font-family:var(--font-mono);font-size:var(--t-fine);color:var(--text);',
+    'background:var(--surface);border-radius:var(--r-sm);padding:2px var(--s2)}',
     '</style></head><body><div class="b">',
-    '<div class="i">🔒</div>',
-    '<h1>Нужен ключ доступа</h1>',
-    '<p>Эта панель открыта в локальной сети, и войти в неё можно только по ссылке ' +
+    '<div class="i"><svg viewBox="0 0 24 24">',
+    '<path d="M7 10.5V8a5 5 0 0 1 10 0v2.5"></path>',
+    '<path d="M5 10.5h14v10H5z"></path></svg></div>',
+    '<h1>Нужен ключ</h1>',
+    '<p>Панель открыта в локальной сети, и войти в неё можно только по ссылке ' +
     'с ключом — той самой, что зашита в QR-код.</p>',
-    '<p>Отсканируйте код заново на экране «Подключение» на компьютере, ' +
+    '<p>Отсканируйте код заново на экране «Открыть на телефоне» — на компьютере, ' +
     'где запущен Штурман.</p>',
     '<p><code>' + escapeHtml(verdict.reason || '') + '</code></p>',
     '</div></body></html>'

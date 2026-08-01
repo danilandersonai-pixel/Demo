@@ -9,8 +9,8 @@
   "display": "standalone",
   "display_override": ["window-controls-overlay", "standalone", "browser"],
   "orientation": "any",
-  "background_color": "#0d1117",
-  "theme_color": "#0d1117",
+  "background_color": "#0b1417",
+  "theme_color": "#0b1417",
   "categories": ["developer", "productivity", "utilities"],
   "icons": [
     { "src": "/icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
