@@ -189,7 +189,16 @@ function list(options) {
       p.filesTruncated = c.truncated;
     });
   }
-  out.sort(function (a, b) { return (b.lastSession || 0) - (a.lastSession || 0); });
+  // Сначала папки, где Клод действительно работал, потом просто открытые
+  // когда-то. Иначе папка, которую панель запомнила секунду назад, легко
+  // обгоняет проект с настоящими сессиями — и первым в списке оказывается
+  // не то, за чем человек пришёл.
+  out.sort(function (a, b) {
+    var aHas = a.sessions > 0 ? 1 : 0;
+    var bHas = b.sessions > 0 ? 1 : 0;
+    if (aHas !== bHas) return bHas - aHas;
+    return (b.lastSession || 0) - (a.lastSession || 0);
+  });
   if (opts.limit) out = out.slice(0, opts.limit);
   return out;
 }
