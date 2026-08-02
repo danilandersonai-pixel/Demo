@@ -484,6 +484,35 @@ body {
 }
 :root[data-density="compact"] .ev { gap: 0 var(--s3); }
 
+/* Стоп-сигнал: единственное место в ленте, где карточка имеет право
+   занять больше места и позвать цветом. Команда отката копируется одним
+   нажатием — печатать её человек не должен. */
+.ev--risk { background: var(--bad-soft); }
+.ev--risk:hover { background: var(--bad-soft); }
+.ev--risk .ev__mark { color: var(--bad-text); background: var(--surface); }
+.ev--risk .ev__title { color: var(--bad-text); }
+.ev--risk.ev--warn { background: var(--accent-soft); }
+.ev--risk.ev--warn .ev__mark { color: var(--accent-text); background: var(--surface); }
+.ev--risk.ev--warn .ev__title { color: var(--accent-text); }
+
+.rollback {
+  grid-column: 2 / span 2;
+  margin-top: var(--s2);
+  padding: var(--s3);
+  background: var(--surface);
+  border-radius: var(--r-sm);
+}
+.rollback__label { font-size: var(--t-fine); color: var(--text-dim); }
+.rollback__cmd {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: var(--t-fine);
+  color: var(--text);
+  margin: var(--s1) 0 var(--s2);
+  overflow-wrap: anywhere;
+}
+.rollback__note { font-size: var(--t-fine); color: var(--text-dim); margin-top: var(--s2); }
+
 .ev.is-new { animation: evIn var(--dur-mid) var(--ease); }
 @keyframes evIn {
   from { opacity: 0; transform: translateY(-6px); }

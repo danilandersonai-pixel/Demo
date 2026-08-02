@@ -35,6 +35,7 @@ var qr = require('./lib/qr');
 var shortcuts = require('./lib/shortcuts');
 var banner = require('./lib/banner');
 var lockLib = require('./lib/lock');
+var riskLib = require('./lib/risk');
 var desktopLib = require('./lib/desktop');
 var projectsLib = require('./lib/projects');
 var humanize = require('./lib/humanize');
@@ -82,6 +83,11 @@ function createApp(opts) {
 
   // --- всё, что публикуется, проходит здесь ---------------------------------
   function emit(ev) {
+    // Стоп-сигнал считаем до публикации: он часть события, а не отдельная
+    // сущность — иначе в ленте появилась бы вторая карточка про то же самое.
+    var risk = riskLib.check(ev);
+    if (risk) ev.risk = risk;
+
     var published = bus.publish(ev);
     if (published) {
       stats.add(published);
@@ -701,6 +707,11 @@ function createServer(appOrRegistry, opts, sharedGuard) {
           return card;
         });
       }).then(function (card) {
+        // Команда возврата — часть карточки: человек должен видеть, чем
+        // отменить правку, ровно там, где он на неё смотрит.
+        if (app.state.git && app.state.git.available) {
+          card.rollback = riskLib.rollbackForFile(rel);
+        }
         sendJson(res, 200, card);
       }).catch(function (e) {
         sendJson(res, 500, { error: e.message });

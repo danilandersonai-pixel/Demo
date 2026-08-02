@@ -447,6 +447,10 @@
     if (ev.kind === 'tool' && (ev.action === 'edit' || ev.action === 'write')) cls.push('ev--edit');
     if (ev.kind === 'session' && ev.action === 'idle') cls.push('ev--attention');
     if (ev.sidechain) cls.push('ev--agent');
+    if (ev.risk) {
+      cls.push('ev--risk');
+      if (ev.risk.level !== 'danger') cls.push('ev--warn');
+    }
     return cls.join(' ');
   }
 
@@ -456,12 +460,41 @@
     var mark = el('span', 'ev__mark');
     mark.appendChild(icon(ICON.forGlyph(ev.icon), 'i--sm'));
     li.appendChild(mark);
-    li.appendChild(el('span', 'ev__title', ev.title || ''));
+    li.appendChild(el('span', 'ev__title', ev.risk ? ev.risk.title : (ev.title || '')));
     li.appendChild(el('span', 'ev__time', clock(ev.ts)));
-    if (ev.hint) li.appendChild(el('span', 'ev__hint', ev.hint));
+    if (ev.risk) {
+      li.appendChild(el('span', 'ev__hint', ev.risk.why));
+      li.appendChild(rollbackBlock(ev.risk));
+    } else if (ev.hint) {
+      li.appendChild(el('span', 'ev__hint', ev.hint));
+    }
     if (app.detailed) li.appendChild(el('pre', 'ev__raw', rawText(ev)));
     li.addEventListener('click', function () { openEventDetails(ev); });
     return li;
+  }
+
+  /**
+   * Блок «как откатить». Команда не набирается руками — она копируется.
+   * Кнопка сохраняет своё имя до конца сценария: «Скопировать» → «Скопировано».
+   */
+  function rollbackBlock(info) {
+    var box = el('div', 'rollback');
+    box.appendChild(el('div', 'rollback__label', C.risk.how));
+    if (!info.rollback) {
+      box.appendChild(el('div', 'rollback__cmd', '— ' + C.risk.none));
+    } else {
+      box.appendChild(el('code', 'rollback__cmd', info.rollback));
+      var copy = el('button', 'btn btn--sm', C.risk.copy);
+      copy.addEventListener('click', function (e) {
+        e.stopPropagation();
+        var done = function () { copy.textContent = C.risk.copied; copy.classList.add('is-on'); };
+        if (navigator.clipboard) navigator.clipboard.writeText(info.rollback).then(done, done);
+        else done();
+      });
+      box.appendChild(copy);
+    }
+    if (info.rollbackNote) box.appendChild(el('div', 'rollback__note', info.rollbackNote));
+    return box;
   }
 
   function rawText(ev) {
@@ -674,6 +707,14 @@
   function openEventDetails(ev) {
     var body = openSheet(ev.title || C.event.fallbackTitle, ICON.forGlyph(ev.icon));
     if (ev.hint) body.appendChild(el('p', null, ev.hint));
+
+    // Стоп-сигнал — первым делом: за подробностями человек пришёл именно
+    // тогда, когда испугался.
+    if (ev.risk) {
+      var riskSec = section(body, C.risk.badge + ' · ' + ev.risk.title);
+      riskSec.appendChild(el('p', null, ev.risk.why));
+      riskSec.appendChild(rollbackBlock(ev.risk));
+    }
 
     facts(body, [
       [C.event.when, dateTime(ev.ts)],
@@ -955,6 +996,10 @@
         [C.file.changed, card.mtime ? dateTime(card.mtime) : '—'],
         [C.file.status, card.exists === false ? C.file.gone : C.file.here]
       ]);
+      if (card.rollback) {
+        var back = section(body, C.file.rollback);
+        back.appendChild(rollbackBlock(card.rollback));
+      }
       var sec = section(body, C.file.recent);
       if (card.diffNote) sec.appendChild(el('p', 'dim', card.diffNote));
       renderDiff(sec, card.diff);
