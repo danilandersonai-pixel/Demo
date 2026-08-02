@@ -182,7 +182,7 @@ test('страница отказа и оболочка PWA доступны б�
 
     var offline = await request(EXTERNAL, port, '/offline.html');
     assert.strictEqual(offline.status, 200);
-    assert.match(offline.body, /Панель не отвечает/);
+    assert.match(offline.body, /Штурман не запущен/);
 
     var sw = await request(EXTERNAL, port, '/sw.js');
     assert.strictEqual(sw.status, 200);
