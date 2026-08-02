@@ -637,6 +637,7 @@
     app.events.push(ev);
     if (app.events.length > MAX_EVENTS) app.events.splice(0, app.events.length - MAX_EVENTS);
     if (ev.title) app.lastTitle = ev.title;
+    refreshCheat();
 
     if (ev.kind === 'result' && ev.ok && ev.toolUseId) { annotateCall(ev); return; }
 
@@ -1147,6 +1148,7 @@
       buildTermMatcher();
       drawnKey = '';
       renderWindow();
+      renderCheat();
     }).catch(function () { /* словарь не критичен для показа ленты */ });
   }
 
@@ -1208,6 +1210,72 @@
     }
     if (last < text.length) frag.appendChild(document.createTextNode(text.slice(last)));
     return frag;
+  }
+
+  /**
+   * Шпаргалка в шапке: три слова из того, что происходит прямо сейчас.
+   *
+   * Словарь на 62 термина новичку не помогает — он его не открывает. А три
+   * слова, которые только что промелькнули в ленте, читаются мельком и
+   * объясняются одним нажатием. Список пересобирается по свежим событиям,
+   * поэтому шпаргалка всегда про текущую работу, а не про абстрактный git.
+   */
+  var CHEAT_COUNT = 3;
+  var cheatShown = '';
+  var cheatTimer = null;
+
+  /** Пересобрать шпаргалку, но не чаще раза в три секунды. */
+  function refreshCheat() {
+    if (cheatTimer) return;
+    cheatTimer = setTimeout(function () {
+      cheatTimer = null;
+      try { renderCheat(); } catch (e) { /* шпаргалка не должна ронять ленту */ }
+    }, 3000);
+  }
+
+  function renderCheat() {
+    var box = $('cheat');
+    if (!termRe || !app.events.length) { box.hidden = true; return; }
+
+    var picked = [];
+    var seen = {};
+    // Свежие события первыми: шпаргалка про то, что происходит сейчас.
+    for (var i = app.events.length - 1; i >= 0 && picked.length < CHEAT_COUNT; i--) {
+      var text = (app.events[i].title || '') + ' ' + (app.events[i].hint || '');
+      termRe.lastIndex = 0;
+      var m;
+      while (picked.length < CHEAT_COUNT && (m = termRe.exec(text)) !== null) {
+        var id = termById[m[0].toLowerCase()];
+        if (!id || seen[id] || !glossary.byId[id]) continue;
+        seen[id] = true;
+        picked.push(id);
+      }
+    }
+    if (picked.length < CHEAT_COUNT) {
+      // Событий пока мало — дополняем основами, чтобы полоса не прыгала.
+      C.cheat.basics.forEach(function (id) {
+        if (picked.length < CHEAT_COUNT && !seen[id] && glossary.byId[id]) {
+          seen[id] = true;
+          picked.push(id);
+        }
+      });
+    }
+    if (!picked.length) { box.hidden = true; return; }
+
+    var key = picked.join(',');
+    if (key === cheatShown) { box.hidden = false; return; }
+    cheatShown = key;
+
+    var words = $('cheatWords');
+    clear(words);
+    picked.forEach(function (id) {
+      var term = glossary.byId[id];
+      var b = el('button', 'cheat__word', term.term);
+      b.setAttribute('aria-label', C.glossary.what + ': ' + term.term);
+      b.addEventListener('click', function () { openTermSheet(id); });
+      words.appendChild(b);
+    });
+    box.hidden = false;
   }
 
   /** Объяснение одного слова: шторкой, чтобы не терять место в ленте. */
@@ -1885,6 +1953,8 @@
       sysRows.appendChild(toggleRow(C.settings.menu,
         sys.checkable ? C.settings.menuNote : C.settings.menuNote + ' ' + C.settings.menuUnavailable,
         !!sys.menu, function (v) { saveSystem({ menu: v }); }));
+      sysRows.appendChild(toggleRow(C.settings.appWindow, C.settings.appWindowNote,
+        !!sys.appWindow, function (v) { saveSystem({ appWindow: v }); }));
     }).catch(function () { /* без встраивания панель работает так же */ });
 
     var keys = el('div', 'row');
@@ -2333,7 +2403,7 @@
     clear($('noticeIcon'));
     $('noticeIcon').appendChild(icon(kind === 'archive' ? 'clock' : 'info', 'i--sm'));
     var stale = bar.querySelector('.btn:not(#noticeClose)');
-    if (stale && kind !== 'archive') bar.removeChild(stale);
+    if (stale && kind !== 'archive' && kind !== 'elsewhere') bar.removeChild(stale);
     bar.hidden = false;
   }
 
@@ -2345,8 +2415,41 @@
   }
 
   $('noticeClose').addEventListener('click', function () {
-    if (app.archive) exitArchive(); else hideNotice();
+    if (app.archive) return exitArchive();
+    // От предложения переключиться отмахнулись — сервер запомнит это и
+    // больше про эту папку не напомнит.
+    if (elsewhereShown) {
+      elsewhereShown = '';
+      api('/api/projects/elsewhere/dismiss', { method: 'POST' })
+        .catch(function () { /* не дошло — предложение вернётся, не страшно */ });
+    }
+    hideNotice();
   });
+
+  // Клод начал работать в другой папке. Самая частая причина пустой ленты —
+  // и человек про неё не догадывается, поэтому Штурман говорит первым.
+  var elsewhereShown = '';
+
+  function renderElsewhere(info) {
+    if (!info || !info.path) {
+      if (elsewhereShown) { elsewhereShown = ''; hideNotice(); }
+      return;
+    }
+    if (info.path === elsewhereShown) return;
+    elsewhereShown = info.path;
+    notice(C.elsewhere.text(info.name), 'elsewhere');
+    var bar = $('notice');
+    var stale = bar.querySelector('.btn:not(#noticeClose)');
+    if (stale) bar.removeChild(stale);
+    var go = el('button', 'btn', C.elsewhere.act);
+    go.title = info.path;
+    go.addEventListener('click', function () {
+      elsewhereShown = '';
+      hideNotice();
+      chooseProject(info.path);
+    });
+    bar.insertBefore(go, $('noticeClose'));
+  }
 
   var pickShown = false;
 
@@ -2368,7 +2471,9 @@
     $('btnConnect').classList.toggle('is-on', !!s.share);
     $('btnConnect').title = s.share ? C.head.connectOn : C.head.connect;
 
-    if (s.projectCheck && !s.projectCheck.isProject && s.projectCheck.reason && !app.archive) {
+    if (!app.archive) renderElsewhere(s.elsewhere);
+    if (s.projectCheck && !s.projectCheck.isProject && s.projectCheck.reason &&
+        !app.archive && !elsewhereShown) {
       notice(s.projectCheck.reason);
     }
     renderFeedEmpty();
@@ -2399,6 +2504,7 @@
     app.archive = null;
     app.heat = {};
     app.treeNodes = [];
+    cheatShown = '';
     app.collapsed = {};
     clearAlarm();
     hideNotice();
@@ -2441,6 +2547,7 @@
         if (ev.file) app.heat[ev.file] = ev.ts;
       });
       if (!app.archive) rebuildFeed();
+      refreshCheat();
     });
 
     source.addEventListener('event', function (e) {

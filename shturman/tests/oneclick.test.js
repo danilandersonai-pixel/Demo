@@ -411,3 +411,87 @@ test('все правила стоп-сигналов оформлены оди�
     assert.ok(rule.rollbackNote, rule.id + ': нужно сказать, что будет после отката');
   });
 });
+
+// ─── «Клод работает в другой папке» ───────────────────────────────────────
+
+test('чужая свежая сессия замечена и названа своим путём', () => {
+  const f = fakeProjects();
+  const found = projects.activeElsewhere({ dir: f.base, exclude: '/нет/такого/проекта' });
+  assert.ok(found, 'запись только что создана — сессия считается живой');
+  assert.strictEqual(found.path, f.real);
+  assert.strictEqual(found.name, path.basename(f.real));
+  assert.ok(found.at > 0);
+});
+
+test('своя же папка чужой не считается', () => {
+  const f = fakeProjects();
+  assert.strictEqual(projects.activeElsewhere({ dir: f.base, exclude: f.real }), null,
+    'иначе панель предлагала бы переключиться на саму себя');
+});
+
+test('старая сессия не поднимает предложение переключиться', () => {
+  const f = fakeProjects();
+  const stale = projects.activeElsewhere({
+    dir: f.base, exclude: '/другое', now: Date.now() + 10 * 60 * 1000
+  });
+  assert.strictEqual(stale, null, 'вчерашняя работа — не повод дёргать человека');
+});
+
+test('пустой каталог Claude Code не ломает поиск чужой сессии', () => {
+  const empty = tmpdir('elsewhere-empty');
+  assert.strictEqual(projects.activeElsewhere({ dir: empty, exclude: '/x' }), null);
+  assert.strictEqual(projects.activeElsewhere({
+    dir: path.join(empty, 'нет-такого'), exclude: '/x'
+  }), null);
+});
+
+test('из двух чужих папок выбрана самая свежая', () => {
+  const a = fakeProjects();
+  const b = fakeProjects();
+  // Переносим записи второго проекта в тот же каталог и делаем их свежее.
+  const moved = path.join(a.base, b.encoded);
+  fs.mkdirSync(moved, { recursive: true });
+  fs.copyFileSync(path.join(b.dir, 'sess.jsonl'), path.join(moved, 'sess.jsonl'));
+  const future = new Date(Date.now() + 5000);
+  fs.utimesSync(path.join(moved, 'sess.jsonl'), future, future);
+
+  const found = projects.activeElsewhere({
+    dir: a.base, exclude: '/нет/такого', now: Date.now() + 6000
+  });
+  assert.strictEqual(found.path, b.real, 'предлагать надо ту папку, где работа идёт прямо сейчас');
+});
+
+// ─── отдельное окно (режим киоска) ────────────────────────────────────────
+
+test('отдельное окно — сохраняемая настройка, а не только флаг', () => {
+  const dir = tmpdir('cfg-app');
+  const cfg = config.load(dir).config;
+  assert.strictEqual(cfg.appWindow, false, 'по умолчанию обычная вкладка');
+  cfg.appWindow = true;
+  config.save(cfg, dir);
+  assert.strictEqual(config.load(dir).config.appWindow, true);
+});
+
+test('настройка отдельного окна включает режим киоска без флага', () => {
+  const args = require('../lib/args');
+  const plain = args.applyConfig(args.parse([]), { appWindow: true });
+  assert.strictEqual(plain.app, true, 'включить киоск можно из панели, не открывая терминал');
+  const off = args.applyConfig(args.parse([]), { appWindow: false });
+  assert.strictEqual(off.app, false);
+  const flag = args.applyConfig(args.parse(['--app']), { appWindow: false });
+  assert.strictEqual(flag.app, true, 'флаг сильнее выключенной настройки');
+});
+
+// ─── шпаргалка в шапке ────────────────────────────────────────────────────
+
+test('три слова шпаргалки есть в словаре', () => {
+  const copySrc = fs.readFileSync(path.join(__dirname, '..', 'public', 'copy.js'), 'utf8');
+  const m = /basics:\s*\[([^\]]+)\]/.exec(copySrc);
+  assert.ok(m, 'список основ должен жить в словаре интерфейса, а не в app.js');
+  const ids = m[1].split(',').map((s) => s.trim().replace(/'/g, '')).filter(Boolean);
+  assert.strictEqual(ids.length, 3, 'шпаргалка ровно на три слова: больше не читают');
+  const glossary = require('../lib/glossary');
+  ids.forEach((id) => {
+    assert.ok(glossary.get(id), 'в словаре нет термина «' + id + '»');
+  });
+});

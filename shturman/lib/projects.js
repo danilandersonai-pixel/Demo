@@ -207,11 +207,68 @@ function existsDir(p) {
   try { return fs.statSync(p).isDirectory(); } catch (e) { return false; }
 }
 
+// ---------------------------------------------------------------------------
+// «Клод работает в другой папке»
+// ---------------------------------------------------------------------------
+
+/**
+ * Ищет свежую запись Claude Code **вне** наблюдаемого проекта.
+ *
+ * Зачем: самая частая причина пустой ленты — Штурман смотрит в одну папку,
+ * а `claude` запущен в другой. Человек этого не понимает: он видит панель,
+ * которая молчит, и решает, что она сломана. Вместо молчания Штурман сам
+ * замечает чужую сессию и предлагает переключиться одной кнопкой.
+ *
+ * Смотрим только на время правки файлов — читать чужие транскрипты, чтобы
+ * сказать «там что-то происходит», не нужно. Путь расшифровываем лишь у
+ * найденного каталога, а не у всех подряд: это тоже стоит чтения диска.
+ *
+ * @param {object} options
+ *   dir     — каталог проектов Claude Code (по умолчанию ~/.claude/projects)
+ *   exclude — путь наблюдаемого проекта: его записи не в счёт
+ *   freshMs — насколько недавней должна быть запись, чтобы считать сессию
+ *             живой (по умолчанию 2 минуты)
+ *   now     — «сейчас» в миллисекундах; нужен тестам
+ * @returns {{path, name, encoded, at}|null}
+ */
+function activeElsewhere(options) {
+  var opts = options || {};
+  var base = opts.dir || paths.claudeProjectsDir();
+  var fresh = typeof opts.freshMs === 'number' ? opts.freshMs : 120000;
+  var now = typeof opts.now === 'number' ? opts.now : Date.now();
+  var excluded = opts.exclude ? paths.encodeProjectDir(opts.exclude) : null;
+
+  var names = [];
+  try { names = fs.readdirSync(base); } catch (e) { return null; }
+
+  var best = null;
+  names.forEach(function (encoded) {
+    if (encoded === excluded) return;
+    var files = transcripts(path.join(base, encoded));
+    if (!files.length) return;
+    var top = files[0];
+    if (now - top.mtime > fresh) return;
+    if (!best || top.mtime > best.mtime) best = { encoded: encoded, mtime: top.mtime };
+  });
+  if (!best) return null;
+
+  var real = decodePath(best.encoded, path.join(base, best.encoded));
+  if (!real || real === opts.exclude) return null;
+
+  return {
+    path: real,
+    name: paths.baseName(real) || real,
+    encoded: best.encoded,
+    at: best.mtime
+  };
+}
+
 module.exports = {
   transcripts: transcripts,
   cwdsFrom: cwdsFrom,
   decodePath: decodePath,
   countFiles: countFiles,
   existsDir: existsDir,
+  activeElsewhere: activeElsewhere,
   list: list
 };

@@ -233,6 +233,11 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 .termword:hover { color: var(--accent-text); text-decoration-color: var(--accent); }
+/* Слово в тексте узкое по природе, а палец — нет. Зону касания расширяем
+   невидимой площадкой, как у значка «?»: вид строки не меняется, попасть
+   пальцем можно. */
+.termword { position: relative; }
+.termword::after { content: ''; position: absolute; inset: -12px -4px; }
 
 /* Значок «?» рядом с термином: маленький на вид, но зона касания 44px. */
 .term {
@@ -413,6 +418,37 @@ body {
   white-space: nowrap;
 }
 .rose__act { margin-left: auto; flex: 0 0 auto; display: flex; gap: var(--s2); }
+
+/* Шпаргалка: три слова из того, что происходит прямо сейчас. Полоса
+   намеренно тихая — это подсказка на полях, а не показание прибора. */
+.cheat {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  padding: 0 var(--s4) var(--s2);
+  flex-wrap: wrap;
+}
+.cheat__label {
+  font-size: var(--t-fine);
+  color: var(--text-dim);
+  flex: 0 0 auto;
+}
+.cheat__words { display: flex; gap: var(--s2); flex-wrap: wrap; min-width: 0; }
+.cheat__word {
+  font: inherit;
+  font-size: var(--t-fine);
+  color: var(--text);
+  background: var(--sunken);
+  border: 0;
+  border-radius: var(--r-pill);
+  padding: 0 var(--s3);
+  min-height: var(--touch);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
+}
+.cheat__word:hover { color: var(--accent-text); }
+.cheat__word:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 
 /* ===== 7. Событие ленты =================================================== */
 
