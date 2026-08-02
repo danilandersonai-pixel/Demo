@@ -72,6 +72,8 @@ function createApp(opts) {
     askEnabled: !!opts.ask,
     askAvailable: false,
     idleSeconds: Math.round(opts.idleMs / 1000),
+    // Сессия Клода в другой папке, если такая нашлась: {path, name, at}.
+    elsewhere: null,
     version: PKG.version
   };
 
@@ -79,6 +81,8 @@ function createApp(opts) {
   var tailer = null;
   var gitTimer = null;
   var tickTimer = null;
+  var elseTimer = null;
+  var elsewhereDismissed = '';
   var lastGitFingerprint = '';
 
   // --- всё, что публикуется, проходит здесь ---------------------------------
@@ -276,11 +280,38 @@ function createApp(opts) {
       hub.broadcast('pulse', pulse());
     }, 2000);
     if (tickTimer.unref) tickTimer.unref();
+
+    // «Клод работает в другой папке». Раз в десять секунд — этого хватает,
+    // чтобы заметить чужую сессию, и не хватает, чтобы мешать диску.
+    elseTimer = setInterval(checkElsewhere, 10000);
+    if (elseTimer.unref) elseTimer.unref();
+    checkElsewhere();
+  }
+
+  function checkElsewhere() {
+    var found;
+    try {
+      found = projectsLib.activeElsewhere({ exclude: projectRoot });
+    } catch (e) { return; }
+
+    // Молчим о том, от чего человек уже отмахнулся: предложение, которое
+    // возвращается каждые десять секунд, — не помощь, а навязчивость.
+    if (found && found.path === elsewhereDismissed) return;
+    var before = state.elsewhere && state.elsewhere.path;
+    state.elsewhere = found;
+    if ((found && found.path) !== before) hub.broadcast('state', publicState());
+  }
+
+  function dismissElsewhere() {
+    if (state.elsewhere) elsewhereDismissed = state.elsewhere.path;
+    state.elsewhere = null;
+    hub.broadcast('state', publicState());
   }
 
   function stop() {
     if (gitTimer) clearInterval(gitTimer);
     if (tickTimer) clearInterval(tickTimer);
+    if (elseTimer) clearInterval(elseTimer);
     if (watcher) watcher.stop();
     if (tailer) tailer.stop();
     hub.close();
@@ -319,6 +350,8 @@ function createApp(opts) {
       // Показывать ли экран выбора проекта. Решает сервер: он знает и про
       // флаг ярлыка, и про галочку «сразу открывать последний».
       pick: !!state.pick,
+      // Сессия Клода в другой папке: панель предложит переключиться.
+      elsewhere: state.elsewhere,
       settings: configLib.load().config,
       idleSeconds: Math.round(detector.idleMs() / 1000),
       glossarySize: glossary.count,
@@ -337,6 +370,8 @@ function createApp(opts) {
     publicState: publicState,
     pulse: pulse,
     refreshGit: refreshGit,
+    checkElsewhere: checkElsewhere,
+    dismissElsewhere: dismissElsewhere,
     start: start,
     stop: stop,
     watcher: function () { return watcher; },
@@ -961,6 +996,13 @@ function createServer(appOrRegistry, opts, sharedGuard) {
       });
     }
 
+    // «Не переключаться»: человек отмахнулся от предложения, и до следующей
+    // чужой папки Штурман про эту молчит.
+    if (pathname === '/api/projects/elsewhere/dismiss' && req.method === 'POST') {
+      if (typeof app.dismissElsewhere === 'function') app.dismissElsewhere();
+      return sendJson(res, 200, { ok: true });
+    }
+
     // --- система: автозапуск, пункт меню, выключение -----------------------
     if (pathname === '/api/system' && req.method === 'GET') {
       return sendJson(res, 200, systemState());
@@ -984,9 +1026,10 @@ function createServer(appOrRegistry, opts, sharedGuard) {
                 .filter(function (i) { return i.kind === 'menu' || i.kind === 'launcher'; }))
             : desktopLib.apply(desktopLib.removalPlan({ root: root }, ['menu'])));
         }
-        if (typeof data.openLast === 'boolean') {
+        if (typeof data.openLast === 'boolean' || typeof data.appWindow === 'boolean') {
           var cfgSys = configLib.load().config;
-          cfgSys.openLast = data.openLast;
+          if (typeof data.openLast === 'boolean') cfgSys.openLast = data.openLast;
+          if (typeof data.appWindow === 'boolean') cfgSys.appWindow = data.appWindow;
           configLib.save(cfgSys);
         }
         return Promise.all(jobs).then(function (results) {
@@ -1094,6 +1137,7 @@ function systemState() {
     menu: installed.menu,
     shortcut: installed.shortcut,
     openLast: cfg.openLast !== false,
+    appWindow: cfg.appWindow === true,
     // На Windows ярлык и пункт меню создаются командами, а не файлами:
     // проверить их наличие тем же способом нельзя, поэтому говорим честно.
     checkable: process.platform !== 'win32'

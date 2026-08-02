@@ -185,13 +185,26 @@ function check(name, cond, detail) {
   check('Телефон: нижние вкладки видны', m.tabbar.visible && m.tabbar.tabs.length === 4,
     m.tabbar.tabs.join(' / ') + `, высота ${m.tabbar.h}px`);
 
+  // Меряем не картинку, а зону касания. Мелкие на вид элементы (значок «?»,
+  // слово-термин в строке ленты) расширены невидимой площадкой ::after с
+  // отрицательным inset — палец попадает в неё, хотя рисунок остаётся
+  // маленьким. Считать по рамке элемента было бы враньём в обе стороны.
   m.touch = await b.json(`(()=>{
-      const bad=[...document.querySelectorAll('button, .node, .gitfile, .session, .pill')]
+      const SEL='button, .node, .gitfile, .session, .pill';
+      const grow=(e)=>{
+        const a=getComputedStyle(e,'::after');
+        if(!a || a.content==='none' || a.position!=='absolute') return {x:0,y:0};
+        const num=(v)=>{const n=parseFloat(v); return isFinite(n)&&n<0 ? -n : 0;};
+        return {y:num(a.top)+num(a.bottom), x:num(a.left)+num(a.right)};
+      };
+      const bad=[...document.querySelectorAll(SEL)]
         .filter(e=>{const r=e.getBoundingClientRect();
-          return r.width>0 && r.height>0 && (r.height<44 || r.width<24);})
+          if(!(r.width>0 && r.height>0)) return false;
+          const g=grow(e);
+          return (r.height+g.y)<44 || (r.width+g.x)<24;})
         .map(e=>(e.className||'')+ '|' + (e.textContent||'').trim().slice(0,14));
       return {bad:bad.slice(0,8), count:bad.length,
-              total:document.querySelectorAll('button, .node, .gitfile, .session, .pill').length}})()`);
+              total:document.querySelectorAll(SEL).length}})()`);
   check('Телефон: зоны касания ≥44px', m.touch.count === 0,
     m.touch.count ? `мелких: ${m.touch.count} из ${m.touch.total} → ${m.touch.bad.join(' ; ')}`
                   : `все ${m.touch.total} элементов достаточно крупные`);
