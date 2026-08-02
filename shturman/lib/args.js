@@ -22,6 +22,8 @@ var DEFAULTS = {
   app: false,            // открыть браузер отдельным окном без адресной строки
   tui: false,            // компактный статус в терминале вместо панели
   installShortcuts: false,
+  pick: false,           // показать экран выбора проекта вместо текущей папки
+  forceNew: false,       // поднять свой сервер, даже если один уже работает
   portExplicit: false,   // порт задан руками — молча подменять его нельзя
   openExplicit: false,
   noOpen: false
@@ -44,6 +46,7 @@ var HELP = [
   '    --app              открыть панель отдельным окном браузера, без адресной строки',
   '    --tui              компактный статус прямо в терминале, без браузера',
   '    --install-shortcuts  положить в папку «Штурман.bat» и «Штурман.command»',
+  '    --pick             открыть экран выбора проекта (так работает ярлык)',
   '    --no-open          не открывать браузер',
   '    --idle <секунды>   через сколько тишины считать, что Клод ждёт (по умолчанию 45)',
   '    --debounce <мс>    склейка событий файловой системы (по умолчанию 220)',
@@ -138,6 +141,14 @@ function parse(argv) {
         break;
       case 'install-shortcuts':
         out.installShortcuts = true;
+        break;
+      case 'pick':
+        // Так запускается ярлык: папку человек выберет в панели, а не в
+        // командной строке.
+        out.pick = true;
+        break;
+      case 'force-new':
+        out.forceNew = true;
         break;
       case 'force-poll':
         out.forcePoll = true;

@@ -34,6 +34,9 @@ var tokenLib = require('./lib/token');
 var qr = require('./lib/qr');
 var shortcuts = require('./lib/shortcuts');
 var banner = require('./lib/banner');
+var lockLib = require('./lib/lock');
+var desktopLib = require('./lib/desktop');
+var projectsLib = require('./lib/projects');
 var humanize = require('./lib/humanize');
 var paths = require('./lib/paths');
 
@@ -355,7 +358,37 @@ function createRegistry(opts) {
     order.push(key);
   });
 
-  return {
+  var registry = {
+    /**
+     * Добавить проект во время работы. Так экран выбора открывает папку,
+     * которой не было в командной строке, — без перезапуска сервера.
+     * Уже открытый проект возвращает свой прежний ключ.
+     */
+    add: function (abs) {
+      var full = path.resolve(abs);
+      var already = null;
+      order.forEach(function (k) { if (byKey.get(k).path === full) already = k; });
+      if (already) return Promise.resolve(already);
+
+      var base = paths.baseName(full) || full;
+      var key = base;
+      var n = 2;
+      while (byKey.has(key)) key = base + '-' + (n++);
+      var appOpts = Object.assign({}, opts, { projectAbs: full, project: full });
+      var newApp = createApp(appOpts);
+      byKey.set(key, { key: key, app: newApp, opts: appOpts, path: full });
+      order.push(key);
+      return newApp.start().then(function () {
+        // Новому наблюдателю нужны те же общие вещи, что и остальным.
+        var sample = byKey.get(order[0]).app;
+        newApp.state.askAvailable = sample.state.askAvailable;
+        newApp.state.share = sample.state.share;
+        newApp.state.pick = false;
+        newApp.guard = sample.guard;
+        newApp.port = sample.port;
+        return key;
+      });
+    },
     // Неизвестный ключ молча отдаёт основной проект: панель не должна
     // ломаться от старой ссылки в закладках.
     get: function (key) {
@@ -392,6 +425,7 @@ function createRegistry(opts) {
       order.forEach(function (k) { byKey.get(k).app.stop(); });
     }
   };
+  return registry;
 }
 
 // Одиночное приложение тоже приводим к виду реестра — так маршруты не
@@ -831,6 +865,139 @@ function createServer(appOrRegistry, opts, sharedGuard) {
       });
     }
 
+
+    // --- выбор проекта: список, обзор папок, открытие ----------------------
+    //
+    // Путь к проекту человек не печатает никогда. Список собирается сам из
+    // записей Claude Code, «другую папку» выбирает системный диалог, а если
+    // диалога в системе нет — свой обзор папок прямо в панели.
+    if (pathname === '/api/projects/all') {
+      var cfgAll = configLib.load().config;
+      var cards = projectsLib.list({ recent: cfgAll.recent || [] });
+      var openKeys = {};
+      registry.list().forEach(function (p) { openKeys[p.path] = p.key; });
+      return sendJson(res, 200, {
+        projects: cards.map(function (c) {
+          return Object.assign({}, c, { openKey: openKeys[c.path] || null });
+        }),
+        openLast: cfgAll.openLast !== false,
+        active: registry.entry(q.project) ? registry.entry(q.project).path : null
+      });
+    }
+
+    // Свой обзор папок — запасной путь и одновременно самый надёжный:
+    // работает там, где системного диалога нет вовсе.
+    if (pathname === '/api/projects/browse') {
+      var start = q.path ? String(q.path) : require('os').homedir();
+      var absStart;
+      try { absStart = fs.realpathSync(start); } catch (e) { absStart = require('os').homedir(); }
+      var entries = [];
+      try {
+        entries = fs.readdirSync(absStart, { withFileTypes: true })
+          .filter(function (e) { return e.isDirectory() && e.name.charAt(0) !== '.'; })
+          .slice(0, 300)
+          .map(function (e) {
+            var full = path.join(absStart, e.name);
+            // Папки с признаками проекта показываем первыми и помечаем —
+            // человеку не нужно гадать, что тут можно открыть.
+            return { name: e.name, path: full, project: hasProjectMarkers(full) };
+          })
+          .sort(function (a, b) {
+            if (a.project !== b.project) return a.project ? -1 : 1;
+            return a.name.localeCompare(b.name, 'ru');
+          });
+      } catch (e) { /* нет прав — покажем пустую папку */ }
+      var up = path.dirname(absStart);
+      return sendJson(res, 200, {
+        path: absStart,
+        parent: up === absStart ? null : up,
+        isProject: hasProjectMarkers(absStart),
+        dirs: entries
+      });
+    }
+
+    // Системный диалог. Может оказаться недоступным — панель это переживёт.
+    if (pathname === '/api/projects/pick' && req.method === 'POST') {
+      return desktopLib.pickFolder().then(function (r) { sendJson(res, 200, r); })
+        .catch(function (e) { sendJson(res, 200, { unavailable: true, error: e.message }); });
+    }
+
+    // Открыть проект: добавляем в реестр на лету и запоминаем выбор.
+    if (pathname === '/api/projects/open' && req.method === 'POST') {
+      return readBody(req).then(function (body) {
+        var data = {};
+        try { data = JSON.parse(body || '{}'); } catch (e) { /* пустой запрос */ }
+        var target = String(data.path || '').trim();
+        if (!target) return sendJson(res, 400, { error: 'Не указана папка' });
+        if (!projectsLib.existsDir(target)) {
+          return sendJson(res, 404, { error: 'Такой папки больше нет: ' + target });
+        }
+        if (typeof registry.add !== 'function') {
+          return sendJson(res, 500, { error: 'Этот Штурман открывает только один проект' });
+        }
+        return registry.add(target).then(function (key) {
+          var cfgOpen = configLib.load().config;
+          configLib.rememberProject(cfgOpen, target, opts.port);
+          if (typeof data.openLast === 'boolean') cfgOpen.openLast = data.openLast;
+          configLib.save(cfgOpen);
+          sendJson(res, 200, { key: key, path: target });
+        });
+      }).catch(function (e) {
+        sendJson(res, 500, { error: e.message });
+      });
+    }
+
+    // --- система: автозапуск, пункт меню, выключение -----------------------
+    if (pathname === '/api/system' && req.method === 'GET') {
+      return sendJson(res, 200, systemState());
+    }
+
+    if (pathname === '/api/system' && req.method === 'POST') {
+      return readBody(req).then(function (body) {
+        var data = {};
+        try { data = JSON.parse(body || '{}'); } catch (e) { /* пустой запрос */ }
+        var jobs = [];
+        var root = path.resolve(__dirname);
+        if (typeof data.autostart === 'boolean') {
+          jobs.push(data.autostart
+            ? desktopLib.apply(desktopLib.plan({ root: root, autostart: true })
+                .filter(function (i) { return i.kind === 'autostart' || i.kind === 'launcher'; }))
+            : desktopLib.apply(desktopLib.removalPlan({ root: root }, ['autostart'])));
+        }
+        if (typeof data.menu === 'boolean') {
+          jobs.push(data.menu
+            ? desktopLib.apply(desktopLib.plan({ root: root, contextMenu: true })
+                .filter(function (i) { return i.kind === 'menu' || i.kind === 'launcher'; }))
+            : desktopLib.apply(desktopLib.removalPlan({ root: root }, ['menu'])));
+        }
+        if (typeof data.openLast === 'boolean') {
+          var cfgSys = configLib.load().config;
+          cfgSys.openLast = data.openLast;
+          configLib.save(cfgSys);
+        }
+        return Promise.all(jobs).then(function (results) {
+          var flat = results.reduce(function (a, r) { return a.concat(r); }, []);
+          var failed = flat.filter(function (r) { return !r.ok; });
+          sendJson(res, 200, Object.assign(systemState(), {
+            done: flat.length,
+            error: failed.length ? failed[0].error : null
+          }));
+        });
+      }).catch(function (e) {
+        sendJson(res, 500, { error: e.message });
+      });
+    }
+
+    // Выключение. Отвечаем сразу, гасим следом: иначе браузер увидит обрыв.
+    if (pathname === '/api/shutdown' && req.method === 'POST') {
+      sendJson(res, 200, { ok: true, bye: 'Штурман выключается' });
+      setTimeout(function () {
+        if (typeof opts.shutdown === 'function') return opts.shutdown();
+        process.exit(0);
+      }, 250);
+      return;
+    }
+
     // --- настройки на лету ------------------------------------------------------
     if (pathname === '/api/settings' && req.method === 'POST') {
       return readBody(req).then(function (body) {
@@ -843,9 +1010,10 @@ function createServer(appOrRegistry, opts, sharedGuard) {
         // переживают смену браузера и одинаковы на телефоне и компьютере.
         var loaded = configLib.load();
         var cfg = loaded.config;
-        ['theme', 'feedMode'].forEach(function (k) {
+        ['theme', 'feedMode', 'density'].forEach(function (k) {
           if (typeof data[k] === 'string') cfg[k] = data[k];
         });
+        if (typeof data.openLast === 'boolean') cfg.openLast = data.openLast;
         ['sound', 'notify'].forEach(function (k) {
           if (typeof data[k] === 'boolean') cfg[k] = data[k];
         });
@@ -870,6 +1038,52 @@ function createServer(appOrRegistry, opts, sharedGuard) {
   // Охранник доступен снаружи: тесты и режим --share обращаются к нему.
   server.guard = guard;
   return server;
+}
+
+// Быстрая, синхронная примета проекта — для обзора папок. Полная проверка
+// (с объяснением, чего не хватает) живёт в lib/tree.js и работает асинхронно.
+var PROJECT_MARKERS = [
+  'package.json', '.git', 'pyproject.toml', 'requirements.txt', 'Cargo.toml',
+  'go.mod', 'pom.xml', 'build.gradle', 'Gemfile', 'composer.json',
+  'Makefile', 'CMakeLists.txt', 'index.html', 'CLAUDE.md', '.claude'
+];
+
+function hasProjectMarkers(dir) {
+  for (var i = 0; i < PROJECT_MARKERS.length; i++) {
+    try {
+      if (fs.existsSync(path.join(dir, PROJECT_MARKERS[i]))) return true;
+    } catch (e) { /* нет прав — считаем, что примет нет */ }
+  }
+  return false;
+}
+
+/**
+ * Что из встраивания в систему сейчас включено. Смотрим по факту наличия
+ * файлов, а не по записи в конфиге: человек мог убрать ярлык руками, и
+ * галочка в панели обязана это показать.
+ */
+function systemState() {
+  var root = path.resolve(__dirname);
+  var cfg = configLib.load().config;
+  var installed = {};
+  ['autostart', 'menu', 'shortcut'].forEach(function (kind) {
+    var items = desktopLib.plan({ root: root, autostart: true, contextMenu: true })
+      .filter(function (i) { return i.kind === kind && i.type !== 'command'; });
+    installed[kind] = items.length > 0 && items.every(function (i) {
+      try { return fs.existsSync(i.path); } catch (e) { return false; }
+    });
+  });
+  return {
+    platform: process.platform,
+    root: root,
+    autostart: installed.autostart,
+    menu: installed.menu,
+    shortcut: installed.shortcut,
+    openLast: cfg.openLast !== false,
+    // На Windows ярлык и пункт меню создаются командами, а не файлами:
+    // проверить их наличие тем же способом нельзя, поэтому говорим честно.
+    checkable: process.platform !== 'win32'
+  };
 }
 
 // Что отдаётся без ключа доступа: сама страница отказа, иконки и манифест.
@@ -1110,9 +1324,27 @@ function main(argv) {
     return Promise.resolve();
   }
 
+  // Ярлык запускает Штурман с --pick: папку человек выберет в панели.
+  // Раз клик по иконке — значит, панель надо и показать.
+  if (opts.pick && !opts.noOpen) opts.open = true;
+
   // Ярлыки — отдельная команда: положили файлы и вышли, сервер не поднимаем.
   if (opts.installShortcuts) {
     return installShortcuts(opts);
+  }
+
+  // Один экземпляр. Второй клик по ярлыку не поднимает второй сервер: если
+  // Штурман уже работает, просто открываем его вкладку.
+  if (!opts.forceNew && !opts.check) {
+    var live = lockLib.readAlive();
+    if (live && live.url) {
+      if (!opts.quiet) {
+        process.stdout.write('\n  Штурман уже работает: ' + live.url +
+          '\n  Открываю вкладку в браузере.\n\n');
+      }
+      if (!opts.noOpen) openBrowser(live.url, opts.app);
+      return Promise.resolve({ alreadyRunning: true, url: live.url, pid: live.pid });
+    }
   }
 
   // Самодиагностика вместо запуска: ничего не поднимаем, только смотрим.
@@ -1131,6 +1363,7 @@ function main(argv) {
 
   var registry = createRegistry(opts);
   var app = registry.get();
+  registry.all().forEach(function (a) { a.state.pick = !!opts.pick; });
   var resolvedPort = opts.port;
   // Запоминаем до подмены: иначе в баннере окажется «порт 4518 был занят»
   // как раз на том порту, где панель и поднялась.
@@ -1259,6 +1492,12 @@ function main(argv) {
       }));
     }
 
+    // Замок ставим только после того, как панель точно поднялась: иначе
+    // следующий клик по ярлыку отправил бы человека на мёртвый адрес.
+    lockLib.acquire({ port: resolvedPort, url: localUrl,
+      project: opts.projectAbs || opts.projects[0] });
+    lockLib.releaseOnExit();
+
     if (opts.open) openBrowser(localUrl, opts.app);
     var tui = opts.tui ? startTui(app) : null;
 
@@ -1267,6 +1506,7 @@ function main(argv) {
       if (shuttingDown) return;
       shuttingDown = true;
       if (tui) tui.stop();
+      lockLib.release();
       process.stdout.write('\n  Штурман закрывается. В вашем проекте ничего не изменено.\n\n');
       registry.stopAll();
       lanServers.forEach(function (l) { try { l.close(); } catch (e) { /* уже закрыт */ } });
@@ -1276,7 +1516,10 @@ function main(argv) {
     }
     process.on('SIGINT', shutdown);
     process.on('SIGTERM', shutdown);
-    return { app: app, registry: registry, server: server, guard: guard, port: resolvedPort };
+    // Кнопка «Выключить Штурман» в панели дёргает ровно ту же процедуру.
+    opts.shutdown = shutdown;
+    return { app: app, registry: registry, server: server, guard: guard,
+      port: resolvedPort, shutdown: shutdown };
   }).catch(function (e) {
     if (e && e.code === 'EADDRINUSE') {
       var wanted = e.wanted || opts.port;

@@ -24,6 +24,8 @@ var DEFAULTS = {
   feedMode: 'simple',       // simple | detailed
   share: false,             // включать ли доступ по сети по умолчанию
   openBrowser: true,
+  openLast: true,           // сразу открывать последний проект, минуя выбор
+  density: 'cozy',          // cozy | compact
   recent: []                // [{path, name, lastOpened, port}]
 };
 
@@ -57,6 +59,8 @@ function merge(raw) {
   if (typeof raw.notify === 'boolean') out.notify = raw.notify;
   if (typeof raw.share === 'boolean') out.share = raw.share;
   if (typeof raw.openBrowser === 'boolean') out.openBrowser = raw.openBrowser;
+  if (typeof raw.openLast === 'boolean') out.openLast = raw.openLast;
+  if (raw.density === 'cozy' || raw.density === 'compact') out.density = raw.density;
   if (raw.feedMode === 'simple' || raw.feedMode === 'detailed') out.feedMode = raw.feedMode;
   if (typeof raw.idleSeconds === 'number' && raw.idleSeconds >= 5 && raw.idleSeconds <= 3600) {
     out.idleSeconds = Math.round(raw.idleSeconds);
