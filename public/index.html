@@ -301,6 +301,33 @@
   </div>
 </div>
 
+<!-- ══ Экран выбора проекта: путь не печатают руками ══════════════════ -->
+<div class="picker" id="picker" hidden role="dialog" aria-modal="true" aria-labelledby="pickerTitle">
+  <div class="picker__box">
+    <div class="picker__mark" data-icon="compass" data-icon-class="i--xl" aria-hidden="true"></div>
+    <h1 class="picker__title" id="pickerTitle" data-copy="picker.title"></h1>
+    <p class="picker__note" id="pickerNote"></p>
+    <div class="picker__list" id="pickerList"></div>
+    <div class="picker__foot">
+      <button class="btn btn--primary" id="pickerBrowse" data-icon="folder">
+        <span data-copy="picker.browse"></span>
+      </button>
+      <button class="btn btn--quiet" id="pickerLast"></button>
+      <button class="btn btn--quiet" id="pickerClose" data-copy="common.close" hidden></button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ Прощание после выключения ══════════════════════════════════════ -->
+<div class="bye" id="bye" hidden>
+  <div class="bye__box">
+    <div class="bye__mark" data-icon="compass" data-icon-class="i--xl" aria-hidden="true"></div>
+    <h1 class="bye__title" data-copy="bye.title"></h1>
+    <p class="bye__text" data-copy="bye.text"></p>
+    <p class="bye__act dim" data-copy="bye.act"></p>
+  </div>
+</div>
+
 <!-- ══ Подсказка термина ══════════════════════════════════════════════ -->
 <div class="tip" id="tip" hidden role="tooltip">
   <div class="tip__term" id="tipTerm"></div>
