@@ -234,6 +234,59 @@ function encodePng(cv) {
 
 // --- запуск ------------------------------------------------------------------
 
+
+// --- контейнеры для ярлыков ------------------------------------------------
+//
+// Ярлык на рабочем столе должен показывать ту же иконку, что и панель, а
+// каждая ОС хочет свой контейнер. Оба формата умеют носить внутри готовые
+// PNG, поэтому городить свой растровый кодек не нужно — только заголовки.
+
+/** Windows .ico: заголовок, оглавление, дальше PNG подряд. */
+function encodeIco(sizes) {
+  var pngs = sizes.map(function (size) {
+    return { size: size, data: encodePng(drawIcon(size)) };
+  });
+  var head = Buffer.alloc(6);
+  head.writeUInt16LE(0, 0);              // зарезервировано
+  head.writeUInt16LE(1, 2);              // 1 — значок (2 было бы курсором)
+  head.writeUInt16LE(pngs.length, 4);
+  var dir = Buffer.alloc(16 * pngs.length);
+  var offset = head.length + dir.length;
+  pngs.forEach(function (p, i) {
+    var at = i * 16;
+    dir[at] = p.size >= 256 ? 0 : p.size;     // 0 означает 256
+    dir[at + 1] = p.size >= 256 ? 0 : p.size;
+    dir[at + 2] = 0;                          // цветов в палитре — нет палитры
+    dir[at + 3] = 0;
+    dir.writeUInt16LE(1, at + 4);             // плоскостей
+    dir.writeUInt16LE(32, at + 6);            // бит на пиксель
+    dir.writeUInt32LE(p.data.length, at + 8);
+    dir.writeUInt32LE(offset, at + 12);
+    offset += p.data.length;
+  });
+  return Buffer.concat([head, dir].concat(pngs.map(function (p) { return p.data; })));
+}
+
+/** macOS .icns: «icns», общий размер, дальше блоки «тип + размер + PNG». */
+function encodeIcns(map) {
+  var blocks = Object.keys(map).map(function (type) {
+    var png = encodePng(drawIcon(map[type]));
+    var header = Buffer.alloc(8);
+    header.write(type, 0, 4, 'ascii');
+    header.writeUInt32BE(png.length + 8, 4);
+    return Buffer.concat([header, png]);
+  });
+  var body = Buffer.concat(blocks);
+  var head = Buffer.alloc(8);
+  head.write('icns', 0, 4, 'ascii');
+  head.writeUInt32BE(body.length + 8, 4);
+  return Buffer.concat([head, body]);
+}
+
+// Типы блоков .icns — это размеры, которые ждёт Finder.
+var ICNS_TYPES = { ic11: 32, ic12: 64, ic07: 128, ic13: 256, ic08: 256, ic09: 512 };
+var ICO_SIZES = [16, 32, 48, 64, 128, 256];
+
 function main() {
   fs.mkdirSync(OUT, { recursive: true });
   SIZES.forEach(function (size) {
@@ -265,8 +318,21 @@ function main() {
   var maskFile = path.join(OUT, 'icon-maskable-512.png');
   fs.writeFileSync(maskFile, encodePng(m));
   process.stdout.write('  ' + path.basename(maskFile) + '  ' + fs.statSync(maskFile).size + ' Б\n');
+
+  // Контейнеры для ярлыка на рабочем столе.
+  var ico = path.join(OUT, 'shturman.ico');
+  fs.writeFileSync(ico, encodeIco(ICO_SIZES));
+  process.stdout.write('  ' + path.basename(ico) + '  ' + fs.statSync(ico).size + ' Б\n');
+
+  var icns = path.join(OUT, 'shturman.icns');
+  fs.writeFileSync(icns, encodeIcns(ICNS_TYPES));
+  process.stdout.write('  ' + path.basename(icns) + '  ' + fs.statSync(icns).size + ' Б\n');
 }
 
 if (require.main === module) main();
 
-module.exports = { drawIcon: drawIcon, encodePng: encodePng, crc32: crc32, SIZES: SIZES };
+module.exports = {
+  drawIcon: drawIcon, encodePng: encodePng, crc32: crc32, SIZES: SIZES,
+  encodeIco: encodeIco, encodeIcns: encodeIcns,
+  ICO_SIZES: ICO_SIZES, ICNS_TYPES: ICNS_TYPES
+};
