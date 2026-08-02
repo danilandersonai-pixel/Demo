@@ -495,3 +495,22 @@ test('три слова шпаргалки есть в словаре', () => {
     assert.ok(glossary.get(id), 'в словаре нет термина «' + id + '»');
   });
 });
+
+// ─── порядок слоёв ────────────────────────────────────────────────────────
+
+test('шторка лежит выше экрана выбора проекта', () => {
+  const css = (f) => fs.readFileSync(path.join(__dirname, '..', 'public', f), 'utf8');
+  const z = (text, selector) => {
+    const re = new RegExp(selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') +
+      '[^{]*\\{[^}]*z-index:\\s*(\\d+)', 'm');
+    const m = re.exec(text);
+    assert.ok(m, 'не нашёлся z-index у ' + selector);
+    return Number(m[1]);
+  };
+  const sheet = z(css('components.css'), '.sheet');
+  const picker = z(css('styles.css'), '.picker, .bye');
+  assert.ok(sheet > picker,
+    'шторка (' + sheet + ') должна быть выше экрана выбора (' + picker + '): ' +
+    'иначе «Открыть другую папку» открывает обзор папок под экраном выбора, ' +
+    'и на вид кнопка не делает ничего');
+});

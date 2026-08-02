@@ -62,7 +62,7 @@ code in this repository.
 │   │                                 copy.js (словарь), icons.js (значки),
 │   │                                 design.html (витрина), sw.js, offline.html
 │   ├── tools/make-icons.js         — генератор значков: PNG, .ico, .icns
-│   └── tests/                      — 344 проверки на node:test + ручной аудит
+│   └── tests/                      — 345 проверок на node:test + ручной аудит
 └── yegor-diana-wedding/            — САМ САЙТ (публикуется в корень Pages)
     ├── index.html                  — вся разметка, одна страница (~670 строк)
     ├── favicon.svg                 — монограмма «Е&Д»
@@ -96,7 +96,7 @@ node --check yegor-diana-wedding/assets/js/main.js
 
 ```bash
 cd shturman
-npm test                 # 344 проверки на node:test — гонять перед коммитом
+npm test                 # 345 проверок на node:test — гонять перед коммитом
 node tests/manual/newbie.js  # путь новичка целиком, ожидается 0 шагов в терминале
 node server.js --check   # самодиагностика окружения
 node server.js           # панель на http://127.0.0.1:4517

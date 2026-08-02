@@ -108,6 +108,138 @@ const URL = process.argv[2] || 'http://127.0.0.1:4517/';
                 s.value='зззнетничего'; s.dispatchEvent(new Event('input'))`);
   await sleep(700);
   await shot('m-07-empty-search');
+  await b.eval(`var s=document.getElementById('feedSearch');
+                s.value=''; s.dispatchEvent(new Event('input'))`);
+  await sleep(400);
+
+  // ─── телефон: то, что появилось ради запуска кликом ──────────────────
+  await open('btnSettings', 'm-08-settings', 900);
+  await open('btnGlossary', 'm-09-glossary', 800);
+  await open('btnDigest', 'm-10-digest', 1200);
+
+  if (await b.eval(`!!document.querySelector('.termword')`)) {
+    await b.eval(`document.querySelector('.termword').click()`);
+    await sleep(700);
+    await shot('m-11-term');
+    await b.eval(`document.getElementById('sheetClose').click()`); await sleep(250);
+  }
+
+  await b.eval(`document.querySelector('.tab[data-tab="pulse"]').click()`);
+  await sleep(700);
+  await shot('m-12-diary-actions');
+  await b.eval(`document.querySelector('.tab[data-tab="feed"]').click()`); await sleep(400);
+
+  // Экран выбора проекта: на телефоне он занимает весь экран.
+  await b.eval(`document.getElementById('btnMore').click()`); await sleep(700);
+  await b.eval(`var r=[...document.querySelectorAll('.row--act')]
+                 .find(x=>x.innerText.indexOf('Сменить проект')===0); if(r) r.click()`);
+  await sleep(1400);
+  await shot('m-13-picker');
+  await b.eval(`var c=document.getElementById('pickerClose'); if(c) c.click()`);
+  await sleep(400);
+
+  // ─── компьютер: остальные экраны ─────────────────────────────────────
+  console.log('компьютер, остальное:');
+  await b.metrics(1500, 980, false);
+  await sleep(500);
+  await b.eval(`window.dispatchEvent(new Event('resize'))`);
+  await sleep(700);
+
+  // Шпаргалка и подсветка терминов живут в ленте — снимаем шторку слова.
+  if (await b.eval(`!!document.querySelector('.termword')`)) {
+    await b.eval(`document.querySelector('.termword').click()`);
+    await sleep(700);
+    await shot('d-11-term-sheet');
+    await b.eval(`document.getElementById('sheetClose').click()`); await sleep(250);
+  }
+  if (await b.eval(`!!document.querySelector('.cheat__word')`)) {
+    await b.eval(`document.querySelector('.cheat__word').click()`);
+    await sleep(700);
+    await shot('d-12-cheat-sheet');
+    await b.eval(`document.getElementById('sheetClose').click()`); await sleep(250);
+  }
+
+  // Стоп-сигнал: снимаем, только если он есть в живой ленте. Подсовывать
+  // сюда выдуманное событие нельзя — снимок карты состояний должен быть
+  // снимком того, что панель действительно показала. Отдельный прогон на
+  // подготовленном транскрипте делает tests/manual/shots-risk.js.
+  if (await b.eval(`!!document.querySelector('.ev--risk')`)) {
+    await b.eval(`document.querySelector('.ev--risk').scrollIntoView({block:'center'})`);
+    await sleep(400);
+    await shot('d-13-risk-card');
+  }
+
+  await open('btnDigest', 'd-15-digest', 1300);
+
+  // Плотность «Компактно».
+  await b.eval(`(function(){
+    var r=[...document.querySelectorAll('.seg__btn')].find(x=>x.textContent==='Компактно');
+    if(r) r.click();
+  })()`);
+  await b.eval(`document.getElementById('btnSettings').click()`); await sleep(800);
+  await b.eval(`(function(){
+    var r=[...document.querySelectorAll('.seg__btn')].find(x=>x.textContent==='Компактно');
+    if(r) r.click();
+  })()`);
+  await sleep(500);
+  await b.eval(`document.getElementById('sheetClose').click()`); await sleep(500);
+  await shot('d-16-density-compact');
+  await b.eval(`document.getElementById('btnSettings').click()`); await sleep(700);
+  await b.eval(`(function(){
+    var r=[...document.querySelectorAll('.seg__btn')].find(x=>x.textContent==='Просторно');
+    if(r) r.click();
+  })()`);
+  await sleep(400);
+  await b.eval(`document.getElementById('sheetClose').click()`); await sleep(400);
+
+  // Экран выбора проекта и обзор папок.
+  await b.eval(`document.getElementById('btnSettings').click()`); await sleep(800);
+  await b.eval(`(function(){
+    var rows=[...document.querySelectorAll('.row')];
+    var r=rows.find(x=>(x.querySelector('b')||{}).textContent==='Проект');
+    if(r) r.querySelector('.btn').click();
+  })()`);
+  await sleep(1500);
+  await shot('d-17-picker');
+  if (await b.eval(`!!document.getElementById('pickerBrowse')`)) {
+    await b.eval(`document.getElementById('pickerBrowse').click()`);
+    await sleep(2000);
+    await shot('d-18-browse');
+    await b.eval(`var c=document.getElementById('sheetClose'); if(c) c.click()`);
+    await sleep(400);
+  }
+  await b.eval(`var c=document.getElementById('pickerClose'); if(c) c.click()`);
+  await sleep(400);
+
+  // Полоса «Клод работает в другой папке» — если сервер её нашёл.
+  if (await b.eval(`!document.getElementById('notice').hidden`)) {
+    await shot('d-19-elsewhere');
+  }
+
+  // Экран прощания: показываем разметкой, чтобы не гасить сервер под съёмкой.
+  await b.eval(`(function(){
+    var bye=document.getElementById('bye');
+    if(bye) bye.hidden=false;
+  })()`);
+  await sleep(600);
+  await shot('d-20-bye');
+  await b.eval(`(function(){var b=document.getElementById('bye'); if(b) b.hidden=true;})()`);
+  await sleep(300);
+
+  // Отдельные страницы: витрина дизайн-системы и «Штурман не запущен».
+  await b.goto(URL.replace(/\/$/, '') + '/design.html', 2500);
+  await sleep(900);
+  await shot('d-21-design-showcase');
+  await b.goto(URL.replace(/\/$/, '') + '/offline.html', 2000);
+  await sleep(700);
+  await shot('d-22-offline');
+  await theme('light'); await shot('d-23-offline-light'); await theme('dark');
+
+  await b.metrics(360, 740, true);
+  await sleep(500);
+  await b.goto(URL.replace(/\/$/, '') + '/offline.html', 2000);
+  await sleep(700);
+  await shot('m-14-offline');
 
   console.log('\nснимки в ' + OUT);
   await b.close();

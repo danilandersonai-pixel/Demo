@@ -518,7 +518,7 @@ shturman/
 │   ├── design.html        — витрина дизайн-системы
 │   └── manifest.json, sw.js, offline.html, icons/
 ├── tools/make-icons.js    — генератор PNG-иконок
-└── tests/                 — 336 проверок на node:test + ручной аудит
+└── tests/                 — 345 проверок на node:test + ручной аудит
 ```
 
 Почему принято именно так — в [DECISIONS.md](DECISIONS.md).
@@ -530,7 +530,7 @@ shturman/
 ## Тесты
 
 ```bash
-npm test          # 336 проверок
+npm test          # 345 проверок
 
 # путь новичка целиком, с секундомером (нужен Chromium):
 node tests/manual/newbie.js        # установил → кликнул → выбрал → увидел ленту
