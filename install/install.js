@@ -122,7 +122,7 @@ function main() {
   // Снятие пункта меню — отдельный, обратный сценарий.
   if (argHas('--remove-menu')) {
     return desktop.apply(desktop.removalPlan({ root: ROOT }, ['menu'])).then(function (res) {
-      report(res);
+      report(res, true);
       say('  Пункт «Открыть Штурман здесь» убран из меню.');
       say('');
       return 0;
@@ -158,7 +158,7 @@ function main() {
   });
 }
 
-function report(results) {
+function report(results, removing) {
   var names = {
     launcher: 'запускающий файл',
     shortcut: 'ярлык на рабочем столе',
@@ -166,8 +166,12 @@ function report(results) {
     menu: 'пункт меню правой кнопки'
   };
   results.forEach(function (r) {
-    say('  ' + (r.ok ? '✔' : '✖') + ' ' + pad(names[r.kind] || r.kind, 30) +
-      (r.ok ? short(r.target) : r.error));
+    var name = names[r.kind] || r.kind;
+    if (!r.ok) return say('  ✖ ' + pad(name, 30) + r.error);
+    // При снятии галочка означает «убрано», а не «поставлено»: одна и та же
+    // строка без пометки читалась бы ровно наоборот.
+    if (removing) return say('  ✔ убрано: ' + name + ' — ' + short(r.target));
+    say('  ✔ ' + pad(name, 30) + short(r.target));
   });
 }
 
