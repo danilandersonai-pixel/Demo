@@ -310,6 +310,9 @@ function createApp(opts) {
       askEnabled: state.askEnabled,
       askAvailable: state.askAvailable,
       share: !!state.share,
+      // Показывать ли экран выбора проекта. Решает сервер: он знает и про
+      // флаг ярлыка, и про галочку «сразу открывать последний».
+      pick: !!state.pick,
       settings: configLib.load().config,
       idleSeconds: Math.round(detector.idleMs() / 1000),
       glossarySize: glossary.count,
@@ -1363,7 +1366,11 @@ function main(argv) {
 
   var registry = createRegistry(opts);
   var app = registry.get();
-  registry.all().forEach(function (a) { a.state.pick = !!opts.pick; });
+  // Экран выбора нужен, только если человек не просил открывать последний
+  // проект сразу — или если открывать пока нечего.
+  var needPick = !!opts.pick &&
+    (loaded.config.openLast === false || !(loaded.config.recent || []).length);
+  registry.all().forEach(function (a) { a.state.pick = needPick; });
   var resolvedPort = opts.port;
   // Запоминаем до подмены: иначе в баннере окажется «порт 4518 был занят»
   // как раз на том порту, где панель и поднялась.

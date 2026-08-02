@@ -471,6 +471,105 @@ body.is-booting .head { animation-delay: 850ms; }
   to   { opacity: 1; transform: none; }
 }
 
+/* ===== 8а. Экран выбора проекта и прощание ================================ */
+
+/* Первое, что видит человек после клика по ярлыку. Никаких полей ввода:
+   только карточки папок и кнопка «другая папка». */
+.picker, .bye {
+  position: fixed;
+  inset: 0;
+  z-index: 96;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--s4);
+  background: var(--bg);
+  overflow-y: auto;
+}
+.picker__box, .bye__box {
+  width: min(620px, 100%);
+  margin: auto;
+  text-align: center;
+}
+.picker__mark, .bye__mark { color: var(--accent); display: flex; justify-content: center; }
+.picker__title, .bye__title {
+  font-family: var(--font-dial);
+  font-size: var(--t-dial);
+  letter-spacing: var(--ls-dial);
+  line-height: var(--lh-tight);
+  margin: var(--s3) 0 var(--s2);
+}
+.picker__note, .bye__text { color: var(--text-dim); font-size: var(--t-note); margin: 0 0 var(--s4); }
+.bye__act { margin: var(--s4) 0 0; }
+
+.picker__list { display: flex; flex-direction: column; gap: var(--s2); text-align: left; }
+.picker__foot {
+  display: flex;
+  gap: var(--s2);
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-top: var(--s4);
+}
+
+.pcard {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 2px var(--s3);
+  width: 100%;
+  font: inherit;
+  text-align: left;
+  color: var(--text);
+  background: var(--surface);
+  border: 0;
+  border-radius: var(--r-md);
+  padding: var(--s3) var(--s4);
+  cursor: pointer;
+  min-height: var(--touch);
+  transition: background var(--dur-fast) var(--ease);
+  -webkit-tap-highlight-color: transparent;
+}
+.pcard:hover { background: var(--hover); }
+.pcard.is-current { box-shadow: inset 0 0 0 1px var(--accent-edge); }
+.pcard.is-gone { opacity: .55; }
+.pcard__name { font-size: var(--t-title); font-weight: var(--w-strong); }
+.pcard__badge { align-self: center; }
+.pcard__path {
+  grid-column: 1 / -1;
+  font-family: var(--font-mono);
+  font-size: var(--t-fine);
+  color: var(--text-dim);
+  overflow-wrap: anywhere;
+}
+.pcard__meta { grid-column: 1 / -1; font-size: var(--t-note); color: var(--text-dim); }
+
+/* Обзор папок внутри шторки. */
+.crumb {
+  font-family: var(--font-mono);
+  font-size: var(--t-fine);
+  color: var(--text-dim);
+  overflow-wrap: anywhere;
+  margin: 0 0 var(--s2);
+}
+.dirlist { display: flex; flex-direction: column; gap: 2px; margin-top: var(--s2); }
+.dirrow {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  width: 100%;
+  font: inherit;
+  font-size: var(--t-note);
+  text-align: left;
+  color: var(--text);
+  background: transparent;
+  border: 0;
+  border-radius: var(--r-sm);
+  padding: var(--s2) var(--s3);
+  min-height: var(--touch);
+  cursor: pointer;
+}
+.dirrow:hover { background: var(--hover); }
+.dirrow__name { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; }
+
 /* ===== 9. Адаптив: телефон ================================================ */
 
 /* Средние экраны: пульс уезжает под git, остаётся две колонки. */
@@ -554,6 +653,11 @@ body.is-booting .head { animation-delay: 850ms; }
   }
 
   .sheet__box { max-height: 92vh; }
+
+  .picker, .bye { padding: var(--s3); align-items: flex-start; }
+  .picker__box, .bye__box { padding-top: var(--s5); }
+  .picker__foot { flex-direction: column; }
+  .picker__foot .btn { width: 100%; }
 }
 
 /* ===== 10. Адаптив: компьютер ============================================= */

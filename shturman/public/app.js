@@ -189,6 +189,8 @@
     notify: store.get('notify', true),
     theme: store.get('theme', 'auto'),
     density: store.get('density', 'cozy'),
+    openLast: true,
+    system: null,
     token: null,
     offline: false,
     alarmed: false,          // сигнал поднят и ещё не отпущен
@@ -1251,6 +1253,203 @@
     }, { passive: true });
   })();
 
+
+  // ── 9а. Выбор проекта ─────────────────────────────────────────────────────
+
+  /**
+   * Экран выбора проекта. Путь к папке человек не печатает никогда: список
+   * собирается сам из записей Claude Code, «другая папка» — системный диалог,
+   * а если его в системе нет, панель показывает свой обзор папок.
+   */
+  function openPicker(closable) {
+    var box = $('picker');
+    box.hidden = false;
+    $('pickerClose').hidden = !closable;
+    var list = $('pickerList');
+    clear(list);
+    list.appendChild(el('p', 'dim', C.common.loading));
+
+    api('/api/projects/all').then(function (d) {
+      clear(list);
+      app.openLast = d.openLast;
+      $('pickerNote').textContent = d.projects.length ? C.picker.note : C.picker.noteEmpty;
+      renderOpenLast(d.openLast);
+
+      d.projects.forEach(function (p) {
+        var card = el('button', 'pcard' +
+          (p.path === d.active ? ' is-current' : '') + (p.exists ? '' : ' is-gone'));
+        card.appendChild(el('span', 'pcard__name', p.name));
+        if (p.path === d.active) {
+          card.appendChild(el('span', 'badge badge--act pcard__badge', C.picker.current));
+        } else if (!p.exists) {
+          card.appendChild(el('span', 'badge badge--bad pcard__badge', C.picker.gone));
+        } else {
+          card.appendChild(el('span', 'pcard__badge'));
+        }
+        card.appendChild(el('span', 'pcard__path', p.path));
+        var meta = [];
+        if (p.lastSession) meta.push(C.picker.lastSession(duration(Date.now() - p.lastSession)));
+        else meta.push(C.picker.never);
+        if (p.exists) meta.push(C.picker.files(p.files, p.filesTruncated));
+        meta.push(C.picker.sessions(p.sessions));
+        card.appendChild(el('span', 'pcard__meta', meta.join(' · ')));
+        if (p.exists) {
+          card.addEventListener('click', function () { chooseProject(p.path, card); });
+        } else {
+          card.disabled = true;
+        }
+        list.appendChild(card);
+      });
+    }).catch(function (e) {
+      clear(list);
+      list.appendChild(el('p', 'dim', C.picker.failed(e.message)));
+    });
+  }
+
+  function closePicker() {
+    $('picker').hidden = true;
+  }
+
+  function renderOpenLast(on) {
+    var btn = $('pickerLast');
+    btn.textContent = C.picker.openLast + ': ' + (on ? C.settings.on : C.settings.off);
+    btn.classList.toggle('is-on', !!on);
+    btn.title = C.picker.openLastNote;
+  }
+
+  $('pickerLast').addEventListener('click', function () {
+    app.openLast = !app.openLast;
+    renderOpenLast(app.openLast);
+    saveServerSettings({ openLast: app.openLast });
+  });
+  $('pickerClose').addEventListener('click', closePicker);
+
+  /** Открыть проект: сервер добавит его на лету, панель переключится. */
+  function chooseProject(pathStr, card) {
+    if (card) { card.disabled = true; card.classList.add('is-busy'); }
+    api('/api/projects/open', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path: pathStr })
+    }).then(function (r) {
+      if (r.error) throw new Error(r.error);
+      closePicker();
+      closeSheet();
+      if (r.key === app.projectKey) return;
+      switchProject(r.key);
+    }).catch(function (e) {
+      if (card) { card.disabled = false; card.classList.remove('is-busy'); }
+      notice(C.picker.failed(e.message));
+    });
+  }
+
+  /** «Открыть другую папку»: сначала системный диалог, потом свой обзор. */
+  function browseFolder() {
+    var btn = $('pickerBrowse');
+    btn.disabled = true;
+    api('/api/projects/pick', { method: 'POST' }).then(function (r) {
+      btn.disabled = false;
+      if (r && r.path) return chooseProject(r.path);
+      if (r && r.cancelled) return;
+      openBrowseSheet();
+    }).catch(function () {
+      btn.disabled = false;
+      openBrowseSheet();
+    });
+  }
+  $('pickerBrowse').addEventListener('click', browseFolder);
+
+  /** Свой обзор папок — работает везде, печатать ничего не нужно. */
+  function openBrowseSheet(startPath) {
+    // По умолчанию показываем соседей текущего проекта: там же, скорее
+    // всего, лежат и остальные. Домашняя папка бывает пустой на вид.
+    var start = startPath;
+    if (!start && app.state && app.state.project) {
+      start = app.state.project.replace(/[\\/][^\\/]+$/, '') || app.state.project;
+    }
+    var body = openSheet(C.browse.title, 'folder');
+    body.appendChild(el('p', 'dim', C.browse.dialogFailed));
+    var crumb = el('p', 'crumb');
+    var actions = el('div', 'row');
+    var list = el('div', 'dirlist');
+    body.appendChild(crumb);
+    body.appendChild(actions);
+    body.appendChild(list);
+
+    function draw(dir) {
+      clear(list);
+      clear(actions);
+      list.appendChild(el('p', 'dim', C.common.loading));
+      api('/api/projects/browse', null, { path: dir || '' }).then(function (d) {
+        crumb.textContent = d.path;
+        clear(actions);
+        clear(list);
+
+        if (d.parent) {
+          var up = el('button', 'btn btn--quiet');
+          up.appendChild(icon('down', 'i--sm'));
+          up.appendChild(el('span', null, C.browse.up));
+          up.style.transform = 'none';
+          up.addEventListener('click', function () { draw(d.parent); });
+          actions.appendChild(up);
+        }
+        var here = el('button', 'btn btn--primary', C.browse.here);
+        here.addEventListener('click', function () { chooseProject(d.path); });
+        actions.appendChild(here);
+
+        if (!d.dirs.length) {
+          emptyBlock(list, 'folder', C.browse.empty.title, C.browse.empty.text);
+          return;
+        }
+        d.dirs.forEach(function (entry) {
+          var row = el('button', 'dirrow');
+          row.appendChild(icon('folder', 'i--sm'));
+          row.appendChild(el('span', 'dirrow__name', entry.name));
+          if (entry.project) row.appendChild(el('span', 'badge badge--ok', C.browse.marker));
+          row.appendChild(icon('right', 'i--sm'));
+          row.addEventListener('click', function () { draw(entry.path); });
+          list.appendChild(row);
+        });
+      }).catch(function (e) {
+        clear(list);
+        list.appendChild(el('p', 'dim', C.picker.failed(e.message)));
+      });
+    }
+    draw(start);
+  }
+
+  /** Выключение с подтверждением: второй клик по той же кнопке. */
+  function quitButton() {
+    var btn = el('button', 'btn row__control', C.settings.quitAct);
+    var armed = false;
+    var timer = null;
+    btn.addEventListener('click', function () {
+      if (!armed) {
+        armed = true;
+        btn.textContent = C.settings.quitConfirm;
+        btn.classList.add('is-on');
+        timer = setTimeout(function () {
+          armed = false;
+          btn.textContent = C.settings.quitAct;
+          btn.classList.remove('is-on');
+        }, 5000);
+        return;
+      }
+      clearTimeout(timer);
+      btn.disabled = true;
+      btn.textContent = C.settings.quitting;
+      api('/api/shutdown', { method: 'POST' }).then(showBye).catch(showBye);
+    });
+    return btn;
+  }
+
+  function showBye() {
+    disconnect();
+    closeSheet();
+    closePicker();
+    $('bye').hidden = false;
+  }
+
   // --- экран «Открыть на телефоне» -------------------------------------------
 
   function openConnect() {
@@ -1489,15 +1688,24 @@
     idleRow.appendChild(wrap);
     body.appendChild(idleRow);
 
-    // Доступ по сети
-    var shareRow = el('div', 'row');
-    var sl = el('div', 'row__label');
-    sl.appendChild(el('b', null, C.settings.share));
-    sl.appendChild(el('span', null, app.state && app.state.share ? C.settings.shareOn : C.settings.shareOff));
-    shareRow.appendChild(sl);
-    var shareBtn = el('button', 'btn row__control', C.settings.shareAct);
-    shareBtn.addEventListener('click', openConnect);
-    shareRow.appendChild(shareBtn);
+    // Доступ по сети — переключателем прямо здесь, а не флагом в командной
+    // строке. Включённый доступ сразу показывает QR-код.
+    var shareRow = toggleRow(C.settings.share,
+      app.state && app.state.share ? C.settings.shareOn : C.settings.shareOff,
+      !!(app.state && app.state.share), function (v) {
+        api('/api/connect/share', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ enabled: v })
+        }).then(function (r) {
+          if (r && r.error) { notice(r.error); return; }
+          if (app.state) app.state.share = v;
+          if (v) { closeSheet(); openConnect(); }
+        }).catch(function (e) { notice(C.connect.failed(e.message)); });
+      });
+    var shareOpen = el('button', 'btn btn--quiet', C.settings.shareAct);
+    shareOpen.addEventListener('click', openConnect);
+    shareRow.insertBefore(shareOpen, shareRow.lastChild);
     body.appendChild(shareRow);
 
     var info = el('div', 'row');
@@ -1516,12 +1724,64 @@
     about.appendChild(al);
     body.appendChild(about);
 
+    // Проект: сменить папку можно в любой момент.
+    var projRow = el('div', 'row');
+    var prl = el('div', 'row__label');
+    prl.appendChild(el('b', null, C.settings.project));
+    prl.appendChild(el('span', null, (app.state ? app.state.project + ' · ' : '') + C.settings.projectNote));
+    projRow.appendChild(prl);
+    var projBtn = el('button', 'btn row__control', C.settings.projectAct);
+    projBtn.addEventListener('click', function () { closeSheet(); openPicker(true); });
+    projRow.appendChild(projBtn);
+    body.appendChild(projRow);
+
+    body.appendChild(toggleRow(C.settings.openLast, C.settings.openLastNote,
+      app.openLast !== false, function (v) {
+        app.openLast = v;
+        saveServerSettings({ openLast: v });
+      }));
+
+    // Встраивание в систему: автозапуск и пункт меню правой кнопки.
+    var sysRows = el('div');
+    body.appendChild(sysRows);
+    api('/api/system').then(function (sys) {
+      clear(sysRows);
+      app.system = sys;
+      sysRows.appendChild(toggleRow(C.settings.startup, C.settings.startupNote,
+        !!sys.autostart, function (v) { saveSystem({ autostart: v }); }));
+      sysRows.appendChild(toggleRow(C.settings.menu,
+        sys.checkable ? C.settings.menuNote : C.settings.menuNote + ' ' + C.settings.menuUnavailable,
+        !!sys.menu, function (v) { saveSystem({ menu: v }); }));
+    }).catch(function () { /* без встраивания панель работает так же */ });
+
     var keys = el('div', 'row');
     var kl = el('div', 'row__label');
     kl.appendChild(el('b', null, C.settings.keys));
     kl.appendChild(el('span', null, C.settings.keysLine));
     keys.appendChild(kl);
     body.appendChild(keys);
+
+    // Выключение — последним пунктом и с подтверждением: искать, как
+    // остановить программу, человек не должен, но и промахнуться не должен.
+    var quitRow = el('div', 'row');
+    var ql = el('div', 'row__label');
+    ql.appendChild(el('b', null, C.settings.quit));
+    ql.appendChild(el('span', null, C.settings.quitNote));
+    quitRow.appendChild(ql);
+    quitRow.appendChild(quitButton());
+    body.appendChild(quitRow);
+  }
+
+  function saveSystem(patch) {
+    return api('/api/system', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(patch)
+    }).then(function (sys) {
+      app.system = sys;
+      if (sys && sys.error) notice(sys.error);
+      return sys;
+    }).catch(function (e) { notice(C.picker.failed(e.message)); });
   }
 
   // Настройки дублируются на сервер: так они переживают смену браузера и
@@ -1924,8 +2184,18 @@
     if (app.archive) exitArchive(); else hideNotice();
   });
 
+  var pickShown = false;
+
   function renderState(s) {
     app.state = s;
+    if (typeof s.openLast === 'boolean') app.openLast = s.openLast;
+    else if (s.settings && typeof s.settings.openLast === 'boolean') app.openLast = s.settings.openLast;
+    // Экран выбора показываем ровно один раз и только когда состояние
+    // действительно пришло: решает сервер, а не таймер на старте.
+    if (s.pick && !pickShown) {
+      pickShown = true;
+      openPicker(true);
+    }
     $('projectName').textContent = s.projectName;
     $('projectPath').textContent = s.project;
     if (s.projectKey) app.projectKey = s.projectKey;
@@ -2132,7 +2402,9 @@
       ['digest', C.more.digest, C.more.digestNote, openDigest],
       ['theme', C.more.look, C.more.lookNote(presetName()), function () { closeSheet(); openSettings(); }],
       ['tour', C.more.tour, C.more.tourNote, function () { closeSheet(); startTour(); }],
-      ['settings', C.more.settings, C.more.settingsNote, openSettings]
+      ['settings', C.more.settings, C.more.settingsNote, openSettings],
+      ['folder', C.picker.change, C.settings.projectNote,
+        function () { closeSheet(); openPicker(true); }]
     ];
     items.forEach(function (item) {
       var row = el('div', 'row row--act');
