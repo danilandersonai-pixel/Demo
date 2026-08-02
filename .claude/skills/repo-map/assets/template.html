@@ -330,7 +330,10 @@
       });
     }
     if (r.unreachable) {
-      kids.push({ label: 'не подключён к сессии — содержимое не читалось', kind: 'note' });
+      // Причина бывает разной: репозиторий не подключён к сессии, или карта
+      // построена по снимку. Пишем ту, что передали, иначе общую.
+      kids.push({ label: r.unreachableNote ||
+        'не подключён к сессии — содержимое не читалось', kind: 'note' });
     } else if ((r.tree || []).length) {
       kids.push({ label: 'файлы', kind: 'group', open: !!r.isCurrent,
                   children: fileNodes(r.tree, 0) });
