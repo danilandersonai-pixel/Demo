@@ -217,6 +217,23 @@ body {
 .badge--bad { color: var(--bad-text); background: var(--bad-soft); }
 .badge--act { color: var(--on-accent);  background: var(--accent); }
 
+/* Подсвеченное слово прямо в тексте события. Подчёркивание пунктиром —
+   единственная линия, которую система позволяет тексту: она означает
+   «здесь есть объяснение», а не разделение. */
+.termword {
+  font: inherit;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  cursor: help;
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+  text-decoration-color: var(--accent-edge);
+  -webkit-tap-highlight-color: transparent;
+}
+.termword:hover { color: var(--accent-text); text-decoration-color: var(--accent); }
+
 /* Значок «?» рядом с термином: маленький на вид, но зона касания 44px. */
 .term {
   position: relative;

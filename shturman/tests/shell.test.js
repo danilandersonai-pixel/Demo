@@ -77,7 +77,7 @@ test('конфиг: чужие и невалидные значения отбр
     var c = configLib.load(dir).config;
     assert.strictEqual(c.port, 4517);
     assert.strictEqual(c.theme, 'auto');
-    assert.strictEqual(c.sound, true);
+    assert.strictEqual(c.sound, false, 'умолчание — молчать, пока не попросили');
     assert.strictEqual(c.idleSeconds, 45);
     assert.deepStrictEqual(c.recent, []);
     assert.strictEqual(c.посторонний, undefined, 'лишние ключи не протекают');

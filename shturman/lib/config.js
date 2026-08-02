@@ -18,8 +18,8 @@ var DEFAULTS = {
   version: 1,
   port: 4517,
   theme: 'auto',            // auto | dark | light
-  sound: true,
-  notify: true,
+  sound: false,            // сигнал молчит, пока его не включили
+  notify: false,
   idleSeconds: 45,
   feedMode: 'simple',       // simple | detailed
   share: false,             // включать ли доступ по сети по умолчанию

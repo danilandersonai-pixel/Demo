@@ -185,8 +185,10 @@
     projectKey: null,
     projects: [],
     view: 'feed',
-    sound: store.get('sound', true),
-    notify: store.get('notify', true),
+    // Звук и уведомления по умолчанию молчат: пуши умеет сам Claude Code,
+    // а панель не должна начинать знакомство со звуков.
+    sound: store.get('sound', false),
+    notify: store.get('notify', false),
     theme: store.get('theme', 'auto'),
     density: store.get('density', 'cozy'),
     openLast: true,
@@ -463,10 +465,14 @@
     li.appendChild(el('span', 'ev__title', ev.risk ? ev.risk.title : (ev.title || '')));
     li.appendChild(el('span', 'ev__time', clock(ev.ts)));
     if (ev.risk) {
-      li.appendChild(el('span', 'ev__hint', ev.risk.why));
+      var riskHint = el('span', 'ev__hint');
+      riskHint.appendChild(withTerms(ev.risk.why));
+      li.appendChild(riskHint);
       li.appendChild(rollbackBlock(ev.risk));
     } else if (ev.hint) {
-      li.appendChild(el('span', 'ev__hint', ev.hint));
+      var hint = el('span', 'ev__hint');
+      hint.appendChild(withTerms(ev.hint));
+      li.appendChild(hint);
     }
     if (app.detailed) li.appendChild(el('pre', 'ev__raw', rawText(ev)));
     li.addEventListener('click', function () { openEventDetails(ev); });
@@ -1138,8 +1144,90 @@
         glossary.byId[t.id] = t;
         (t.aliases || []).forEach(function (a) { glossary.byId[String(a).toLowerCase()] = t; });
       });
+      buildTermMatcher();
+      drawnKey = '';
+      renderWindow();
     }).catch(function () { /* словарь не критичен для показа ленты */ });
   }
+
+  /**
+   * Подсветка терминов прямо в ленте.
+   *
+   * Незнакомое слово должно объясняться там, где человек его встретил, —
+   * иначе он уходит в словарь и теряет место в ленте. Подсвечиваем не
+   * больше двух слов на карточку: если подчеркнуть всё, читать станет
+   * нечего.
+   */
+  var termRe = null;
+  var termById = {};
+
+  function buildTermMatcher() {
+    var words = [];
+    termById = {};
+    glossary.terms.forEach(function (t) {
+      [t.term].concat(t.aliases || []).forEach(function (w) {
+        var word = String(w).toLowerCase().replace(/\s*\(.*$/, '').trim();
+        if (word.length < 4) return;                  // «git» и «api» слишком часты
+        if (termById[word]) return;
+        termById[word] = t.id;
+        words.push(word);
+      });
+    });
+    if (!words.length) { termRe = null; return; }
+    words.sort(function (a, b) { return b.length - a.length; });
+    var escaped = words.map(function (w) { return w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); });
+    // Границу слова считаем сами: \b в JS не знает про кириллицу.
+    var edge = C.wordEdge;
+    try {
+      termRe = new RegExp('(?<!' + edge + ')(' + escaped.join('|') + ')(?!' + edge + ')', 'gi');
+    } catch (e) {
+      termRe = null;                                   // старый браузер без lookbehind
+    }
+  }
+
+  /** Текст с подсвеченными терминами. Возвращает узел для вставки. */
+  function withTerms(text, limit) {
+    var frag = document.createDocumentFragment();
+    if (!text) return frag;
+    if (!termRe) { frag.appendChild(document.createTextNode(text)); return frag; }
+    var max = limit || 2;
+    var used = 0;
+    var last = 0;
+    termRe.lastIndex = 0;
+    var m;
+    while (used < max && (m = termRe.exec(text)) !== null) {
+      var id = termById[m[0].toLowerCase()];
+      if (!id) continue;
+      if (m.index > last) frag.appendChild(document.createTextNode(text.slice(last, m.index)));
+      var mark = el('button', 'termword', m[0]);
+      mark.dataset.termword = id;
+      mark.setAttribute('aria-label', C.glossary.what + ': ' + m[0]);
+      frag.appendChild(mark);
+      last = m.index + m[0].length;
+      used++;
+    }
+    if (last < text.length) frag.appendChild(document.createTextNode(text.slice(last)));
+    return frag;
+  }
+
+  /** Объяснение одного слова: шторкой, чтобы не терять место в ленте. */
+  function openTermSheet(id) {
+    var term = glossary.byId[id];
+    if (!term) return;
+    var body = openSheet(term.term, 'book');
+    body.appendChild(el('p', null, term.text));
+    var all = el('button', 'btn', C.glossary.all);
+    all.addEventListener('click', openGlossary);
+    body.appendChild(all);
+  }
+
+  document.addEventListener('click', function (e) {
+    var w = e.target.closest && e.target.closest('.termword');
+    if (!w) return;
+    e.preventDefault();
+    e.stopPropagation();
+    openTermSheet(w.dataset.termword);
+  });
 
   function termButton(id) {
     var b = el('button', 'term', '?');
@@ -1840,6 +1928,37 @@
   }
 
   // --- итоги сессии ------------------------------------------------------------
+
+  /**
+   * Кнопки дневника прямо во вкладке: на телефоне это одно нажатие, а не
+   * поход в «⋯». Сам текст открывается шторкой — в панели ему тесно.
+   */
+  function renderDigestActions() {
+    var box = $('digestActions');
+    if (!box) return;
+    clear(box);
+    var open = el('button', 'btn btn--primary', C.digest.title);
+    open.addEventListener('click', openDigest);
+    box.appendChild(open);
+
+    var dl = el('button', 'btn', C.digest.download);
+    dl.addEventListener('click', function () {
+      window.location.href = href('/api/digest', { download: 1 });
+      dl.textContent = C.digest.downloaded;
+    });
+    box.appendChild(dl);
+
+    if (navigator.share) {
+      var sh = el('button', 'btn', C.digest.share);
+      sh.addEventListener('click', function () {
+        api('/api/digest').then(function (d) {
+          navigator.share({ title: C.digest.shareTitle, text: d.markdown })
+            .catch(function () { /* передумали — не беда */ });
+        });
+      });
+      box.appendChild(sh);
+    }
+  }
 
   function openDigest() {
     var body = openSheet(C.digest.title, 'digest');
@@ -2683,6 +2802,7 @@
   // --- старт -------------------------------------------------------------------
 
   dressUp(document);
+  renderDigestActions();
   applyTheme(app.theme);
   applyDensity(app.density);
   setDetailed(app.detailed);
