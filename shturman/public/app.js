@@ -246,6 +246,23 @@
 
   function setView(name, direction) {
     if (VIEWS.indexOf(name) === -1) return;
+    // View Transitions делают переход одним снимком до и после, без ручных
+    // классов и таймеров. Там, где их нет (а нет их в половине браузеров),
+    // работает прежняя анимация — поэтому и то и другое живёт рядом.
+    if (canViewTransition(name)) {
+      document.startViewTransition(function () { applyView(name, 0); });
+      return;
+    }
+    applyView(name, direction);
+  }
+
+  function canViewTransition(name) {
+    return !!document.startViewTransition &&
+      perf.animations && !reduceMotion &&
+      app.view !== name && isNarrow();      // на телефоне переход и заметен
+  }
+
+  function applyView(name, direction) {
     var prev = app.view;
     app.view = name;
     document.body.dataset.view = name;
@@ -263,7 +280,7 @@
     if (name === 'git') app.unseen.git = 0;
     renderBadges();
 
-    if (direction && prev !== name && !reduceMotion) {
+    if (direction && prev !== name && !reduceMotion && perf.animations) {
       var section = document.querySelector('.view[data-view="' + name + '"]');
       if (section) {
         var cls = direction > 0 ? 'is-sliding-left' : 'is-sliding-right';

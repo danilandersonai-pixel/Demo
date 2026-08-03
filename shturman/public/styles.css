@@ -697,3 +697,16 @@ body.is-booting .head { animation-delay: 850ms; }
 /* Распорки виртуализированного дерева: держат высоту прокрутки за строки,
    которых нет в разметке. Пустые блоки, ничего не рисуют. */
 .tree__spacer { flex: 0 0 auto; }
+
+/* Переход между разделами через View Transitions — там, где браузер умеет.
+   Держим его коротким: раздел меняется целиком, и долгая перекрёстная
+   растворёнка читается как подвисание, а не как плавность. */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 180ms;
+  animation-timing-function: var(--ease);
+}
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(root),
+  ::view-transition-new(root) { animation-duration: .001ms; }
+}
