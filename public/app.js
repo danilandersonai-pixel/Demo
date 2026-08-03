@@ -779,6 +779,39 @@
     if (dl.childElementCount) parent.appendChild(dl);
   }
 
+  /**
+   * Блок вывода. Если сервер обрезал текст ради скорости, показываем это
+   * честно и даём кнопку: молча показывать половину — обман, а слать целое
+   * всегда — те самые 3.3 МБ, из-за которых панель и тормозила.
+   */
+  function outputBlock(parent, title, text, ev, field, cls) {
+    var sec = section(parent, title);
+    var pre = Object.assign(el('pre', cls || 'out'), { textContent: String(text) });
+    sec.appendChild(pre);
+
+    var full = ev && ev.cut && ev.cut[field];
+    if (!full) return sec;
+
+    sec.appendChild(el('p', 'dim', C.event.truncated(full)));
+    var btn = el('button', 'btn', C.event.showAll);
+    btn.addEventListener('click', function () {
+      btn.disabled = true;
+      btn.textContent = C.event.loadingAll;
+      api('/api/event', null, { id: ev.id }).then(function (r) {
+        var value = r && r.event && r.event[field];
+        if (!value) throw new Error(C.event.gone);
+        pre.textContent = String(value);
+        btn.remove();
+      }).catch(function (e) {
+        btn.disabled = false;
+        btn.textContent = C.event.showAll;
+        notice(e.message || C.event.gone);
+      });
+    });
+    sec.appendChild(btn);
+    return sec;
+  }
+
   function openEventDetails(ev) {
     var body = openSheet(ev.title || C.event.fallbackTitle, ICON.forGlyph(ev.icon));
     if (ev.hint) body.appendChild(el('p', null, ev.hint));
@@ -804,22 +837,19 @@
     var res = ev.result || (ev.kind === 'result' ? ev : null);
     if (res) {
       if (res.stdout && res.stdout.trim()) {
-        section(body, C.event.stdout).appendChild(
-          Object.assign(el('pre', 'out'), { textContent: res.stdout.slice(0, 20000) }));
+        outputBlock(body, C.event.stdout, res.stdout.slice(0, 20000), ev, 'stdout');
       }
       if (res.stderr && res.stderr.trim()) {
-        section(body, C.event.stderr).appendChild(
-          Object.assign(el('pre', 'out out--error'), { textContent: res.stderr.slice(0, 20000) }));
+        outputBlock(body, C.event.stderr, res.stderr.slice(0, 20000), ev, 'stderr', 'out out--error');
       }
       if (!res.stdout && !res.stderr && res.output) {
-        section(body, C.event.result).appendChild(
-          Object.assign(el('pre', 'out'), { textContent: String(res.output).slice(0, 20000) }));
+        outputBlock(body, C.event.result, String(res.output).slice(0, 20000), ev, 'output');
       }
     }
 
     if (ev.text) {
-      section(body, ev.kind === 'user' ? C.event.yourWords : C.event.claudeWords).appendChild(
-        Object.assign(el('pre', 'out'), { textContent: ev.text.slice(0, 20000) }));
+      outputBlock(body, ev.kind === 'user' ? C.event.yourWords : C.event.claudeWords,
+        ev.text.slice(0, 20000), ev, 'text');
     }
 
     if (ev.file && (ev.action === 'edit' || ev.action === 'write' || ev.kind === 'file')) {
