@@ -738,6 +738,12 @@ function createServer(appOrRegistry, opts, sharedGuard) {
       return sendJson(res, 200, { event: full });
     }
 
+    // Показатели самого сервера — для экрана «Диагностика». Читаются из
+    // /proc, где он есть; на остальных системах отдаём то, что знает Node.
+    if (pathname === '/api/health') {
+      return sendJson(res, 200, serverHealth());
+    }
+
     if (pathname === '/api/pulse') {
       return sendJson(res, 200, app.pulse());
     }
@@ -1104,6 +1110,9 @@ function createServer(appOrRegistry, opts, sharedGuard) {
           if (typeof data[k] === 'boolean') cfg[k] = data[k];
         });
         if (data.idleSeconds !== undefined) cfg.idleSeconds = Number(data.idleSeconds);
+        // Настройки скорости сохраняются целиком: проверку значений делает
+        // сам конфиг, чтобы чужой профиль не приехал в панель как есть.
+        if (data.perf && typeof data.perf === 'object') cfg.perf = data.perf;
         configLib.save(cfg);
 
         var st = app.publicState();
@@ -1148,6 +1157,32 @@ function hasProjectMarkers(dir) {
  * файлов, а не по записи в конфиге: человек мог убрать ярлык руками, и
  * галочка в панели обязана это показать.
  */
+/**
+ * Нагрузка самого сервера. Процессорное время меряется между вызовами:
+ * мгновенной «загрузки процессора» у процесса не существует, есть только
+ * разница накопленного времени за промежуток.
+ */
+var lastCpu = null;
+function serverHealth() {
+  var usage = process.cpuUsage();
+  var now = Date.now();
+  var percent = 0;
+  if (lastCpu) {
+    var deltaMs = now - lastCpu.at;
+    var deltaCpu = (usage.user + usage.system - lastCpu.total) / 1000;
+    if (deltaMs > 0) percent = Math.round(deltaCpu / deltaMs * 1000) / 10;
+  }
+  lastCpu = { at: now, total: usage.user + usage.system };
+  var mem = process.memoryUsage();
+  return {
+    cpuPercent: percent,
+    rssMb: Math.round(mem.rss / 1048576 * 10) / 10,
+    heapMb: Math.round(mem.heapUsed / 1048576 * 10) / 10,
+    uptimeSec: Math.round(process.uptime()),
+    events: 0
+  };
+}
+
 function systemState() {
   var root = path.resolve(__dirname);
   var cfg = configLib.load().config;

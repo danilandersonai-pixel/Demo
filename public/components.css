@@ -802,3 +802,43 @@ pre.out--error { color: var(--bad-text); }
   color: var(--text-dim);
   margin: 0 0 var(--s2);
 }
+
+/* ===== 13. Диагностика ==================================================== */
+
+/* Показатели сеткой: числа крупно, подписи мелко — прибор читается взглядом,
+   а не чтением. */
+.diag {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: var(--s2);
+}
+.diag__cell {
+  background: var(--sunken);
+  border-radius: var(--r-sm);
+  padding: var(--s3);
+}
+.diag__value {
+  font-family: var(--font-dial);
+  font-size: var(--t-read);
+  line-height: var(--lh-tight);
+  font-variant-numeric: tabular-nums;
+}
+.diag__name { font-size: var(--t-fine); color: var(--text-dim); margin-top: 2px; }
+
+/* Здоровье панели: три состояния, различимые не только цветом — у каждого
+   свой текст, а у тревожных ещё и полоса слева. */
+.health { border-radius: var(--r-md); padding: var(--s3) var(--s4); }
+.health p { margin: var(--s2) 0 0; color: var(--text-dim); font-size: var(--t-note); }
+.health--good { background: var(--sunken); }
+.health--warn { background: var(--accent-soft); }
+.health--bad  { background: var(--bad-soft); }
+
+/* Профиль «без анимаций» гасит движение так же, как системная настройка
+   «поменьше движения»: одно правило вместо десятка проверок в коде. */
+:root[data-anim="off"] *,
+:root[data-anim="off"] *::before,
+:root[data-anim="off"] *::after {
+  animation-duration: .001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: .001ms !important;
+}
