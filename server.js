@@ -38,6 +38,7 @@ var lockLib = require('./lib/lock');
 var riskLib = require('./lib/risk');
 var desktopLib = require('./lib/desktop');
 var projectsLib = require('./lib/projects');
+var wire = require('./lib/wire');
 var humanize = require('./lib/humanize');
 var paths = require('./lib/paths');
 
@@ -96,10 +97,10 @@ function createApp(opts) {
     if (published) {
       stats.add(published);
       var transition = detector.activity(published, published.ts);
-      hub.broadcast('event', published, published.id);
+      hub.broadcast('event', wire.slim(published), published.id);
       if (transition && transition.type === 'resumed') {
         var resumed = bus.publish({ kind: 'session', action: 'resumed', source: 'shturman' });
-        if (resumed) hub.broadcast('event', resumed, resumed.id);
+        if (resumed) hub.broadcast('event', wire.slim(resumed), resumed.id);
       }
     }
     return published;
@@ -113,7 +114,7 @@ function createApp(opts) {
   // --- git ------------------------------------------------------------------
 
   function refreshGit(announce) {
-    return gitLib.snapshot(projectRoot).then(function (snap) {
+    return gitLib.snapshotCached(projectRoot).then(function (snap) {
       var prev = state.git;
       state.git = snap;
 
@@ -187,6 +188,9 @@ function createApp(opts) {
       hub.broadcast('state', publicState());
     });
     watcher.events.on('change', function (c) {
+      // Правка файла меняет счётчик несохранённого, но не трогает .git —
+      // говорим кэшу пересчитать, иначе панель покажет старое число.
+      gitLib.markDirty(projectRoot);
       emit({
         kind: 'file',
         action: c.action,
@@ -242,7 +246,9 @@ function createApp(opts) {
   }
 
   function startTimers() {
-    // Опрос git — не чаще раза в 4 секунды: он самый дорогой из наблюдателей.
+    // Опрос git оставлен как страховка и стал реже: настоящий сигнал даёт
+    // кэш по отпечатку .git и пометка от вотчера. Раньше здесь каждые
+    // четыре секунды запускалось пять процессов независимо ни от чего.
     gitTimer = setInterval(function () { refreshGit(true); }, 4000);
     if (gitTimer.unref) gitTimer.unref();
 
@@ -690,7 +696,11 @@ function createServer(appOrRegistry, opts, sharedGuard) {
       app.hub.attach(req, res, {
         snapshot: {
           state: withProject(app.publicState(), registry, q.project),
-          events: app.bus.since(lastId),
+          // Отдаём последние события, а не всю историю: снимок весил
+          // 3.3 МБ и панель ждала его перед первым кадром. Остальное
+          // подтягивается через /api/events по мере прокрутки.
+          events: lastId ? wire.slimAll(app.bus.since(lastId))
+                         : wire.snapshotSlice(app.bus.all()),
           pulse: app.pulse(),
           git: app.state.git
         },
@@ -705,8 +715,27 @@ function createServer(appOrRegistry, opts, sharedGuard) {
         state: withProject(app.publicState(), registry, q.project),
         pulse: app.pulse(),
         git: app.state.git,
-        events: app.bus.all()
+        events: wire.snapshotSlice(app.bus.all())
       });
+    }
+
+    // Догрузка истории прокруткой: панель просит то, чего у неё ещё нет.
+    if (pathname === '/api/events') {
+      var beforeId = Number(q.before || 0);
+      var limit = Number(q.limit || 100);
+      var chunk = app.bus.before(beforeId, limit);
+      return sendJson(res, 200, {
+        events: wire.slimAll(chunk),
+        oldest: chunk.length ? chunk[0].id : null,
+        more: chunk.length === Math.min(Math.max(limit, 1), 500)
+      });
+    }
+
+    // Одно событие целиком: то, что обрезано для провода, — по запросу.
+    if (pathname === '/api/event') {
+      var full = app.bus.get(q.id);
+      if (!full) return sendJson(res, 404, { error: 'Событие уже вышло из буфера' });
+      return sendJson(res, 200, { event: full });
     }
 
     if (pathname === '/api/pulse') {

@@ -201,8 +201,31 @@
     unseen: { feed: 0, git: 0 }
   };
 
+  // Потолок буфера событий. Кольцевой: старые вытесняются новыми, длина не
+  // растёт никогда. Настраивается профилем скорости (perf.feedLimit).
   var MAX_EVENTS = 1500;
   var HEAT_MS = 90000;
+
+  /**
+   * Настройки скорости. Здесь только значения; экран, профили и сохранение —
+   * ниже. Всё, что дорого, спрашивает разрешения у этого объекта, поэтому
+   * «Слабое устройство» выключает эффекты, ничего не удаляя.
+   */
+  var heatDirty = false;
+
+  /**
+   * Готовые профили. Различаются только тем, **как** панель рисует, а не
+   * тем, **что** она умеет: во всех трёх есть все разделы, все фильтры,
+   * словарь, стоп-сигналы и дневник. «Слабое устройство» — это выключенные
+   * эффекты, а не урезанная программа.
+   */
+  var PERF_PROFILES = {
+    smooth:  { animations: true,  heat: true,  feedLimit: 1500, frameMs: 0,   bigDiffs: true,  highlight: true },
+    thrifty: { animations: false, heat: true,  feedLimit: 600,  frameMs: 500, bigDiffs: true,  highlight: false },
+    weak:    { animations: false, heat: false, feedLimit: 300,  frameMs: 1000, bigDiffs: false, highlight: false }
+  };
+
+  var perf = Object.assign({ profile: 'auto' }, PERF_PROFILES.smooth);
 
   // Ключ доступа приходит в ссылке из QR-кода. Забираем его и убираем из
   // адресной строки: незачем светить ключ в истории браузера.
@@ -633,9 +656,19 @@
     renderWindow();
   }
 
+  /**
+   * Приход события. Ничего не рисует сам — только копит.
+   *
+   * Раньше каждое событие тянуло за собой полный цикл: пересборку списка
+   * видимых, перерисовку окна и два чтения геометрии. При двадцати событиях
+   * в секунду это шестьдесят перерисовок в секунду ради двадцати новых
+   * строк. Теперь события копятся и выливаются одним кадром.
+   */
   function addEvent(ev) {
     app.events.push(ev);
-    if (app.events.length > MAX_EVENTS) app.events.splice(0, app.events.length - MAX_EVENTS);
+    if (app.events.length > perf.feedLimit) {
+      app.events.splice(0, app.events.length - perf.feedLimit);
+    }
     if (ev.title) app.lastTitle = ev.title;
     refreshCheat();
 
@@ -649,13 +682,48 @@
     if (!matches(ev)) return;
 
     if (isNarrow() && app.view !== 'feed') { app.unseen.feed++; renderBadges(); }
+    scheduleFeedFlush();
+  }
 
+  /**
+   * Слить накопленное в один кадр.
+   *
+   * Скрытая вкладка не рисует вовсе: события копятся в памяти, а первый же
+   * возврат к вкладке показывает их разом. Рисовать в фон — это греть
+   * процессор и батарею телефона ради того, чего никто не видит.
+   */
+  var feedFlushQueued = false;
+  function scheduleFeedFlush() {
+    if (feedFlushQueued) return;
+    feedFlushQueued = true;
+    if (document.hidden) return;          // проснёмся по visibilitychange
+    requestAnimationFrame(flushFeed);
+  }
+
+  var lastFlushAt = 0;
+  function flushFeed() {
+    if (document.hidden) return;          // остаёмся «грязными» до возврата
+    // Профиль «Экономно» разрежает отрисовку: кадры реже, содержимое то же.
+    if (perf.frameMs && Date.now() - lastFlushAt < perf.frameMs) {
+      setTimeout(function () { requestAnimationFrame(flushFeed); },
+        perf.frameMs - (Date.now() - lastFlushAt));
+      return;
+    }
+    feedFlushQueued = false;
+    lastFlushAt = Date.now();
     var stick = atBottom();
     recomputeVisible();
     drawnKey = '';
     renderWindow();
     if (stick) scrollToBottom();
   }
+
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden) return;
+    // Вернулись — показываем всё, что накопилось, одним кадром.
+    if (feedFlushQueued) requestAnimationFrame(flushFeed);
+    heatDirty = true;
+  });
 
   function annotateCall(result) {
     var call = null;
@@ -840,6 +908,17 @@
   // ── 6. Карта проекта ──────────────────────────────────────────────────────
 
   var treeBox = $('tree');
+  var treeRows = $('treeRows');
+  var treeTop = $('treeTop');
+  var treeBottom = $('treeBottom');
+
+  // Виртуализация дерева. Проект на пять тысяч файлов давал 5 073 строки в
+  // разметке и 36 352 узла всего; один клик по папке стоил 416 мс, а обход
+  // строк ради тепловой подсветки — 30 мс каждую секунду. Теперь в разметке
+  // живёт только видимое окно, и обе цены перестают зависеть от размера
+  // проекта.
+  var TREE_ROW_H = 28;
+  var TREE_OVERSCAN = 10;
 
   function emptyBlock(parent, iconName, title, text, actLabel, actRun) {
     var box = el('div', 'empty');
@@ -861,6 +940,7 @@
     return api('/api/tree').then(function (t) {
       app.treeFailed = false;
       app.treeNodes = t.nodes || [];
+      indexTreePaths();
       if (t.truncated) notice(C.map.big(app.treeNodes.length));
       renderTree();
     }).catch(function () {
@@ -869,52 +949,154 @@
     });
   }
 
+  /**
+   * Пересобрать список видимых строк и перерисовать окно.
+   *
+   * Разделено надвое намеренно: список строится, только когда меняются
+   * данные или свёрнутость, а окно — на каждую прокрутку. Раньше и то и
+   * другое делалось вместе и целиком, отчего клик по папке стоил 416 мс.
+   */
   function renderTree() {
-    clear(treeBox);
     var q = app.treeQuery;
-    var nodes = app.treeNodes;
 
     if (app.treeFailed) {
-      emptyBlock(treeBox, 'folder', C.map.unreadable.title, C.map.unreadable.text,
-        C.map.unreadable.act, loadTree);
-      return;
+      return treeSpecial(function (box) {
+        emptyBlock(box, 'folder', C.map.unreadable.title, C.map.unreadable.text,
+          C.map.unreadable.act, loadTree);
+      });
     }
 
     if (q) {
-      var found = nodes.filter(function (n) {
+      var found = app.treeNodes.filter(function (n) {
         return n.type === 'file' && n.path.toLowerCase().indexOf(q) !== -1;
       }).slice(0, 200);
       if (!found.length) {
-        emptyBlock(treeBox, 'search', C.map.emptySearch.title, C.map.emptySearch.text(q),
-          C.map.emptySearch.act, function () {
-            $('treeSearch').value = ''; app.treeQuery = ''; renderTree();
-          });
-        return;
+        return treeSpecial(function (box) {
+          emptyBlock(box, 'search', C.map.emptySearch.title, C.map.emptySearch.text(q),
+            C.map.emptySearch.act, function () {
+              $('treeSearch').value = ''; app.treeQuery = ''; renderTree();
+            });
+        });
       }
-      found.forEach(function (n) { treeBox.appendChild(nodeRow(n, true)); });
-      return;
+      app.treeVisible = found;
+      app.treeFlat = true;
+      treeBox.scrollTop = 0;
+      return renderTreeWindow(true);
     }
 
-    if (!nodes.length) {
-      emptyBlock(treeBox, 'folder', C.map.emptyDir.title, C.map.emptyDir.text);
-      return;
+    if (!app.treeNodes.length) {
+      return treeSpecial(function (box) {
+        emptyBlock(box, 'folder', C.map.emptyDir.title, C.map.emptyDir.text);
+      });
     }
-    nodes.forEach(function (n) {
-      if (isHidden(n)) return;
-      treeBox.appendChild(nodeRow(n, false));
-    });
+
+    app.treeFlat = false;
+    refreshCollapsed();
+    app.treeVisible = collapsedKeys.length
+      ? app.treeNodes.filter(function (n) { return !isHidden(n); })
+      : app.treeNodes.slice();
+    renderTreeWindow(true);
+  }
+
+  /** Особые состояния (ошибка, пусто) рисуются без распорок и окна. */
+  function treeSpecial(fill) {
+    app.treeVisible = [];
+    treeTop.style.height = '0px';
+    treeBottom.style.height = '0px';
+    clear(treeRows);
+    fill(treeRows);
+  }
+
+  var treeDrawn = '';
+  /**
+   * Отрисовать видимое окно строк.
+   * @param {boolean} force — перерисовать, даже если окно то же самое
+   *        (нужно после смены данных: строки те же по номерам, но другие).
+   */
+  function renderTreeWindow(force) {
+    var total = app.treeVisible.length;
+    if (!total) return;
+    var h = treeBox.clientHeight || 500;
+    var perScreen = Math.ceil(h / TREE_ROW_H) + TREE_OVERSCAN * 2;
+
+    var first = 0;
+    var last = total;
+    if (total > perScreen) {
+      var maxFirst = Math.max(0, total - perScreen);
+      first = Math.floor(treeBox.scrollTop / TREE_ROW_H) - TREE_OVERSCAN;
+      first = Math.max(0, Math.min(first, maxFirst));
+      last = Math.min(total, first + perScreen);
+    }
+
+    var key = first + ':' + last + ':' + total + ':' + (app.treeFlat ? 'f' : 't');
+    if (!force && key === treeDrawn) return;
+    treeDrawn = key;
+
+    treeTop.style.height = (first * TREE_ROW_H) + 'px';
+    treeBottom.style.height = Math.max(0, (total - last) * TREE_ROW_H) + 'px';
+
+    clear(treeRows);
+    var frag = document.createDocumentFragment();
+    for (var i = first; i < last; i++) {
+      frag.appendChild(nodeRow(app.treeVisible[i], app.treeFlat));
+    }
+    treeRows.appendChild(frag);
+    calibrateTreeRow();
     applyHeat();
   }
 
+  /**
+   * Уточнить высоту строки по факту. Формула промахивается: высота зависит
+   * от плотности и кегля, а промах виртуализации виден сразу — окно уезжает
+   * от полосы прокрутки.
+   */
+  function calibrateTreeRow() {
+    var rows = treeRows.children;
+    if (rows.length < 3) return;
+    var h = rows[1].getBoundingClientRect().height;
+    if (h > 10 && Math.abs(h - TREE_ROW_H) > 2) {
+      TREE_ROW_H = Math.round(h);
+      treeDrawn = '';
+    }
+  }
+
+  var treeTicking = false;
+  treeBox.addEventListener('scroll', function () {
+    if (treeTicking) return;
+    treeTicking = true;
+    requestAnimationFrame(function () {
+      treeTicking = false;
+      renderTreeWindow(false);
+    });
+  }, { passive: true });
+
+  /**
+   * Скрыта ли строка свёрнутой папкой.
+   *
+   * Раньше на каждый узел резался путь по «/» и собирался обратно —
+   * пять тысяч разрезов на каждый клик по папке. Теперь: если свёрнутых
+   * папок нет вовсе (обычный случай), ответ мгновенный; если есть — путь
+   * сравнивается с их списком по префиксу, без разрезания строк.
+   */
   function isHidden(n) {
     if (!n.dir) return false;
-    var parts = n.dir.split('/');
-    var acc = '';
-    for (var i = 0; i < parts.length; i++) {
-      acc = acc ? acc + '/' + parts[i] : parts[i];
-      if (app.collapsed[acc]) return true;
+    var keys = collapsedKeys;
+    if (!keys.length) return false;
+    for (var i = 0; i < keys.length; i++) {
+      var k = keys[i];
+      if (n.dir === k || (n.dir.length > k.length &&
+          n.dir.charCodeAt(k.length) === 47 && n.dir.lastIndexOf(k, 0) === 0)) {
+        return true;
+      }
     }
     return false;
+  }
+
+  // Список свёрнутых папок держим отдельно: Object.keys на каждый узел —
+  // это тысячи одинаковых обходов объекта за один клик.
+  var collapsedKeys = [];
+  function refreshCollapsed() {
+    collapsedKeys = Object.keys(app.collapsed).filter(function (k) { return app.collapsed[k]; });
   }
 
   function nodeRow(n, flat) {
@@ -946,35 +1128,84 @@
     return row;
   }
 
+  /**
+   * Тепловая подсветка. Обходит только **отрисованные** строки: их два-три
+   * десятка независимо от размера проекта. Раньше обходились все строки
+   * дерева — 30 мс на пяти тысячах файлов, каждую секунду и вдобавок на
+   * каждое файловое событие.
+   *
+   * Затухание считает CSS: строка получает время касания, а прозрачность
+   * выводится из него переходом. Поэтому таймер нужен только чтобы убирать
+   * остывшие записи, а не чтобы перерисовывать кадры.
+   */
   function applyHeat() {
+    if (!perf.heat) return;
     var now = Date.now();
-    Array.prototype.forEach.call(treeBox.querySelectorAll('.node'), function (row) {
+    var rows = treeRows.children;
+    for (var i = 0; i < rows.length; i++) {
+      var row = rows[i];
       var t = app.heat[row.dataset.path];
       if (!t) {
-        row.style.removeProperty('--heat');
-        row.classList.remove('is-hot');
-        return;
+        if (row.style.getPropertyValue('--heat')) {
+          row.style.removeProperty('--heat');
+          row.classList.remove('is-hot');
+        }
+        continue;
       }
       var age = now - t;
       if (age > HEAT_MS) {
         delete app.heat[row.dataset.path];
         row.style.removeProperty('--heat');
         row.classList.remove('is-hot');
-        return;
+        continue;
       }
       var v = 1 - age / HEAT_MS;
       row.style.setProperty('--heat', v.toFixed(3));
       row.classList.toggle('is-hot', v > 0.45);
-    });
+    }
   }
-  setInterval(applyHeat, 1000);
+
+  /**
+   * Убрать остывшие записи из памяти. Без этого объект тепла растёт вместе
+   * с числом тронутых файлов и не уменьшается никогда.
+   */
+  function sweepHeat() {
+    var now = Date.now();
+    var keys = Object.keys(app.heat);
+    for (var i = 0; i < keys.length; i++) {
+      if (now - app.heat[keys[i]] > HEAT_MS) delete app.heat[keys[i]];
+    }
+  }
+
+  var heatTimer = setInterval(function () {
+    sweepHeat();
+    applyHeat();
+  }, 1000);
 
   function touchFile(pathStr) {
     if (!pathStr) return;
     app.heat[pathStr] = Date.now();
-    if (!app.treeNodes.some(function (n) { return n.path === pathStr; })) scheduleTreeReload();
-    applyHeat();
+    // Раньше здесь был линейный поиск по всем узлам дерева на каждое
+    // файловое событие. При пяти тысячах файлов и двадцати событиях в
+    // секунду это сто тысяч сравнений в секунду впустую.
+    if (!treePaths.has(pathStr)) scheduleTreeReload();
+    heatDirty = true;
   }
+
+  // Пути дерева множеством — для мгновенной проверки «такой файл уже есть».
+  var treePaths = new Set();
+  function indexTreePaths() {
+    treePaths = new Set();
+    for (var i = 0; i < app.treeNodes.length; i++) treePaths.add(app.treeNodes[i].path);
+  }
+
+  // Подсветку не красим на каждое событие: копим признак и красим один раз
+  // в кадр. При шторме в двадцать событий это двадцать проходов вместо
+  // одного — при том что глазу хватает и одного.
+  (function heatLoop() {
+    if (heatDirty) { heatDirty = false; applyHeat(); }
+    requestAnimationFrame(heatLoop);
+  })();
 
   var treeReloadTimer = null;
   function scheduleTreeReload() {

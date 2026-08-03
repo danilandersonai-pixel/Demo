@@ -693,3 +693,7 @@ body.is-booting .head { animation-delay: 850ms; }
   }
   .resizer:hover::after, .resizer.is-dragging::after { background: var(--accent); }
 }
+
+/* Распорки виртуализированного дерева: держат высоту прокрутки за строки,
+   которых нет в разметке. Пустые блоки, ничего не рисуют. */
+.tree__spacer { flex: 0 0 auto; }

@@ -174,7 +174,13 @@
                   data-icon="refresh" data-copy-label="map.refresh"></button>
         </div>
       </header>
-      <div class="tree" id="tree"></div>
+      <!-- Дерево виртуализировано так же, как лента: в разметке живут
+           только видимые строки, высоту прокрутки держат распорки. -->
+      <div class="tree" id="tree">
+        <div class="tree__spacer" id="treeTop"></div>
+        <div id="treeRows"></div>
+        <div class="tree__spacer" id="treeBottom"></div>
+      </div>
       <p class="tree__hint" id="treeHint" data-copy="map.hint"></p>
     </section>
 
