@@ -841,8 +841,13 @@ function createServer(appOrRegistry, opts, sharedGuard) {
           note: 'Транскрипты не найдены — журнал прошлых сессий недоступен.'
         });
       }
-      return transcriptLib.describeSessions(dir, 40).then(function (list) {
-        sendJson(res, 200, { sessions: list, active: app.state.sessionId, dir: dir });
+      return transcriptLib.describeSessionsIndexed(dir, 40).then(function (r) {
+        sendJson(res, 200, {
+          sessions: r.sessions, active: app.state.sessionId, dir: dir,
+          // Видно, сколько взято из индекса, а сколько прочитано с диска:
+          // без этого непонятно, работает индекс или тихо простаивает.
+          index: { cached: r.fromIndex, read: r.read }
+        });
       }).catch(function (e) {
         sendJson(res, 500, { error: e.message });
       });

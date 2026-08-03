@@ -138,52 +138,71 @@ function newestSession(dir) {
  * Читаем только голову и хвост каждого файла — журнал на 50 сессий не должен
  * поднимать в память сотни мегабайт.
  */
+/**
+ * Описать один файл сессии: начало и конец, без полного чтения.
+ * Выделено отдельно, потому что индекс сессий переиспользует именно это —
+ * ему нужно уметь описать один файл, а не весь каталог.
+ */
+function describeOne(f) {
+  return Promise.all([
+    readHead(f.path, 96 * 1024).catch(function () { return ''; }),
+    readTail(f.path, 32 * 1024).catch(function () { return ''; })
+  ]).then(function (parts) {
+    var headLines = parts[0].split('\n');
+    var tailLines = parts[1].split('\n');
+
+    var firstTs = 0;
+    var firstPrompt = '';
+    var branch = null;
+    for (var i = 0; i < headLines.length; i++) {
+      var rec = tp.parseLine(headLines[i]);
+      if (!rec) continue;
+      if (!firstTs) firstTs = tp.tsOf(rec);
+      if (!branch && rec.gitBranch) branch = rec.gitBranch;
+      if (!firstPrompt) {
+        var p = tp.humanPrompt(rec);
+        if (p && p.trim()) firstPrompt = p.trim();
+      }
+      if (firstPrompt && branch && firstTs) break;
+    }
+
+    var lastTs = 0;
+    for (var j = tailLines.length - 1; j >= 0; j--) {
+      var r2 = tp.parseLine(tailLines[j]);
+      if (r2 && tp.tsOf(r2)) { lastTs = tp.tsOf(r2); break; }
+    }
+
+    return {
+      id: f.id,
+      file: f.path,
+      size: f.size,
+      mtime: f.mtime,
+      startedAt: firstTs || f.mtime,
+      endedAt: lastTs || f.mtime,
+      durationMs: (lastTs && firstTs) ? Math.max(0, lastTs - firstTs) : 0,
+      branch: branch,
+      firstPrompt: firstPrompt.slice(0, 300)
+    };
+  });
+}
+
 function describeSessions(dir, limit) {
   return listSessionFiles(dir).then(function (files) {
-    var take = files.slice(0, limit || 40);
-    return Promise.all(take.map(function (f) {
-      return Promise.all([
-        readHead(f.path, 96 * 1024).catch(function () { return ''; }),
-        readTail(f.path, 32 * 1024).catch(function () { return ''; })
-      ]).then(function (parts) {
-        var headLines = parts[0].split('\n');
-        var tailLines = parts[1].split('\n');
-
-        var firstTs = 0;
-        var firstPrompt = '';
-        var branch = null;
-        for (var i = 0; i < headLines.length; i++) {
-          var rec = tp.parseLine(headLines[i]);
-          if (!rec) continue;
-          if (!firstTs) firstTs = tp.tsOf(rec);
-          if (!branch && rec.gitBranch) branch = rec.gitBranch;
-          if (!firstPrompt) {
-            var p = tp.humanPrompt(rec);
-            if (p && p.trim()) firstPrompt = p.trim();
-          }
-          if (firstPrompt && branch && firstTs) break;
-        }
-
-        var lastTs = 0;
-        for (var j = tailLines.length - 1; j >= 0; j--) {
-          var r2 = tp.parseLine(tailLines[j]);
-          if (r2 && tp.tsOf(r2)) { lastTs = tp.tsOf(r2); break; }
-        }
-
-        return {
-          id: f.id,
-          file: f.path,
-          size: f.size,
-          mtime: f.mtime,
-          startedAt: firstTs || f.mtime,
-          endedAt: lastTs || f.mtime,
-          durationMs: (lastTs && firstTs) ? Math.max(0, lastTs - firstTs) : 0,
-          branch: branch,
-          firstPrompt: firstPrompt.slice(0, 300)
-        };
-      });
-    }));
+    return Promise.all(files.slice(0, limit || 40).map(describeOne));
   });
+}
+
+/**
+ * То же, но через индекс: файл, который не менялся, второй раз не читается.
+ * Раньше журнал сессий перечитывал по 128 КБ с каждого из сорока файлов на
+ * каждый запрос, а панель просит его раз в минуту.
+ */
+function describeSessionsIndexed(dir, limit, home) {
+  var index = require('./session-index');
+  return index.describe(
+    { listSessionFiles: listSessionFiles, describeOne: describeOne },
+    dir, limit, home
+  );
 }
 
 /**
@@ -440,6 +459,8 @@ module.exports = {
   listSessionFiles: listSessionFiles,
   newestSession: newestSession,
   describeSessions: describeSessions,
+  describeSessionsIndexed: describeSessionsIndexed,
+  describeOne: describeOne,
   readSession: readSession,
   readHead: readHead,
   readTail: readTail,
