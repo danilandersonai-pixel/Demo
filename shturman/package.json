@@ -17,9 +17,16 @@
     "start": "node server.js",
     "share": "node server.js --share",
     "check": "node server.js --check",
-    "test": "node --test \"tests/**/*.test.js\""
+    "test": "node --test \"tests/**/*.test.js\"",
+    "bench": "node bench/run.js",
+    "bench:quick": "node bench/run.js --quick"
   },
-  "keywords": ["claude-code", "dashboard", "russian", "observability"],
+  "keywords": [
+    "claude-code",
+    "dashboard",
+    "russian",
+    "observability"
+  ],
   "engines": {
     "node": ">=18"
   },
