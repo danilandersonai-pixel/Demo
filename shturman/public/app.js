@@ -2156,6 +2156,54 @@
     about.appendChild(al);
     body.appendChild(about);
 
+    // ── Скорость ────────────────────────────────────────────────────────
+    body.appendChild(el('h4', 'sec__title', C.settings.speed));
+    body.appendChild(el('p', 'dim', C.settings.speedNote));
+
+    body.appendChild(segRow(C.settings.profile, C.settings.profileNote[perf.profile] || '',
+      [['smooth', C.settings.profiles.smooth], ['thrifty', C.settings.profiles.thrifty],
+       ['weak', C.settings.profiles.weak], ['auto', C.settings.profiles.auto]],
+      perf.profile, function (v) {
+        if (v === 'auto') { applyPerf({ profile: 'auto' }); autoPickProfile(); }
+        else applyPerf({ profile: v });
+        // Тумблеры ниже принадлежат профилю — перерисовываем экран, чтобы
+        // они показывали правду, а не состояние прошлого профиля.
+        closeSheet(); openSettings();
+      }));
+    if (perf.profile === 'auto' && app.autoPick) {
+      body.appendChild(el('p', 'dim', C.settings.autoPicked(C.settings.profiles[app.autoPick])));
+    }
+
+    body.appendChild(toggleRow(C.settings.animations, C.settings.animationsNote,
+      perf.animations, function (v) { applyPerf({ animations: v }); }));
+    body.appendChild(toggleRow(C.settings.heatToggle, C.settings.heatToggleNote,
+      perf.heat, function (v) { applyPerf({ heat: v }); }));
+    body.appendChild(toggleRow(C.settings.bigDiffs, C.settings.bigDiffsNote,
+      perf.bigDiffs, function (v) { applyPerf({ bigDiffs: v }); }));
+    body.appendChild(toggleRow(C.settings.highlight, C.settings.highlightNote,
+      perf.highlight, function (v) { applyPerf({ highlight: v }); }));
+
+    body.appendChild(segRow(C.settings.feedLimit, C.settings.feedLimitNote,
+      [[300, '300'], [600, '600'], [1500, '1500']],
+      perf.feedLimit, function (v) { applyPerf({ feedLimit: Number(v) }); }));
+
+    body.appendChild(segRow(C.settings.frameRate, C.settings.frameRateNote,
+      [[0, C.settings.frameRates.instant], [500, C.settings.frameRates.calm],
+       [1000, C.settings.frameRates.rare]],
+      perf.frameMs, function (v) { applyPerf({ frameMs: Number(v) }); }));
+
+    // Диагностика: показатели и здоровье — отдельной кнопкой, чтобы
+    // настройки не превращались в приборную доску.
+    var diagRow = el('div', 'row');
+    var dl = el('div', 'row__label');
+    dl.appendChild(el('b', null, C.diag.title));
+    dl.appendChild(el('span', null, C.diag.note));
+    diagRow.appendChild(dl);
+    var diagBtn = el('button', 'btn row__control', C.diag.open);
+    diagBtn.addEventListener('click', function () { closeSheet(); openDiagnostics(); });
+    diagRow.appendChild(diagBtn);
+    body.appendChild(diagRow);
+
     // Проект: сменить папку можно в любой момент.
     var projRow = el('div', 'row');
     var prl = el('div', 'row__label');
@@ -2687,6 +2735,11 @@
   function renderState(s) {
     app.state = s;
     if (typeof s.openLast === 'boolean') app.openLast = s.openLast;
+    // Настройки скорости с сервера — чтобы они пережили смену браузера.
+    if (!app.perfFromServer && s.settings && s.settings.perf && s.settings.perf.profile) {
+      app.perfFromServer = true;
+      initPerf(s.settings.perf);
+    }
     else if (s.settings && typeof s.settings.openLast === 'boolean') app.openLast = s.settings.openLast;
     // Экран выбора показываем ровно один раз и только когда состояние
     // действительно пришло: решает сервер, а не таймер на старте.
@@ -2783,6 +2836,7 @@
 
     source.addEventListener('event', function (e) {
       var ev = JSON.parse(e.data);
+      noteLatency(ev);
       if (ev.file) touchFile(ev.file);
       if (ev.kind === 'session' && ev.action === 'resumed') clearAlarm();
       if (app.archive) { app.events.push(ev); return; }
@@ -2834,6 +2888,291 @@
   // ── 15. Управление, тур, приветствие, старт ───────────────────────────────
 
   $('btnDetail').addEventListener('click', function () { setDetailed(!app.detailed); });
+
+  // ── Диагностика ──────────────────────────────────────────────────────────
+
+  /**
+   * Живые показатели панели. Считаются всегда — они дешёвые, а без них
+   * человеку нечем подтвердить «тормозит» и нечего приложить к жалобе.
+   */
+  var health = {
+    frames: 0, fps: 0,
+    latencies: [],          // задержки «событие → экран», последние 50
+    eventsInWindow: 0, rate: 0,
+    longTasks: 0, longest: 0
+  };
+
+  (function healthLoop() {
+    health.frames++;
+    requestAnimationFrame(healthLoop);
+  })();
+
+  setInterval(function () {
+    health.fps = health.frames;
+    health.frames = 0;
+    health.rate = health.eventsInWindow;
+    health.eventsInWindow = 0;
+  }, 1000);
+
+  try {
+    new PerformanceObserver(function (list) {
+      list.getEntries().forEach(function (e) {
+        health.longTasks++;
+        if (e.duration > health.longest) health.longest = Math.round(e.duration);
+      });
+    }).observe({ entryTypes: ['longtask'] });
+  } catch (e) { /* браузер не умеет — обойдёмся без этой строки */ }
+
+  /** Записать задержку доставки события. */
+  function noteLatency(ev) {
+    health.eventsInWindow++;
+    if (!ev || !ev.ts) return;
+    var ms = Date.now() - ev.ts;
+    if (ms < 0 || ms > 60000) return;      // часы разъехались — не считаем
+    health.latencies.push(ms);
+    if (health.latencies.length > 50) health.latencies.shift();
+  }
+
+  function avgLatency() {
+    if (!health.latencies.length) return null;
+    var sum = 0;
+    for (var i = 0; i < health.latencies.length; i++) sum += health.latencies[i];
+    return Math.round(sum / health.latencies.length);
+  }
+
+  /** Зелёный / жёлтый / красный — и человеческое объяснение. */
+  function healthLevel() {
+    var lat = avgLatency();
+    if (health.fps < 30 || (lat !== null && lat > 1000)) return 'bad';
+    if (health.fps < 50 || health.longest > 100 || (lat !== null && lat > 300)) return 'warn';
+    return 'good';
+  }
+
+  function heapMb() {
+    return window.performance && performance.memory
+      ? Math.round(performance.memory.usedJSHeapSize / 1048576 * 10) / 10 : null;
+  }
+
+  function openDiagnostics() {
+    var body = openSheet(C.diag.title, 'gauge');
+    var level = healthLevel();
+
+    var card = el('div', 'card health health--' + level);
+    card.appendChild(el('b', null, C.diag.health.title));
+    card.appendChild(el('p', null, C.diag.health[level]));
+    body.appendChild(card);
+
+    var sec = section(body, C.diag.now);
+    var grid = el('div', 'diag');
+    var lat = avgLatency();
+    [[C.diag.fps, health.fps || C.diag.unknown],
+     [C.diag.latency, lat === null ? C.diag.unknown : C.diag.ms(lat)],
+     [C.diag.heap, heapMb() === null ? C.diag.unknown : C.diag.mb(heapMb())],
+     [C.diag.rate, health.rate],
+     [C.diag.dom, document.getElementsByTagName('*').length],
+     [C.diag.events, app.events.length],
+     [C.diag.profile, C.settings.profiles[perf.profile] || perf.profile]
+    ].forEach(function (r) {
+      var cell = el('div', 'diag__cell');
+      cell.appendChild(el('div', 'diag__value', String(r[1])));
+      cell.appendChild(el('div', 'diag__name', r[0]));
+      grid.appendChild(cell);
+    });
+    sec.appendChild(grid);
+
+    // Серверные показатели приходят отдельно: они у сервера, не у нас.
+    var srvBox = el('div');
+    sec.appendChild(srvBox);
+    api('/api/health').then(function (h) {
+      clear(srvBox);
+      var g2 = el('div', 'diag');
+      [[C.diag.server, C.diag.pct(h.cpuPercent)],
+       [C.diag.serverMem, C.diag.mb(h.rssMb)]].forEach(function (r) {
+        var cell = el('div', 'diag__cell');
+        cell.appendChild(el('div', 'diag__value', String(r[1])));
+        cell.appendChild(el('div', 'diag__name', r[0]));
+        g2.appendChild(cell);
+      });
+      srvBox.appendChild(g2);
+    }).catch(function () { /* без серверных цифр экран всё равно полезен */ });
+
+    var rep = section(body, C.diag.report);
+    rep.appendChild(el('p', 'dim', C.diag.reportNote));
+    var repBtn = el('button', 'btn btn--primary', C.diag.report);
+    repBtn.addEventListener('click', function () { downloadReport(); });
+    rep.appendChild(repBtn);
+
+    var rec = section(body, C.diag.recording);
+    rec.appendChild(el('p', 'dim', C.diag.recordingNote));
+    var recBtn = el('button', 'btn', C.diag.recordStart);
+    recBtn.addEventListener('click', function () { startRecording(recBtn); });
+    rec.appendChild(recBtn);
+  }
+
+  /** Отчёт о тормозах: замеры и настройки одним markdown-файлом. */
+  function buildReport(extra) {
+    var R = C.diag.report_;
+    var lat = avgLatency();
+    var heap = heapMb();
+    var lines = [
+      R.title, '',
+      '_' + new Date().toLocaleString('ru-RU') + '_', '',
+      R.metrics, '', R.head, R.sep,
+      R.row(C.diag.fps, health.fps || C.diag.unknown),
+      R.row(C.diag.latency, lat === null ? C.diag.unknown : C.diag.ms(lat)),
+      R.row(R.longest, C.diag.ms(health.longest || 0)),
+      R.row(R.longTotal, health.longTasks),
+      R.row(C.diag.rate, health.rate),
+      R.row(C.diag.heap, heap === null ? C.diag.unknown : C.diag.mb(heap)),
+      R.row(C.diag.dom, document.getElementsByTagName('*').length),
+      R.row(C.diag.events, app.events.length),
+      '', R.settings, '', '```json',
+      JSON.stringify(stripPerf(perf), null, 2), '```',
+      '', R.env, '',
+      '- ' + R.window + ': ' + window.innerWidth + '×' + window.innerHeight,
+      '- ' + R.dpr + ': ' + (window.devicePixelRatio || 1),
+      '- ' + R.browser + ': ' + navigator.userAgent,
+      '- ' + R.project + ': ' + (app.state ? app.state.project : C.diag.unknown),
+      '- ' + R.level + ': ' + (app.state ? app.state.level : C.diag.unknown)
+    ];
+    if (extra) {
+      lines.push('', R.recording, '', '```json', JSON.stringify(extra, null, 2), '```');
+    }
+    return lines.join('\n');
+  }
+
+  function downloadReport(extra) {
+    var blob = new Blob([buildReport(extra)], { type: 'text/markdown;charset=utf-8' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = C.diag.report_.fileName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
+    notice(C.diag.reportSaved);
+  }
+
+  /**
+   * «Запись тормозов»: тридцать секунд подробной телеметрии.
+   * Нужна там, где тормоза редкие: поймать их вживую иначе нечем.
+   */
+  function startRecording(btn) {
+    var samples = [];
+    var left = 30;
+    btn.disabled = true;
+    var startLong = health.longTasks;
+    var timer = setInterval(function () {
+      samples.push({
+        t: 30 - left, fps: health.fps, rate: health.rate,
+        latency: avgLatency(), heapMb: heapMb(),
+        dom: document.getElementsByTagName('*').length,
+        longTasks: health.longTasks - startLong, longest: health.longest
+      });
+      btn.textContent = C.diag.recordGoing(--left);
+      if (left > 0) return;
+      clearInterval(timer);
+      btn.disabled = false;
+      btn.textContent = C.diag.recordStart;
+      downloadReport({ seconds: 30, samples: samples });
+      notice(C.diag.recordDone);
+    }, 1000);
+  }
+
+  // ── Скорость: профили и их применение ────────────────────────────────────
+
+  /**
+   * Применить настройки скорости. Мгновенно, без перезапуска: всё, что
+   * дорого, спрашивает разрешения у объекта `perf` в момент отрисовки.
+   */
+  function applyPerf(patch, save) {
+    var switching = patch && patch.profile;
+    Object.assign(perf, patch || {});
+    if (switching && PERF_PROFILES[perf.profile]) {
+      Object.assign(perf, PERF_PROFILES[perf.profile]);
+    }
+    document.documentElement.dataset.anim = perf.animations ? 'on' : 'off';
+    document.documentElement.dataset.heat = perf.heat ? 'on' : 'off';
+
+    // Буфер урезаем сразу: иначе «Слабое устройство» начнёт помогать только
+    // после того, как старые события сами вытеснятся.
+    if (app.events.length > perf.feedLimit) {
+      app.events.splice(0, app.events.length - perf.feedLimit);
+      recomputeVisible();
+      drawnKey = '';
+      renderWindow();
+    }
+    if (!perf.heat) {
+      app.heat = {};
+      applyHeatClear();
+    } else {
+      heatDirty = true;
+    }
+    if (save !== false) {
+      store.set('perf', stripPerf(perf));
+      saveServerSettings({ perf: stripPerf(perf) });
+    }
+  }
+
+  /** Убрать подсветку со всех отрисованных строк — при выключении тепла. */
+  function applyHeatClear() {
+    var rows = treeRows.children;
+    for (var i = 0; i < rows.length; i++) {
+      rows[i].style.removeProperty('--heat');
+      rows[i].classList.remove('is-hot');
+    }
+  }
+
+  /** Только то, что имеет смысл хранить: без служебных полей. */
+  function stripPerf(o) {
+    return {
+      profile: o.profile, animations: o.animations, heat: o.heat,
+      feedLimit: o.feedLimit, frameMs: o.frameMs,
+      bigDiffs: o.bigDiffs, highlight: o.highlight
+    };
+  }
+
+  /**
+   * «Авто»: замерить частоту кадров в первые секунды и выбрать профиль.
+   *
+   * Замер идёт на реальной работе панели, а не на искусственной анимации:
+   * искусственная показала бы, на что машина способна вообще, а нам нужно,
+   * как ей даётся именно эта панель с этим объёмом данных.
+   */
+  /** Поднять сохранённый профиль при старте; если его нет — выбрать «Авто». */
+  function initPerf(saved) {
+    var src = saved || store.get('perf', null);
+    if (src && src.profile) {
+      Object.assign(perf, src);
+      applyPerf({}, false);
+      if (src.profile === 'auto') autoPickProfile();
+      return;
+    }
+    // Первый запуск: телефон стартует экономнее десктопа, дальше «Авто»
+    // уточнит по замеру.
+    Object.assign(perf, PERF_PROFILES[isNarrow() ? 'thrifty' : 'smooth']);
+    perf.profile = 'auto';
+    applyPerf({}, false);
+    autoPickProfile();
+  }
+
+  function autoPickProfile() {
+    var frames = 0;
+    var start = performance.now();
+    var DURATION = 2500;
+    (function count() {
+      frames++;
+      if (performance.now() - start < DURATION) return requestAnimationFrame(count);
+      var fps = frames / ((performance.now() - start) / 1000);
+      var pick = fps >= 50 ? 'smooth' : (fps >= 30 ? 'thrifty' : 'weak');
+      // На телефоне по умолчанию экономнее: батарея и слабее процессор.
+      if (isNarrow() && pick === 'smooth') pick = 'thrifty';
+      app.autoFps = Math.round(fps);
+      app.autoPick = pick;
+      Object.assign(perf, PERF_PROFILES[pick]);
+      applyPerf({}, false);
+    })();
+  }
 
   function setDetailed(v) {
     app.detailed = v;
@@ -3162,6 +3501,11 @@
       document.body.classList.remove('is-booting');
     }, 1700);
   })();
+
+  // Профиль скорости поднимаем до первой отрисовки: иначе слабая машина
+  // успеет отрисовать первый экран по-богатому и споткнуться ровно там,
+  // где человек впервые смотрит на панель.
+  initPerf(null);
 
   api('/api/projects').then(function (d) {
     var saved = store.get('project', null);
