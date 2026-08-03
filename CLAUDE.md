@@ -51,6 +51,7 @@ code in this repository.
 │   ├── DESIGN-AUDIT.md             — что было до редизайна и замеры доступности
 │   ├── COPY.md                     — как Штурман разговаривает
 │   ├── AUDIT.md                    — ревизия функций «было → стало»
+│   ├── PERF.md                     — замеры скорости, бюджеты, «до → после»
 │   ├── DECISIONS.md                — принятые решения с обоснованием
 │   ├── PROGRESS.md                 — состояние работы и что дальше
 │   ├── server.js                   — сервер на стандартной библиотеке Node
@@ -61,8 +62,9 @@ code in this repository.
 │   │                                 tokens.css + components.css + styles.css,
 │   │                                 copy.js (словарь), icons.js (значки),
 │   │                                 design.html (витрина), sw.js, offline.html
+│   ├── bench/                      — стенд скорости: нагрузка, замеры, атрибуция
 │   ├── tools/make-icons.js         — генератор значков: PNG, .ico, .icns
-│   └── tests/                      — 345 проверок на node:test + ручной аудит
+│   └── tests/                      — 371 проверка на node:test + ручной аудит
 └── yegor-diana-wedding/            — САМ САЙТ (публикуется в корень Pages)
     ├── index.html                  — вся разметка, одна страница (~670 строк)
     ├── favicon.svg                 — монограмма «Е&Д»
@@ -96,7 +98,8 @@ node --check yegor-diana-wedding/assets/js/main.js
 
 ```bash
 cd shturman
-npm test                 # 345 проверок на node:test — гонять перед коммитом
+npm test                 # 371 проверка на node:test — гонять перед коммитом
+npm run bench            # стенд скорости: должен сказать «все бюджеты выполнены»
 node tests/manual/newbie.js  # путь новичка целиком, ожидается 0 шагов в терминале
 node server.js --check   # самодиагностика окружения
 node server.js           # панель на http://127.0.0.1:4517
@@ -116,6 +119,10 @@ node tests/manual/design-probe.js   # контраст, кегли, зоны к�
 node tests/manual/design-motion.js  # движение, reduced-motion, отзывчивость — 10/10
 node tests/manual/design-shots.js   # снимки всех экранов на обеих ширинах
 ```
+
+Скорость держится бюджетами: `npm run bench` роняет прогон, если превышен
+любой из них. Правила «что можно и чего нельзя» — в разделе «Скорость»
+файла `shturman/README.md`, замеры и обоснования — в `shturman/PERF.md`.
 
 Оформление живёт по правилам из `shturman/DESIGN.md`: цвета — только в
 `public/tokens.css`, слова интерфейса — только в `public/copy.js`, значки —
