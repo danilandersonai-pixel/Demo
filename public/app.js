@@ -565,6 +565,23 @@
     if (total > 0) return;
     clear(feedEmpty);
 
+    // Пока снимок не пришёл, «Пока тихо» — неправда: событий может быть
+    // тысяча, они просто ещё едут. Показываем скелет вместо утверждения.
+    if (!app.gotSnapshot) {
+      var sk = el('div', 'skeleton');
+      for (var i = 0; i < 5; i++) {
+        var skRow = el('div', 'skeleton__row');
+        skRow.appendChild(el('span', 'skeleton__dot'));
+        var skCol = el('span', 'skeleton__lines');
+        skCol.appendChild(el('span', 'skeleton__line'));
+        skCol.appendChild(el('span', 'skeleton__line skeleton__line--short'));
+        skRow.appendChild(skCol);
+        sk.appendChild(skRow);
+      }
+      feedEmpty.appendChild(sk);
+      return;
+    }
+
     var block, act = null;
     if (app.query) {
       block = { icon: 'search', title: C.feed.emptySearch.title, text: C.feed.emptySearch.text(app.query) };
@@ -2851,6 +2868,7 @@
     source.addEventListener('snapshot', function (e) {
       var data = JSON.parse(e.data);
       app.offline = false;
+      app.gotSnapshot = true;
       renderState(data.state);
       if (data.git) renderGit(data.git);
       if (data.pulse) renderPulse(data.pulse);
@@ -2862,6 +2880,7 @@
       });
       if (!app.archive) rebuildFeed();
       refreshCheat();
+      if (app.bootReady) app.bootReady();
     });
 
     source.addEventListener('event', function (e) {
@@ -3517,19 +3536,29 @@
   setView(store.get('view', 'feed'));
   renderRose(null);
 
-  // Запуск приборов — один раз за открытие страницы, и только если человек
-  // не просил убрать движение.
+  /**
+   * Запуск приборов. Держался ровно 1 700 мс независимо от того, готовы
+   * данные или нет: на быстрой машине человек ждал заставку, которая уже
+   * ничего не прикрывала. Теперь она уходит по готовности — но не раньше
+   * 600 мс, иначе мигнёт и оставит ощущение сбоя, — и не позже 1 700 мс,
+   * чтобы медленный старт не превращался в бесконечную заставку.
+   */
+  var bootDone = false;
+  function finishBoot() {
+    if (bootDone) return;
+    bootDone = true;
+    $('boot').hidden = true;
+    document.body.classList.remove('is-booting');
+  }
+
   (function boot() {
-    var screen = $('boot');
-    if (reduceMotion) {
-      document.body.classList.remove('is-booting');
-      screen.hidden = true;
-      return;
-    }
-    setTimeout(function () {
-      screen.hidden = true;
-      document.body.classList.remove('is-booting');
-    }, 1700);
+    if (reduceMotion) return finishBoot();
+    var started = Date.now();
+    var MIN = 600;
+    app.bootReady = function () {
+      setTimeout(finishBoot, Math.max(0, MIN - (Date.now() - started)));
+    };
+    setTimeout(finishBoot, 1700);
   })();
 
   // Профиль скорости поднимаем до первой отрисовки: иначе слабая машина

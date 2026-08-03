@@ -842,3 +842,21 @@ pre.out--error { color: var(--bad-text); }
   animation-iteration-count: 1 !important;
   transition-duration: .001ms !important;
 }
+
+/* Скелет ленты: показывается, пока снимок ещё едет. Не «пусто», а «сейчас
+   будет» — утверждать «пока тихо» до прихода данных значит врать. */
+.skeleton { display: flex; flex-direction: column; gap: var(--s3); width: 100%; padding: var(--s3) 0; }
+.skeleton__row { display: flex; gap: var(--s3); align-items: flex-start; }
+.skeleton__dot {
+  width: 22px; height: 22px; flex: 0 0 auto;
+  border-radius: var(--r-pill);
+  background: var(--sunken);
+}
+.skeleton__lines { display: flex; flex-direction: column; gap: var(--s2); flex: 1 1 auto; }
+.skeleton__line { height: 12px; border-radius: var(--r-sm); background: var(--sunken); }
+.skeleton__line--short { width: 55%; }
+
+/* Мерцание — единственная анимация на скелете. Профиль «без анимаций» и
+   системная настройка «поменьше движения» гасят её общими правилами. */
+.skeleton__dot, .skeleton__line { animation: skeletonPulse 1.4s var(--ease) infinite; }
+@keyframes skeletonPulse { 50% { opacity: .45; } }
