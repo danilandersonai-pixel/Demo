@@ -266,3 +266,71 @@ test('бюджеты объявлены и проверяются прогоно
   assert.ok(/process\.exitCode = bad\.length \? 1 : 0/.test(src),
     'превышенный бюджет обязан ронять прогон, иначе тормоза копятся незаметно');
 });
+
+// ─── индекс сессий ────────────────────────────────────────────────────────
+
+test('индекс сессий не перечитывает то, что не менялось', async () => {
+  const index = require('../lib/session-index');
+  const home = tmpdir('sess');
+  index.clear(home);
+
+  let reads = 0;
+  const files = [
+    { path: '/x/a.jsonl', id: 'a', size: 100, mtime: 1000, mtimeMs: 1000 },
+    { path: '/x/b.jsonl', id: 'b', size: 200, mtime: 2000, mtimeMs: 2000 }
+  ];
+  const deps = {
+    listSessionFiles: () => Promise.resolve(files),
+    describeOne: (f) => { reads++; return Promise.resolve({ id: f.id, firstPrompt: 'ok' }); }
+  };
+
+  const first = await index.describe(deps, '/x', 40, home);
+  assert.strictEqual(first.read, 2, 'первый раз читаем оба файла');
+  assert.strictEqual(first.fromIndex, 0);
+
+  const second = await index.describe(deps, '/x', 40, home);
+  assert.strictEqual(second.read, 0, 'второй раз не читаем ничего');
+  assert.strictEqual(second.fromIndex, 2);
+  assert.strictEqual(reads, 2, 'описание файла вызвано ровно дважды за два запроса');
+  assert.deepStrictEqual(second.sessions.map((s) => s.id), ['a', 'b']);
+});
+
+test('изменившийся файл перечитывается', async () => {
+  const index = require('../lib/session-index');
+  const home = tmpdir('sess2');
+  let reads = 0;
+  let file = { path: '/x/a.jsonl', id: 'a', size: 100, mtime: 1000, mtimeMs: 1000 };
+  const deps = {
+    listSessionFiles: () => Promise.resolve([file]),
+    describeOne: (f) => { reads++; return Promise.resolve({ id: f.id, size: f.size }); }
+  };
+  await index.describe(deps, '/x', 40, home);
+  file = { path: '/x/a.jsonl', id: 'a', size: 500, mtime: 3000, mtimeMs: 3000 };  // дописали
+  const again = await index.describe(deps, '/x', 40, home);
+  assert.strictEqual(again.read, 1, 'дозапись обязана попасть в журнал');
+  assert.strictEqual(reads, 2);
+});
+
+test('индекс не растёт бесконечно', () => {
+  const index = require('../lib/session-index');
+  const home = tmpdir('sess3');
+  const big = { entries: {} };
+  for (let i = 0; i < index.MAX_ENTRIES + 120; i++) {
+    big.entries['k' + i] = { value: { id: i }, savedAt: i };
+  }
+  index.save(big, home);
+  assert.ok(Object.keys(index.load(home).entries).length <= index.MAX_ENTRIES);
+});
+
+test('битый индекс не роняет журнал', () => {
+  const index = require('../lib/session-index');
+  const home = tmpdir('sess4');
+  fs.writeFileSync(path.join(home, index.FILE_NAME), '{это не json');
+  assert.deepStrictEqual(index.load(home), { entries: {} });
+});
+
+test('индекс лежит в доме, а не в проекте', () => {
+  const index = require('../lib/session-index');
+  assert.ok(index.indexPath('/home/кто-то').indexOf('/home/кто-то') === 0);
+  assert.ok(index.FILE_NAME.charAt(0) === '.', 'служебный файл — скрытый');
+});
