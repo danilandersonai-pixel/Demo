@@ -3,6 +3,7 @@
 // собираются чистыми функциями, и тест смотрит на их содержимое.
 
 const test = require('node:test');
+const { after } = require('node:test');
 const assert = require('node:assert');
 const fs = require('fs');
 const os = require('os');
@@ -14,9 +15,22 @@ const projects = require('../lib/projects');
 const risk = require('../lib/risk');
 const config = require('../lib/config');
 
+// Временные каталоги тестов убираются за собой. Раньше не убирались, и
+// каждый прогон оставлял в /tmp несколько десятков папок: за одну рабочую
+// сессию их накопилось 1190. Ничего не ломалось, но мусор копился молча —
+// а молчаливое накопление и есть худший вид утечки.
+var madeDirs = [];
 function tmpdir(prefix) {
-  return fs.mkdtempSync(path.join(os.tmpdir(), 'shturman-' + prefix + '-'));
+  var dir = fs.mkdtempSync(path.join(os.tmpdir(), 'shturman-' + prefix + '-'));
+  madeDirs.push(dir);
+  return dir;
 }
+
+after(function () {
+  madeDirs.forEach(function (dir) {
+    try { fs.rmSync(dir, { recursive: true, force: true }); } catch (e) { /* уже нет */ }
+  });
+});
 
 // ─── замок: один экземпляр ────────────────────────────────────────────────
 
