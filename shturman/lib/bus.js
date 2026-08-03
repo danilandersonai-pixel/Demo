@@ -94,6 +94,29 @@ function createBus(options) {
     },
 
     all: function () { return buffer.slice(); },
+
+    /** Одно событие целиком, включая то, что не уходит по проводу. */
+    get: function (id) {
+      var want = Number(id);
+      for (var i = buffer.length - 1; i >= 0; i--) {
+        if (buffer[i].id === want) return buffer[i];
+      }
+      return null;
+    },
+
+    /**
+     * Кусок истории до указанного номера — для подгрузки прокруткой.
+     * Панель просит «дай мне ещё сотню до самого старого, что у меня есть».
+     */
+    before: function (id, limit) {
+      var want = Number(id) || 0;
+      var n = Math.max(1, Math.min(Number(limit) || 100, 500));
+      var out = [];
+      for (var i = buffer.length - 1; i >= 0 && out.length < n; i--) {
+        if (!want || buffer[i].id < want) out.push(buffer[i]);
+      }
+      return out.reverse();
+    },
     lastId: function () { return nextId - 1; },
     size: function () { return buffer.length; },
     clear: function () { buffer.length = 0; }
