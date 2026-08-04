@@ -1,0 +1,11 @@
+# зависимости и сборка
+node_modules/
+dist/
+*.tsbuildinfo
+*.local
+
+# данные и бэкапы реестра — никогда не попадают в git (риск R2)
+data/
+exports/
+*.vault.json
+identity-registry-backup*.json

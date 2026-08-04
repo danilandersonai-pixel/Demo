@@ -1,0 +1,78 @@
+@import './fonts.css';
+@import 'tailwindcss';
+
+/*
+ * Дизайн-система «коммутационная панель».
+ * Цвет кабеля кодирует критичность сервиса — это данные, а не украшение.
+ */
+@theme {
+  --color-panel-deep: #1b1916; /* фон за панелью */
+  --color-panel: #26231f; /* корпус панели */
+  --color-panel-raised: #2f2b25; /* приподнятые поверхности: карточки, поля */
+  --color-panel-edge: #3b352d; /* границы */
+  --color-brass: #b08d4f; /* латунь гнёзд, акценты */
+  --color-brass-dim: #7d6539;
+  --color-cable-critical: #c2452d;
+  --color-cable-normal: #3e7cb1;
+  --color-cable-disposable: #6b7a5e;
+  --color-ink: #ede7db; /* основной текст */
+  --color-ink-dim: #b0a693; /* приглушённый текст */
+  --color-danger: #d96a52; /* читаемый красный для текста на тёмном */
+
+  --font-display: 'Unbounded', system-ui, sans-serif;
+  --font-sans: 'Golos Text', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'Cascadia Mono', monospace;
+}
+
+@layer base {
+  html {
+    color-scheme: dark;
+  }
+
+  body {
+    @apply bg-panel-deep font-sans text-ink antialiased;
+  }
+
+  /* Видимый фокус клавиатуры — требование DoD, не украшение */
+  :focus-visible {
+    outline: 2px solid var(--color-brass);
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
+
+  ::selection {
+    background: var(--color-brass);
+    color: var(--color-panel);
+  }
+}
+
+/* Пульс проблемных кабелей на карте. Гасится при prefers-reduced-motion ниже. */
+@keyframes cable-alarm {
+  0%,
+  100% {
+    stroke-opacity: 1;
+  }
+  50% {
+    stroke-opacity: 0.45;
+  }
+}
+
+.cable-problem {
+  animation: cable-alarm 1.6s ease-in-out infinite;
+}
+
+/* Уважение к prefers-reduced-motion: вся анимация становится мгновенной */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .cable-problem {
+    animation: none;
+  }
+}
