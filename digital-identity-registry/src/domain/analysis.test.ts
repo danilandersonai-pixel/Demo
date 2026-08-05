@@ -153,14 +153,18 @@ describe('migrationPlan', () => {
     expect(gmailStep.dependents.map((s) => s.id)).toContain(bank.id)
   })
 
-  it('взаимные recovery двух почт не зацикливают обход', () => {
+  it('взаимные recovery двух почт не зацикливают обход, оба участника помечены', () => {
     const a = identity({ value: 'a@mail-a.ru' })
     const b = identity({ value: 'b@mail-b.ru' })
     const mailA = service({ emailId: b.id, recoveryEmailId: b.id, domain: 'mail-a.ru' })
     const mailB = service({ emailId: a.id, recoveryEmailId: a.id, domain: 'mail-b.ru' })
-    const plan = migrationPlan(vault([a, b], [mailA, mailB]))
-    expect(plan).toHaveLength(2)
-    expect(plan.some((s) => s.inCycle)).toBe(true)
+    const outside = identity({ value: 'x@elsewhere.ru' })
+    const plain = service({ emailId: outside.id, domain: 'plain.ru', name: 'Вне цикла' })
+    const plan = migrationPlan(vault([a, b, outside], [mailA, mailB, plain]))
+    expect(plan).toHaveLength(3)
+    expect(plan.filter((s) => s.inCycle).map((s) => s.service.id).sort()).toEqual(
+      [mailA.id, mailB.id].sort(),
+    )
   })
 })
 

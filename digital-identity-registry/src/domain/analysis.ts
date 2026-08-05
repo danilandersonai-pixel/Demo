@@ -193,16 +193,12 @@ export function migrationPlan(vault: VaultData): MigrationStep[] {
   // Циклы (взаимные recovery двух почт) не роняют обход: участник цикла
   // получает волну по уже посчитанной части и флаг inCycle.
   const wave = new Map<string, number>()
-  const inCycle = new Set<string>()
   const visiting = new Set<string>()
 
   const computeWave = (id: string): number => {
     const known = wave.get(id)
     if (known !== undefined) return known
-    if (visiting.has(id)) {
-      inCycle.add(id)
-      return 0
-    }
+    if (visiting.has(id)) return 0
     visiting.add(id)
     let w = 0
     for (const dep of deps.get(id) ?? []) {
@@ -213,6 +209,22 @@ export function migrationPlan(vault: VaultData): MigrationStep[] {
     return w
   }
   services.forEach((s) => computeWave(s.id))
+
+  // В цикле сервис, который через цепочку фундаментов дотягивается до себя.
+  // Помечаются ВСЕ участники цикла, а не только узел, где обход замкнулся.
+  const canReachSelf = (start: string): boolean => {
+    const seen = new Set<string>()
+    const stack = [...(deps.get(start) ?? [])]
+    while (stack.length > 0) {
+      const id = stack.pop()!
+      if (id === start) return true
+      if (seen.has(id)) continue
+      seen.add(id)
+      stack.push(...(deps.get(id) ?? []))
+    }
+    return false
+  }
+  const inCycle = new Set(services.filter((s) => canReachSelf(s.id)).map((s) => s.id))
 
   const migratedIds = new Set(
     vault.events.filter((e) => e.type === 'migrated' && e.serviceId).map((e) => e.serviceId),

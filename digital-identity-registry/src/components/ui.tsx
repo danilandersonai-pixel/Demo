@@ -117,7 +117,7 @@ export function Badge({
     neutral: 'border-panel-edge text-ink-dim',
     brass: 'border-brass/50 text-brass',
     danger: 'border-danger/60 text-danger',
-    ok: 'border-cable-disposable/70 text-[#9db38a]',
+    ok: 'border-cable-disposable/70 text-moss',
   }[tone]
   return (
     <span className={`inline-block rounded-full border px-2 py-0.5 text-xs whitespace-nowrap ${tones}`}>

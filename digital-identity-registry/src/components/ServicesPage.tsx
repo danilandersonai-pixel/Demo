@@ -410,7 +410,7 @@ function ServiceForm({ service, onClose }: { service: Service | null; onClose: (
                   type="checkbox"
                   checked={draft.dataGiven.includes(value as DataKind)}
                   onChange={() => toggleData(value as DataKind)}
-                  className="size-4 accent-[#b08d4f]"
+                  className="size-4 accent-brass"
                 />
                 {label}
               </label>

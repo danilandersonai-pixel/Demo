@@ -116,7 +116,7 @@ export function LockScreen({ mode }: { mode: 'create' | 'unlock' }) {
                 type="checkbox"
                 checked={understood}
                 onChange={(e) => setUnderstood(e.target.checked)}
-                className="mt-0.5 size-4 accent-[#b08d4f]"
+                className="mt-0.5 size-4 accent-brass"
               />
               Понимаю, что пароль не восстанавливается, и буду делать экспорт бэкапа.
             </label>

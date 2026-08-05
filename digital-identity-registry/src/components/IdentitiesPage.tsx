@@ -46,14 +46,14 @@ export function IdentitiesPage() {
   }, [vault.identities, search, kindFilter, statusFilter])
 
   const remove = async (identity: Identity) => {
-    const logins = loginServicesOf(vault, identity.id)
-    const recoveries = recoveryServicesOf(vault, identity.id)
-    if (logins.length + recoveries.length > 0) {
+    const used = [
+      ...new Set([...loginServicesOf(vault, identity.id), ...recoveryServicesOf(vault, identity.id)]),
+    ]
+    if (used.length > 0) {
+      const names = used.map((s) => s.name)
+      const listed = names.slice(0, 5).join(', ') + (names.length > 5 ? '…' : '')
       alert(
-        `Нельзя удалить: личность используется в ${logins.length + recoveries.length} сервисах (${[...logins, ...recoveries]
-          .map((s) => s.name)
-          .slice(0, 5)
-          .join(', ')}…). Сначала перенесите их на другой адрес.`,
+        `Нельзя удалить: личность используется в сервисах (${listed}). Сначала перенесите их на другой адрес.`,
       )
       return
     }
@@ -267,7 +267,7 @@ function IdentityForm({ identity, onClose }: { identity: Identity | null; onClos
             type="checkbox"
             checked={draft.isAlias}
             onChange={(e) => setDraft({ ...draft, isAlias: e.target.checked })}
-            className="size-4 accent-[#b08d4f]"
+            className="size-4 accent-brass"
           />
           Это алиас (адрес, выданный алиас-сервисом или «плюсовый»)
         </label>
