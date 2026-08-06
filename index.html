@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Vibe Coding Journal</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">
+        <span class="logo">◉</span>
+        <h1>Vibe Coding Journal</h1>
+      </div>
+      <div class="actions">
+        <input
+          id="search"
+          type="search"
+          placeholder="Поиск по записям, промптам, тегам…"
+          autocomplete="off"
+        />
+        <button id="export-btn" class="ghost" title="Экспорт в JSON">⇪ Экспорт</button>
+        <label class="ghost" title="Импорт JSON">
+          ⇩ Импорт
+          <input id="import-input" type="file" accept="application/json" hidden />
+        </label>
+      </div>
+    </header>
+
+    <main class="layout">
+      <section class="editor card">
+        <h2>Новая запись</h2>
+        <form id="entry-form">
+          <div class="row">
+            <label class="field">
+              <span>Дата</span>
+              <input id="entry-date" type="date" required />
+            </label>
+            <label class="field">
+              <span>Теги</span>
+              <input
+                id="entry-tags"
+                type="text"
+                placeholder="react, refactor, claude"
+              />
+            </label>
+          </div>
+
+          <label class="field">
+            <span>Что кодил + инсайты</span>
+            <textarea
+              id="entry-notes"
+              rows="8"
+              placeholder="Над чем работал, что получилось, что понял…"
+              required
+            ></textarea>
+          </label>
+
+          <fieldset class="prompts">
+            <legend>Удачные AI-промпты</legend>
+            <div id="prompts-list"></div>
+            <button type="button" id="add-prompt" class="ghost">+ Добавить промпт</button>
+          </fieldset>
+
+          <div class="form-actions">
+            <button type="button" id="cancel-edit" class="ghost" hidden>Отмена</button>
+            <button type="submit" id="save-btn" class="primary">Сохранить</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="feed">
+        <div class="feed-header">
+          <h2>Лента</h2>
+          <span id="stats" class="muted"></span>
+        </div>
+        <div id="entries"></div>
+        <p id="empty" class="muted empty-state" hidden>
+          Пока пусто. Запиши, над чем сегодня кодил.
+        </p>
+      </section>
+    </main>
+
+    <template id="entry-template">
+      <article class="entry card">
+        <header class="entry-head">
+          <div>
+            <time class="entry-date"></time>
+            <div class="tags"></div>
+          </div>
+          <div class="entry-actions">
+            <button class="ghost edit-btn" title="Редактировать">✎</button>
+            <button class="ghost delete-btn" title="Удалить">✕</button>
+          </div>
+        </header>
+        <div class="entry-notes"></div>
+        <div class="entry-prompts"></div>
+      </article>
+    </template>
+
+    <template id="prompt-template">
+      <div class="prompt-row">
+        <input class="prompt-title" type="text" placeholder="Краткое название" />
+        <textarea class="prompt-body" rows="3" placeholder="Текст промпта"></textarea>
+        <button type="button" class="ghost remove-prompt" title="Удалить">✕</button>
+      </div>
+    </template>
+
+    <script src="app.js"></script>
+  </body>
+</html>
