@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="ru" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Гибрид · Главный · вариант В</title>
+<link rel="stylesheet" href="hybrid.css">
+<style>
+  .layout { display: grid; grid-template-columns: 1.45fr 1fr 1fr; gap: 16px; align-items: start; }
+  @media (max-width: 900px) { .layout { grid-template-columns: 1fr; } }
+  .col { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+  .hero {
+    display: flex; align-items: center; gap: 22px; flex-wrap: wrap;
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: var(--r); padding: 18px 22px; margin-bottom: 16px;
+    box-shadow: var(--shadow);
+  }
+  .dial { position: relative; width: 120px; height: 120px; flex: 0 0 auto; }
+  .dial svg { width: 100%; height: 100%; display: block; }
+  .dial .word { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; }
+  .dial .word b { font-family: var(--serif); font-weight: 500; font-size: 16px; display: block; }
+  .dial .word span { font-size: 9.5px; color: var(--dim); display: block; margin-top: 1px; }
+  .hero-info { flex: 1 1 320px; min-width: 0; }
+  .nowline { font-size: 16px; margin: 0 0 8px; }
+  .nowline .cmd { font-family: var(--mono); font-size: 13.5px; background: var(--sunken); border-radius: 6px; padding: 1px 8px; }
+  .advice { display: inline-flex; align-items: center; gap: 9px; background: var(--brass-soft);
+    border-radius: 999px; padding: 5px 15px; font-size: 13px; }
+  .advice::before { content: "☸"; color: var(--brass); }
+  .chips { margin-top: 10px; display: flex; gap: 8px; flex-wrap: wrap; }
+  .chip { font-size: 12.5px; background: var(--panel-2); border: 0; color: var(--ink);
+    border-radius: 999px; padding: 5px 13px; }
+  .feedhead { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
+  .feedhead .field { flex: 1 1 160px; }
+
+  /* Группа помощника: шаги субагента вложены под карточку запуска,
+     с направляющей линией. Свёрнуты по умолчанию — ветка помощника
+     не смешивается с шагами самого Клода. */
+  .agent-steps {
+    grid-column: 2 / span 2; margin-top: 6px;
+    border-left: 2px solid var(--line); padding-left: 12px;
+    display: flex; flex-direction: column; gap: 2px;
+  }
+  .astep { display: flex; gap: 8px; align-items: baseline; font-size: 13px; color: var(--dim); }
+  .astep .atm { margin-left: auto; font-size: 11.5px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .amore {
+    font-size: 12.5px; color: var(--dim); background: none; border: 0;
+    padding: 3px 0 0; cursor: pointer; text-align: left; font-family: var(--sans);
+  }
+  .amore:hover { color: var(--ink); }
+  .agent-head { display: flex; align-items: center; gap: 8px; min-width: 0; flex-wrap: wrap; }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <div class="chrome">
+    <div class="brand">Штурман<small>/home/user/site-company</small></div>
+    <div class="tabs">
+      <a class="tab on" href="main.html">Лента</a>
+      <a class="tab" href="map.html">Карта</a>
+      <a class="tab" href="git.html">Git</a>
+      <a class="tab" href="diary.html">Дневник</a>
+      <a class="tab" href="glossary.html">Словарь</a>
+      <a class="tab" href="settings.html">Настройки</a>
+    </div>
+    <button class="themeToggle" id="tt" type="button">Тема: ночь ◐</button>
+  </div>
+
+  <div class="hero">
+    <div class="dial" role="img" aria-label="Картушка: работает">
+      <svg viewBox="0 0 120 120" fill="none">
+        <circle cx="60" cy="60" r="56" stroke="var(--brass)" stroke-width="1.5"/>
+        <circle cx="60" cy="60" r="50" stroke="var(--line)" stroke-width="1"/>
+        <g stroke="var(--dim)" opacity=".55" stroke-width="1">
+          <line x1="60" y1="5"  x2="60" y2="12"/><line x1="60" y1="108" x2="60" y2="115"/>
+          <line x1="5"  y1="60" x2="12" y2="60"/><line x1="108" y1="60" x2="115" y2="60"/>
+        </g>
+        <path stroke="var(--sea)" stroke-width="3" stroke-linecap="round"
+          d="M 60 10 A 50 50 0 0 1 103.3 35"/>
+      </svg>
+      <div class="word"><div><b>Работает</b><span>Claude Code в деле</span></div></div>
+    </div>
+    <div class="hero-info">
+      <p class="nowline">Клод запустил <span class="cmd">npm test</span> — проверяет, работают ли тесты</p>
+      <span class="advice">Хороший ход. Вмешиваться не нужно.</span>
+      <div class="chips" aria-label="Шпаргалка">
+        <button class="chip" type="button">Коммит</button>
+        <button class="chip" type="button">Ветка</button>
+        <button class="chip" type="button">Тесты</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="layout">
+
+    <div class="col">
+      <div class="pane">
+        <h4>Что происходит</h4>
+        <div class="feedhead">
+          <div class="field"><span>⌕</span><input placeholder="Поиск по ленте" aria-label="Поиск по ленте"></div>
+          <div class="pills">
+            <button class="pill on" type="button">Всё</button>
+            <button class="pill" type="button">Правки</button>
+            <button class="pill" type="button">Команды</button>
+            <button class="pill" type="button">Ошибки</button>
+          </div>
+        </div>
+        <div class="feed">
+          <div class="ev">
+            <span class="ico">›_</span>
+            <span class="t">Клод запустил npm test — проверяет, работают ли тесты</span>
+            <span class="tm">14:02</span>
+            <div class="body">
+              <div class="cmdline">$ npm test</div>
+              <div class="status busy"><span class="dot"></span>Выполняется…</div>
+            </div>
+          </div>
+          <div class="ev">
+            <span class="ico ok">✎</span>
+            <span class="t">Клод изменил main.js <span class="stat-add">+4</span> <span class="stat-del">−2</span></span>
+            <span class="tm">14:03</span>
+            <div class="body">
+              <div class="mini">
+                <div class="dln ctx"><span class="s"> </span>var timer = start();</div>
+                <div class="dln del"><span class="s">−</span>var delay = 400;</div>
+                <div class="dln add"><span class="s">+</span>var delay = 120;</div>
+                <div class="dskip">⋯ 9 строк без изменений</div>
+              </div>
+            </div>
+          </div>
+          <div class="ev">
+            <span class="ico bad">△</span>
+            <span class="t">Ошибка: команда в терминале не сработала</span>
+            <span class="tm">14:04</span>
+            <span class="h">Клод, скорее всего, попробует иначе — это нормальная часть работы.</span>
+          </div>
+          <div class="ev">
+            <span class="ico">⌁</span>
+            <span class="t">Клод обратился к сервису GitHub: list pull requests</span>
+            <span class="tm">14:05</span>
+            <span class="h">Передал: repo · owner · state</span>
+          </div>
+          <div class="ev">
+            <span class="ico">⑂</span>
+            <span class="t"><span class="agent-head">Клод позвал помощника: проверить вёрстку шапки
+              <span class="badge ok">работает</span></span></span>
+            <span class="tm">14:06</span>
+            <span class="h">Отдельный агент решает подзадачу параллельно. Его шаги — ниже, отдельной веткой.</span>
+            <div class="agent-steps">
+              <div class="astep"><span>Помощник: читает Header.tsx</span><span class="atm">14:06</span></div>
+              <div class="astep"><span>Помощник: запустил npm test — проверяет, работают ли тесты</span><span class="atm">14:07</span></div>
+              <button class="amore" type="button">▸ Ещё 3 шага помощника</button>
+            </div>
+          </div>
+          <div class="ev think">
+            <span class="ico">…</span>
+            <span class="t">Клод думает</span>
+            <span class="tm">14:08</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="pane">
+        <h4>Карта проекта</h4>
+        <div class="field" style="margin-bottom:10px"><span>⌕</span><input placeholder="Поиск по файлам" aria-label="Поиск по файлам"></div>
+        <div class="tree">
+          <div class="trow"><span class="tico">▾</span><span class="tname">src</span></div>
+          <div class="trow tind-1"><span class="tico">▾</span><span class="tname">components</span></div>
+          <div class="trow tind-2 fresh"><span class="tico">·</span><span class="tname">Header.tsx</span><span class="tmeta">только что</span></div>
+          <div class="trow tind-2"><span class="tico">·</span><span class="tname">Footer.tsx</span></div>
+          <div class="trow tind-1"><span class="tico">▸</span><span class="tname">utils</span></div>
+          <div class="trow tind-1 fresh"><span class="tico">·</span><span class="tname">format.ts</span><span class="tmeta">3 мин</span></div>
+          <div class="trow tind-1"><span class="tico">·</span><span class="tname">api.ts</span></div>
+          <div class="trow tind-1"><span class="tico">·</span><span class="tname">dates.ts</span></div>
+          <div class="trow"><span class="tico">▾</span><span class="tname">tests</span></div>
+          <div class="trow tind-1 fresh"><span class="tico">·</span><span class="tname">header.test.tsx</span><span class="tmeta">12 мин</span></div>
+          <div class="trow tind-1"><span class="tico">·</span><span class="tname">format.test.ts</span></div>
+          <div class="trow"><span class="tico">·</span><span class="tname">package.json</span></div>
+          <div class="trow"><span class="tico">·</span><span class="tname">tsconfig.json</span></div>
+          <div class="trow"><span class="tico">·</span><span class="tname">README.md</span></div>
+        </div>
+        <p class="note" style="margin:10px 4px 0">Свежие изменения подсвечиваются и постепенно гаснут.</p>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="pane">
+        <h4>Git</h4>
+        <div class="kv"><span>Ветка</span><b>main</b></div>
+        <div class="kv"><span>Не сохранено</span><b>3 файла</b></div>
+        <div class="kv"><span>Последний коммит</span><b>12 мин назад</b></div>
+        <p class="note" style="margin:10px 4px 0">Ветка — отдельная линия работы. Изменения в ней не мешают остальным.</p>
+      </div>
+      <div class="pane">
+        <h4>Дневник сессии</h4>
+        <div class="count">
+          <div class="cnt"><b>114</b><span>файлов затронуто</span></div>
+          <div class="cnt"><b>887</b><span>команд выполнено</span></div>
+          <div class="cnt badnum"><b>3</b><span>ошибки замечено</span></div>
+          <div class="cnt"><b>1 ч 28 м</b><span>длится сессия</span></div>
+        </div>
+        <div class="kv" style="margin-top:10px"><span>Токенов занято</span><b>41%</b></div>
+        <div class="meter"><i style="width:41%"></i></div>
+      </div>
+      <div class="pane">
+        <h4>Прошлые сессии</h4>
+        <div class="kv"><span><b style="font-family:var(--serif);font-weight:500">Сегодня, 12:38</b> <span class="badge att">сейчас</span></span><b>1 ч 28 м</b></div>
+        <div class="kv"><span>Вчера, 18:40</span><b>42 мин</b></div>
+        <div class="kv"><span>6 августа</span><b>55 мин</b></div>
+        <p class="note" style="margin:10px 4px 0">Нажмите на сессию, чтобы посмотреть её ленту.</p>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script src="theme.js"></script>
+</body>
+</html>
