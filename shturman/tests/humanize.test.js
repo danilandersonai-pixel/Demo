@@ -232,3 +232,22 @@ test('statsLabel и statsHint пустые, когда считать нечег
   assert.strictEqual(hz.statsHint(null), '');
   assert.strictEqual(hz.statsLabel({ added: 2, removed: 1 }), '+2 −1');
 });
+
+test('humanize: MCP-вызов называет сервис и действие по-русски', () => {
+  const h = hz.humanize({
+    kind: 'tool', action: 'mcp', tool: 'mcp__github__list_pull_requests', args: {}
+  });
+  assert.match(h.title, /сервису GitHub: list pull requests/);
+  assert.strictEqual(h.icon, '🔌');
+
+  const parts = hz.mcpParts('mcp__google-drive__search_files');
+  assert.strictEqual(parts.service, 'google drive');
+  assert.strictEqual(parts.method, 'search files');
+
+  // UUID вместо имени сервиса — честное «внешний сервис» без абракадабры.
+  const blind = hz.humanize({
+    kind: 'tool', action: 'mcp',
+    tool: 'mcp__bf7c680d-5fdc-5ef4-b4a0-abadb619bf0a__add_repo', args: {}
+  });
+  assert.match(blind.title, /внешнему сервису/);
+});

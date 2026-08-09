@@ -193,6 +193,44 @@ function toolRu(name) {
   return name;
 }
 
+// Витрины известных сервисов: узнаваемое имя вместо технического.
+// Незнакомый сервис показывается своим именем без выдумок.
+var MCP_SERVICE_RU = {
+  github: 'GitHub',
+  gitlab: 'GitLab',
+  slack: 'Slack',
+  gmail: 'Gmail',
+  notion: 'Notion',
+  linear: 'Linear',
+  jira: 'Jira',
+  figma: 'Figma',
+  filesystem: 'файлы',
+  memory: 'память',
+  puppeteer: 'браузер',
+  playwright: 'браузер'
+};
+
+/**
+ * Разбор имени MCP-инструмента: mcp__github__list_issues →
+ * { service: 'GitHub', method: 'list issues' }. Дефисы и подчёркивания
+ * становятся пробелами; длинные UUID-имена серверов не считаются сервисом.
+ */
+function mcpParts(name) {
+  var s = String(name || '');
+  if (s.indexOf('mcp__') !== 0) return { service: '', method: '' };
+  var parts = s.split('__');
+  var rawService = parts[1] || '';
+  var service = MCP_SERVICE_RU[rawService.toLowerCase()] ||
+    rawService.replace(/[-_]+/g, ' ').trim();
+  // Служебные идентификаторы вместо имён (UUID и похожее) не показываем
+  // как «сервис» — карточка честно скажет «внешний сервис».
+  if (/^[0-9a-f-]{16,}$/i.test(rawService)) service = '';
+  var method = parts.length > 2
+    ? parts.slice(2).join('_').replace(/[-_]+/g, ' ').trim()
+    : '';
+  return { service: service, method: method };
+}
+
 // «+42 −7» для правок.
 function statsLabel(stats) {
   if (!stats) return '';
@@ -400,13 +438,25 @@ function humanizeTool(ev) {
         level: 'info'
       };
 
-    case 'mcp':
+    case 'mcp': {
+      var mcp = mcpParts(ev.tool);
+      if (!mcp.service) {
+        return {
+          icon: '🔌',
+          title: 'Клод обратился к внешнему сервису',
+          hint: toolRu(ev.tool) + '. Это подключённый к Клоду сторонний инструмент.',
+          level: 'info'
+        };
+      }
       return {
         icon: '🔌',
-        title: 'Клод обратился к внешнему сервису',
-        hint: toolRu(ev.tool) + '. Это подключённый к Клоду сторонний инструмент.',
+        title: 'Клод обратился к сервису ' + mcp.service +
+          (mcp.method ? ': ' + mcp.method : ''),
+        hint: 'Внешний сервис — сторонний инструмент, подключённый к Клоду. ' +
+          'Что передали и что пришло в ответ — по нажатию на карточку.',
         level: 'info'
       };
+    }
 
     default:
       return {
@@ -615,6 +665,7 @@ module.exports = {
   explainCommand: explainCommand,
   commandLabel: commandLabel,
   toolRu: toolRu,
+  mcpParts: mcpParts,
   statsLabel: statsLabel,
   statsHint: statsHint,
   humanize: humanize,

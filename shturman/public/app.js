@@ -551,24 +551,19 @@
     return box;
   }
 
-  // Крошки внешнего сервиса: mcp__github__list_issues →
-  // «Внешний сервис › github › list issues».
+  // Тело MCP-карточки: сервис и действие уже названы в заголовке
+  // (сервер, humanize), поэтому тело показывает, ЧТО передали, — имена
+  // параметров вызова. Значения — в подробностях по клику.
   function mcpBody(ev) {
-    var parts = String(ev.tool || '').split('__');
-    if (parts.length < 2 || !parts[1]) return null;
+    var keys = ev.args ? Object.keys(ev.args) : [];
+    if (!keys.length) return null;
     var box = el('div', 'ev__body ev__crumbs');
-    box.appendChild(el('span', 'crumb', C.feed.mcpRoot));
-    box.appendChild(el('span', 'crumb__sep', '›'));
-    box.appendChild(el('span', 'crumb', crumbWords(parts[1])));
-    if (parts[2]) {
-      box.appendChild(el('span', 'crumb__sep', '›'));
-      box.appendChild(el('span', 'crumb crumb--method', crumbWords(parts.slice(2).join('_'))));
-    }
+    box.appendChild(el('span', 'crumb', C.feed.mcpArgs));
+    keys.slice(0, 6).forEach(function (k) {
+      box.appendChild(el('span', 'crumb crumb--method', k));
+    });
+    if (keys.length > 6) box.appendChild(el('span', 'crumb__sep', '⋯'));
     return box;
-  }
-
-  function crumbWords(s) {
-    return String(s || '').replace(/[-_]+/g, ' ').trim();
   }
 
   /**
@@ -600,8 +595,11 @@
 
   function timeLabel(ev) {
     var t = clock(ev.ts);
-    var stats = ev.result && ev.result.stats ? ev.result.stats : null;
-    if (stats) t += '  +' + stats.added + ' −' + stats.removed;
+    // Точные счётчики из результата — только когда у заголовка нет своих
+    // цифр (после привязки это один и тот же объект). Иначе рядом стояли бы
+    // «(+10 −6)» приблизительно и «+4 −0» точно — два разных числа об одном.
+    var precise = ev.result && ev.result.stats ? ev.result.stats : null;
+    if (precise && ev.stats === precise) t += '  +' + precise.added + ' −' + precise.removed;
     return t;
   }
 
@@ -879,6 +877,27 @@
     if (feedFlushQueued) requestAnimationFrame(flushFeed);
     heatDirty = true;
   });
+
+  /**
+   * Привязка результатов к вызовам в пачке событий. Живой поток делает это
+   * по одному в annotateCall, а снимок и архив приходят разом — без этой
+   * прогонки все вызовы снимка выглядели бы «выполняющимися».
+   */
+  function linkResults(list) {
+    var calls = {};
+    for (var i = 0; i < list.length; i++) {
+      var ev = list[i];
+      if (ev.kind === 'tool' && ev.toolUseId) {
+        calls[ev.toolUseId] = ev;
+      } else if (ev.kind === 'result' && ev.toolUseId) {
+        var call = calls[ev.toolUseId];
+        if (call) {
+          call.result = ev;
+          if (ev.stats && !call.stats) call.stats = ev.stats;
+        }
+      }
+    }
+  }
 
   function annotateCall(result) {
     var call = null;
@@ -2820,8 +2839,11 @@
         if (s.id === data.active) top.appendChild(el('span', 'badge badge--act', C.pulse.now));
         item.appendChild(top);
         if (s.firstPrompt) item.appendChild(el('div', 'session__prompt', s.firstPrompt));
+        // Хвост идентификатора — мостик к имени файла транскрипта: по нему
+        // сессию можно найти в папке ~/.claude/projects, если понадобится.
         item.appendChild(el('div', 'session__meta',
-          (s.branch ? s.branch + ' · ' : '') + duration(s.durationMs) + ' · ' + bytes(s.size)));
+          (s.branch ? s.branch + ' · ' : '') + duration(s.durationMs) + ' · ' + bytes(s.size) +
+          (s.id ? ' · …' + String(s.id).slice(-8) : '')));
         item.addEventListener('click', function () { openArchive(s); });
         box.appendChild(item);
       });
@@ -2835,6 +2857,7 @@
     if (app.state && s.id === app.state.sessionId) { exitArchive(); return; }
     api('/api/session/' + encodeURIComponent(s.id)).then(function (data) {
       if (data.error) { notice(data.error); return; }
+      linkResults(data.events || []);
       app.archive = data;
       rebuildFeed();
       showArchiveBar(s, data);
@@ -3015,6 +3038,7 @@
         if (ev.title) app.lastTitle = ev.title;
         if (ev.file) app.heat[ev.file] = ev.ts;
       });
+      linkResults(app.events);
       if (!app.archive) rebuildFeed();
       refreshCheat();
       if (app.bootReady) app.bootReady();
