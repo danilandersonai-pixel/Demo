@@ -392,6 +392,9 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .rose[data-state="working"] .dial__sweep { animation: none; }
   .rose[data-state="waiting"] .dial__halo { animation: none; opacity: .5; }
+  /* Пульс «Выполняется…» замирает: состояние остаётся различимым точкой
+     и словом. */
+  .ev__status--busy .ev__status-dot { animation: none; }
 }
 
 @keyframes roseSweep { to { transform: rotate(360deg); } }
@@ -571,6 +574,82 @@ body {
   from { opacity: 0; transform: translateY(-6px); }
   to   { opacity: 1; transform: none; }
 }
+
+/* Тело карточки: у команды — сама команда, у правки — мини-дифф, у
+   внешнего сервиса — путь-крошки. В компактной плотности тела спрятаны:
+   обещание «влезает больше» важнее, а полная картина всегда по клику. */
+.ev__body {
+  grid-column: 2 / span 2;
+  margin-top: var(--s1);
+  min-width: 0;
+}
+:root[data-density="compact"] .ev__body { display: none; }
+
+.ev__cmd {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-family: var(--font-mono);
+  font-size: var(--t-fine);
+  color: var(--text-dim);
+  background: var(--sunken);
+  border-radius: var(--r-sm);
+  padding: var(--s1) var(--s3);
+  overflow-wrap: anywhere;
+}
+
+.ev__diff {
+  font-family: var(--font-mono);
+  font-size: var(--t-fine);
+  background: var(--sunken);
+  border-radius: var(--r-sm);
+  padding: var(--s1) 0;
+  overflow: hidden;
+}
+.diff__skip {
+  padding: 0 var(--s3);
+  color: var(--text-dim);
+  font-size: var(--t-fine);
+  text-align: center;
+  font-family: var(--font-text);
+}
+
+/* Строка состояния: пульс «Выполняется…» или «Не получилось». */
+.ev__status {
+  grid-column: 2 / span 2;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  margin-top: var(--s1);
+  font-size: var(--t-fine);
+  color: var(--text-dim);
+}
+.ev__status--bad { color: var(--bad-text); }
+.ev__status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: var(--r-pill);
+  background: currentColor;
+  flex: 0 0 auto;
+}
+.ev__status--busy .ev__status-dot { animation: statusPulse 1.2s var(--ease) infinite; }
+@keyframes statusPulse {
+  0%, 100% { opacity: .35; }
+  50%      { opacity: 1; }
+}
+
+/* Крошки внешнего сервиса. */
+.ev__crumbs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s1) var(--s2);
+  font-size: var(--t-note);
+  color: var(--text-dim);
+}
+.crumb--method { font-family: var(--font-mono); color: var(--text); }
+.crumb__sep { opacity: .6; }
 
 /* ===== 8. Дифф ============================================================ */
 

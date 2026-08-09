@@ -496,6 +496,115 @@
     return cls.join(' ');
   }
 
+  /**
+   * Типизированное тело карточки: у команды — сама команда, у правки —
+   * мини-дифф, у внешнего сервиса — путь-крошки. Виды без особой формы
+   * остаются строкой «заголовок + пояснение» — это и есть запасной вариант.
+   */
+  function cardBody(ev) {
+    if (ev.kind !== 'tool') return null;
+    if (ev.action === 'run') return runBody(ev);
+    if (ev.action === 'edit') return diffBody(ev);
+    if (ev.action === 'mcp') return mcpBody(ev);
+    return null;
+  }
+
+  function runBody(ev) {
+    if (!ev.command) return null;
+    var box = el('div', 'ev__body');
+    box.appendChild(Object.assign(el('code', 'ev__cmd'),
+      { textContent: '$ ' + ev.command }));
+    return box;
+  }
+
+  // Мини-дифф правки. Куски без изменений схлопнуты в строку-разделитель —
+  // как в эталонных панелях. Полная картина — в подробностях по клику.
+  function diffBody(ev) {
+    var d = ev.diff;
+    if (!d || !d.hunks || !d.hunks.length) return null;
+    if (!perf.bigDiffs) return null;      // профиль «Слабое устройство»
+    var box = el('div', 'ev__body ev__diff');
+    var prevEnd = null;
+    d.hunks.forEach(function (h) {
+      if (prevEnd !== null) {
+        var skipped = h.oldStart - prevEnd - 1;
+        if (skipped > 0) {
+          box.appendChild(el('div', 'diff__skip',
+            C.diff.skip(withPlural(skipped, C.words.line))));
+        }
+      }
+      var oldSide = 0;
+      h.lines.forEach(function (l) {
+        var line = el('div', 'diff__line diff__line--' + l.type);
+        line.appendChild(el('span', 'diff__sign',
+          l.type === 'add' ? '+' : l.type === 'del' ? '−' : ' '));
+        line.appendChild(el('span', 'diff__text', l.text));
+        box.appendChild(line);
+        if (l.type !== 'add') oldSide++;
+      });
+      prevEnd = h.oldStart + oldSide - 1;
+    });
+    if (d.more) {
+      box.appendChild(el('div', 'diff__skip',
+        C.diff.more(withPlural(d.more, C.words.line))));
+    }
+    return box;
+  }
+
+  // Крошки внешнего сервиса: mcp__github__list_issues →
+  // «Внешний сервис › github › list issues».
+  function mcpBody(ev) {
+    var parts = String(ev.tool || '').split('__');
+    if (parts.length < 2 || !parts[1]) return null;
+    var box = el('div', 'ev__body ev__crumbs');
+    box.appendChild(el('span', 'crumb', C.feed.mcpRoot));
+    box.appendChild(el('span', 'crumb__sep', '›'));
+    box.appendChild(el('span', 'crumb', crumbWords(parts[1])));
+    if (parts[2]) {
+      box.appendChild(el('span', 'crumb__sep', '›'));
+      box.appendChild(el('span', 'crumb crumb--method', crumbWords(parts.slice(2).join('_'))));
+    }
+    return box;
+  }
+
+  function crumbWords(s) {
+    return String(s || '').replace(/[-_]+/g, ' ').trim();
+  }
+
+  /**
+   * Строка состояния. Вызов без результата — «Выполняется…» с пульсом,
+   * провалившийся — «Не получилось». Успех молчит: лента спокойна, детали
+   * по клику. Старые вызовы без результата (оборванные сессии) пульс не
+   * получают — иначе он мигал бы вечно.
+   */
+  var FRESH_CALL_MS = 10 * 60 * 1000;
+  function statusFor(ev) {
+    if (ev.kind !== 'tool') return null;
+    if (ev.result) {
+      if (ev.result.ok === false) {
+        var bad = el('span', 'ev__status ev__status--bad');
+        bad.appendChild(el('span', 'ev__status-dot'));
+        bad.appendChild(el('span', null, C.feed.failed));
+        return bad;
+      }
+      return null;
+    }
+    if (ev.pendingResult && Date.now() - ev.ts < FRESH_CALL_MS) {
+      var busy = el('span', 'ev__status ev__status--busy');
+      busy.appendChild(el('span', 'ev__status-dot'));
+      busy.appendChild(el('span', null, C.feed.running));
+      return busy;
+    }
+    return null;
+  }
+
+  function timeLabel(ev) {
+    var t = clock(ev.ts);
+    var stats = ev.result && ev.result.stats ? ev.result.stats : null;
+    if (stats) t += '  +' + stats.added + ' −' + stats.removed;
+    return t;
+  }
+
   function renderEvent(ev, isNew) {
     var li = el('li', evClass(ev) + (isNew && !reduceMotion ? ' is-new' : ''));
     li.dataset.id = ev.id;
@@ -503,7 +612,7 @@
     mark.appendChild(icon(ICON.forGlyph(ev.icon), 'i--sm'));
     li.appendChild(mark);
     li.appendChild(el('span', 'ev__title', ev.risk ? ev.risk.title : (ev.title || '')));
-    li.appendChild(el('span', 'ev__time', clock(ev.ts)));
+    li.appendChild(el('span', 'ev__time', timeLabel(ev)));
     if (ev.risk) {
       var riskHint = el('span', 'ev__hint');
       riskHint.appendChild(withTerms(ev.risk.why));
@@ -514,6 +623,10 @@
       hint.appendChild(withTerms(ev.hint));
       li.appendChild(hint);
     }
+    var body = cardBody(ev);
+    if (body) li.appendChild(body);
+    var status = statusFor(ev);
+    if (status) li.appendChild(status);
     if (app.detailed) li.appendChild(el('pre', 'ev__raw', rawText(ev)));
     li.addEventListener('click', function () { openEventDetails(ev); });
     return li;
@@ -556,7 +669,8 @@
     Object.keys(out).forEach(function (k) { if (out[k] === undefined) delete out[k]; });
     var text = JSON.stringify(out, null, 2);
     if (ev.args && Object.keys(ev.args).length) {
-      text += '\n\n' + C.event.rawArgs + '\n' + JSON.stringify(ev.args, null, 2).slice(0, 2000);
+      text += '\n\n' + C.event.rawArgs + (ev.argsCut ? ' · ' + C.event.argsTrimmed : '') +
+        '\n' + JSON.stringify(ev.args, null, 2).slice(0, 2000);
     }
     if (ev.output) text += '\n\n' + C.event.rawOutput + '\n' + String(ev.output).slice(0, 2000);
     return text;
@@ -706,7 +820,14 @@
     if (ev.title) app.lastTitle = ev.title;
     refreshCheat();
 
-    if (ev.kind === 'result' && ev.ok && ev.toolUseId) { annotateCall(ev); return; }
+    // Любой результат дозаполняет карточку вызова: успех гасит пульс и
+    // дописывает счётчики, ошибка красит строку состояния. Успешный
+    // результат отдельной строкой не показывается; ошибка — показывается,
+    // это часть механики внимания.
+    if (ev.kind === 'result' && ev.toolUseId) {
+      annotateCall(ev);
+      if (ev.ok) return;
+    }
 
     if (app.paused) {
       app.queued.push(ev);
@@ -770,12 +891,11 @@
     if (!call) return;
     call.result = result;
     if (result.stats && !call.stats) call.stats = result.stats;
+    // Карточка перерисовывается целиком: так пульс «Выполняется…» гаснет,
+    // счётчики появляются, а логика отрисовки живёт в одном месте.
     var node = feed.querySelector('[data-id="' + call.id + '"]');
     if (!node) return;
-    var badge = node.querySelector('.ev__time');
-    if (badge && result.stats) {
-      badge.textContent = clock(call.ts) + '  +' + result.stats.added + ' −' + result.stats.removed;
-    }
+    node.parentNode.replaceChild(renderEvent(call, false), node);
   }
 
   function rebuildFeed() {
