@@ -486,6 +486,9 @@
     var cls = ['ev'];
     if (ev.level === 'error') cls.push('ev--error');
     if (ev.kind === 'user') cls.push('ev--user');
+    // Размышления — фон, а не событие: карточка приглушена, чтобы не
+    // спорить с действиями. Полный текст мысли — по клику.
+    if (ev.kind === 'assistant' && ev.action === 'think') cls.push('ev--think');
     if (ev.kind === 'tool' && (ev.action === 'edit' || ev.action === 'write')) cls.push('ev--edit');
     if (ev.kind === 'session' && ev.action === 'idle') cls.push('ev--attention');
     if (ev.sidechain) cls.push('ev--agent');
@@ -589,6 +592,14 @@
       busy.appendChild(el('span', 'ev__status-dot'));
       busy.appendChild(el('span', null, C.feed.running));
       return busy;
+    }
+    // Пометка объёма: сервер обрезал длинные аргументы — значит, вызов
+    // ворочает заметно больше данных, чем обычно. Только там, где нет
+    // своей формы (у правки объём и так виден диффом).
+    if (ev.argsCut && (ev.action === 'mcp' || ev.action === 'tool')) {
+      var bulk = el('span', 'ev__status');
+      bulk.appendChild(el('span', null, C.feed.bigCall));
+      return bulk;
     }
     return null;
   }
@@ -1041,6 +1052,25 @@
 
     var rawSec = section(body, C.event.raw);
     rawSec.appendChild(Object.assign(el('pre', 'out'), { textContent: rawText(ev) }));
+
+    // Карточка одним куском текста — чтобы вставить в чат или письмо,
+    // когда нужно спросить у кого-то «что это было?».
+    var copyBtn = el('button', 'btn', C.event.copyCard);
+    copyBtn.addEventListener('click', function () {
+      var lines = [ev.title || '', ev.hint || ''];
+      if (ev.command) lines.push('$ ' + ev.command);
+      if (ev.file) lines.push(C.event.file + ': ' + ev.file);
+      var res = ev.result || (ev.kind === 'result' ? ev : null);
+      if (res && (res.stderr || res.output || res.stdout)) {
+        lines.push(String(res.stderr || res.output || res.stdout).slice(0, 1500));
+      }
+      lines.push(dateTime(ev.ts));
+      var textOut = lines.filter(Boolean).join('\n');
+      var done = function () { copyBtn.textContent = C.event.copiedCard; copyBtn.classList.add('is-on'); };
+      if (navigator.clipboard) navigator.clipboard.writeText(textOut).then(done, done);
+      else done();
+    });
+    rawSec.appendChild(copyBtn);
   }
 
   function addAskButton(body, ev) {

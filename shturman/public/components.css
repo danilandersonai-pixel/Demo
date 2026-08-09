@@ -528,6 +528,16 @@ body {
 .ev--agent { padding-left: calc(var(--s4) + var(--s3)); }
 .ev--agent .ev__title { font-weight: var(--w-normal); color: var(--text-dim); }
 
+/* Размышления — тихие: обычный вес, приглушённый тон, мысль в одну
+   строку. Это фон работы, а не её события. */
+.ev--think .ev__title { font-weight: var(--w-normal); color: var(--text-dim); }
+.ev--think .ev__hint {
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
 /* «Компактно» — не просто уменьшенные поля: заголовок и пояснение
    сворачиваются в одну строку каждое. Ничего не теряется — полный текст
    всегда в карточке события, — но на экран влезает заметно больше. */
