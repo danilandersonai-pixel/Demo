@@ -29,6 +29,42 @@ var LIMITS = {
 // Поля, которых на экране нет вовсе.
 var DROP = ['raw'];
 
+// Длинные строки внутри args: у правки там лежат old_string и new_string
+// целиком — десятки килобайт, которые карточка не рисует (она рисует
+// компактный ev.diff). Каждую строку режем до этого предела; целые args
+// по-прежнему отдаёт /api/event.
+var ARGS_STRING_LIMIT = 400;
+
+// Обрезка длинных строк в аргументах инструмента. Возвращает null, если
+// резать нечего, — тогда slim() оставляет исходный объект.
+function slimArgs(args) {
+  if (!args || typeof args !== 'object') return null;
+  var out = null;
+  for (var key in args) {
+    if (!Object.prototype.hasOwnProperty.call(args, key)) continue;
+    var v = args[key];
+    if (typeof v === 'string' && v.length > ARGS_STRING_LIMIT) {
+      out = out || shallow(args);
+      out[key] = v.slice(0, ARGS_STRING_LIMIT);
+    } else if (Array.isArray(v)) {
+      // Один уровень вглубь: у MultiEdit пары лежат в args.edits.
+      var arr = null;
+      for (var i = 0; i < v.length; i++) {
+        var slimmed = slimArgs(v[i]);
+        if (slimmed) {
+          arr = arr || v.slice();
+          arr[i] = slimmed;
+        }
+      }
+      if (arr) {
+        out = out || shallow(args);
+        out[key] = arr;
+      }
+    }
+  }
+  return out;
+}
+
 /**
  * Копия события для отправки: без сырой записи, с обрезанными длинными
  * текстами. Оригинал не трогаем — он остаётся в буфере целым.
@@ -55,6 +91,13 @@ function slim(ev) {
     out[key] = value.slice(0, limit);
     cut = cut || {};
     cut[key] = value.length;
+  }
+
+  var slimmedArgs = slimArgs(ev.args);
+  if (slimmedArgs) {
+    out = out || shallow(ev);
+    out.args = slimmedArgs;
+    out.argsCut = true;                // клиенту: полные аргументы — по запросу
   }
 
   if (!out) return ev;                 // резать было нечего — отдаём как есть
@@ -94,7 +137,9 @@ function snapshotSlice(list, limit) {
 module.exports = {
   LIMITS: LIMITS,
   DROP: DROP,
+  ARGS_STRING_LIMIT: ARGS_STRING_LIMIT,
   SNAPSHOT_EVENTS: SNAPSHOT_EVENTS,
+  slimArgs: slimArgs,
   slim: slim,
   slimAll: slimAll,
   snapshotSlice: snapshotSlice

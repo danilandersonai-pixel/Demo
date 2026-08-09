@@ -6,6 +6,7 @@
 
 var events = require('events');
 var humanize = require('./humanize');
+var carddiff = require('./carddiff');
 
 var BUFFER_SIZE = 500;
 var DEDUP_WINDOW_MS = 2500;
@@ -53,6 +54,10 @@ function createBus(options) {
     out.title = human.title;
     out.hint = human.hint;
     out.level = out.level || human.level;
+
+    // Правкам — маленький дифф прямо в карточку (см. lib/carddiff.js).
+    var diff = carddiff.forEvent(out);
+    if (diff) out.diff = diff;
 
     buffer.push(out);
     if (buffer.length > size) buffer.splice(0, buffer.length - size);

@@ -27,6 +27,7 @@ var statsLib = require('./lib/stats');
 var glossary = require('./lib/glossary');
 var digestLib = require('./lib/digest');
 var textdiff = require('./lib/textdiff');
+var carddiffLib = require('./lib/carddiff');
 var doctor = require('./lib/doctor');
 var configLib = require('./lib/config');
 var netLib = require('./lib/net');
@@ -870,9 +871,12 @@ function createServer(appOrRegistry, opts, sharedGuard) {
         // Прогоняем через humanize, чтобы архив выглядел как живая лента.
         var enriched = s.events.map(function (ev, i) {
           var h = humanize.humanize(ev);
-          return Object.assign({}, ev, {
+          var out = Object.assign({}, ev, {
             id: i + 1, icon: h.icon, title: h.title, hint: h.hint, level: ev.level || h.level
           });
+          var diff = carddiffLib.forEvent(out);
+          if (diff) out.diff = diff;
+          return out;
         });
         sendJson(res, 200, { id: id, events: enriched, tokens: s.tokens, counters: s.counters });
       }).catch(function (e) {
