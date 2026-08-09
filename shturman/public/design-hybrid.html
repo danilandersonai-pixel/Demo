@@ -1,0 +1,513 @@
+<!doctype html>
+<html lang="ru" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Штурман — витрина гибридного стиля</title>
+<style>
+/* ===========================================================================
+   ВИТРИНА ГИБРИДА. Самостоятельная страница-эксперимент: свои токены,
+   продакшен-файлы (tokens.css и далее) не трогает. Формула гибрида:
+     база       — Н2 «Монохромный канон» (графит, воздух, цвет — сигналам)
+     украшение  — Н1 «Ночная рубка» (картушка, латунь — единственный акцент)
+     светлая    — Н3 «Тёплый прибор» (кремовая бумага, а не белый лист)
+   Референсы — доска от 09.08.2026, разбор в чате сессии.
+   =========================================================================== */
+
+:root {
+  /* Тёмная тема — родная: графит Н2 с зеленоватым дыханием */
+  --bg:       #14191d;
+  --panel:    #1b2227;
+  --panel-2:  #212a30;
+  --sunken:   #10151a;
+  --line:     #2a343b;
+  --ink:      #e8ecec;
+  --dim:      #8fa0a4;
+
+  --brass:    #d4a558;   /* латунь Н1, слегка приглушена под дисциплину Н2 */
+  --brass-soft: rgba(212, 165, 88, .12);
+  --sea:      #5fbfa3;
+  --sea-soft: rgba(95, 191, 163, .13);
+  --coral:    #f79f95;
+  --coral-soft: rgba(247, 159, 149, .12);
+  --on-brass: #14191d;
+
+  --serif: Georgia, "Iowan Old Style", "Palatino Linotype", Palatino, serif;
+  --sans:  -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --mono:  ui-monospace, SFMono-Regular, "SF Mono", Consolas, "Liberation Mono", monospace;
+
+  --r: 12px;
+  --r-sm: 8px;
+  --shadow: 0 14px 40px rgba(0, 0, 0, .35);
+}
+
+/* Светлая тема — кремовая бумага Н3, не инверсия */
+[data-theme="light"] {
+  --bg:       #ece5d6;
+  --panel:    #faf6ec;
+  --panel-2:  #f2ecdf;
+  --sunken:   #e5ddcb;
+  --line:     #d9cfba;
+  --ink:      #26221a;
+  --dim:      #71685a;
+
+  --brass:    #8a5f1e;
+  --brass-soft: rgba(138, 95, 30, .12);
+  --sea:      #116850;
+  --sea-soft: rgba(17, 104, 80, .12);
+  --coral:    #a82d1b;
+  --coral-soft: rgba(168, 45, 27, .10);
+  --on-brass: #faf6ec;
+
+  --shadow: 0 14px 40px rgba(80, 65, 35, .16);
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 15px;
+  line-height: 1.55;
+  transition: background .25s ease, color .25s ease;
+}
+.wrap { max-width: 1180px; margin: 0 auto; padding: 40px 24px 90px; }
+
+/* ── Шапка витрины ─────────────────────────────────────────────────────── */
+.head { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; flex-wrap: wrap; }
+.eyebrow {
+  font-family: var(--mono); font-size: 11.5px; letter-spacing: .14em;
+  text-transform: uppercase; color: var(--brass);
+}
+h1 { font-family: var(--serif); font-weight: 500; font-size: 34px; margin: 8px 0 10px; line-height: 1.2; }
+.lede { color: var(--dim); max-width: 62ch; margin: 0; }
+.themeToggle {
+  font-family: var(--sans); font-size: 14px;
+  background: var(--panel); color: var(--ink);
+  border: 1px solid var(--line); border-radius: 999px;
+  padding: 9px 18px; cursor: pointer; white-space: nowrap;
+}
+.themeToggle:hover { border-color: var(--dim); }
+.themeToggle:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
+
+section { margin-top: 54px; }
+h2 { font-family: var(--serif); font-weight: 500; font-size: 24px; margin: 0 0 4px; }
+.sub { color: var(--dim); font-size: 14px; margin: 0 0 18px; max-width: 70ch; }
+
+/* ── Палитра ───────────────────────────────────────────────────────────── */
+.swatches { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+.sw {
+  border: 1px solid var(--line); border-radius: var(--r); overflow: hidden;
+  background: var(--panel); font-size: 12.5px;
+}
+.sw .c { height: 64px; }
+.sw .m { padding: 8px 12px; }
+.sw .m b { display: block; font-weight: 600; }
+.sw .m span { color: var(--dim); font-family: var(--mono); font-size: 11px; }
+
+/* ── Демо-шапка панели ─────────────────────────────────────────────────── */
+.demo {
+  background: var(--panel); border: 1px solid var(--line);
+  border-radius: calc(var(--r) + 4px); padding: 22px 26px;
+  box-shadow: var(--shadow);
+}
+.topbar { display: flex; align-items: center; gap: 26px; flex-wrap: wrap; }
+
+/* Картушка гибрида: тонкое латунное кольцо + гравированные деления +
+   серифное слово. Единственное украшение экрана. */
+.dial { position: relative; width: 150px; height: 150px; flex: 0 0 auto; }
+.dial svg { width: 100%; height: 100%; display: block; }
+.dial .word {
+  position: absolute; inset: 0; display: grid; place-items: center; text-align: center;
+}
+.dial .word b {
+  font-family: var(--serif); font-weight: 500; font-size: 19px; letter-spacing: .04em;
+  display: block;
+}
+.dial .word span { font-size: 10.5px; color: var(--dim); display: block; margin-top: 2px; }
+.ring       { stroke: var(--line); }
+.ring-brass { stroke: var(--brass); }
+.arc        { stroke: var(--sea); stroke-linecap: round; }
+.tick       { stroke: var(--dim); opacity: .55; }
+
+.topinfo { flex: 1 1 320px; min-width: 0; }
+.nowline { font-size: 16.5px; margin: 0 0 6px; }
+.nowline .cmd { font-family: var(--mono); font-size: 14px; background: var(--sunken); border-radius: 6px; padding: 1px 8px; }
+.advice {
+  display: inline-flex; align-items: center; gap: 9px;
+  background: var(--brass-soft); border-radius: 999px;
+  padding: 6px 16px; font-size: 13.5px;
+}
+.advice::before { content: "☸"; color: var(--brass); }
+.chips { margin-top: 12px; display: flex; gap: 8px; flex-wrap: wrap; }
+.chip {
+  font-size: 13px; background: var(--panel-2); border: 0; color: var(--ink);
+  border-radius: 999px; padding: 6px 14px;
+}
+
+/* ── Карточки ленты ────────────────────────────────────────────────────── */
+.feed { display: flex; flex-direction: column; gap: 6px; max-width: 620px; }
+.pills { display: flex; gap: 7px; flex-wrap: wrap; margin-bottom: 12px; }
+.pill {
+  font-size: 13px; color: var(--dim); background: none;
+  border: 1px solid var(--line); border-radius: 999px; padding: 5px 14px; cursor: pointer;
+}
+.pill.on { color: var(--on-brass); background: var(--brass); border-color: var(--brass); font-weight: 600; }
+
+.ev {
+  display: grid; grid-template-columns: 30px minmax(0,1fr) auto;
+  gap: 2px 12px; padding: 11px 14px;
+  border-radius: var(--r); cursor: pointer;
+}
+.ev:hover { background: var(--panel-2); }
+.ev.sel { background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); }
+.ico {
+  grid-row: 1 / span 2; width: 30px; height: 30px; border-radius: 50%;
+  display: grid; place-items: center; font-size: 13px;
+  background: var(--panel-2); color: var(--dim);
+}
+.ico.ok  { background: var(--sea-soft);   color: var(--sea); }
+.ico.bad { background: var(--coral-soft); color: var(--coral); }
+.ico.att { background: var(--brass-soft); color: var(--brass); }
+.t { font-weight: 600; align-self: center; min-width: 0; overflow-wrap: anywhere; }
+.t .stat-add { color: var(--sea); font-family: var(--mono); font-size: 12.5px; font-weight: 500; }
+.t .stat-del { color: var(--coral); font-family: var(--mono); font-size: 12.5px; font-weight: 500; }
+.tm { color: var(--dim); font-size: 12px; align-self: center; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.h { grid-column: 2 / span 2; color: var(--dim); font-size: 13px; overflow-wrap: anywhere; }
+.body { grid-column: 2 / span 2; margin-top: 7px; min-width: 0; }
+
+.cmdline {
+  font-family: var(--mono); font-size: 12.5px; color: var(--dim);
+  background: var(--sunken); border-radius: var(--r-sm); padding: 6px 12px;
+  overflow-x: auto; white-space: pre;
+}
+.status { display: flex; align-items: center; gap: 8px; margin-top: 7px; font-size: 12.5px; color: var(--dim); }
+.status .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.status.busy .dot { animation: pulse 1.2s ease-in-out infinite; }
+.status.bad { color: var(--coral); }
+@keyframes pulse { 0%,100% { opacity: .3; } 50% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .status.busy .dot { animation: none; } }
+
+.mini {
+  font-family: var(--mono); font-size: 12.5px;
+  background: var(--sunken); border-radius: var(--r-sm); padding: 5px 0; overflow: hidden;
+}
+.dln { display: flex; padding: 0 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.dln .s { flex: 0 0 16px; opacity: .8; user-select: none; }
+.dln.add { background: var(--sea-soft); color: var(--sea); }
+.dln.del { background: var(--coral-soft); color: var(--coral); }
+.dln.ctx { color: var(--dim); }
+.dskip { text-align: center; color: var(--dim); font-family: var(--sans); font-size: 12px; padding: 2px 12px; }
+
+.ev.risk { background: var(--coral-soft); }
+.ev.risk .t { color: var(--coral); }
+.rollback {
+  grid-column: 2 / span 2; margin-top: 8px; background: var(--panel);
+  border-radius: var(--r-sm); padding: 10px 12px; font-size: 12.5px;
+}
+.rollback code { font-family: var(--mono); display: block; margin: 4px 0 8px; }
+.btn-sm {
+  font-size: 12.5px; background: var(--panel-2); color: var(--ink);
+  border: 1px solid var(--line); border-radius: 7px; padding: 4px 12px; cursor: pointer;
+}
+.ev.think .t { font-weight: 400; color: var(--dim); }
+
+/* ── Мастер-деталь ─────────────────────────────────────────────────────── */
+.master { display: grid; grid-template-columns: minmax(280px, 1fr) minmax(320px, 1.15fr); gap: 16px; }
+@media (max-width: 760px) { .master { grid-template-columns: 1fr; } }
+.pane {
+  background: var(--panel); border: 1px solid var(--line);
+  border-radius: var(--r); padding: 14px;
+  min-width: 0;
+}
+.pane h4 { margin: 2px 4px 10px; font-size: 13px; color: var(--dim); font-weight: 500;
+  font-family: var(--mono); text-transform: uppercase; letter-spacing: .1em; }
+.filehdr { display: flex; justify-content: space-between; align-items: center; gap: 10px;
+  font-family: var(--mono); font-size: 12.5px; padding: 4px 4px 10px; flex-wrap: wrap; }
+.ctxbar { margin-top: 12px; padding: 12px 4px 2px; border-top: 1px solid var(--line); font-size: 12.5px; color: var(--dim); }
+.meter { height: 5px; border-radius: 999px; background: var(--sunken); margin-top: 7px; overflow: hidden; }
+.meter i { display: block; height: 100%; width: 41%; background: var(--brass); border-radius: 999px; }
+
+/* ── Правые панели ─────────────────────────────────────────────────────── */
+.grid3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
+.kv { display: flex; justify-content: space-between; gap: 10px; padding: 7px 4px; font-size: 13.5px; border-bottom: 1px solid var(--line); }
+.kv:last-child { border-bottom: 0; }
+.kv b { font-family: var(--mono); font-weight: 500; }
+.count { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.cnt { background: var(--panel-2); border-radius: var(--r-sm); padding: 10px 12px; }
+.cnt b { font-family: var(--serif); font-size: 24px; font-weight: 500; display: block; }
+.cnt.badnum b { color: var(--coral); }
+.cnt span { font-size: 12px; color: var(--dim); }
+
+/* Тревожное состояние */
+.alarm {
+  display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  background: var(--brass-soft); border: 1px solid var(--brass);
+  border-radius: var(--r); padding: 14px 18px;
+}
+.alarm b { font-family: var(--serif); font-weight: 500; font-size: 17px; }
+.alarm p { margin: 0; color: var(--dim); font-size: 13.5px; flex: 1 1 260px; }
+.btn-brass {
+  background: var(--brass); color: var(--on-brass); border: 0;
+  border-radius: 9px; padding: 9px 20px; font-size: 14px; font-weight: 600; cursor: pointer;
+}
+
+.note { color: var(--dim); font-size: 13.5px; max-width: 72ch; }
+a { color: var(--brass); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<div class="head">
+  <div>
+    <div class="eyebrow">Штурман · витрина гибридного стиля · по референс-доске 09.08.2026</div>
+    <h1>Гибрид: графит Н2 + латунная картушка Н1 + кремовый день Н3</h1>
+    <p class="lede">Экспериментальная страница: продакшен-стили не тронуты. Цвет остаётся
+    только у трёх сигналов, латунь — единственное украшение и означает «нужен ты»,
+    светлая тема — бумага, а не инверсия. Сравнить с текущим стилем: <a href="/design.html">design.html</a>.</p>
+  </div>
+  <button class="themeToggle" id="tt" type="button">Тема: ночь ◐</button>
+</div>
+
+<section>
+  <h2>Палитра</h2>
+  <p class="sub">Переключите тему кнопкой сверху — те же роли, другой материал.</p>
+  <div class="swatches" id="swatches"></div>
+</section>
+
+<section>
+  <h2>Шапка: картушка и строка «что сейчас»</h2>
+  <p class="sub">Картушка из Н1, но дисциплина Н2: тонкое кольцо и гравированные деления
+  вместо тяжёлого золотого корпуса. Дуга — ход работы. «Совет штурмана» из референса —
+  тихая строка, не панель.</p>
+  <div class="demo">
+    <div class="topbar">
+      <div class="dial" role="img" aria-label="Картушка: состояние — работает">
+        <svg viewBox="0 0 150 150" fill="none">
+          <circle cx="75" cy="75" r="70" class="ring-brass" stroke-width="1.6"/>
+          <circle cx="75" cy="75" r="63" class="ring" stroke-width="1"/>
+          <g class="tick" stroke-width="1">
+            <line x1="75" y1="6"  x2="75" y2="14"/><line x1="75" y1="136" x2="75" y2="144"/>
+            <line x1="6"  y1="75" x2="14" y2="75"/><line x1="136" y1="75" x2="144" y2="75"/>
+            <line x1="26.3" y1="26.3" x2="32" y2="32"/><line x1="118" y1="118" x2="123.7" y2="123.7"/>
+            <line x1="123.7" y1="26.3" x2="118" y2="32"/><line x1="32" y1="118" x2="26.3" y2="123.7"/>
+          </g>
+          <path class="arc" stroke-width="3.5"
+            d="M 75 12 A 63 63 0 0 1 129.6 43.5"/>
+        </svg>
+        <div class="word"><div><b>Работает</b><span>Claude Code в деле</span></div></div>
+      </div>
+      <div class="topinfo">
+        <p class="nowline">Клод запустил <span class="cmd">npm test</span> — проверяет, работают ли тесты</p>
+        <span class="advice">Хороший ход. Вмешиваться не нужно.</span>
+        <div class="chips" aria-label="Шпаргалка: слова из ленты">
+          <button class="chip" type="button">Коммит</button>
+          <button class="chip" type="button">Ветка</button>
+          <button class="chip" type="button">Тесты</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>Тревога: единственный случай, когда латунь заливает</h2>
+  <div class="alarm">
+    <b>Клод остановился и ждёт вас</b>
+    <p>Новых действий нет 6 минут. Загляните в терминал — скорее всего, нужен ваш ответ.</p>
+    <button class="btn-brass" type="button">Понятно</button>
+  </div>
+</section>
+
+<section>
+  <h2>Лента: типизированные карточки</h2>
+  <p class="sub">Состав из задания 6 без изменений — новый только материал. Счётчики
+  правок «+4 −2» стали цветной парой в заголовке, как на референсе.</p>
+  <div class="pills">
+    <button class="pill on" type="button">Всё</button><button class="pill" type="button">Правки</button><button class="pill" type="button">Команды</button><button class="pill" type="button">Ошибки</button><button class="pill" type="button">Сервисы</button>
+  </div>
+  <div class="feed">
+
+    <div class="ev">
+      <span class="ico">›_</span>
+      <span class="t">Клод запустил npm test — проверяет, работают ли тесты</span>
+      <span class="tm">14:02</span>
+      <div class="body">
+        <div class="cmdline">$ npm test</div>
+        <div class="status busy"><span class="dot"></span>Выполняется…</div>
+      </div>
+    </div>
+
+    <div class="ev">
+      <span class="ico ok">✎</span>
+      <span class="t">Клод изменил main.js <span class="stat-add">+4</span> <span class="stat-del">−2</span></span>
+      <span class="tm">14:03</span>
+      <div class="body">
+        <div class="mini">
+          <div class="dln ctx"><span class="s"> </span>var timer = start();</div>
+          <div class="dln del"><span class="s">−</span>var delay = 400;</div>
+          <div class="dln add"><span class="s">+</span>var delay = 120;</div>
+          <div class="dskip">⋯ 9 строк без изменений</div>
+          <div class="dln add"><span class="s">+</span>log('готово');</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="ev">
+      <span class="ico bad">△</span>
+      <span class="t">Ошибка: команда в терминале не сработала</span>
+      <span class="tm">14:04</span>
+      <span class="h">Клод, скорее всего, попробует иначе — это нормальная часть работы.</span>
+      <div class="body"><div class="status bad"><span class="dot"></span>Не получилось</div></div>
+    </div>
+
+    <div class="ev sel">
+      <span class="ico">⌁</span>
+      <span class="t">Клод обратился к сервису GitHub: list pull requests</span>
+      <span class="tm">14:05</span>
+      <span class="h">Передал: repo · owner · state</span>
+    </div>
+
+    <div class="ev risk">
+      <span class="ico att">✋</span>
+      <span class="t">Клод удаляет файлы — это стоит проверить</span>
+      <span class="tm">14:06</span>
+      <span class="h">Команда удаляет папку сборки. Обычно это безопасно, но проверьте путь.</span>
+      <div class="rollback">
+        Как откатить
+        <code>git checkout -- dist/</code>
+        <button class="btn-sm" type="button">Скопировать команду</button>
+      </div>
+    </div>
+
+    <div class="ev think">
+      <span class="ico">…</span>
+      <span class="t">Клод думает</span>
+      <span class="tm">14:06</span>
+    </div>
+
+  </div>
+</section>
+
+<section>
+  <h2>Мастер-деталь: находка референса</h2>
+  <p class="sub">На широком экране клик по событию открывает деталь справа, не перекрывая
+  ленту. Внизу детали — «Контекст» с токен-баром. На телефоне остаётся шторка.</p>
+  <div class="master">
+    <div class="pane">
+      <h4>Лента</h4>
+      <div class="feed">
+        <div class="ev sel">
+          <span class="ico ok">✎</span>
+          <span class="t">Клод изменил Header.tsx <span class="stat-add">+24</span> <span class="stat-del">−6</span></span>
+          <span class="tm">09:30</span>
+        </div>
+        <div class="ev"><span class="ico">›_</span><span class="t">Клод запустил npm run build</span><span class="tm">09:29</span></div>
+        <div class="ev"><span class="ico">＋</span><span class="t">Клод создал format.ts</span><span class="tm">09:27</span></div>
+        <div class="ev"><span class="ico bad">△</span><span class="t">Ошибка: API /users 500</span><span class="tm">09:25</span></div>
+      </div>
+    </div>
+    <div class="pane">
+      <div class="filehdr">
+        <span>src/components/Header.tsx</span>
+        <span><span class="stat-add">+24</span> <span class="stat-del">−6</span></span>
+      </div>
+      <div class="mini">
+        <div class="dln ctx"><span class="s"> </span>export default function Header() {</div>
+        <div class="dln ctx"><span class="s"> </span>  return (</div>
+        <div class="dln del"><span class="s">−</span>    &lt;header&gt;</div>
+        <div class="dln add"><span class="s">+</span>    &lt;header className="header"&gt;</div>
+        <div class="dln add"><span class="s">+</span>      &lt;nav className="nav"&gt;</div>
+        <div class="dln add"><span class="s">+</span>        &lt;Search /&gt;</div>
+        <div class="dskip">⋯ 14 строк без изменений</div>
+        <div class="dln ctx"><span class="s"> </span>}</div>
+      </div>
+      <div class="ctxbar">
+        Контекст: ветка main · токенов занято 41%
+        <div class="meter"><i></i></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>Справочные панели</h2>
+  <p class="sub">Git и дневник — дисциплина Н2: четыре счётчика, ни одного графика.
+  Карта проекта остаётся — референс её потерял, мы нет.</p>
+  <div class="grid3">
+    <div class="pane">
+      <h4>Git</h4>
+      <div class="kv"><span>Ветка</span><b>main</b></div>
+      <div class="kv"><span>Не сохранено</span><b>3 файла</b></div>
+      <div class="kv"><span>Последний коммит</span><b>12 мин назад</b></div>
+    </div>
+    <div class="pane">
+      <h4>Дневник сессии</h4>
+      <div class="count">
+        <div class="cnt"><b>114</b><span>файлов затронуто</span></div>
+        <div class="cnt"><b>887</b><span>команд выполнено</span></div>
+        <div class="cnt badnum"><b>3</b><span>ошибки замечено</span></div>
+        <div class="cnt"><b>1 ч 28 м</b><span>длится сессия</span></div>
+      </div>
+    </div>
+    <div class="pane">
+      <h4>Карта проекта</h4>
+      <div class="kv"><span>▸ src/components</span><b class="stat-add">•</b></div>
+      <div class="kv"><span>&nbsp;&nbsp;Header.tsx</span><b>только что</b></div>
+      <div class="kv"><span>▸ src/utils</span><b></b></div>
+      <div class="kv"><span>&nbsp;&nbsp;format.ts</span><b>3 мин</b></div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>Что дальше</h2>
+  <p class="note">Если гибрид утверждаем: переносим токены в <code>tokens.css</code>
+  (роли не меняются — только значения и два тона латуни/коралла), картушку — в разметку
+  шапки, мастер-деталь — как режим широкого экрана поверх существующей шторки. Все девять
+  бюджетов скорости и 385 тестов остаются законом.</p>
+</section>
+
+</div>
+<script>
+(function () {
+  'use strict';
+  var root = document.documentElement;
+  var btn = document.getElementById('tt');
+  btn.addEventListener('click', function () {
+    var dark = root.getAttribute('data-theme') === 'dark';
+    root.setAttribute('data-theme', dark ? 'light' : 'dark');
+    btn.textContent = dark ? 'Тема: день ◑' : 'Тема: ночь ◐';
+  });
+
+  var roles = [
+    ['--bg', 'Глубина', 'фон'],
+    ['--panel', 'Корпус', 'панели'],
+    ['--sunken', 'Утопленное', 'команды, диффы'],
+    ['--brass', 'Латунь', 'нужен ты'],
+    ['--sea', 'Ходовой', 'работа, добавлено'],
+    ['--coral', 'Тревога', 'ошибка, удалено']
+  ];
+  var box = document.getElementById('swatches');
+  roles.forEach(function (r) {
+    var d = document.createElement('div');
+    d.className = 'sw';
+    var c = document.createElement('div');
+    c.className = 'c';
+    c.style.background = 'var(' + r[0] + ')';
+    var m = document.createElement('div');
+    m.className = 'm';
+    var b = document.createElement('b');
+    b.textContent = r[1] + ' — ' + r[2];
+    var s = document.createElement('span');
+    s.textContent = r[0];
+    m.appendChild(b); m.appendChild(s);
+    d.appendChild(c); d.appendChild(m);
+    box.appendChild(d);
+  });
+})();
+</script>
+</body>
+</html>
