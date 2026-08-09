@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="ru" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Гибрид · Дневник</title>
+<link rel="stylesheet" href="hybrid.css">
+<style>
+  .layout { display: grid; grid-template-columns: 1.1fr 1fr; gap: 16px; align-items: start; }
+  @media (max-width: 900px) { .layout { grid-template-columns: 1fr; } }
+  .col { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+
+  .digest-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
+
+  .fname { font-family: var(--mono); font-size: 13px; min-width: 0; overflow-wrap: anywhere; }
+  .frow-left { display: flex; align-items: center; gap: 8px; min-width: 0; }
+
+  .sess {
+    background: var(--panel-2); border-radius: var(--r-sm);
+    padding: 12px 14px; cursor: pointer;
+  }
+  .sess:hover { box-shadow: inset 0 0 0 1px var(--line); }
+  .sess + .sess { margin-top: 8px; }
+  .sess-date {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    font-family: var(--serif); font-size: 16px; margin-bottom: 3px;
+  }
+  .sess-phrase {
+    font-size: 13.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .sess-meta {
+    font-family: var(--mono); font-size: 11.5px; color: var(--dim); margin-top: 5px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <div class="chrome">
+    <div class="brand">Штурман<small>/home/user/site-company</small></div>
+    <div class="tabs">
+      <a class="tab" href="main.html">Лента</a>
+      <a class="tab" href="map.html">Карта</a>
+      <a class="tab" href="git.html">Git</a>
+      <a class="tab on" href="diary.html">Дневник</a>
+      <a class="tab" href="glossary.html">Словарь</a>
+      <a class="tab" href="settings.html">Настройки</a>
+    </div>
+    <button class="themeToggle" id="tt" type="button">Тема: ночь ◐</button>
+  </div>
+
+  <div class="layout">
+
+    <div class="col">
+      <div class="pane">
+        <h4>Дневник сессии</h4>
+        <div class="count">
+          <div class="cnt"><b>114</b><span>файлов затронуто</span></div>
+          <div class="cnt"><b>887</b><span>команд выполнено</span></div>
+          <div class="cnt badnum"><b>3</b><span>ошибки замечено</span></div>
+          <div class="cnt"><b>1 ч 28 м</b><span>длится сессия</span></div>
+        </div>
+        <div class="kv" style="margin-top:12px"><span>Токенов, примерно</span><b>↑ 10,5 млн&ensp;↓ 1,4 млн</b></div>
+        <div class="meter" role="img" aria-label="Окно разговора занято на 41 процент"><i style="width:41%"></i></div>
+        <p class="note" style="margin:8px 4px 0">Окно разговора занято на 41&nbsp;%.</p>
+      </div>
+
+      <div class="pane">
+        <h4>Итоги сессии</h4>
+        <p class="note" style="margin:0 2px">Что просили, что менялось, чем закончилось.</p>
+        <div class="digest-actions">
+          <button class="btn-brass" type="button">Итоги сессии</button>
+          <button class="btn" type="button">Скачать файлом</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="pane">
+        <h4>Куда смотрит Клод</h4>
+        <div class="kv">
+          <span class="frow-left"><span class="fname">src/components/Header.tsx</span><span class="badge ok">сейчас</span></span>
+          <b>12 чтений · 4 правки</b>
+        </div>
+        <div class="kv">
+          <span class="frow-left"><span class="fname">src/utils/format.ts</span></span>
+          <b>9 чтений · 3 правки</b>
+        </div>
+        <div class="kv">
+          <span class="frow-left"><span class="fname">src/components/Footer.tsx</span></span>
+          <b>6 чтений · 2 правки</b>
+        </div>
+        <div class="kv">
+          <span class="frow-left"><span class="fname">src/api/client.ts</span></span>
+          <b>5 чтений · 1 правка</b>
+        </div>
+        <div class="kv">
+          <span class="frow-left"><span class="fname">package.json</span></span>
+          <b>4 чтения · 1 правка</b>
+        </div>
+        <div class="kv">
+          <span class="frow-left"><span class="fname">README.md</span></span>
+          <b>2 чтения</b>
+        </div>
+      </div>
+
+      <div class="pane">
+        <h4>Прошлые сессии</h4>
+        <div class="sess">
+          <div class="sess-date"><span>Сегодня, 12:38</span><span class="badge att">сейчас</span></div>
+          <div class="sess-phrase">Сделай шапку сайта фиксированной при прокрутке</div>
+          <div class="sess-meta">main · 1 ч 28 м · 2,4 МБ · …c91b02e7</div>
+        </div>
+        <div class="sess">
+          <div class="sess-date"><span>Вчера, 18:40</span></div>
+          <div class="sess-phrase">Почему после сборки ломаются даты в карточках товаров?</div>
+          <div class="sess-meta">main · 42 мин · 1,8 МБ · …a3f8c2d1</div>
+        </div>
+        <div class="sess">
+          <div class="sess-date"><span>6 августа</span></div>
+          <div class="sess-phrase">Добавь страницу с ценами и подключи её в меню</div>
+          <div class="sess-meta">main · 55 мин · 2,1 МБ · …f04d77b9</div>
+        </div>
+        <p class="note" style="margin:10px 4px 0">Нажмите на сессию, чтобы посмотреть её ленту.</p>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script src="theme.js"></script>
+</body>
+</html>

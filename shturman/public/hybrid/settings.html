@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="ru" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Гибрид · Настройки</title>
+<link rel="stylesheet" href="hybrid.css">
+<style>
+  .layout { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
+  @media (max-width: 900px) { .layout { grid-template-columns: 1fr; } }
+  .col { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+
+  /* Строка настройки: имя + пояснение слева, состояние справа */
+  .opt {
+    display: flex; align-items: flex-start; justify-content: space-between;
+    gap: 14px; padding: 11px 4px; border-bottom: 1px solid var(--line);
+  }
+  .opt:last-child { border-bottom: 0; }
+  .opt b { font-size: 14px; font-weight: 600; }
+  .opt .note { margin: 2px 0 0; max-width: 52ch; }
+  .opt .badge { flex: 0 0 auto; margin-top: 2px; }
+
+  /* Тумблер: скруглённый трек с кружком; включён = латунь */
+  .switch {
+    flex: 0 0 auto; width: 42px; height: 24px; margin-top: 2px; padding: 0;
+    border: 1px solid var(--line); border-radius: 999px;
+    background: var(--sunken); position: relative; cursor: pointer;
+  }
+  .switch::after {
+    content: ""; position: absolute; top: 2px; left: 2px;
+    width: 18px; height: 18px; border-radius: 50%; background: var(--dim);
+  }
+  .switch.on { background: var(--brass); border-color: var(--brass); }
+  .switch.on::after { left: auto; right: 2px; background: var(--on-brass); }
+  .switch:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
+
+  /* Ряд «подпись — таблетки» в панели «Вид» */
+  .viewrow {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 12px; flex-wrap: wrap; padding: 11px 4px; border-bottom: 1px solid var(--line);
+  }
+  .viewrow:last-of-type { border-bottom: 0; }
+  .viewrow > span { font-size: 14px; font-weight: 600; }
+
+  /* Заглушка QR-кода.
+     #fff и #000 здесь — единственное место с прямыми цветами: это требование
+     сканера. Камера читает код только на контрастной белой подложке,
+     поэтому QR не темнеет вместе с темой. */
+  .qr {
+    width: 152px; padding: 10px; border-radius: var(--r-sm);
+    display: grid; grid-template-columns: repeat(8, 1fr); gap: 2px;
+    background: #fff; margin: 4px auto 12px;
+  }
+  .qr div { aspect-ratio: 1 / 1; background: #fff; }
+  .qr .qb { background: #000; }
+  .scanNote { text-align: center; margin: 0 0 12px; }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <div class="chrome">
+    <div class="brand">Штурман<small>/home/user/site-company</small></div>
+    <div class="tabs">
+      <a class="tab" href="main.html">Лента</a>
+      <a class="tab" href="map.html">Карта</a>
+      <a class="tab" href="git.html">Git</a>
+      <a class="tab" href="diary.html">Дневник</a>
+      <a class="tab" href="glossary.html">Словарь</a>
+      <a class="tab on" href="settings.html">Настройки</a>
+    </div>
+    <button class="themeToggle" id="tt" type="button">Тема: ночь ◐</button>
+  </div>
+
+  <h2 class="h2">Настройки</h2>
+  <p class="sub">Подстройте панель под себя. Всё применяется сразу, перезапускать Штурман не нужно.</p>
+
+  <div class="layout">
+
+    <div class="col">
+      <div class="pane">
+        <h4>Скорость</h4>
+        <p class="note" style="margin:0 4px 6px">Подстройте панель под свой компьютер. Все возможности остаются на месте — меняется только то, как часто и как богато панель рисует.</p>
+        <div class="opt">
+          <div>
+            <b>Плавно</b>
+            <p class="note">Все эффекты включены. Для обычного компьютера.</p>
+          </div>
+        </div>
+        <div class="opt">
+          <div>
+            <b>Экономно</b>
+            <p class="note">Анимации короче, лента обновляется реже, в памяти меньше событий.</p>
+          </div>
+        </div>
+        <div class="opt">
+          <div>
+            <b>Слабое устройство</b>
+            <p class="note">Максимум простоты: без анимаций и подсветки. Все разделы и функции на месте.</p>
+          </div>
+        </div>
+        <div class="opt">
+          <div>
+            <b>Авто</b>
+            <p class="note">Штурман сам замерит частоту кадров в первые секунды и выберет профиль.</p>
+          </div>
+          <span class="badge att">выбрано</span>
+        </div>
+        <div class="opt">
+          <div>
+            <b>Показывать большие диффы</b>
+            <p class="note">Правки на тысячи строк. Выключите — Штурман покажет только сводку, а целиком откроет по кнопке.</p>
+          </div>
+          <button class="switch on" type="button" role="switch" aria-checked="true" aria-label="Показывать большие диффы"></button>
+        </div>
+      </div>
+
+      <div class="pane">
+        <h4>Проект</h4>
+        <div class="cmdline">/home/user/site-company</div>
+        <p class="note" style="margin:10px 4px 12px">Сменить папку можно в любой момент, перезапускать не нужно.</p>
+        <div style="display:flex; gap:8px; flex-wrap:wrap">
+          <button class="btn" type="button">Сменить проект</button>
+          <button class="btn" type="button">Открыть панель выбора</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="pane">
+        <h4>Вид</h4>
+        <div class="viewrow">
+          <span>Тема</span>
+          <div class="pills" role="group" aria-label="Тема">
+            <button class="pill on" type="button">Ночь</button>
+            <button class="pill" type="button">День</button>
+            <button class="pill" type="button">Как в системе</button>
+          </div>
+        </div>
+        <div class="viewrow">
+          <span>Плотность</span>
+          <div class="pills" role="group" aria-label="Плотность">
+            <button class="pill on" type="button">Просторно</button>
+            <button class="pill" type="button">Компактно</button>
+          </div>
+        </div>
+        <p class="note" style="margin:8px 4px 0">Компактно — на экран влезает примерно на треть больше событий.</p>
+      </div>
+
+      <div class="pane">
+        <h4>Доступ с телефона</h4>
+        <!-- Заглушка QR. #fff/#000 внутри кода — требование сканера:
+             камере нужен контрастный узор на белой подложке в любой теме. -->
+        <div class="qr" role="img" aria-label="QR-код для входа с телефона">
+          <div class="qb"></div><div class="qb"></div><div class="qb"></div><div></div><div class="qb"></div><div></div><div class="qb"></div><div class="qb"></div>
+          <div class="qb"></div><div></div><div class="qb"></div><div></div><div></div><div class="qb"></div><div></div><div class="qb"></div>
+          <div class="qb"></div><div class="qb"></div><div class="qb"></div><div></div><div class="qb"></div><div class="qb"></div><div></div><div></div>
+          <div></div><div></div><div></div><div class="qb"></div><div></div><div class="qb"></div><div class="qb"></div><div></div>
+          <div class="qb"></div><div></div><div class="qb"></div><div class="qb"></div><div></div><div></div><div class="qb"></div><div class="qb"></div>
+          <div class="qb"></div><div class="qb"></div><div></div><div></div><div class="qb"></div><div></div><div class="qb"></div><div></div>
+          <div></div><div class="qb"></div><div></div><div class="qb"></div><div class="qb"></div><div class="qb"></div><div></div><div class="qb"></div>
+          <div class="qb"></div><div></div><div class="qb"></div><div class="qb"></div><div></div><div class="qb"></div><div class="qb"></div><div class="qb"></div>
+        </div>
+        <p class="note scanNote">Откройте камеру и наведите на код — панель откроется сама.</p>
+        <div class="kv"><span>Ключ доступа</span><b>X7F4-K2M9-QD3B</b></div>
+        <p class="note" style="margin:10px 4px 0">Открыт. Панель видна в вашей сети — только по ссылке с ключом.</p>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script src="theme.js"></script>
+</body>
+</html>

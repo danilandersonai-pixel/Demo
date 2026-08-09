@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="ru" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Гибрид · Диагностика</title>
+<link rel="stylesheet" href="hybrid.css">
+<style>
+  .crumb { font-size: 13px; margin: 0 0 10px; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
+  @media (max-width: 760px) { .grid { grid-template-columns: 1fr; } }
+  .kvval { display: flex; align-items: center; gap: 10px; white-space: nowrap; }
+  .profline { font-family: var(--serif); font-size: 22px; margin: 2px 2px 8px; }
+  .profline .arrow { color: var(--dim); font-family: var(--sans); font-size: 16px; padding: 0 4px; }
+  .stack { display: flex; flex-direction: column; gap: 8px; align-items: stretch; }
+  .stack .btn { text-align: left; }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <div class="chrome">
+    <div class="brand">Штурман<small>/home/user/site-company</small></div>
+    <div class="tabs">
+      <a class="tab" href="main.html">Лента</a>
+      <a class="tab" href="map.html">Карта</a>
+      <a class="tab" href="git.html">Git</a>
+      <a class="tab" href="diary.html">Дневник</a>
+      <a class="tab" href="glossary.html">Словарь</a>
+      <a class="tab on" href="settings.html">Настройки</a>
+    </div>
+    <button class="themeToggle" id="tt" type="button">Тема: ночь ◐</button>
+  </div>
+
+  <p class="crumb"><a href="settings.html">← Настройки</a></p>
+  <h2 class="h2">Диагностика</h2>
+  <p class="sub">Как панель чувствует себя прямо сейчас.</p>
+
+  <div class="grid">
+
+    <div class="pane">
+      <h4>Здоровье</h4>
+      <div class="kv">
+        <span>Кадров в секунду</span>
+        <span class="kvval"><b>60</b><span class="badge ok">хорошо</span></span>
+      </div>
+      <div class="kv">
+        <span>Задержка события</span>
+        <span class="kvval"><b>38 мс</b><span class="badge ok">хорошо</span></span>
+      </div>
+      <div class="kv"><span>Карточек в разметке</span><b>22</b></div>
+      <div class="kv"><span>Память страницы</span><b>48 МБ</b></div>
+      <div class="kv"><span>Процессор сервера</span><b>0,3%</b></div>
+    </div>
+
+    <div class="pane">
+      <h4>Профиль скорости</h4>
+      <p class="profline">Авто <span class="arrow">→</span> Плавно</p>
+      <p class="note">Панель замеряет сама себя и выбирает профиль по настоящим кадрам.
+        Сменить его вручную можно в настройках, в разделе «Скорость».</p>
+    </div>
+
+    <div class="pane">
+      <h4>Действия</h4>
+      <div class="stack">
+        <button class="btn" type="button">Собрать отчёт для поддержки</button>
+        <button class="btn" type="button">Записать 30 секунд работы</button>
+        <button class="btn" type="button">Сбросить замеры</button>
+      </div>
+      <p class="note" style="margin: 10px 2px 0">Отчёт не содержит содержимого файлов —
+        только замеры скорости и настройки панели.</p>
+    </div>
+
+    <div class="pane">
+      <h4>Последний прогон бюджетов</h4>
+      <div class="kv">
+        <span>Первый экран</span>
+        <span class="kvval"><b>103 мс из 1500</b><span class="badge ok">в бюджете</span></span>
+      </div>
+      <div class="kv">
+        <span>Первая лента</span>
+        <span class="kvval"><b>1016 мс из 3000</b><span class="badge ok">в бюджете</span></span>
+      </div>
+      <div class="kv">
+        <span>Кадры под штормом</span>
+        <span class="kvval"><b>59,9 из ≥50</b><span class="badge ok">в бюджете</span></span>
+      </div>
+      <p class="note" style="margin: 10px 2px 0">Бюджеты гоняет <span style="font-family: var(--mono)">npm run bench</span> —
+        прогон падает, если превышен любой из них.</p>
+    </div>
+
+  </div>
+</div>
+
+<script src="theme.js"></script>
+</body>
+</html>

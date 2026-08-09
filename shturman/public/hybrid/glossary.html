@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="ru" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Гибрид · Словарь</title>
+<link rel="stylesheet" href="hybrid.css">
+<style>
+  .glosshead { max-width: 720px; }
+  .glosshead .field { max-width: 420px; margin-bottom: 20px; }
+  .grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start;
+  }
+  @media (max-width: 800px) { .grid { grid-template-columns: 1fr; } }
+  .word {
+    font-family: var(--serif); font-weight: 500; font-size: 19px;
+    margin: 0 0 10px; line-height: 1.25;
+  }
+  .entry p { margin: 0; font-size: 13.5px; }
+  .entry .seen {
+    margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line);
+    color: var(--dim); font-size: 12px;
+  }
+  .entry .seen b { font-family: var(--mono); font-weight: 500; font-variant-numeric: tabular-nums; }
+  .entry .cmd { font-family: var(--mono); font-size: 12.5px; background: var(--sunken); border-radius: 6px; padding: 1px 7px; }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <div class="chrome">
+    <div class="brand">Штурман<small>/home/user/site-company</small></div>
+    <div class="tabs">
+      <a class="tab" href="main.html">Лента</a>
+      <a class="tab" href="map.html">Карта</a>
+      <a class="tab" href="git.html">Git</a>
+      <a class="tab" href="diary.html">Дневник</a>
+      <a class="tab on" href="glossary.html">Словарь</a>
+      <a class="tab" href="settings.html">Настройки</a>
+    </div>
+    <button class="themeToggle" id="tt" type="button">Тема: ночь ◐</button>
+  </div>
+
+  <div class="glosshead">
+    <h1 class="h2">Словарь</h1>
+    <p class="sub">Непонятные слова из ленты — простым языком.</p>
+    <div class="field"><span>⌕</span><input placeholder="Найти слово" aria-label="Найти слово"></div>
+  </div>
+
+  <div class="grid">
+
+    <div class="pane entry">
+      <h2 class="word">Коммит</h2>
+      <h4>Что это значит</h4>
+      <p>Точка сохранения в истории проекта. К ней всегда можно вернуться, как к сохранению
+        в игре. Клод делает коммит, когда законченный кусок работы стоит закрепить.</p>
+      <p class="seen">Слово встретилось в ленте <b>14:03</b></p>
+    </div>
+
+    <div class="pane entry">
+      <h2 class="word">Ветка</h2>
+      <h4>Что это значит</h4>
+      <p>Отдельная линия работы в проекте. Изменения в ней не мешают остальным: можно
+        спокойно пробовать, а когда всё готово — влить ветку обратно в главную.</p>
+    </div>
+
+    <div class="pane entry">
+      <h2 class="word">Токены</h2>
+      <h4>Что это значит</h4>
+      <p>Кусочки текста, которыми Клод считает свою память. Разговор, файлы и ответы команд
+        занимают токены. Когда их остаётся мало, Клод начинает забывать начало сессии —
+        за этим следит счётчик в дневнике.</p>
+      <p class="seen">Слово встретилось в ленте <b>13:47</b></p>
+    </div>
+
+    <div class="pane entry">
+      <h2 class="word">Дифф</h2>
+      <h4>Что это значит</h4>
+      <p>Список правок в файле: что добавили, а что убрали. Зелёные строки — новые,
+        красные — удалённые. По диффу видно суть правки, не читая файл целиком.</p>
+    </div>
+
+    <div class="pane entry">
+      <h2 class="word">Терминал</h2>
+      <h4>Что это значит</h4>
+      <p>Окно, где с компьютером говорят текстом. Клод запускает там команды —
+        например <span class="cmd">npm test</span> — и читает, что они ответили.
+        Штурман пересказывает это в ленте по-русски.</p>
+    </div>
+
+    <div class="pane entry">
+      <h2 class="word">Помощник</h2>
+      <h4>Что это значит</h4>
+      <p>Маленький Клод внутри большого. Главный Клод поручает ему отдельную задачу —
+        скажем, найти нужный файл — и забирает готовый ответ. В ленте его шаги
+        помечены словом «помощник».</p>
+    </div>
+
+  </div>
+</div>
+
+<script src="theme.js"></script>
+</body>
+</html>

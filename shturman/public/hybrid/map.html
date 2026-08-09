@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="ru" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Гибрид · Карта проекта</title>
+<link rel="stylesheet" href="hybrid.css">
+<style>
+  .layout { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 16px; align-items: start; }
+  @media (max-width: 900px) { .layout { grid-template-columns: 1fr; } }
+  .col { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+  .maphead { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
+  .maphead .field { flex: 1 1 220px; }
+  .trow.sel { background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); }
+  .trow.fresh.sel { background: var(--sea-soft); }
+  .fname { font-family: var(--serif); font-weight: 500; font-size: 18px; margin: 0 2px 10px; }
+  .fcard .kv b { overflow-wrap: anywhere; white-space: normal; text-align: right; }
+  .fcard .mini { margin-top: 8px; }
+  .fcard .btn { width: 100%; margin-top: 12px; }
+  .recent { margin: 14px 2px 0; font-size: 12px; color: var(--dim); font-weight: 500;
+    font-family: var(--mono); text-transform: uppercase; letter-spacing: .12em; }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <div class="chrome">
+    <div class="brand">Штурман<small>/home/user/site-company</small></div>
+    <div class="tabs">
+      <a class="tab" href="main.html">Лента</a>
+      <a class="tab on" href="map.html">Карта</a>
+      <a class="tab" href="git.html">Git</a>
+      <a class="tab" href="diary.html">Дневник</a>
+      <a class="tab" href="glossary.html">Словарь</a>
+      <a class="tab" href="settings.html">Настройки</a>
+    </div>
+    <button class="themeToggle" id="tt" type="button">Тема: ночь ◐</button>
+  </div>
+
+  <h2 class="h2">Карта проекта</h2>
+  <p class="sub">Свежие изменения подсвечиваются и постепенно гаснут. Нажмите на файл — справа откроется, что это за файл и что в нём менялось.</p>
+
+  <div class="layout">
+
+    <div class="col">
+      <div class="pane">
+        <h4>Файлы проекта</h4>
+        <div class="maphead">
+          <div class="field"><span aria-hidden="true">⌕</span><input placeholder="Поиск по файлам" aria-label="Поиск по файлам"></div>
+          <button class="btn-sm" type="button">Перечитать папку</button>
+        </div>
+        <div class="tree">
+          <div class="trow"><span class="tico" aria-hidden="true">▾</span><span class="tname">src</span></div>
+          <div class="trow tind-1"><span class="tico" aria-hidden="true">▾</span><span class="tname">components</span></div>
+          <div class="trow tind-2 fresh sel"><span class="tico" aria-hidden="true">·</span><span class="tname">Header.tsx</span><span class="tmeta">только что</span></div>
+          <div class="trow tind-2"><span class="tico" aria-hidden="true">·</span><span class="tname">Footer.tsx</span><span class="tmeta">6,4 КБ</span></div>
+          <div class="trow tind-2"><span class="tico" aria-hidden="true">·</span><span class="tname">Nav.tsx</span><span class="tmeta">4,2 КБ</span></div>
+          <div class="trow tind-2"><span class="tico" aria-hidden="true">·</span><span class="tname">Card.tsx</span><span class="tmeta">3,9 КБ</span></div>
+          <div class="trow tind-1"><span class="tico" aria-hidden="true">▾</span><span class="tname">utils</span></div>
+          <div class="trow tind-2 fresh"><span class="tico" aria-hidden="true">·</span><span class="tname">format.ts</span><span class="tmeta">3 мин</span></div>
+          <div class="trow tind-2"><span class="tico" aria-hidden="true">·</span><span class="tname">api.ts</span><span class="tmeta">7,1 КБ</span></div>
+          <div class="trow tind-2"><span class="tico" aria-hidden="true">·</span><span class="tname">dates.ts</span><span class="tmeta">2,8 КБ</span></div>
+          <div class="trow tind-1"><span class="tico" aria-hidden="true">·</span><span class="tname">App.tsx</span><span class="tmeta">5,3 КБ</span></div>
+          <div class="trow tind-1"><span class="tico" aria-hidden="true">·</span><span class="tname">index.tsx</span><span class="tmeta">1,6 КБ</span></div>
+          <div class="trow"><span class="tico" aria-hidden="true">▾</span><span class="tname">tests</span></div>
+          <div class="trow tind-1 fresh"><span class="tico" aria-hidden="true">·</span><span class="tname">header.test.tsx</span><span class="tmeta">12 мин</span></div>
+          <div class="trow tind-1"><span class="tico" aria-hidden="true">·</span><span class="tname">format.test.ts</span><span class="tmeta">4,4 КБ</span></div>
+          <div class="trow"><span class="tico" aria-hidden="true">·</span><span class="tname">package.json</span><span class="tmeta">2,1 КБ</span></div>
+          <div class="trow"><span class="tico" aria-hidden="true">·</span><span class="tname">tsconfig.json</span><span class="tmeta">0,8 КБ</span></div>
+          <div class="trow"><span class="tico" aria-hidden="true">·</span><span class="tname">README.md</span><span class="tmeta">3,5 КБ</span></div>
+        </div>
+        <p class="note" style="margin:12px 4px 0">Проект большой — на карте первые 18 элементов. Остальные найдутся поиском.</p>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="pane fcard">
+        <h4>Файл</h4>
+        <p class="fname">Header.tsx</p>
+        <div class="kv"><span>Путь</span><b>src/components/Header.tsx</b></div>
+        <div class="kv"><span>Размер</span><b>12,8 КБ</b></div>
+        <div class="kv"><span>Изменён</span><b>только что</b></div>
+        <div class="kv"><span>Состояние</span><span class="badge ok">на месте</span></div>
+        <p class="recent">Последние изменения</p>
+        <div class="mini">
+          <div class="dln ctx"><span class="s"> </span>export function Header() {</div>
+          <div class="dln del"><span class="s">−</span>  return &lt;nav className="nav"&gt;</div>
+          <div class="dln add"><span class="s">+</span>  return &lt;nav className="nav" aria-label="Главное меню"&gt;</div>
+          <div class="dln add"><span class="s">+</span>    &lt;a className="nav__logo" href="/"&gt;site-company&lt;/a&gt;</div>
+          <div class="dskip">⋯ 14 строк без изменений</div>
+        </div>
+        <button class="btn" type="button">Как вернуть файл</button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script src="theme.js"></script>
+</body>
+</html>

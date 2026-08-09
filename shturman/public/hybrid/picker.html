@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="ru" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Гибрид · Выбор проекта</title>
+<link rel="stylesheet" href="hybrid.css">
+<style>
+  .chrome { justify-content: space-between; }
+  .wrap { max-width: 640px; margin: 24px auto 0; display: flex; flex-direction: column; align-items: center; }
+  .dial { position: relative; width: 150px; height: 150px; margin-bottom: 22px; }
+  .dial svg { width: 100%; height: 100%; display: block; }
+  .dial .word { position: absolute; inset: 0; display: grid; place-items: center; }
+  .dial .word b { font-family: var(--serif); font-weight: 500; font-size: 19px; letter-spacing: .02em; }
+  .wrap .h2, .wrap .sub { text-align: center; }
+  .projects { width: 100%; display: flex; flex-direction: column; gap: 10px; margin: 8px 0 24px; }
+  .proj { display: block; text-decoration: none; color: var(--ink); transition: border-color .15s ease; }
+  .proj:hover { border-color: var(--dim); background: var(--panel-2); }
+  .proj:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
+  .proj .nm { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 15px; }
+  .proj .path { font-family: var(--mono); font-size: 12.5px; color: var(--dim); margin-top: 2px; overflow-wrap: anywhere; }
+  .proj .meta { color: var(--dim); font-size: 13px; margin-top: 8px; }
+  .proj .num { font-family: var(--mono); font-size: 12.5px; font-variant-numeric: tabular-nums; }
+  .foot { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; justify-content: center; }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <div class="chrome">
+    <div class="brand">Штурман<small>панель-наставник</small></div>
+    <button class="themeToggle" id="tt" type="button">Тема: ночь ◐</button>
+  </div>
+
+  <main class="wrap">
+
+    <div class="dial" role="img" aria-label="Эмблема Штурмана — картушка компаса">
+      <svg viewBox="0 0 120 120" fill="none">
+        <circle cx="60" cy="60" r="56" stroke="var(--brass)" stroke-width="1.5"/>
+        <circle cx="60" cy="60" r="50" stroke="var(--line)" stroke-width="1"/>
+        <g stroke="var(--dim)" opacity=".55" stroke-width="1">
+          <line x1="60" y1="5"  x2="60" y2="12"/><line x1="60" y1="108" x2="60" y2="115"/>
+          <line x1="5"  y1="60" x2="12" y2="60"/><line x1="108" y1="60" x2="115" y2="60"/>
+        </g>
+        <g stroke="var(--dim)" opacity=".3" stroke-width="1">
+          <line x1="21.1" y1="21.1" x2="26.1" y2="26.1"/><line x1="93.9" y1="93.9" x2="98.9" y2="98.9"/>
+          <line x1="98.9" y1="21.1" x2="93.9" y2="26.1"/><line x1="26.1" y1="93.9" x2="21.1" y2="98.9"/>
+        </g>
+      </svg>
+      <div class="word"><b>Штурман</b></div>
+    </div>
+
+    <h1 class="h2">За каким проектом смотрим?</h1>
+    <p class="sub">Это папки, в которых недавно работал Клод. Нажмите на любую.</p>
+
+    <div class="projects">
+      <a class="pane proj" href="main.html">
+        <span class="nm">site-company <span class="badge att">текущий</span></span>
+        <span class="path">/home/user/site-company</span>
+        <span class="meta">Клод был здесь <span class="num">12 мин</span> назад · <span class="num">214</span> файлов · <span class="num">6</span> сессий</span>
+      </a>
+      <a class="pane proj" href="main.html">
+        <span class="nm">wedding-invite</span>
+        <span class="path">/home/user/wedding-invite</span>
+        <span class="meta">Клод был здесь <span class="num">3 ч</span> назад · <span class="num">96</span> файлов · <span class="num">3</span> сессии</span>
+      </a>
+      <a class="pane proj" href="main.html">
+        <span class="nm">finance-bot</span>
+        <span class="path">/home/user/finance-bot</span>
+        <span class="meta">Клод был здесь <span class="num">4 дня</span> назад · <span class="num">58</span> файлов · <span class="num">1</span> сессия</span>
+      </a>
+    </div>
+
+    <div class="foot">
+      <button class="btn-brass" type="button">Выбрать папку</button>
+      <button class="btn" type="button" aria-pressed="false">Открывать последний проект сам: Выкл</button>
+    </div>
+
+  </main>
+</div>
+
+<script src="theme.js"></script>
+</body>
+</html>

@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="ru" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Гибрид · Лента — подробно</title>
+<link rel="stylesheet" href="hybrid.css">
+<style>
+  .layout { display: grid; grid-template-columns: minmax(300px,1fr) minmax(380px,1.3fr); gap: 16px; align-items: start; }
+  @media (max-width: 860px) { .layout { grid-template-columns: 1fr; } }
+  .dhead { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin: 0 2px 12px; }
+  .dhead .path { font-family: var(--mono); font-size: 13.5px; min-width: 0; overflow-wrap: anywhere; }
+  .dhead .stats { white-space: nowrap; }
+  .facts { margin-top: 14px; }
+  .ctx { margin-top: 18px; }
+  .doer { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 18px; }
+  .asknote { margin: 8px 2px 0; }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <div class="chrome">
+    <div class="brand">Штурман<small>/home/user/site-company</small></div>
+    <div class="tabs">
+      <a class="tab on" href="main.html">Лента</a>
+      <a class="tab" href="map.html">Карта</a>
+      <a class="tab" href="git.html">Git</a>
+      <a class="tab" href="diary.html">Дневник</a>
+      <a class="tab" href="glossary.html">Словарь</a>
+      <a class="tab" href="settings.html">Настройки</a>
+    </div>
+    <button class="themeToggle" id="tt" type="button">Тема: ночь ◐</button>
+  </div>
+
+  <div class="layout">
+
+    <div class="pane">
+      <h4>Лента</h4>
+      <div class="feed">
+        <div class="ev">
+          <span class="ico" aria-hidden="true">›_</span>
+          <span class="t">Клод запустил npm test — проверяет, работают ли тесты</span>
+          <span class="tm">14:02</span>
+        </div>
+        <div class="ev sel">
+          <span class="ico ok" aria-hidden="true">✎</span>
+          <span class="t">Клод изменил Header.tsx <span class="stat-add">+24</span> <span class="stat-del">−6</span></span>
+          <span class="tm">14:03</span>
+        </div>
+        <div class="ev">
+          <span class="ico ok" aria-hidden="true">✎</span>
+          <span class="t">Клод изменил format.ts <span class="stat-add">+8</span> <span class="stat-del">−3</span></span>
+          <span class="tm">14:03</span>
+        </div>
+        <div class="ev">
+          <span class="ico" aria-hidden="true">¶</span>
+          <span class="t">Клод прочитал package.json — смотрит зависимости</span>
+          <span class="tm">14:04</span>
+        </div>
+        <div class="ev">
+          <span class="ico bad" aria-hidden="true">△</span>
+          <span class="t">Ошибка: команда в терминале не сработала</span>
+          <span class="tm">14:05</span>
+          <span class="h">Клод, скорее всего, попробует иначе — это нормальная часть работы.</span>
+        </div>
+        <div class="ev">
+          <span class="ico" aria-hidden="true">⌁</span>
+          <span class="t">Клод обратился к сервису GitHub: list pull requests</span>
+          <span class="tm">14:06</span>
+          <span class="h">Передал: repo · owner · state</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="pane">
+      <h4>Подробно</h4>
+      <div class="dhead">
+        <span class="path">src/components/Header.tsx</span>
+        <span class="stats"><span class="stat-add">+24</span> <span class="stat-del">−6</span></span>
+      </div>
+
+      <div class="mini" aria-label="Что изменилось в файле">
+        <div class="dln ctx"><span class="s"> </span>import { Logo } from './Logo';</div>
+        <div class="dln del"><span class="s">−</span>import { NavLinks } from './NavLinks';</div>
+        <div class="dln add"><span class="s">+</span>import { NavLinks } from './nav/NavLinks';</div>
+        <div class="dln add"><span class="s">+</span>import { useScroll } from '../hooks/useScroll';</div>
+        <div class="dln ctx"><span class="s"> </span></div>
+        <div class="dln ctx"><span class="s"> </span>export function Header() {</div>
+        <div class="dln add"><span class="s">+</span>  const scrolled = useScroll(24);</div>
+        <div class="dln del"><span class="s">−</span>  return (</div>
+        <div class="dln del"><span class="s">−</span>    &lt;header className="header"&gt;</div>
+        <div class="dln add"><span class="s">+</span>  return (</div>
+        <div class="dln add"><span class="s">+</span>    &lt;header className={scrolled ? 'header header--solid' : 'header'}&gt;</div>
+        <div class="dln ctx"><span class="s"> </span>      &lt;Logo /&gt;</div>
+        <div class="dln ctx"><span class="s"> </span>      &lt;NavLinks /&gt;</div>
+        <div class="dln add"><span class="s">+</span>      {scrolled &amp;&amp; &lt;div className="header__shadow" /&gt;}</div>
+        <div class="dskip">⋯ 14 строк без изменений</div>
+      </div>
+
+      <div class="facts">
+        <div class="kv"><span>Когда</span><b>сегодня, 14:03</b></div>
+        <div class="kv"><span>Инструмент</span><b>Edit</b></div>
+        <div class="kv"><span>Файл</span><b>src/components/Header.tsx</b></div>
+        <div class="kv"><span>Откуда узнали</span><b>запись сессии Клода</b></div>
+      </div>
+
+      <div class="ctx">
+        <h4>Контекст</h4>
+        <div class="kv"><span>Ветка</span><b>main</b></div>
+        <div class="kv"><span>Токенов занято</span><b>41%</b></div>
+        <div class="meter"><i style="width:41%"></i></div>
+      </div>
+
+      <div class="doer">
+        <button class="btn" type="button">Спросить Клода</button>
+        <button class="btn" type="button">Скопировать карточку</button>
+      </div>
+      <p class="note asknote">Вопрос уйдёт настоящему Клоду и потратит немного ваших лимитов.</p>
+    </div>
+
+  </div>
+</div>
+
+<script src="theme.js"></script>
+</body>
+</html>
