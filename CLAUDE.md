@@ -64,7 +64,7 @@ code in this repository.
 │   │                                 design.html (витрина), sw.js, offline.html
 │   ├── bench/                      — стенд скорости: нагрузка, замеры, атрибуция
 │   ├── tools/make-icons.js         — генератор значков: PNG, .ico, .icns
-│   └── tests/                      — 376 проверок на node:test + ручной аудит
+│   └── tests/                      — 385 проверок на node:test + ручной аудит
 └── yegor-diana-wedding/            — САМ САЙТ (публикуется в корень Pages)
     ├── index.html                  — вся разметка, одна страница (~670 строк)
     ├── favicon.svg                 — монограмма «Е&Д»
@@ -98,7 +98,7 @@ node --check yegor-diana-wedding/assets/js/main.js
 
 ```bash
 cd shturman
-npm test                 # 376 проверок на node:test — гонять перед коммитом
+npm test                 # 385 проверок на node:test — гонять перед коммитом
 npm run bench            # стенд скорости: должен сказать «все бюджеты выполнены»
 node tests/manual/newbie.js  # путь новичка целиком, ожидается 0 шагов в терминале
 node server.js --check   # самодиагностика окружения
