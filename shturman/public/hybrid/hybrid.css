@@ -1,0 +1,249 @@
+/* ===========================================================================
+   ГИБРИД — общий стиль макетов всех экранов.
+   Витрина-эксперимент: продакшен (tokens.css и далее) не трогает.
+   Формула: база Н2 (графит, воздух, цвет только сигналам) +
+   картушка/латунь Н1 (единственное украшение) + кремовый день Н3.
+   =========================================================================== */
+
+:root {
+  --bg:       #14191d;
+  --panel:    #1b2227;
+  --panel-2:  #212a30;
+  --sunken:   #10151a;
+  --line:     #2a343b;
+  --ink:      #e8ecec;
+  --dim:      #8fa0a4;
+
+  --brass:    #d4a558;
+  --brass-soft: rgba(212, 165, 88, .12);
+  --sea:      #5fbfa3;
+  --sea-soft: rgba(95, 191, 163, .13);
+  --coral:    #f79f95;
+  --coral-soft: rgba(247, 159, 149, .12);
+  --on-brass: #14191d;
+
+  --serif: Georgia, "Iowan Old Style", "Palatino Linotype", Palatino, serif;
+  --sans:  -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --mono:  ui-monospace, SFMono-Regular, "SF Mono", Consolas, "Liberation Mono", monospace;
+
+  --r: 12px;
+  --r-sm: 8px;
+  --shadow: 0 14px 40px rgba(0, 0, 0, .35);
+}
+
+[data-theme="light"] {
+  --bg:       #ece5d6;
+  --panel:    #faf6ec;
+  --panel-2:  #f2ecdf;
+  --sunken:   #e5ddcb;
+  --line:     #d9cfba;
+  --ink:      #26221a;
+  --dim:      #71685a;
+
+  --brass:    #8a5f1e;
+  --brass-soft: rgba(138, 95, 30, .12);
+  --sea:      #116850;
+  --sea-soft: rgba(17, 104, 80, .12);
+  --coral:    #a82d1b;
+  --coral-soft: rgba(168, 45, 27, .10);
+  --on-brass: #faf6ec;
+
+  --shadow: 0 14px 40px rgba(80, 65, 35, .16);
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 15px;
+  line-height: 1.55;
+}
+.app { max-width: 1360px; margin: 0 auto; padding: 18px 22px 60px; }
+
+/* ── Хром: шапка с мини-картушкой и вкладками ─────────────────────────── */
+.chrome {
+  display: flex; align-items: center; gap: 18px; flex-wrap: wrap;
+  padding: 10px 4px 18px;
+}
+.brand { font-family: var(--serif); font-size: 19px; letter-spacing: .02em; white-space: nowrap; }
+.brand small { display: block; font-family: var(--mono); font-size: 10.5px; color: var(--dim); letter-spacing: .1em; }
+
+.dial-mini { position: relative; width: 54px; height: 54px; flex: 0 0 auto; }
+.dial-mini svg { width: 100%; height: 100%; display: block; }
+.dial-mini .ring-brass { stroke: var(--brass); }
+.dial-mini .arc { stroke: var(--sea); stroke-linecap: round; }
+.dial-mini.att .arc { stroke: var(--brass); }
+
+.state { min-width: 0; }
+.state b { font-family: var(--serif); font-weight: 500; font-size: 18px; display: block; line-height: 1.2; }
+.state span { font-size: 12.5px; color: var(--dim); display: block; }
+
+.tabs { display: flex; gap: 6px; margin-left: auto; flex-wrap: wrap; }
+.tab {
+  font-size: 13.5px; color: var(--dim); background: none; text-decoration: none;
+  border: 1px solid transparent; border-radius: 999px; padding: 7px 16px; cursor: pointer;
+  font-family: var(--sans);
+}
+.tab:hover { color: var(--ink); border-color: var(--line); }
+.tab.on { color: var(--on-brass); background: var(--brass); font-weight: 600; }
+.tab:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
+
+.themeToggle {
+  font-family: var(--sans); font-size: 13px;
+  background: var(--panel); color: var(--ink);
+  border: 1px solid var(--line); border-radius: 999px;
+  padding: 7px 14px; cursor: pointer; white-space: nowrap;
+}
+.themeToggle:hover { border-color: var(--dim); }
+.themeToggle:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
+
+/* ── Панели и сетки ───────────────────────────────────────────────────── */
+.pane {
+  background: var(--panel); border: 1px solid var(--line);
+  border-radius: var(--r); padding: 16px; min-width: 0;
+}
+.pane h4 {
+  margin: 0 2px 12px; font-size: 12px; color: var(--dim); font-weight: 500;
+  font-family: var(--mono); text-transform: uppercase; letter-spacing: .12em;
+}
+.pane .actions { float: right; display: flex; gap: 6px; }
+
+.h2 { font-family: var(--serif); font-weight: 500; font-size: 22px; margin: 0 0 4px; }
+.sub { color: var(--dim); font-size: 13.5px; margin: 0 0 16px; max-width: 70ch; }
+.note { color: var(--dim); font-size: 13px; }
+
+/* ── Кнопки, поля, таблетки ───────────────────────────────────────────── */
+.btn {
+  font-size: 13.5px; background: var(--panel-2); color: var(--ink);
+  border: 1px solid var(--line); border-radius: 9px; padding: 8px 16px; cursor: pointer;
+}
+.btn:hover { border-color: var(--dim); }
+.btn:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
+.btn-brass {
+  background: var(--brass); color: var(--on-brass); border: 0;
+  border-radius: 9px; padding: 9px 20px; font-size: 14px; font-weight: 600; cursor: pointer;
+}
+.btn-sm { font-size: 12.5px; padding: 4px 12px; border-radius: 7px;
+  background: var(--panel-2); color: var(--ink); border: 1px solid var(--line); cursor: pointer; }
+
+.field {
+  display: flex; align-items: center; gap: 8px;
+  background: var(--sunken); border: 1px solid var(--line); border-radius: 9px;
+  padding: 7px 12px; color: var(--dim); font-size: 13.5px;
+}
+.field input { background: none; border: 0; color: var(--ink); font-size: 14px; outline: none; width: 100%; }
+
+.pills { display: flex; gap: 7px; flex-wrap: wrap; }
+.pill {
+  font-size: 13px; color: var(--dim); background: none;
+  border: 1px solid var(--line); border-radius: 999px; padding: 5px 14px; cursor: pointer;
+}
+.pill.on { color: var(--on-brass); background: var(--brass); border-color: var(--brass); font-weight: 600; }
+
+.badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 12px; border-radius: 999px; padding: 2px 10px;
+  background: var(--panel-2); color: var(--dim);
+}
+.badge::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.badge.ok  { background: var(--sea-soft);   color: var(--sea); }
+.badge.att { background: var(--brass-soft); color: var(--brass); }
+.badge.bad { background: var(--coral-soft); color: var(--coral); }
+
+/* ── Карточка события ─────────────────────────────────────────────────── */
+.feed { display: flex; flex-direction: column; gap: 6px; }
+.ev {
+  display: grid; grid-template-columns: 30px minmax(0,1fr) auto;
+  gap: 2px 12px; padding: 11px 14px;
+  border-radius: var(--r); cursor: pointer;
+}
+.ev:hover { background: var(--panel-2); }
+.ev.sel { background: var(--panel-2); box-shadow: inset 0 0 0 1px var(--line); }
+.ico {
+  grid-row: 1 / span 2; width: 30px; height: 30px; border-radius: 50%;
+  display: grid; place-items: center; font-size: 13px;
+  background: var(--panel-2); color: var(--dim);
+}
+.ico.ok  { background: var(--sea-soft);   color: var(--sea); }
+.ico.bad { background: var(--coral-soft); color: var(--coral); }
+.ico.att { background: var(--brass-soft); color: var(--brass); }
+.t { font-weight: 600; align-self: center; min-width: 0; overflow-wrap: anywhere; }
+.stat-add { color: var(--sea); font-family: var(--mono); font-size: 12.5px; font-weight: 500; }
+.stat-del { color: var(--coral); font-family: var(--mono); font-size: 12.5px; font-weight: 500; }
+.tm { color: var(--dim); font-size: 12px; align-self: center; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.h { grid-column: 2 / span 2; color: var(--dim); font-size: 13px; overflow-wrap: anywhere; }
+.body { grid-column: 2 / span 2; margin-top: 7px; min-width: 0; }
+
+.cmdline {
+  font-family: var(--mono); font-size: 12.5px; color: var(--dim);
+  background: var(--sunken); border-radius: var(--r-sm); padding: 6px 12px;
+  overflow-x: auto; white-space: pre;
+}
+.status { display: flex; align-items: center; gap: 8px; margin-top: 7px; font-size: 12.5px; color: var(--dim); }
+.status .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.status.busy .dot { animation: pulse 1.2s ease-in-out infinite; }
+.status.bad { color: var(--coral); }
+@keyframes pulse { 0%,100% { opacity: .3; } 50% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .status.busy .dot { animation: none; } }
+
+/* ── Дифф ─────────────────────────────────────────────────────────────── */
+.mini {
+  font-family: var(--mono); font-size: 12.5px;
+  background: var(--sunken); border-radius: var(--r-sm); padding: 5px 0; overflow: hidden;
+}
+.dln { display: flex; padding: 0 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.dln .s { flex: 0 0 16px; opacity: .8; user-select: none; }
+.dln.add { background: var(--sea-soft); color: var(--sea); }
+.dln.del { background: var(--coral-soft); color: var(--coral); }
+.dln.ctx { color: var(--dim); }
+.dskip { text-align: center; color: var(--dim); font-family: var(--sans); font-size: 12px; padding: 2px 12px; }
+
+/* Стоп-сигнал */
+.ev.risk { background: var(--coral-soft); }
+.ev.risk .t { color: var(--coral); }
+.rollback {
+  grid-column: 2 / span 2; margin-top: 8px; background: var(--panel);
+  border-radius: var(--r-sm); padding: 10px 12px; font-size: 12.5px;
+}
+.rollback code { font-family: var(--mono); display: block; margin: 4px 0 8px; }
+.ev.think .t { font-weight: 400; color: var(--dim); }
+
+/* ── Справочные ряды и счётчики ───────────────────────────────────────── */
+.kv { display: flex; justify-content: space-between; gap: 10px; padding: 7px 4px; font-size: 13.5px; border-bottom: 1px solid var(--line); }
+.kv:last-child { border-bottom: 0; }
+.kv b { font-family: var(--mono); font-weight: 500; white-space: nowrap; }
+.count { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.cnt { background: var(--panel-2); border-radius: var(--r-sm); padding: 10px 12px; }
+.cnt b { font-family: var(--serif); font-size: 24px; font-weight: 500; display: block; }
+.cnt.badnum b { color: var(--coral); }
+.cnt span { font-size: 12px; color: var(--dim); }
+.meter { height: 5px; border-radius: 999px; background: var(--sunken); margin-top: 7px; overflow: hidden; }
+.meter i { display: block; height: 100%; background: var(--brass); border-radius: 999px; }
+
+/* ── Тревожная плашка ─────────────────────────────────────────────────── */
+.alarm {
+  display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  background: var(--brass-soft); border: 1px solid var(--brass);
+  border-radius: var(--r); padding: 14px 18px; margin-bottom: 16px;
+}
+.alarm b { font-family: var(--serif); font-weight: 500; font-size: 17px; }
+.alarm p { margin: 0; color: var(--dim); font-size: 13.5px; flex: 1 1 260px; }
+
+/* ── Дерево файлов ────────────────────────────────────────────────────── */
+.tree { font-size: 13.5px; }
+.trow {
+  display: flex; align-items: center; gap: 8px; padding: 5px 10px;
+  border-radius: 7px; cursor: pointer;
+}
+.trow:hover { background: var(--panel-2); }
+.trow .tico { color: var(--dim); flex: 0 0 16px; text-align: center; }
+.trow .tname { min-width: 0; overflow-wrap: anywhere; }
+.trow .tmeta { margin-left: auto; color: var(--dim); font-size: 11.5px; font-family: var(--mono); white-space: nowrap; }
+.trow.fresh { background: var(--sea-soft); }
+.trow.fresh .tname { color: var(--sea); font-weight: 600; }
+.tind-1 { padding-left: 28px; }
+.tind-2 { padding-left: 46px; }
+
+a { color: var(--brass); }
