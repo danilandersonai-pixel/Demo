@@ -1,0 +1,786 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Генератор презентаций</title>
+<!-- Сгенерировано flow-canvas. Правьте данные в spec.json, не этот файл. -->
+<style>
+  :root {
+    --canvas:#EEF0F4; --dot:#C9CFDA; --surface:#FFFFFF; --surface-2:#F7F8FB;
+    --border:#DDE2EA; --border-firm:#C3CAD8; --ink:#1B2130; --ink-muted:#67718A;
+    --ink-faint:#96A0B4; --accent:#8A2434; --accent-soft:#F3E4E7; --edge:#B7BECD;
+    --ok:#1F8A5B; --ok-soft:#E3F3EB;
+    --shadow:0 1px 2px rgba(27,33,48,.06), 0 4px 12px rgba(27,33,48,.07);
+    --shadow-lift:0 2px 4px rgba(27,33,48,.08), 0 12px 32px rgba(27,33,48,.14);
+    --sans:ui-sans-serif, system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --mono:ui-monospace, "SF Mono", "JetBrains Mono", "Cascadia Code", Menlo, Consolas, monospace;
+    --z:1; --sheet-h:62vh;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --canvas:#141821; --dot:#2B3242; --surface:#1E242F; --surface-2:#262D3A;
+      --border:#333B4B; --border-firm:#465063; --ink:#E8EBF2; --ink-muted:#9AA5BC;
+      --ink-faint:#6E7893; --accent:#E08A97; --accent-soft:#3A2229; --edge:#4A5568;
+      --ok:#4BC98D; --ok-soft:#16302A;
+      --shadow:0 1px 2px rgba(0,0,0,.4), 0 4px 12px rgba(0,0,0,.35);
+      --shadow-lift:0 2px 6px rgba(0,0,0,.5), 0 14px 36px rgba(0,0,0,.5);
+    }
+  }
+  :root[data-theme="dark"] {
+    --canvas:#141821; --dot:#2B3242; --surface:#1E242F; --surface-2:#262D3A;
+    --border:#333B4B; --border-firm:#465063; --ink:#E8EBF2; --ink-muted:#9AA5BC;
+    --ink-faint:#6E7893; --accent:#E08A97; --accent-soft:#3A2229; --edge:#4A5568;
+    --ok:#4BC98D; --ok-soft:#16302A;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 4px 12px rgba(0,0,0,.35);
+    --shadow-lift:0 2px 6px rgba(0,0,0,.5), 0 14px 36px rgba(0,0,0,.5);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--canvas); color: var(--ink);
+    font-family: var(--sans); -webkit-font-smoothing: antialiased;
+    height: 100vh; height: 100dvh;
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+
+  /* Переключатели — скрытые radio; от них идут все сестринские селекторы. */
+  .sr { position:absolute; width:1px; height:1px; margin:-1px; padding:0;
+        overflow:hidden; clip:rect(0 0 0 0); clip-path:inset(50%); white-space:nowrap; }
+
+  header {
+    flex: none; display: flex; align-items: center; gap: 16px;
+    padding: 12px 20px; background: var(--surface);
+    border-bottom: 1px solid var(--border); z-index: 30;
+  }
+  .brand { display: flex; align-items: baseline; gap: 10px; min-width: 0; flex: 0 1 auto; }
+  .brand h1 { margin: 0; font-size: 15px; font-weight: 650; letter-spacing: -.01em;
+              white-space: nowrap; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .brand .sub { font-size: 12px; color: var(--ink-faint);
+                white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .spacer { flex: 1; }
+
+  .toggle { display: flex; flex: none; background: var(--surface-2);
+            border: 1px solid var(--border); border-radius: 8px; padding: 2px; gap: 2px; }
+  .toggle label { color: var(--ink-muted); font-size: 12.5px; font-weight: 550;
+                  padding: 5px 12px; border-radius: 6px; cursor: pointer; user-select: none;
+                  transition: background .15s, color .15s; }
+
+  .runline { display: none; align-items: center; gap: 7px; font-family: var(--mono);
+             font-size: 11.5px; color: var(--ok); white-space: nowrap; }
+  .pulse { width: 7px; height: 7px; border-radius: 50%; background: var(--ok);
+           box-shadow: 0 0 0 3px var(--ok-soft); }
+
+  .viewport {
+    flex: 1; min-height: 0; overflow: auto; position: relative;
+    -webkit-overflow-scrolling: touch; overscroll-behavior: contain;
+    background-image: radial-gradient(var(--dot) 1.2px, transparent 1.2px);
+    background-size: 18px 18px; background-position: -1px -1px; background-attachment: local;
+  }
+  .stage { position: relative; width: calc(1464px * var(--z)); height: calc(704px * var(--z)); }
+  .canvas { position: relative; width: 1464px; height: 704px;
+            transform: scale(var(--z)); transform-origin: 0 0; }
+  .wires { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+  .wire { fill: none; stroke: var(--edge); stroke-width: 1.75; transition: stroke .2s; }
+
+  .count { font-family: var(--mono); font-size: 10.5px; font-weight: 600; fill: var(--ok); }
+  .count-bg { fill: var(--surface); stroke: var(--ok); stroke-width: 1; }
+  .counts { opacity: 0; transition: opacity .25s; }
+
+  .node { position: absolute; width: 96px; display: block; cursor: pointer; text-align: center; }
+  .box { position: relative; display: grid; place-items: center; width: 96px; height: 96px;
+         background: var(--surface); border: 1px solid var(--border-firm);
+         border-radius: 14px; box-shadow: var(--shadow);
+         transition: transform .16s, box-shadow .16s, border-color .16s; }
+  .node.trigger .box { border-radius: 48px 14px 14px 48px; }
+  .node:hover .box { transform: translateY(-2px); box-shadow: var(--shadow-lift); }
+  .box > svg { width: 30px; height: 30px; stroke: var(--ink-muted); fill: none;
+               stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+
+  .tick { position: absolute; right: -7px; top: -7px; width: 20px; height: 20px;
+          border-radius: 50%; background: var(--ok); display: grid; place-items: center;
+          opacity: 0; transform: scale(.6); transition: opacity .2s, transform .2s; }
+  .tick svg { width: 12px; height: 12px; stroke: var(--surface); fill: none;
+              stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
+
+  .caption { display: block; margin-top: 9px; width: 156px; margin-left: -30px; }
+  .caption .t { display: block; font-size: 12.5px; font-weight: 600; line-height: 1.25;
+                letter-spacing: -.005em; }
+  .caption .s { display: block; margin-top: 3px; font-family: var(--mono); font-size: 10px;
+                line-height: 1.35; color: var(--ink-faint); }
+
+  .lane { position: absolute; font-size: 10.5px; font-weight: 600; letter-spacing: .08em;
+          text-transform: uppercase; color: var(--ink-faint); pointer-events: none; }
+  .hint { position: absolute; left: 60px; top: 22px; font-size: 12px;
+          color: var(--ink-faint); pointer-events: none; }
+
+  /* Панель — не оверлей, а элемент колонки: холст ужимается, когда она открыта,
+     и выбранная нода не прячется под ней (подкрутить холст скриптом было бы нечем). */
+  .sheet { flex: none; height: 0; overflow: hidden; background: var(--surface);
+           border-top: 1px solid var(--border); box-shadow: 0 -8px 32px rgba(27,33,48,.16);
+           transition: height .28s cubic-bezier(.32,.72,.28,1); z-index: 40; }
+  .pane { display: none; flex-direction: column; height: 100%; }
+
+  .sheet-head { flex: none; display: flex; align-items: flex-start; gap: 14px;
+                padding: 16px 20px 12px; border-bottom: 1px solid var(--border); }
+  .sheet-icon { flex: none; width: 40px; height: 40px; border-radius: 10px;
+                background: var(--surface-2); border: 1px solid var(--border);
+                display: grid; place-items: center; }
+  .sheet-icon svg { width: 21px; height: 21px; stroke: var(--accent); fill: none;
+                    stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+  .sheet-title { flex: 1; min-width: 0; }
+  .sheet-title h2 { margin: 0; font-size: 16px; font-weight: 650; letter-spacing: -.01em; }
+  .sheet-title .who { display: block; margin-top: 3px; font-family: var(--mono);
+                      font-size: 11px; color: var(--ink-faint); }
+  .sheet-close { flex: none; border: 1px solid var(--border); background: var(--surface-2);
+                 color: var(--ink-muted); width: 30px; height: 30px; border-radius: 8px;
+                 cursor: pointer; font-size: 16px; line-height: 1; display: grid;
+                 place-items: center; user-select: none; }
+  .sheet-close:hover { color: var(--ink); }
+
+  .sheet-body { flex: 1; min-height: 0; padding: 16px 20px 22px; overflow-y: auto; }
+  .sheet-body p { margin: 0 0 14px; font-size: 13.5px; line-height: 1.6;
+                  color: var(--ink-muted); max-width: 68ch; }
+
+  .chips { display: none; flex-wrap: wrap; gap: 7px; margin-bottom: 14px; }
+  .chip { display: inline-flex; align-items: baseline; gap: 6px; padding: 4px 9px;
+          border-radius: 6px; background: var(--ok-soft); border: 1px solid var(--ok);
+          font-family: var(--mono); font-size: 11px; color: var(--ok);
+          font-variant-numeric: tabular-nums; }
+  .chip b { font-weight: 600; }
+  .chip .k { color: var(--ink-faint); font-weight: 400; }
+
+  .out-label { font-size: 10.5px; font-weight: 650; letter-spacing: .08em;
+               text-transform: uppercase; color: var(--ink-faint); margin-bottom: 7px; }
+  pre { margin: 0; padding: 13px 15px; background: var(--surface-2);
+        border: 1px solid var(--border); border-radius: 9px; overflow-x: auto;
+        font-family: var(--mono); font-size: 11.5px; line-height: 1.65;
+        color: var(--ink); tab-size: 2; }
+  .j-key { color: var(--accent); }
+  .j-str { color: var(--ok); }
+  .j-num { color: var(--ink); font-weight: 600; }
+  .j-bool { color: var(--ink-muted); font-style: italic; }
+
+  /* Состояния переключают radio */
+  #m-edit:checked ~ header label[for="m-edit"],
+  #m-run:checked  ~ header label[for="m-run"] {
+    background: var(--surface); color: var(--ink); box-shadow: var(--shadow); }
+  #m-edit:focus-visible ~ header label[for="m-edit"],
+  #m-run:focus-visible  ~ header label[for="m-run"] {
+    outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  #m-run:checked ~ header .runline { display: flex; }
+  #m-run:checked ~ .viewport .box { border-color: var(--ok); }
+  #m-run:checked ~ .viewport .box > svg { stroke: var(--ink); }
+  #m-run:checked ~ .viewport .tick { opacity: 1; transform: scale(1); }
+  #m-run:checked ~ .viewport .wire { stroke: var(--ok); stroke-opacity: .55; }
+  #m-run:checked ~ .viewport .counts { opacity: 1; }
+  #m-run:checked ~ .sheet .chips { display: flex; }
+
+  #p-input:checked ~ .sheet,
+  #p-schema:checked ~ .sheet,
+  #p-registry:checked ~ .sheet,
+  #p-fgos:checked ~ .sheet,
+  #p-lint:checked ~ .sheet,
+  #p-themes:checked ~ .sheet,
+  #p-textfit:checked ~ .sheet,
+  #p-render:checked ~ .sheet,
+  #p-pdf:checked ~ .sheet,
+  #p-out:checked ~ .sheet { height: var(--sheet-h); }
+
+  #p-input:checked ~ .sheet .pane-input { display: flex; }
+  #p-input:checked ~ .viewport label[for="p-input"] .box {
+    border-color: var(--accent);
+    box-shadow: var(--shadow-lift), 0 0 0 3px var(--accent-soft);
+  }
+  #p-input:checked ~ .viewport label[for="p-input"] .box > svg { stroke: var(--accent); }
+  #p-input:checked ~ .viewport .w-input {
+    stroke: var(--accent); stroke-width: 2.25; stroke-opacity: 1;
+  }
+  #p-input:focus-visible ~ .viewport label[for="p-input"] .box {
+    outline: 2px solid var(--accent); outline-offset: 3px;
+  }
+  #p-schema:checked ~ .sheet .pane-schema { display: flex; }
+  #p-schema:checked ~ .viewport label[for="p-schema"] .box {
+    border-color: var(--accent);
+    box-shadow: var(--shadow-lift), 0 0 0 3px var(--accent-soft);
+  }
+  #p-schema:checked ~ .viewport label[for="p-schema"] .box > svg { stroke: var(--accent); }
+  #p-schema:checked ~ .viewport .w-schema {
+    stroke: var(--accent); stroke-width: 2.25; stroke-opacity: 1;
+  }
+  #p-schema:focus-visible ~ .viewport label[for="p-schema"] .box {
+    outline: 2px solid var(--accent); outline-offset: 3px;
+  }
+  #p-registry:checked ~ .sheet .pane-registry { display: flex; }
+  #p-registry:checked ~ .viewport label[for="p-registry"] .box {
+    border-color: var(--accent);
+    box-shadow: var(--shadow-lift), 0 0 0 3px var(--accent-soft);
+  }
+  #p-registry:checked ~ .viewport label[for="p-registry"] .box > svg { stroke: var(--accent); }
+  #p-registry:checked ~ .viewport .w-registry {
+    stroke: var(--accent); stroke-width: 2.25; stroke-opacity: 1;
+  }
+  #p-registry:focus-visible ~ .viewport label[for="p-registry"] .box {
+    outline: 2px solid var(--accent); outline-offset: 3px;
+  }
+  #p-fgos:checked ~ .sheet .pane-fgos { display: flex; }
+  #p-fgos:checked ~ .viewport label[for="p-fgos"] .box {
+    border-color: var(--accent);
+    box-shadow: var(--shadow-lift), 0 0 0 3px var(--accent-soft);
+  }
+  #p-fgos:checked ~ .viewport label[for="p-fgos"] .box > svg { stroke: var(--accent); }
+  #p-fgos:checked ~ .viewport .w-fgos {
+    stroke: var(--accent); stroke-width: 2.25; stroke-opacity: 1;
+  }
+  #p-fgos:focus-visible ~ .viewport label[for="p-fgos"] .box {
+    outline: 2px solid var(--accent); outline-offset: 3px;
+  }
+  #p-lint:checked ~ .sheet .pane-lint { display: flex; }
+  #p-lint:checked ~ .viewport label[for="p-lint"] .box {
+    border-color: var(--accent);
+    box-shadow: var(--shadow-lift), 0 0 0 3px var(--accent-soft);
+  }
+  #p-lint:checked ~ .viewport label[for="p-lint"] .box > svg { stroke: var(--accent); }
+  #p-lint:checked ~ .viewport .w-lint {
+    stroke: var(--accent); stroke-width: 2.25; stroke-opacity: 1;
+  }
+  #p-lint:focus-visible ~ .viewport label[for="p-lint"] .box {
+    outline: 2px solid var(--accent); outline-offset: 3px;
+  }
+  #p-themes:checked ~ .sheet .pane-themes { display: flex; }
+  #p-themes:checked ~ .viewport label[for="p-themes"] .box {
+    border-color: var(--accent);
+    box-shadow: var(--shadow-lift), 0 0 0 3px var(--accent-soft);
+  }
+  #p-themes:checked ~ .viewport label[for="p-themes"] .box > svg { stroke: var(--accent); }
+  #p-themes:checked ~ .viewport .w-themes {
+    stroke: var(--accent); stroke-width: 2.25; stroke-opacity: 1;
+  }
+  #p-themes:focus-visible ~ .viewport label[for="p-themes"] .box {
+    outline: 2px solid var(--accent); outline-offset: 3px;
+  }
+  #p-textfit:checked ~ .sheet .pane-textfit { display: flex; }
+  #p-textfit:checked ~ .viewport label[for="p-textfit"] .box {
+    border-color: var(--accent);
+    box-shadow: var(--shadow-lift), 0 0 0 3px var(--accent-soft);
+  }
+  #p-textfit:checked ~ .viewport label[for="p-textfit"] .box > svg { stroke: var(--accent); }
+  #p-textfit:checked ~ .viewport .w-textfit {
+    stroke: var(--accent); stroke-width: 2.25; stroke-opacity: 1;
+  }
+  #p-textfit:focus-visible ~ .viewport label[for="p-textfit"] .box {
+    outline: 2px solid var(--accent); outline-offset: 3px;
+  }
+  #p-render:checked ~ .sheet .pane-render { display: flex; }
+  #p-render:checked ~ .viewport label[for="p-render"] .box {
+    border-color: var(--accent);
+    box-shadow: var(--shadow-lift), 0 0 0 3px var(--accent-soft);
+  }
+  #p-render:checked ~ .viewport label[for="p-render"] .box > svg { stroke: var(--accent); }
+  #p-render:checked ~ .viewport .w-render {
+    stroke: var(--accent); stroke-width: 2.25; stroke-opacity: 1;
+  }
+  #p-render:focus-visible ~ .viewport label[for="p-render"] .box {
+    outline: 2px solid var(--accent); outline-offset: 3px;
+  }
+  #p-pdf:checked ~ .sheet .pane-pdf { display: flex; }
+  #p-pdf:checked ~ .viewport label[for="p-pdf"] .box {
+    border-color: var(--accent);
+    box-shadow: var(--shadow-lift), 0 0 0 3px var(--accent-soft);
+  }
+  #p-pdf:checked ~ .viewport label[for="p-pdf"] .box > svg { stroke: var(--accent); }
+  #p-pdf:checked ~ .viewport .w-pdf {
+    stroke: var(--accent); stroke-width: 2.25; stroke-opacity: 1;
+  }
+  #p-pdf:focus-visible ~ .viewport label[for="p-pdf"] .box {
+    outline: 2px solid var(--accent); outline-offset: 3px;
+  }
+  #p-out:checked ~ .sheet .pane-out { display: flex; }
+  #p-out:checked ~ .viewport label[for="p-out"] .box {
+    border-color: var(--accent);
+    box-shadow: var(--shadow-lift), 0 0 0 3px var(--accent-soft);
+  }
+  #p-out:checked ~ .viewport label[for="p-out"] .box > svg { stroke: var(--accent); }
+  #p-out:checked ~ .viewport .w-out {
+    stroke: var(--accent); stroke-width: 2.25; stroke-opacity: 1;
+  }
+  #p-out:focus-visible ~ .viewport label[for="p-out"] .box {
+    outline: 2px solid var(--accent); outline-offset: 3px;
+  }
+
+  @media (max-width: 1000px) { :root { --z: .8; } }
+  @media (max-width: 700px) {
+    :root { --z: .62; --sheet-h: 56vh; }
+    header { padding: 10px 14px; gap: 10px; }
+    .brand .sub { display: none; }
+    .brand h1 { font-size: 14px; }
+    .toggle label { padding: 5px 10px; font-size: 12px; }
+    #m-run:checked ~ header .runline { display: none; }
+    .hint { left: 26px; top: 16px; font-size: 11px; max-width: 300px; }
+    .sheet-head { padding: 14px 16px 10px; }
+    .sheet-body { padding: 14px 16px calc(20px + env(safe-area-inset-bottom)); }
+    pre { font-size: 11px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .sheet, .box, .tick, .counts, .wire, .toggle label { transition: none; }
+  }
+</style>
+</head>
+<body>
+
+<input class="sr" type="radio" name="mode" id="m-edit" checked>
+<input class="sr" type="radio" name="mode" id="m-run">
+<input class="sr" type="radio" name="pick" id="p-none" checked>
+<input class="sr" type="radio" name="pick" id="p-input">
+<input class="sr" type="radio" name="pick" id="p-schema">
+<input class="sr" type="radio" name="pick" id="p-registry">
+<input class="sr" type="radio" name="pick" id="p-fgos">
+<input class="sr" type="radio" name="pick" id="p-lint">
+<input class="sr" type="radio" name="pick" id="p-themes">
+<input class="sr" type="radio" name="pick" id="p-textfit">
+<input class="sr" type="radio" name="pick" id="p-render">
+<input class="sr" type="radio" name="pick" id="p-pdf">
+<input class="sr" type="radio" name="pick" id="p-out">
+
+<header>
+  <div class="brand">
+    <h1>Генератор презентаций</h1>
+    <span class="sub">tvoy-urok/ — детерминированная половина, работает без API-ключей</span>
+  </div>
+  <div class="spacer"></div>
+  <div class="runline"><span class="pulse"></span><span>прогон на fixtures/vasiliy-iii.json — 5,0 с</span></div>
+  <div class="toggle">
+    <label for="m-edit">Редактор</label>
+    <label for="m-run">Прогон</label>
+  </div>
+</header>
+
+<div class="viewport">
+  <div class="stage">
+    <div class="canvas">
+      <span class="hint">Нажмите на ноду — покажу, что она делает и что отдаёт дальше</span>
+      <svg class="wires" viewBox="0 0 1464 704" preserveAspectRatio="none" aria-hidden="true">
+        <path class="wire w-input w-schema" d="M 156 364 C 217.60000000000002 364, 206.39999999999998 364, 268 364"/>
+        <path class="wire w-schema w-registry" d="M 364 364 C 425.6 364, 414.4 144, 476 144"/>
+        <path class="wire w-schema w-lint" d="M 364 364 C 425.6 364, 414.4 364, 476 364"/>
+        <path class="wire w-schema w-themes" d="M 364 364 C 425.6 364, 414.4 584, 476 584"/>
+        <path class="wire w-registry w-fgos" d="M 572 144 C 633.6 144, 622.4 144, 684 144"/>
+        <path class="wire w-themes w-textfit" d="M 572 584 C 633.6 584, 622.4 584, 684 584"/>
+        <path class="wire w-fgos w-render" d="M 780 144 C 841.6 144, 830.4 364, 892 364"/>
+        <path class="wire w-lint w-render" d="M 572 364 C 748 364, 716 364, 892 364"/>
+        <path class="wire w-textfit w-render" d="M 780 584 C 841.6 584, 830.4 364, 892 364"/>
+        <path class="wire w-render w-pdf" d="M 988 364 C 1049.6 364, 1038.4 364, 1100 364"/>
+        <path class="wire w-pdf w-out" d="M 1196 364 C 1257.6 364, 1246.4 364, 1308 364"/>
+        <g class="counts">
+        <rect class="count-bg" x="201.5" y="355" width="21" height="18" rx="9"/><text class="count" x="212" y="367.6" text-anchor="middle">1</text>
+        <rect class="count-bg" x="409.5" y="245" width="21" height="18" rx="9"/><text class="count" x="420" y="257.6" text-anchor="middle">1</text>
+        <rect class="count-bg" x="406.5" y="355" width="27" height="18" rx="9"/><text class="count" x="420" y="367.6" text-anchor="middle">13</text>
+        <rect class="count-bg" x="409.5" y="465" width="21" height="18" rx="9"/><text class="count" x="420" y="477.6" text-anchor="middle">1</text>
+        <rect class="count-bg" x="617.5" y="135" width="21" height="18" rx="9"/><text class="count" x="628" y="147.6" text-anchor="middle">1</text>
+        <rect class="count-bg" x="617.5" y="575" width="21" height="18" rx="9"/><text class="count" x="628" y="587.6" text-anchor="middle">2</text>
+        <rect class="count-bg" x="825.5" y="245" width="21" height="18" rx="9"/><text class="count" x="836" y="257.6" text-anchor="middle">0</text>
+        <rect class="count-bg" x="721.5" y="355" width="21" height="18" rx="9"/><text class="count" x="732" y="367.6" text-anchor="middle">0</text>
+        <rect class="count-bg" x="822.5" y="465" width="27" height="18" rx="9"/><text class="count" x="836" y="477.6" text-anchor="middle">13</text>
+        <rect class="count-bg" x="1030.5" y="355" width="27" height="18" rx="9"/><text class="count" x="1044" y="367.6" text-anchor="middle">13</text>
+        <rect class="count-bg" x="1241.5" y="355" width="21" height="18" rx="9"/><text class="count" x="1252" y="367.6" text-anchor="middle">2</text>
+        </g>
+      </svg>
+    <label class="node trigger" for="p-input"
+           style="left:60px; top:316px">
+      <span class="box">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg>
+        <span class="tick"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12l5 5L20 6"/></svg></span>
+      </span>
+      <span class="caption">
+        <span class="t">Запуск</span>
+        <span class="s">python -m generator.cli</span>
+      </span>
+    </label>
+    <label class="node" for="p-schema"
+           style="left:268px; top:316px">
+      <span class="box">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/><path d="M9 12l2 2 4-4"/></svg>
+        <span class="tick"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12l5 5L20 6"/></svg></span>
+      </span>
+      <span class="caption">
+        <span class="t">Контракт дека</span>
+        <span class="s">Pydantic · schema.py</span>
+      </span>
+    </label>
+    <label class="node" for="p-registry"
+           style="left:476px; top:96px">
+      <span class="box">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2z"/><path d="M8 7h7M8 11h5"/></svg>
+        <span class="tick"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12l5 5L20 6"/></svg></span>
+      </span>
+      <span class="caption">
+        <span class="t">Реестр ФГОС</span>
+        <span class="s">14 файлов · редакция 2025</span>
+      </span>
+    </label>
+    <label class="node" for="p-fgos"
+           style="left:684px; top:96px">
+      <span class="box">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>
+        <span class="tick"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12l5 5L20 6"/></svg></span>
+      </span>
+      <span class="caption">
+        <span class="t">Проверка ФГОС</span>
+        <span class="s">охват единиц и понятий</span>
+      </span>
+    </label>
+    <label class="node" for="p-lint"
+           style="left:476px; top:316px">
+      <span class="box">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+        <span class="tick"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12l5 5L20 6"/></svg></span>
+      </span>
+      <span class="caption">
+        <span class="t">Проверки текста</span>
+        <span class="s">22 правила · бесплатно</span>
+      </span>
+    </label>
+    <label class="node" for="p-themes"
+           style="left:476px; top:536px">
+      <span class="box">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l2 6 6 2-6 2-2 6-2-6-6-2 6-2z"/></svg>
+        <span class="tick"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12l5 5L20 6"/></svg></span>
+      </span>
+      <span class="caption">
+        <span class="t">Тема и шрифты</span>
+        <span class="s">палитра · кегли · TTF</span>
+      </span>
+    </label>
+    <label class="node" for="p-textfit"
+           style="left:684px; top:536px">
+      <span class="box">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-8M22 20V7"/></svg>
+        <span class="tick"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12l5 5L20 6"/></svg></span>
+      </span>
+      <span class="caption">
+        <span class="t">Подбор кегля</span>
+        <span class="s">Pillow · замер по глифам</span>
+      </span>
+    </label>
+    <label class="node" for="p-render"
+           style="left:892px; top:316px">
+      <span class="box">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+        <span class="tick"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12l5 5L20 6"/></svg></span>
+      </span>
+      <span class="caption">
+        <span class="t">Сборка PPTX</span>
+        <span class="s">python-pptx · холст 16:9</span>
+      </span>
+    </label>
+    <label class="node" for="p-pdf"
+           style="left:1100px; top:316px">
+      <span class="box">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 2h8l5 5v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z"/><path d="M14 2v5h5"/><path d="M8 15h2a1.5 1.5 0 0 0 0-3H8v5"/></svg>
+        <span class="tick"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12l5 5L20 6"/></svg></span>
+      </span>
+      <span class="caption">
+        <span class="t">Экспорт PDF</span>
+        <span class="s">LibreOffice headless</span>
+      </span>
+    </label>
+    <label class="node" for="p-out"
+           style="left:1308px; top:316px">
+      <span class="box">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 8v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8"/><path d="M2 4h20v4H2z"/><path d="M10 12h4"/></svg>
+        <span class="tick"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12l5 5L20 6"/></svg></span>
+      </span>
+      <span class="caption">
+        <span class="t">Выдача</span>
+        <span class="s">файлы + отчёты</span>
+      </span>
+    </label>
+    <span class="lane" style="left:672px; top:50px">ФГОС</span>
+    <span class="lane" style="left:672px; top:490px">Вёрстка</span>
+    </div>
+  </div>
+</div>
+
+<aside class="sheet">
+  <section class="pane pane-input">
+    <div class="sheet-head">
+      <span class="sheet-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg></span>
+      <span class="sheet-title">
+        <h2>Запуск</h2>
+        <span class="who">generator/cli.py · точка входа</span>
+      </span>
+      <label class="sheet-close" for="p-none" title="Закрыть панель">&times;</label>
+    </div>
+    <div class="sheet-body">
+      <p>Всё начинается с готового JSON-дека — описания презентации. Ключи API здесь не нужны: это та половина конвейера, что уже работает целиком локально. Позже LLM-слой встанет перед этой точкой и будет отдавать ровно такой же JSON.</p>
+      <div class="chips"><span class="chip"><span class="k">дек</span><b>1 файл</b></span><span class="chip"><span class="k">слайдов</span><b>13</b></span></div>
+      <div class="out-label">Выход ноды</div><pre>{
+  <span class="j-key">"deck"</span>: <span class="j-str">"fixtures/vasiliy-iii.json"</span>,
+  <span class="j-key">"out"</span>: <span class="j-str">"out/deck.pptx"</span>,
+  <span class="j-key">"pdf"</span>: <span class="j-bool">true</span>,
+  <span class="j-key">"fgos"</span>: <span class="j-bool">true</span>,
+  <span class="j-key">"strict"</span>: <span class="j-bool">false</span>,
+  <span class="j-key">"fgos_mode"</span>: <span class="j-bool">null</span>
+}</pre>
+    </div>
+  </section>
+  <section class="pane pane-schema">
+    <div class="sheet-head">
+      <span class="sheet-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/><path d="M9 12l2 2 4-4"/></svg></span>
+      <span class="sheet-title">
+        <h2>Контракт дека</h2>
+        <span class="who">generator/schema.py · 212 строк</span>
+      </span>
+      <label class="sheet-close" for="p-none" title="Закрыть панель">&times;</label>
+    </div>
+    <div class="sheet-body">
+      <p>JSON превращается в проверенный объект: если поле длиннее лимита, роль неизвестна или слайдов больше шестнадцати — падение происходит здесь, до всякой работы. Схема намеренно плоская, без union-типов: GigaChat не принимает anyOf/oneOf, а один контракт должен подойти всем моделям.</p>
+      <div class="chips"><span class="chip"><span class="k">слайдов</span><b>13</b></span><span class="chip"><span class="k">раскладок</span><b>8</b></span><span class="chip"><span class="k">время</span><b>0,44 с</b></span></div>
+      <div class="out-label">Выход ноды</div><pre>{
+  <span class="j-key">"meta"</span>: {
+    <span class="j-key">"topic"</span>: <span class="j-str">"Правление Василия III"</span>,
+    <span class="j-key">"subject"</span>: <span class="j-str">"История России"</span>,
+    <span class="j-key">"grade"</span>: <span class="j-num">6</span>,
+    <span class="j-key">"theme"</span>: <span class="j-str">"manuscript"</span>,
+    <span class="j-key">"fgos_mode"</span>: <span class="j-str">"full"</span>
+  },
+  <span class="j-key">"slides"</span>: <span class="j-num">13</span>,
+  <span class="j-key">"layouts"</span>: {
+    <span class="j-key">"card_left_image_right"</span>: <span class="j-num">3</span>,
+    <span class="j-key">"definition_top"</span>: <span class="j-num">2</span>,
+    <span class="j-key">"quiz_list"</span>: <span class="j-num">1</span>
+  },
+  <span class="j-key">"limits"</span>: {
+    <span class="j-key">"title"</span>: <span class="j-num">90</span>,
+    <span class="j-key">"paragraph_text"</span>: <span class="j-num">140</span>,
+    <span class="j-key">"slides_max"</span>: <span class="j-num">16</span>
+  }
+}</pre>
+    </div>
+  </section>
+  <section class="pane pane-registry">
+    <div class="sheet-head">
+      <span class="sheet-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2z"/><path d="M8 7h7M8 11h5"/></svg></span>
+      <span class="sheet-title">
+        <h2>Реестр ФГОС</h2>
+        <span class="who">fgos/registry.py · без модели</span>
+      </span>
+      <label class="sheet-close" for="p-none" title="Закрыть панель">&times;</label>
+    </div>
+    <div class="sheet-body">
+      <p>По предмету и классу открывается нужная федеральная рабочая программа, а по теме подбирается раздел. Совпадения взвешиваются: многословный ключ весит больше односложного, иначе «Природные зоны России» уезжали в первый класс по слову «природа». Здесь же собирается слой для будущего промпта генерации.</p>
+      <div class="chips"><span class="chip"><span class="k">предметов</span><b>12</b></span><span class="chip"><span class="k">файлов</span><b>14</b></span><span class="chip"><span class="k">вес совпадения</span><b>62</b></span><span class="chip"><span class="k">время</span><b>12 мс</b></span></div>
+      <div class="out-label">Выход ноды</div><pre>{
+  <span class="j-key">"subject"</span>: <span class="j-str">"История"</span>,
+  <span class="j-key">"grade_matched"</span>: <span class="j-num">6</span>,
+  <span class="j-key">"section"</span>: <span class="j-str">"Василий III. Завершение объединения русских земель"</span>,
+  <span class="j-key">"source"</span>: <span class="j-str">"ФРП ООО «История» (5–9), редакция 2025 г."</span>,
+  <span class="j-key">"required_terms"</span>: [
+    "удельная система",
+    "великокняжеская власть",
+    "Псков"
+  ],
+  <span class="j-key">"period_bounds"</span>: {
+    <span class="j-key">"end_year"</span>: <span class="j-num">1533</span>
+  }
+}</pre>
+    </div>
+  </section>
+  <section class="pane pane-fgos">
+    <div class="sheet-head">
+      <span class="sheet-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg></span>
+      <span class="sheet-title">
+        <h2>Проверка ФГОС</h2>
+        <span class="who">fgos/check.py · 434 строки</span>
+      </span>
+      <label class="sheet-close" for="p-none" title="Закрыть панель">&times;</label>
+    </div>
+    <div class="sheet-body">
+      <p>Считает, какую долю дидактических единиц раздела дек реально раскрывает, какие обязательные понятия названы и на какие планируемые результаты работает урок. Сравнение идёт по основам слов, иначе «в царской семье» не совпало бы с «царская семья». Режим выбирается декой: полный, справочный или выключенный.</p>
+      <div class="chips"><span class="chip"><span class="k">охват</span><b>71 %</b></span><span class="chip"><span class="k">не раскрыто</span><b>2 единицы</b></span><span class="chip"><span class="k">замечаний</span><b>1</b></span><span class="chip"><span class="k">время</span><b>5 мс</b></span></div>
+      <div class="out-label">Выход ноды</div><pre>{
+  <span class="j-key">"coverage_pct"</span>: <span class="j-num">71</span>,
+  <span class="j-key">"units_confirmed"</span>: [
+    "Отмирание удельной системы",
+    "Укрепление великокняжеской власти"
+  ],
+  <span class="j-key">"units_missing"</span>: [
+    "Отношения с Крымским и Казанским ханствами"
+  ],
+  <span class="j-key">"terms_missing"</span>: [
+    "великокняжеская власть"
+  ],
+  <span class="j-key">"results_missing"</span>: [
+    "Работа с исторической картой"
+  ],
+  <span class="j-key">"blocking_errors"</span>: <span class="j-num">0</span>
+}</pre>
+    </div>
+  </section>
+  <section class="pane pane-lint">
+    <div class="sheet-head">
+      <span class="sheet-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></span>
+      <span class="sheet-title">
+        <h2>Проверки текста</h2>
+        <span class="who">generator/validators.py</span>
+      </span>
+      <label class="sheet-close" for="p-none" title="Закрыть панель">&times;</label>
+    </div>
+    <div class="sheet-body">
+      <p>Ловит то, за что глупо платить модели: слайд без заголовка, заголовок капсом, двойной пробел, дефис вместо тире, пропущенную «ё», повтор факта между слайдами. Здесь же ошибка, если слот заполнен, а выбранная раскладка его не рисует — иначе данные пропали бы молча, и никто бы не заметил.</p>
+      <div class="chips"><span class="chip"><span class="k">правил</span><b>22</b></span><span class="chip"><span class="k">ошибок</span><b>0</b></span><span class="chip"><span class="k">замечаний</span><b>0</b></span><span class="chip"><span class="k">время</span><b>5 мс</b></span></div>
+      <div class="out-label">Выход ноды</div><pre>{
+  <span class="j-key">"errors"</span>: <span class="j-num">0</span>,
+  <span class="j-key">"warnings"</span>: <span class="j-num">0</span>,
+  <span class="j-key">"codes"</span>: [
+    "no-title",
+    "slot-layout-mismatch",
+    "duplicate-text",
+    "missing-yo",
+    "hyphen-as-dash"
+  ],
+  <span class="j-key">"issues"</span>: []
+}</pre>
+    </div>
+  </section>
+  <section class="pane pane-themes">
+    <div class="sheet-head">
+      <span class="sheet-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l2 6 6 2-6 2-2 6-2-6-6-2 6-2z"/></svg></span>
+      <span class="sheet-title">
+        <h2>Тема и шрифты</h2>
+        <span class="who">generator/themes.py · вызывается рендером</span>
+      </span>
+      <label class="sheet-close" for="p-none" title="Закрыть панель">&times;</label>
+    </div>
+    <div class="sheet-body">
+      <p>Тема дека разворачивается в палитру, кегли и пути к файлам шрифтов на этой машине. Подстановка шрифта не проходит молча: если точного начертания нет, это попадёт в отчёт рендера — иначе вёрстка поехала бы незаметно для всех, кроме учителя у доски.</p>
+      <div class="chips"><span class="chip"><span class="k">шрифты</span><b>PT Serif / PT Sans</b></span><span class="chip"><span class="k">точное совпадение</span><b>да</b></span><span class="chip"><span class="k">не хватает</span><b>0</b></span></div>
+      <div class="out-label">Выход ноды</div><pre>{
+  <span class="j-key">"name"</span>: <span class="j-str">"manuscript"</span>,
+  <span class="j-key">"display_font"</span>: <span class="j-str">"PT Serif"</span>,
+  <span class="j-key">"body_font"</span>: <span class="j-str">"PT Sans"</span>,
+  <span class="j-key">"resolved"</span>: <span class="j-str">"PTF75F.ttf"</span>,
+  <span class="j-key">"exact_match"</span>: <span class="j-bool">true</span>,
+  <span class="j-key">"sizes"</span>: {
+    <span class="j-key">"title_hero"</span>: <span class="j-num">40</span>,
+    <span class="j-key">"slide_title"</span>: <span class="j-num">28</span>,
+    <span class="j-key">"body"</span>: <span class="j-num">17</span>,
+    <span class="j-key">"body_min"</span>: <span class="j-num">13</span>
+  },
+  <span class="j-key">"missing_fonts"</span>: []
+}</pre>
+    </div>
+  </section>
+  <section class="pane pane-textfit">
+    <div class="sheet-head">
+      <span class="sheet-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-8M22 20V7"/></svg></span>
+      <span class="sheet-title">
+        <h2>Подбор кегля</h2>
+        <span class="who">generator/textfit.py</span>
+      </span>
+      <label class="sheet-close" for="p-none" title="Закрыть панель">&times;</label>
+    </div>
+    <div class="sheet-body">
+      <p>У python-pptx не работает автоподбор размера текста, поэтому кегль подбирается заранее: текст измеряется по реальным глифам шрифта и ступенчато уменьшается на пол-пункта, пока блок не влезет в слот. Проверяется и высота, и ширина — только по высоте длинное слово вылезало за край незамеченным.</p>
+      <div class="chips"><span class="chip"><span class="k">кегль</span><b>17 pt</b></span><span class="chip"><span class="k">шаг</span><b>0,5 pt</b></span><span class="chip"><span class="k">переполнений</span><b>0</b></span><span class="chip"><span class="k">время</span><b>9 мс</b></span></div>
+      <div class="out-label">Выход ноды</div><pre>{
+  <span class="j-key">"box"</span>: {
+    <span class="j-key">"w_pt"</span>: <span class="j-num">380</span>,
+    <span class="j-key">"h_pt"</span>: <span class="j-num">200</span>
+  },
+  <span class="j-key">"start_pt"</span>: <span class="j-num">17</span>,
+  <span class="j-key">"min_pt"</span>: <span class="j-num">13</span>,
+  <span class="j-key">"chosen_pt"</span>: <span class="j-num">17</span>,
+  <span class="j-key">"lines"</span>: <span class="j-num">2</span>,
+  <span class="j-key">"overflow"</span>: <span class="j-bool">false</span>
+}</pre>
+    </div>
+  </section>
+  <section class="pane pane-render">
+    <div class="sheet-head">
+      <span class="sheet-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg></span>
+      <span class="sheet-title">
+        <h2>Сборка PPTX</h2>
+        <span class="who">generator/render.py · 671 строка</span>
+      </span>
+      <label class="sheet-close" for="p-none" title="Закрыть панель">&times;</label>
+    </div>
+    <div class="sheet-body">
+      <p>Восемь раскладок собираются в настоящий файл PowerPoint: живой текст в блоках, настоящий жирный внутри абзаца, картинки в готовых слотах, заметки в панели докладчика. Рендер отчитывается наверх, если текст где-то не поместился или на машине не хватило шрифта — раньше эти сигналы вычислялись и терялись.</p>
+      <div class="chips"><span class="chip"><span class="k">слайдов</span><b>13</b></span><span class="chip"><span class="k">заметок</span><b>13</b></span><span class="chip"><span class="k">переполнений</span><b>0</b></span><span class="chip"><span class="k">размер</span><b>69 КБ</b></span><span class="chip"><span class="k">время</span><b>0,26 с</b></span></div>
+      <div class="out-label">Выход ноды</div><pre>{
+  <span class="j-key">"path"</span>: <span class="j-str">"out/deck.pptx"</span>,
+  <span class="j-key">"slides"</span>: <span class="j-num">13</span>,
+  <span class="j-key">"bytes"</span>: <span class="j-num">70656</span>,
+  <span class="j-key">"notes_written"</span>: <span class="j-num">13</span>,
+  <span class="j-key">"overflowed"</span>: [],
+  <span class="j-key">"missing_fonts"</span>: [],
+  <span class="j-key">"canvas"</span>: <span class="j-str">"13.33x7.5in"</span>,
+  <span class="j-key">"ok"</span>: <span class="j-bool">true</span>
+}</pre>
+    </div>
+  </section>
+  <section class="pane pane-pdf">
+    <div class="sheet-head">
+      <span class="sheet-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 2h8l5 5v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z"/><path d="M14 2v5h5"/><path d="M8 15h2a1.5 1.5 0 0 0 0-3H8v5"/></svg></span>
+      <span class="sheet-title">
+        <h2>Экспорт PDF</h2>
+        <span class="who">generator/cli.py · to_pdf()</span>
+      </span>
+      <label class="sheet-close" for="p-none" title="Закрыть панель">&times;</label>
+    </div>
+    <div class="sheet-body">
+      <p>Тот же дек конвертируется в PDF — его удобно раздать детям или открыть с любого устройства. Шаг необязательный, включается флагом; если LibreOffice не установлен, сборка не падает, а честно пишет, что PDF пропущен. В продакшене эту роль возьмёт Gotenberg — без холодного старта на каждый запрос.</p>
+      <div class="chips"><span class="chip"><span class="k">страниц</span><b>13</b></span><span class="chip"><span class="k">размер</span><b>240 КБ</b></span><span class="chip"><span class="k">время</span><b>4,20 с</b></span></div>
+      <div class="out-label">Выход ноды</div><pre>{
+  <span class="j-key">"path"</span>: <span class="j-str">"out/deck.pdf"</span>,
+  <span class="j-key">"pages"</span>: <span class="j-num">13</span>,
+  <span class="j-key">"bytes"</span>: <span class="j-num">245760</span>,
+  <span class="j-key">"converter"</span>: <span class="j-str">"libreoffice-impress"</span>,
+  <span class="j-key">"optional"</span>: <span class="j-bool">true</span>
+}</pre>
+    </div>
+  </section>
+  <section class="pane pane-out">
+    <div class="sheet-head">
+      <span class="sheet-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 8v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8"/><path d="M2 4h20v4H2z"/><path d="M10 12h4"/></svg></span>
+      <span class="sheet-title">
+        <h2>Выдача</h2>
+        <span class="who">код возврата CLI</span>
+      </span>
+      <label class="sheet-close" for="p-none" title="Закрыть панель">&times;</label>
+    </div>
+    <div class="sheet-body">
+      <p>На выходе презентация, PDF и два отчёта: соответствие программе и замечания по тексту. С флагом строгого режима любая из проверок может остановить сборку и вернуть свой код ошибки — так этот шаг встраивается в конвейер, где красное должно останавливать выкладку.</p>
+      <div class="chips"><span class="chip"><span class="k">файлов</span><b>2</b></span><span class="chip"><span class="k">итого</span><b>5,0 с</b></span><span class="chip"><span class="k">код возврата</span><b>0</b></span></div>
+      <div class="out-label">Выход ноды</div><pre>{
+  <span class="j-key">"files"</span>: [
+    {
+      <span class="j-key">"kind"</span>: <span class="j-str">"pptx"</span>,
+      <span class="j-key">"path"</span>: <span class="j-str">"out/deck.pptx"</span>,
+      <span class="j-key">"bytes"</span>: <span class="j-num">70656</span>
+    },
+    {
+      <span class="j-key">"kind"</span>: <span class="j-str">"pdf"</span>,
+      <span class="j-key">"path"</span>: <span class="j-str">"out/deck.pdf"</span>,
+      <span class="j-key">"bytes"</span>: <span class="j-num">245760</span>
+    }
+  ],
+  <span class="j-key">"fgos_report"</span>: {
+    <span class="j-key">"mode"</span>: <span class="j-str">"full"</span>,
+    <span class="j-key">"coverage_pct"</span>: <span class="j-num">71</span>,
+    <span class="j-key">"blocking_errors"</span>: <span class="j-num">0</span>
+  },
+  <span class="j-key">"lint"</span>: {
+    <span class="j-key">"errors"</span>: <span class="j-num">0</span>,
+    <span class="j-key">"warnings"</span>: <span class="j-num">0</span>
+  },
+  <span class="j-key">"exit_code"</span>: <span class="j-num">0</span>
+}</pre>
+    </div>
+  </section>
+</aside>
+
+</body>
+</html>
