@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Конвейер «Твой урок»</title>
+<!-- Собрано из pipeline-canvas.build.mjs. Правки — в сборщике, не здесь. -->
 <style>
   /* ── Токены. Светлая палитра — на голом :root, чтобы страница жила
        и в «системной» теме, где на корне не стоит ни одной метки. ── */
@@ -28,7 +29,8 @@
     --sans: ui-sans-serif, system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
     --mono: ui-monospace, "SF Mono", "JetBrains Mono", "Cascadia Code", Menlo, Consolas, monospace;
 
-    --z: 1;   /* масштаб холста; на узком экране стартует меньше единицы */
+    --z: 1;          /* масштаб холста — задаётся медиазапросами ниже */
+    --sheet-h: 62vh; /* высота панели, когда она раскрыта */
   }
 
   /* Тёмная тема через системную настройку — но явный выбор «светлая» её бьёт */
@@ -82,10 +84,20 @@
     font-family: var(--sans);
     -webkit-font-smoothing: antialiased;
     height: 100vh;
-    height: 100dvh;   /* на телефоне адресная строка не должна резать холст */
+    height: 100dvh;
     display: flex;
     flex-direction: column;
     overflow: hidden;
+  }
+
+  /* Переключатели живут первыми в body: от них идут сестринские
+     селекторы ко всему остальному. С экрана убраны, с клавиатуры — нет. */
+  .sr {
+    position: absolute;
+    width: 1px; height: 1px;
+    margin: -1px; padding: 0;
+    overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%);
+    white-space: nowrap;
   }
 
   /* ── Верхняя полоса ─────────────────────────────────────────── */
@@ -128,63 +140,15 @@
     padding: 2px;
     gap: 2px;
   }
-  .toggle button {
-    appearance: none;
-    border: 0;
-    background: transparent;
+  .toggle label {
     color: var(--ink-muted);
-    font: inherit;
     font-size: 12.5px;
     font-weight: 550;
     padding: 5px 12px;
     border-radius: 6px;
     cursor: pointer;
+    user-select: none;
     transition: background .15s, color .15s;
-  }
-  .toggle button[aria-pressed="true"] {
-    background: var(--surface);
-    color: var(--ink);
-    box-shadow: var(--shadow);
-  }
-  .toggle button:focus-visible,
-  .node:focus-visible,
-  .sheet-close:focus-visible {
-    outline: 2px solid var(--accent);
-    outline-offset: 2px;
-  }
-
-  .zoom {
-    display: flex;
-    flex: none;
-    align-items: center;
-    gap: 2px;
-    background: var(--surface-2);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 2px;
-  }
-  .zoom button {
-    appearance: none;
-    border: 0;
-    background: transparent;
-    color: var(--ink-muted);
-    font: inherit;
-    font-size: 15px;
-    line-height: 1;
-    width: 26px; height: 24px;
-    border-radius: 6px;
-    cursor: pointer;
-  }
-  .zoom button:hover:not(:disabled) { background: var(--surface); color: var(--ink); }
-  .zoom button:disabled { opacity: .35; cursor: default; }
-  .zoom button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-  .zoom .val {
-    font-family: var(--mono);
-    font-size: 11px;
-    color: var(--ink-faint);
-    width: 38px;
-    text-align: center;
-    font-variant-numeric: tabular-nums;
   }
 
   .runline {
@@ -196,7 +160,6 @@
     color: var(--ok);
     white-space: nowrap;
   }
-  body.run .runline { display: flex; }
   .pulse {
     width: 7px; height: 7px; border-radius: 50%;
     background: var(--ok);
@@ -206,13 +169,13 @@
   /* ── Холст ──────────────────────────────────────────────────── */
   .viewport {
     flex: 1;
-    overflow-x: auto;
-    overflow-y: auto;
+    min-height: 0;
+    overflow: auto;
     position: relative;
     -webkit-overflow-scrolling: touch;
     overscroll-behavior: contain;
-    /* Точки живут на скролл-контейнере, а не на холсте: так они не
-       мельчают при уменьшении масштаба и покрывают всё поле целиком. */
+    /* Точки живут на скролл-контейнере: так они не мельчают вместе
+       с холстом и покрывают всё поле целиком. */
     background-image: radial-gradient(var(--dot) 1.2px, transparent 1.2px);
     background-size: 18px 18px;
     background-position: -1px -1px;
@@ -225,9 +188,6 @@
     width:  calc(2160px * var(--z));
     height: calc(680px  * var(--z));
   }
-  /* Пока панель открыта, холсту добавляется запас снизу — иначе
-     выбранную ноду некуда прокрутить из-под панели. */
-  body.picking .stage { margin-bottom: 70vh; }
   .canvas {
     position: relative;
     width: 2160px;
@@ -242,8 +202,6 @@
     stroke-width: 1.75;
     transition: stroke .2s;
   }
-  body.run .wire { stroke: var(--ok); stroke-opacity: .55; }
-  .wire.lit { stroke: var(--accent); stroke-width: 2.25; stroke-opacity: 1; }
 
   .count {
     font-family: var(--mono);
@@ -253,46 +211,32 @@
   }
   .count-bg { fill: var(--surface); stroke: var(--ok); stroke-width: 1; }
   .counts { opacity: 0; transition: opacity .25s; }
-  body.run .counts { opacity: 1; }
 
   /* ── Нода ───────────────────────────────────────────────────── */
   .node {
     position: absolute;
     width: 96px;
-    padding: 0;
-    background: none;
-    border: 0;
-    font: inherit;
-    color: inherit;
+    display: block;
     cursor: pointer;
     text-align: center;
   }
   .box {
     position: relative;
+    display: grid;
+    place-items: center;
     width: 96px; height: 96px;
     background: var(--surface);
     border: 1px solid var(--border-firm);
     border-radius: 14px;
     box-shadow: var(--shadow);
-    display: grid;
-    place-items: center;
     transition: transform .16s, box-shadow .16s, border-color .16s;
   }
   /* Триггер: левый край скруглён сильно — как в n8n */
   .node.trigger .box { border-radius: 48px 14px 14px 48px; }
-
   .node:hover .box { transform: translateY(-2px); box-shadow: var(--shadow-lift); }
-  .node[aria-current="true"] .box {
-    border-color: var(--accent);
-    box-shadow: var(--shadow-lift), 0 0 0 3px var(--accent-soft);
-  }
-  body.run .node .box { border-color: var(--ok); }
-  body.run .node[aria-current="true"] .box { border-color: var(--accent); }
 
-  .box svg { width: 30px; height: 30px; stroke: var(--ink-muted); fill: none;
-             stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
-  .node[aria-current="true"] .box svg { stroke: var(--accent); }
-  body.run .box svg { stroke: var(--ink); }
+  .box > svg { width: 30px; height: 30px; stroke: var(--ink-muted); fill: none;
+               stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
 
   .tick {
     position: absolute;
@@ -305,17 +249,19 @@
     transform: scale(.6);
     transition: opacity .2s, transform .2s;
   }
-  .tick svg { width: 12px; height: 12px; stroke: var(--surface); stroke-width: 2.6; }
-  body.run .tick { opacity: 1; transform: scale(1); }
+  .tick svg { width: 12px; height: 12px; stroke: var(--surface); fill: none;
+              stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
 
-  .caption { margin-top: 9px; width: 156px; margin-left: -30px; }
+  .caption { display: block; margin-top: 9px; width: 156px; margin-left: -30px; }
   .caption .t {
+    display: block;
     font-size: 12.5px;
     font-weight: 600;
     line-height: 1.25;
     letter-spacing: -.005em;
   }
   .caption .s {
+    display: block;
     margin-top: 3px;
     font-family: var(--mono);
     font-size: 10px;
@@ -333,24 +279,29 @@
     pointer-events: none;
   }
 
-  /* ── Выдвижная панель ───────────────────────────────────────── */
+  .hint {
+    position: absolute;
+    left: 60px; top: 22px;
+    font-size: 12px;
+    color: var(--ink-faint);
+    pointer-events: none;
+  }
+
+  /* ── Панель деталей ─────────────────────────────────────────────
+     Не оверлей: панель — такой же элемент колонки, и холст сам
+     ужимается, когда она раскрыта. Так выбранная нода не оказывается
+     под панелью — а подкрутить холст без скрипта было бы нечем. */
   .sheet {
-    position: fixed;
-    left: 0; right: 0; bottom: 0;
+    flex: none;
+    height: 0;
+    overflow: hidden;
     background: var(--surface);
     border-top: 1px solid var(--border);
     box-shadow: 0 -8px 32px rgba(27,33,48,.16);
-    transform: translateY(102%);
-    transition: transform .28s cubic-bezier(.32,.72,.28,1);
+    transition: height .28s cubic-bezier(.32,.72,.28,1);
     z-index: 40;
-    max-height: 62vh;
-    display: flex;
-    flex-direction: column;
   }
-  .sheet.open { transform: translateY(0); }
-  @media (prefers-reduced-motion: reduce) {
-    .sheet, .box, .tick, .counts, .wire { transition: none; }
-  }
+  .pane { display: none; flex-direction: column; height: 100%; }
 
   .sheet-head {
     flex: none;
@@ -373,6 +324,7 @@
   .sheet-title { flex: 1; min-width: 0; }
   .sheet-title h2 { margin: 0; font-size: 16px; font-weight: 650; letter-spacing: -.01em; }
   .sheet-title .who {
+    display: block;
     margin-top: 3px;
     font-family: var(--mono);
     font-size: 11px;
@@ -380,7 +332,6 @@
   }
   .sheet-close {
     flex: none;
-    appearance: none;
     border: 1px solid var(--border);
     background: var(--surface-2);
     color: var(--ink-muted);
@@ -390,10 +341,11 @@
     font-size: 16px;
     line-height: 1;
     display: grid; place-items: center;
+    user-select: none;
   }
   .sheet-close:hover { color: var(--ink); }
 
-  .sheet-body { padding: 16px 20px 22px; overflow-y: auto; }
+  .sheet-body { flex: 1; min-height: 0; padding: 16px 20px 22px; overflow-y: auto; }
   .sheet-body p {
     margin: 0 0 14px;
     font-size: 13.5px;
@@ -403,13 +355,12 @@
   }
 
   .chips { display: none; flex-wrap: wrap; gap: 7px; margin-bottom: 14px; }
-  body.run .chips { display: flex; }
   .chip {
     display: inline-flex; align-items: baseline; gap: 6px;
     padding: 4px 9px;
     border-radius: 6px;
     background: var(--ok-soft);
-    border: 1px solid color-mix(in srgb, var(--ok) 30%, transparent);
+    border: 1px solid var(--ok);
     font-family: var(--mono);
     font-size: 11px;
     color: var(--ok);
@@ -444,34 +395,229 @@
   .j-num { color: var(--ink); font-weight: 600; }
   .j-bool { color: var(--ink-muted); font-style: italic; }
 
-  .hint {
-    position: absolute;
-    left: 60px; top: 22px;
-    font-size: 12px;
-    color: var(--ink-faint);
-    pointer-events: none;
+  /* ── Состояния: всё, что ниже, переключают radio ────────────── */
+
+  /* Активная половина тумблера */
+  #m-edit:checked ~ header label[for="m-edit"],
+  #m-run:checked  ~ header label[for="m-run"] {
+    background: var(--surface);
+    color: var(--ink);
+    box-shadow: var(--shadow);
+  }
+  #m-edit:focus-visible ~ header label[for="m-edit"],
+  #m-run:focus-visible  ~ header label[for="m-run"] {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
   }
 
-  /* ── Телефон ────────────────────────────────────────────────── */
+  /* Режим прогона */
+  #m-run:checked ~ header .runline { display: flex; }
+  #m-run:checked ~ .viewport .box { border-color: var(--ok); }
+  #m-run:checked ~ .viewport .box > svg { stroke: var(--ink); }
+  #m-run:checked ~ .viewport .tick { opacity: 1; transform: scale(1); }
+  #m-run:checked ~ .viewport .wire { stroke: var(--ok); stroke-opacity: .55; }
+  #m-run:checked ~ .viewport .counts { opacity: 1; }
+  #m-run:checked ~ .sheet .chips { display: flex; }
+
+  /* Раскрытая панель */
+  #p-in:checked ~ .sheet,
+  #p-src:checked ~ .sheet,
+  #p-fgos:checked ~ .sheet,
+  #p-prompt:checked ~ .sheet,
+  #p-outline:checked ~ .sheet,
+  #p-content:checked ~ .sheet,
+  #p-lint:checked ~ .sheet,
+  #p-art:checked ~ .sheet,
+  #p-insp:checked ~ .sheet,
+  #p-render:checked ~ .sheet,
+  #p-pdf:checked ~ .sheet,
+  #p-out:checked ~ .sheet { height: var(--sheet-h); }
+
+  /* Выбранная нода: подсветка ноды, её связей и своей вкладки панели */
+
+  #p-in:checked ~ .sheet .pane-in { display: flex; }
+  #p-in:checked ~ .viewport label[for="p-in"] .box {
+    border-color: var(--accent);
+    box-shadow: var(--shadow-lift), 0 0 0 3px var(--accent-soft);
+  }
+  #p-in:checked ~ .viewport label[for="p-in"] .box svg { stroke: var(--accent); }
+  #p-in:checked ~ .viewport .w-in {
+    stroke: var(--accent); stroke-width: 2.25; stroke-opacity: 1;
+  }
+  #p-in:focus-visible ~ .viewport label[for="p-in"] .box {
+    outline: 2px solid var(--accent); outline-offset: 3px;
+  }
+  #p-src:checked ~ .sheet .pane-src { display: flex; }
+  #p-src:checked ~ .viewport label[for="p-src"] .box {
+    border-color: var(--accent);
+    box-shadow: var(--shadow-lift), 0 0 0 3px var(--accent-soft);
+  }
+  #p-src:checked ~ .viewport label[for="p-src"] .box svg { stroke: var(--accent); }
+  #p-src:checked ~ .viewport .w-src {
+    stroke: var(--accent); stroke-width: 2.25; stroke-opacity: 1;
+  }
+  #p-src:focus-visible ~ .viewport label[for="p-src"] .box {
+    outline: 2px solid var(--accent); outline-offset: 3px;
+  }
+  #p-fgos:checked ~ .sheet .pane-fgos { display: flex; }
+  #p-fgos:checked ~ .viewport label[for="p-fgos"] .box {
+    border-color: var(--accent);
+    box-shadow: var(--shadow-lift), 0 0 0 3px var(--accent-soft);
+  }
+  #p-fgos:checked ~ .viewport label[for="p-fgos"] .box svg { stroke: var(--accent); }
+  #p-fgos:checked ~ .viewport .w-fgos {
+    stroke: var(--accent); stroke-width: 2.25; stroke-opacity: 1;
+  }
+  #p-fgos:focus-visible ~ .viewport label[for="p-fgos"] .box {
+    outline: 2px solid var(--accent); outline-offset: 3px;
+  }
+  #p-prompt:checked ~ .sheet .pane-prompt { display: flex; }
+  #p-prompt:checked ~ .viewport label[for="p-prompt"] .box {
+    border-color: var(--accent);
+    box-shadow: var(--shadow-lift), 0 0 0 3px var(--accent-soft);
+  }
+  #p-prompt:checked ~ .viewport label[for="p-prompt"] .box svg { stroke: var(--accent); }
+  #p-prompt:checked ~ .viewport .w-prompt {
+    stroke: var(--accent); stroke-width: 2.25; stroke-opacity: 1;
+  }
+  #p-prompt:focus-visible ~ .viewport label[for="p-prompt"] .box {
+    outline: 2px solid var(--accent); outline-offset: 3px;
+  }
+  #p-outline:checked ~ .sheet .pane-outline { display: flex; }
+  #p-outline:checked ~ .viewport label[for="p-outline"] .box {
+    border-color: var(--accent);
+    box-shadow: var(--shadow-lift), 0 0 0 3px var(--accent-soft);
+  }
+  #p-outline:checked ~ .viewport label[for="p-outline"] .box svg { stroke: var(--accent); }
+  #p-outline:checked ~ .viewport .w-outline {
+    stroke: var(--accent); stroke-width: 2.25; stroke-opacity: 1;
+  }
+  #p-outline:focus-visible ~ .viewport label[for="p-outline"] .box {
+    outline: 2px solid var(--accent); outline-offset: 3px;
+  }
+  #p-content:checked ~ .sheet .pane-content { display: flex; }
+  #p-content:checked ~ .viewport label[for="p-content"] .box {
+    border-color: var(--accent);
+    box-shadow: var(--shadow-lift), 0 0 0 3px var(--accent-soft);
+  }
+  #p-content:checked ~ .viewport label[for="p-content"] .box svg { stroke: var(--accent); }
+  #p-content:checked ~ .viewport .w-content {
+    stroke: var(--accent); stroke-width: 2.25; stroke-opacity: 1;
+  }
+  #p-content:focus-visible ~ .viewport label[for="p-content"] .box {
+    outline: 2px solid var(--accent); outline-offset: 3px;
+  }
+  #p-lint:checked ~ .sheet .pane-lint { display: flex; }
+  #p-lint:checked ~ .viewport label[for="p-lint"] .box {
+    border-color: var(--accent);
+    box-shadow: var(--shadow-lift), 0 0 0 3px var(--accent-soft);
+  }
+  #p-lint:checked ~ .viewport label[for="p-lint"] .box svg { stroke: var(--accent); }
+  #p-lint:checked ~ .viewport .w-lint {
+    stroke: var(--accent); stroke-width: 2.25; stroke-opacity: 1;
+  }
+  #p-lint:focus-visible ~ .viewport label[for="p-lint"] .box {
+    outline: 2px solid var(--accent); outline-offset: 3px;
+  }
+  #p-art:checked ~ .sheet .pane-art { display: flex; }
+  #p-art:checked ~ .viewport label[for="p-art"] .box {
+    border-color: var(--accent);
+    box-shadow: var(--shadow-lift), 0 0 0 3px var(--accent-soft);
+  }
+  #p-art:checked ~ .viewport label[for="p-art"] .box svg { stroke: var(--accent); }
+  #p-art:checked ~ .viewport .w-art {
+    stroke: var(--accent); stroke-width: 2.25; stroke-opacity: 1;
+  }
+  #p-art:focus-visible ~ .viewport label[for="p-art"] .box {
+    outline: 2px solid var(--accent); outline-offset: 3px;
+  }
+  #p-insp:checked ~ .sheet .pane-insp { display: flex; }
+  #p-insp:checked ~ .viewport label[for="p-insp"] .box {
+    border-color: var(--accent);
+    box-shadow: var(--shadow-lift), 0 0 0 3px var(--accent-soft);
+  }
+  #p-insp:checked ~ .viewport label[for="p-insp"] .box svg { stroke: var(--accent); }
+  #p-insp:checked ~ .viewport .w-insp {
+    stroke: var(--accent); stroke-width: 2.25; stroke-opacity: 1;
+  }
+  #p-insp:focus-visible ~ .viewport label[for="p-insp"] .box {
+    outline: 2px solid var(--accent); outline-offset: 3px;
+  }
+  #p-render:checked ~ .sheet .pane-render { display: flex; }
+  #p-render:checked ~ .viewport label[for="p-render"] .box {
+    border-color: var(--accent);
+    box-shadow: var(--shadow-lift), 0 0 0 3px var(--accent-soft);
+  }
+  #p-render:checked ~ .viewport label[for="p-render"] .box svg { stroke: var(--accent); }
+  #p-render:checked ~ .viewport .w-render {
+    stroke: var(--accent); stroke-width: 2.25; stroke-opacity: 1;
+  }
+  #p-render:focus-visible ~ .viewport label[for="p-render"] .box {
+    outline: 2px solid var(--accent); outline-offset: 3px;
+  }
+  #p-pdf:checked ~ .sheet .pane-pdf { display: flex; }
+  #p-pdf:checked ~ .viewport label[for="p-pdf"] .box {
+    border-color: var(--accent);
+    box-shadow: var(--shadow-lift), 0 0 0 3px var(--accent-soft);
+  }
+  #p-pdf:checked ~ .viewport label[for="p-pdf"] .box svg { stroke: var(--accent); }
+  #p-pdf:checked ~ .viewport .w-pdf {
+    stroke: var(--accent); stroke-width: 2.25; stroke-opacity: 1;
+  }
+  #p-pdf:focus-visible ~ .viewport label[for="p-pdf"] .box {
+    outline: 2px solid var(--accent); outline-offset: 3px;
+  }
+  #p-out:checked ~ .sheet .pane-out { display: flex; }
+  #p-out:checked ~ .viewport label[for="p-out"] .box {
+    border-color: var(--accent);
+    box-shadow: var(--shadow-lift), 0 0 0 3px var(--accent-soft);
+  }
+  #p-out:checked ~ .viewport label[for="p-out"] .box svg { stroke: var(--accent); }
+  #p-out:checked ~ .viewport .w-out {
+    stroke: var(--accent); stroke-width: 2.25; stroke-opacity: 1;
+  }
+  #p-out:focus-visible ~ .viewport label[for="p-out"] .box {
+    outline: 2px solid var(--accent); outline-offset: 3px;
+  }
+
+  /* ── Экраны ─────────────────────────────────────────────────── */
+  @media (max-width: 1000px) { :root { --z: .8; } }
   @media (max-width: 700px) {
+    :root { --z: .62; --sheet-h: 56vh; }
     header { padding: 10px 14px; gap: 10px; }
     .brand .sub { display: none; }
     .brand h1 { font-size: 14px; }
-    .runline { font-size: 10.5px; }
-    .toggle button { padding: 5px 9px; font-size: 12px; }
-    .zoom .val { display: none; }
-    .zoom button { width: 24px; }
+    .toggle label { padding: 5px 10px; font-size: 12px; }
     /* Времени прогона в шапке нет места — оно и так есть в чипсах панели */
-    body.run .runline { display: none; }
+    #m-run:checked ~ header .runline { display: none; }
     .hint { left: 26px; top: 16px; font-size: 11px; max-width: 300px; }
-    .sheet { max-height: 68vh; }
     .sheet-head { padding: 14px 16px 10px; }
     .sheet-body { padding: 14px 16px calc(20px + env(safe-area-inset-bottom)); }
     pre { font-size: 11px; }
   }
+
+  @media (prefers-reduced-motion: reduce) {
+    .sheet, .box, .tick, .counts, .wire, .toggle label { transition: none; }
+  }
 </style>
 </head>
 <body>
+
+<input class="sr" type="radio" name="mode" id="m-edit" checked>
+<input class="sr" type="radio" name="mode" id="m-run">
+<input class="sr" type="radio" name="pick" id="p-none" checked>
+<input class="sr" type="radio" name="pick" id="p-in">
+<input class="sr" type="radio" name="pick" id="p-src">
+<input class="sr" type="radio" name="pick" id="p-fgos">
+<input class="sr" type="radio" name="pick" id="p-prompt">
+<input class="sr" type="radio" name="pick" id="p-outline">
+<input class="sr" type="radio" name="pick" id="p-content">
+<input class="sr" type="radio" name="pick" id="p-lint">
+<input class="sr" type="radio" name="pick" id="p-art">
+<input class="sr" type="radio" name="pick" id="p-insp">
+<input class="sr" type="radio" name="pick" id="p-render">
+<input class="sr" type="radio" name="pick" id="p-pdf">
+<input class="sr" type="radio" name="pick" id="p-out">
 
 <header>
   <div class="brand">
@@ -479,398 +625,596 @@
     <span class="sub">заявка учителя → презентация с проверкой по ФГОС</span>
   </div>
   <div class="spacer"></div>
-  <div class="runline"><span class="pulse"></span><span id="runstat">выполнено за 74,2 с</span></div>
-  <div class="zoom" role="group" aria-label="Масштаб схемы">
-    <button id="z-out" aria-label="Отдалить">−</button>
-    <span class="val" id="z-val">100%</span>
-    <button id="z-in" aria-label="Приблизить">+</button>
-  </div>
-  <div class="toggle" role="group" aria-label="Режим просмотра">
-    <button id="btn-edit" aria-pressed="true">Редактор</button>
-    <button id="btn-run" aria-pressed="false">Прогон</button>
+  <div class="runline"><span class="pulse"></span><span>выполнено за 74,2 с</span></div>
+  <div class="toggle">
+    <label for="m-edit">Редактор</label>
+    <label for="m-run">Прогон</label>
   </div>
 </header>
 
 <div class="viewport">
   <div class="stage">
-    <div class="canvas" id="canvas">
-      <div class="hint">Нажмите на ноду — покажу, что она делает и что отдаёт дальше</div>
-      <svg class="wires" id="wires" viewBox="0 0 2160 680" preserveAspectRatio="none"></svg>
+    <div class="canvas">
+      <span class="hint">Нажмите на ноду — покажу, что она делает и что отдаёт дальше</span>
+      <svg class="wires" viewBox="0 0 2160 680" preserveAspectRatio="none" aria-hidden="true">
+        <path class="wire w-in w-src" d="M 156 344 C 217.60000000000002 344, 206.39999999999998 216, 268 216"/>
+        <path class="wire w-in w-fgos" d="M 156 344 C 217.60000000000002 344, 206.39999999999998 472, 268 472"/>
+        <path class="wire w-src w-prompt" d="M 364 216 C 425.6 216, 414.4 344, 476 344"/>
+        <path class="wire w-fgos w-prompt" d="M 364 472 C 425.6 472, 414.4 344, 476 344"/>
+        <path class="wire w-prompt w-outline" d="M 572 344 C 633.6 344, 622.4 344, 684 344"/>
+        <path class="wire w-outline w-content" d="M 780 344 C 841.6 344, 830.4 344, 892 344"/>
+        <path class="wire w-content w-lint" d="M 988 344 C 1049.6 344, 1038.4 198, 1100 198"/>
+        <path class="wire w-content w-art" d="M 988 344 C 1049.6 344, 1038.4 490, 1100 490"/>
+        <path class="wire w-lint w-insp" d="M 1196 198 C 1257.6 198, 1246.4 198, 1308 198"/>
+        <path class="wire w-insp w-render" d="M 1404 198 C 1465.6 198, 1454.4 344, 1516 344"/>
+        <path class="wire w-art w-render" d="M 1196 490 C 1372 490, 1340 344, 1516 344"/>
+        <path class="wire w-render w-pdf" d="M 1612 344 C 1673.6 344, 1662.4 344, 1724 344"/>
+        <path class="wire w-pdf w-out" d="M 1820 344 C 1881.6 344, 1870.4 344, 1932 344"/>
+        <g class="counts">
+        <rect class="count-bg" x="201.5" y="271" width="21" height="18" rx="9"/><text class="count" x="212" y="283.6" text-anchor="middle">1</text>
+        <rect class="count-bg" x="201.5" y="399" width="21" height="18" rx="9"/><text class="count" x="212" y="411.6" text-anchor="middle">1</text>
+        <rect class="count-bg" x="406.5" y="271" width="27" height="18" rx="9"/><text class="count" x="420" y="283.6" text-anchor="middle">34</text>
+        <rect class="count-bg" x="409.5" y="399" width="21" height="18" rx="9"/><text class="count" x="420" y="411.6" text-anchor="middle">7</text>
+        <rect class="count-bg" x="617.5" y="335" width="21" height="18" rx="9"/><text class="count" x="628" y="347.6" text-anchor="middle">1</text>
+        <rect class="count-bg" x="822.5" y="335" width="27" height="18" rx="9"/><text class="count" x="836" y="347.6" text-anchor="middle">13</text>
+        <rect class="count-bg" x="1030.5" y="262" width="27" height="18" rx="9"/><text class="count" x="1044" y="274.6" text-anchor="middle">13</text>
+        <rect class="count-bg" x="1030.5" y="408" width="27" height="18" rx="9"/><text class="count" x="1044" y="420.6" text-anchor="middle">11</text>
+        <rect class="count-bg" x="1238.5" y="189" width="27" height="18" rx="9"/><text class="count" x="1252" y="201.6" text-anchor="middle">13</text>
+        <rect class="count-bg" x="1446.5" y="262" width="27" height="18" rx="9"/><text class="count" x="1460" y="274.6" text-anchor="middle">13</text>
+        <rect class="count-bg" x="1342.5" y="408" width="27" height="18" rx="9"/><text class="count" x="1356" y="420.6" text-anchor="middle">13</text>
+        <rect class="count-bg" x="1654.5" y="335" width="27" height="18" rx="9"/><text class="count" x="1668" y="347.6" text-anchor="middle">13</text>
+        <rect class="count-bg" x="1865.5" y="335" width="21" height="18" rx="9"/><text class="count" x="1876" y="347.6" text-anchor="middle">2</text>
+        </g>
+      </svg>
+    <label class="node trigger" for="p-in"
+           style="left:60px; top:296px">
+      <span class="box">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg>
+        <span class="tick"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12l5 5L20 6"/></svg></span>
+      </span>
+      <span class="caption">
+        <span class="t">Заявка учителя</span>
+        <span class="s">POST /api/generate</span>
+      </span>
+    </label>
+    <label class="node" for="p-src"
+           style="left:268px; top:168px">
+      <span class="box">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M9 13h6M9 17h4"/></svg>
+        <span class="tick"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12l5 5L20 6"/></svg></span>
+      </span>
+      <span class="caption">
+        <span class="t">Разбор источника</span>
+        <span class="s">pdf → чанки → e5-large</span>
+      </span>
+    </label>
+    <label class="node" for="p-fgos"
+           style="left:268px; top:424px">
+      <span class="box">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2z"/><path d="M8 7h7M8 11h5"/></svg>
+        <span class="tick"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12l5 5L20 6"/></svg></span>
+      </span>
+      <span class="caption">
+        <span class="t">Требования ФГОС</span>
+        <span class="s">реестр, редакция 2025</span>
+      </span>
+    </label>
+    <label class="node" for="p-prompt"
+           style="left:476px; top:296px">
+      <span class="box">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 3 8l9 5 9-5z"/><path d="M3 13l9 5 9-5"/></svg>
+        <span class="tick"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12l5 5L20 6"/></svg></span>
+      </span>
+      <span class="caption">
+        <span class="t">Сборка промпта</span>
+        <span class="s">навык + схема + ФГОС</span>
+      </span>
+    </label>
+    <label class="node" for="p-outline"
+           style="left:684px; top:296px">
+      <span class="box">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 6h12M8 12h12M8 18h12"/><path d="M4 6h.01M4 12h.01M4 18h.01"/></svg>
+        <span class="tick"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12l5 5L20 6"/></svg></span>
+      </span>
+      <span class="caption">
+        <span class="t">План дека</span>
+        <span class="s">Opus 4.8 · роли и лейауты</span>
+      </span>
+    </label>
+    <label class="node" for="p-content"
+           style="left:892px; top:296px">
+      <span class="box">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>
+        <span class="tick"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12l5 5L20 6"/></svg></span>
+      </span>
+      <span class="caption">
+        <span class="t">Контент слайдов</span>
+        <span class="s">Opus 4.8 · тезисы и заметки</span>
+      </span>
+    </label>
+    <label class="node" for="p-lint"
+           style="left:1100px; top:150px">
+      <span class="box">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+        <span class="tick"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12l5 5L20 6"/></svg></span>
+      </span>
+      <span class="caption">
+        <span class="t">Проверки текста</span>
+        <span class="s">без модели · бесплатно</span>
+      </span>
+    </label>
+    <label class="node" for="p-art"
+           style="left:1100px; top:442px">
+      <span class="box">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.5"/><path d="M21 15l-5-5L5 20"/></svg>
+        <span class="tick"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12l5 5L20 6"/></svg></span>
+      </span>
+      <span class="caption">
+        <span class="t">Иллюстрации</span>
+        <span class="s">YandexART · без текста в кадре</span>
+      </span>
+    </label>
+    <label class="node" for="p-insp"
+           style="left:1308px; top:150px">
+      <span class="box">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>
+        <span class="tick"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12l5 5L20 6"/></svg></span>
+      </span>
+      <span class="caption">
+        <span class="t">ФГОС-инспектор</span>
+        <span class="s">Sonnet 5 · со зрением</span>
+      </span>
+    </label>
+    <label class="node" for="p-render"
+           style="left:1516px; top:296px">
+      <span class="box">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+        <span class="tick"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12l5 5L20 6"/></svg></span>
+      </span>
+      <span class="caption">
+        <span class="t">Сборка PPTX</span>
+        <span class="s">python-pptx · холст 16:9</span>
+      </span>
+    </label>
+    <label class="node" for="p-pdf"
+           style="left:1724px; top:296px">
+      <span class="box">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 2h8l5 5v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z"/><path d="M14 2v5h5"/><path d="M8 15h2a1.5 1.5 0 0 0 0-3H8v5"/></svg>
+        <span class="tick"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12l5 5L20 6"/></svg></span>
+      </span>
+      <span class="caption">
+        <span class="t">Экспорт PDF</span>
+        <span class="s">LibreOffice headless</span>
+      </span>
+    </label>
+    <label class="node" for="p-out"
+           style="left:1932px; top:296px">
+      <span class="box">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 8v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8"/><path d="M2 4h20v4H2z"/><path d="M10 12h4"/></svg>
+        <span class="tick"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12l5 5L20 6"/></svg></span>
+      </span>
+      <span class="caption">
+        <span class="t">Выдача учителю</span>
+        <span class="s">файлы + отчёт ФГОС</span>
+      </span>
+    </label>
+    <span class="lane" style="left:1088px; top:104px">Проверка</span>
+    <span class="lane" style="left:1088px; top:404px">Графика</span>
     </div>
   </div>
 </div>
 
-<aside class="sheet" id="sheet" aria-live="polite">
-  <div class="sheet-head">
-    <div class="sheet-icon" id="sheet-icon"></div>
-    <div class="sheet-title">
-      <h2 id="sheet-name"></h2>
-      <div class="who" id="sheet-who"></div>
+<aside class="sheet">
+  <section class="pane pane-in">
+    <div class="sheet-head">
+      <span class="sheet-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg></span>
+      <span class="sheet-title">
+        <h2>Заявка учителя</h2>
+        <span class="who">HTTP-триггер · вход конвейера</span>
+      </span>
+      <label class="sheet-close" for="p-none" title="Закрыть панель">×</label>
     </div>
-    <button class="sheet-close" id="sheet-close" aria-label="Закрыть панель">×</button>
-  </div>
-  <div class="sheet-body">
-    <p id="sheet-text"></p>
-    <div class="chips" id="sheet-chips"></div>
-    <div class="out-label">Выход ноды</div>
-    <pre id="sheet-json"></pre>
-  </div>
+    <div class="sheet-body">
+      <p>Точка входа. Учитель называет предмет, класс и тему, при желании прикладывает учебник и пишет пожелания. Здесь же выбирается режим ФГОС: полный, справочный или без привязки к программе.</p>
+      <div class="chips"><span class="chip"><span class="k">принято</span><b>1 заявка</b></span><span class="chip"><span class="k">время</span><b>0,04 с</b></span></div>
+      <div class="out-label">Выход ноды</div>
+      <pre>{
+  <span class="j-key">"type"</span>: <span class="j-str">"presentation"</span>,
+  <span class="j-key">"subject"</span>: <span class="j-str">"История России"</span>,
+  <span class="j-key">"grade"</span>: <span class="j-num">6</span>,
+  <span class="j-key">"topic"</span>: <span class="j-str">"Правление Василия III"</span>,
+  <span class="j-key">"fgos_mode"</span>: <span class="j-str">"full"</span>,
+  <span class="j-key">"wishes"</span>: <span class="j-str">"акцент на присоединении Пскова"</span>,
+  <span class="j-key">"source_doc_id"</span>: <span class="j-str">"doc_8f21"</span>
+}</pre>
+    </div>
+  </section>
+  <section class="pane pane-src">
+    <div class="sheet-head">
+      <span class="sheet-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M9 13h6M9 17h4"/></svg></span>
+      <span class="sheet-title">
+        <h2>Разбор источника</h2>
+        <span class="who">локальная модель · multilingual-e5-large</span>
+      </span>
+      <label class="sheet-close" for="p-none" title="Закрыть панель">×</label>
+    </div>
+    <div class="sheet-body">
+      <p>Учебник превращается в куски текста, и к каждому считается «отпечаток смысла». Дальше автор получит не всю книгу, а те два-три абзаца, что относятся к теме. Именно поэтому слайды пишутся по источнику, а не по памяти модели.</p>
+      <div class="chips"><span class="chip"><span class="k">чанков</span><b>34</b></span><span class="chip"><span class="k">время</span><b>2,10 с</b></span><span class="chip"><span class="k">стоимость</span><b>0 ₽</b></span></div>
+      <div class="out-label">Выход ноды</div>
+      <pre>{
+  <span class="j-key">"doc_id"</span>: <span class="j-str">"doc_8f21"</span>,
+  <span class="j-key">"pages"</span>: <span class="j-num">412</span>,
+  <span class="j-key">"chunks"</span>: <span class="j-num">34</span>,
+  <span class="j-key">"embedder"</span>: <span class="j-str">"intfloat/multilingual-e5-large"</span>,
+  <span class="j-key">"top_k"</span>: [
+    {
+      <span class="j-key">"id"</span>: <span class="j-str">"c_118"</span>,
+      <span class="j-key">"score"</span>: <span class="j-num">0.87</span>,
+      <span class="j-key">"text"</span>: <span class="j-str">"Великий князь запретил своим братьям чеканить монету…"</span>
+    },
+    {
+      <span class="j-key">"id"</span>: <span class="j-str">"c_121"</span>,
+      <span class="j-key">"score"</span>: <span class="j-num">0.81</span>,
+      <span class="j-key">"text"</span>: <span class="j-str">"13 января 1510 года псковский вечевой колокол…"</span>
+    }
+  ]
+}</pre>
+    </div>
+  </section>
+  <section class="pane pane-fgos">
+    <div class="sheet-head">
+      <span class="sheet-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2z"/><path d="M8 7h7M8 11h5"/></svg></span>
+      <span class="sheet-title">
+        <h2>Требования ФГОС</h2>
+        <span class="who">детерминированный справочник · без модели</span>
+      </span>
+      <label class="sheet-close" for="p-none" title="Закрыть панель">×</label>
+    </div>
+    <div class="sheet-body">
+      <p>По предмету, классу и теме из справочника достаётся список того, что урок обязан раскрыть. Справочник жёсткий, без ИИ: текст стандарта нормативный, и «вспоминать» его моделью нельзя — она выдаст правдоподобную выдумку.</p>
+      <div class="chips"><span class="chip"><span class="k">раздел</span><b>ru6.vasiliy3</b></span><span class="chip"><span class="k">единиц</span><b>7</b></span><span class="chip"><span class="k">время</span><b>0,01 с</b></span></div>
+      <div class="out-label">Выход ноды</div>
+      <pre>{
+  <span class="j-key">"subject"</span>: <span class="j-str">"История"</span>,
+  <span class="j-key">"grade_matched"</span>: <span class="j-num">6</span>,
+  <span class="j-key">"section"</span>: <span class="j-str">"ru6.vasiliy3"</span>,
+  <span class="j-key">"units"</span>: [
+    "Вхождение Псковской, Смоленской, Рязанской земель",
+    "Отмирание удельной системы",
+    "Укрепление великокняжеской власти"
+  ],
+  <span class="j-key">"required_terms"</span>: [
+    "удельная система",
+    "великокняжеская власть",
+    "Псков"
+  ],
+  <span class="j-key">"required_dates"</span>: [
+    "1510",
+    "1514"
+  ],
+  <span class="j-key">"anachronism_guard"</span>: {
+    <span class="j-key">"period_end_year"</span>: <span class="j-num">1533</span>,
+    <span class="j-key">"forbidden_terms"</span>: [
+      "царская семья",
+      "император"
+    ]
+  }
+}</pre>
+    </div>
+  </section>
+  <section class="pane pane-prompt">
+    <div class="sheet-head">
+      <span class="sheet-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 3 8l9 5 9-5z"/><path d="M3 13l9 5 9-5"/></svg></span>
+      <span class="sheet-title">
+        <h2>Сборка промпта</h2>
+        <span class="who">skills/loader.py</span>
+      </span>
+      <label class="sheet-close" for="p-none" title="Закрыть панель">×</label>
+    </div>
+    <div class="sheet-body">
+      <p>Блоки складываются по убыванию стабильности: сначала навык роли и схема, потом требования и возрастной профиль, и только в конце — тема с источником. Порядок здесь не косметика: кэш работает побайтово, и всё, что выше первой правки, стоит в десять раз дешевле.</p>
+      <div class="chips"><span class="chip"><span class="k">кэшируется</span><b>98 %</b></span><span class="chip"><span class="k">префикс</span><b>6 529 ток.</b></span><span class="chip"><span class="k">хвост</span><b>75 ток.</b></span></div>
+      <div class="out-label">Выход ноды</div>
+      <pre>{
+  <span class="j-key">"role"</span>: <span class="j-str">"author"</span>,
+  <span class="j-key">"blocks"</span>: [
+    {
+      <span class="j-key">"type"</span>: <span class="j-str">"text"</span>,
+      <span class="j-key">"chars"</span>: <span class="j-num">15069</span>,
+      <span class="j-key">"cache_control"</span>: {
+        <span class="j-key">"type"</span>: <span class="j-str">"ephemeral"</span>
+      }
+    },
+    {
+      <span class="j-key">"type"</span>: <span class="j-str">"text"</span>,
+      <span class="j-key">"chars"</span>: <span class="j-num">174</span>
+    }
+  ],
+  <span class="j-key">"cached_ratio"</span>: <span class="j-num">0.98</span>,
+  <span class="j-key">"model"</span>: <span class="j-str">"claude-opus-4-8"</span>
+}</pre>
+    </div>
+  </section>
+  <section class="pane pane-outline">
+    <div class="sheet-head">
+      <span class="sheet-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 6h12M8 12h12M8 18h12"/><path d="M4 6h.01M4 12h.01M4 18h.01"/></svg></span>
+      <span class="sheet-title">
+        <h2>План дека</h2>
+        <span class="who">навык author · первый вызов</span>
+      </span>
+      <label class="sheet-close" for="p-none" title="Закрыть панель">×</label>
+    </div>
+    <div class="sheet-body">
+      <p>Модель раскладывает урок по слайдам: какая роль у каждого, какая раскладка, о чём заголовок. Пока без текста — дёшево и быстро, зато структуру можно проверить до того, как за неё заплачено содержанием.</p>
+      <div class="chips"><span class="chip"><span class="k">слайдов</span><b>13</b></span><span class="chip"><span class="k">время</span><b>8,60 с</b></span><span class="chip"><span class="k">токенов</span><b>1 240 вых.</b></span></div>
+      <div class="out-label">Выход ноды</div>
+      <pre>{
+  <span class="j-key">"slides"</span>: [
+    {
+      <span class="j-key">"role"</span>: <span class="j-str">"title"</span>,
+      <span class="j-key">"layout"</span>: <span class="j-str">"title_hero"</span>,
+      <span class="j-key">"title"</span>: <span class="j-str">"Правление Василия III"</span>
+    },
+    {
+      <span class="j-key">"role"</span>: <span class="j-str">"definition"</span>,
+      <span class="j-key">"layout"</span>: <span class="j-str">"definition_top"</span>,
+      <span class="j-key">"title"</span>: <span class="j-str">"Удельная система"</span>
+    },
+    {
+      <span class="j-key">"role"</span>: <span class="j-str">"timeline"</span>,
+      <span class="j-key">"layout"</span>: <span class="j-str">"timeline_rows"</span>,
+      <span class="j-key">"title"</span>: <span class="j-str">"Присоединение Пскова"</span>
+    },
+    {
+      <span class="j-key">"role"</span>: <span class="j-str">"compare"</span>,
+      <span class="j-key">"layout"</span>: <span class="j-str">"compare_two_cols"</span>,
+      <span class="j-key">"title"</span>: <span class="j-str">"Два брака государя"</span>
+    },
+    {
+      <span class="j-key">"role"</span>: <span class="j-str">"quiz"</span>,
+      <span class="j-key">"layout"</span>: <span class="j-str">"quiz_list"</span>,
+      <span class="j-key">"title"</span>: <span class="j-str">"Проверь себя"</span>
+    }
+  ]
+}</pre>
+    </div>
+  </section>
+  <section class="pane pane-content">
+    <div class="sheet-head">
+      <span class="sheet-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></span>
+      <span class="sheet-title">
+        <h2>Контент слайдов</h2>
+        <span class="who">навык author · второй вызов</span>
+      </span>
+      <label class="sheet-close" for="p-none" title="Закрыть панель">×</label>
+    </div>
+    <div class="sheet-body">
+      <p>По плану пишутся тезисы, определения, вопросы и заметки для учителя. К каждому содержательному тезису прикладывается цитата из учебника, на которую он опирается — так потом видно, откуда взялся факт.</p>
+      <div class="chips"><span class="chip"><span class="k">слайдов</span><b>13</b></span><span class="chip"><span class="k">время</span><b>31,40 с</b></span><span class="chip"><span class="k">токенов</span><b>6 480 вых.</b></span></div>
+      <div class="out-label">Выход ноды</div>
+      <pre>{
+  <span class="j-key">"meta"</span>: {
+    <span class="j-key">"topic"</span>: <span class="j-str">"Правление Василия III"</span>,
+    <span class="j-key">"grade"</span>: <span class="j-num">6</span>,
+    <span class="j-key">"theme"</span>: <span class="j-str">"manuscript"</span>
+  },
+  <span class="j-key">"slides"</span>: [
+    {
+      <span class="j-key">"role"</span>: <span class="j-str">"content"</span>,
+      <span class="j-key">"layout"</span>: <span class="j-str">"card_left_image_right"</span>,
+      <span class="j-key">"title"</span>: <span class="j-str">"Начало правления"</span>,
+      <span class="j-key">"paragraphs"</span>: [
+        {
+          <span class="j-key">"text"</span>: <span class="j-str">"После смерти Ивана III престол занял его сын Василий III."</span>,
+          <span class="j-key">"bold_terms"</span>: [
+            "Василий III"
+          ],
+          <span class="j-key">"source_quote"</span>: <span class="j-str">"После смерти Ивана III престол занял…"</span>
+        }
+      ],
+      <span class="j-key">"notes"</span>: <span class="j-str">"Обратить внимание на даты: <span class="j-num">28</span> лет — целое поколение."</span>,
+      <span class="j-key">"image"</span>: {
+        <span class="j-key">"kind"</span>: <span class="j-str">"illustration"</span>,
+        <span class="j-key">"alt"</span>: <span class="j-str">"Портрет великого князя"</span>,
+        <span class="j-key">"prompt"</span>: <span class="j-str">"портрет русского князя начала XVI века, книжная миниатюра"</span>,
+        <span class="j-key">"sensitive"</span>: <span class="j-bool">false</span>
+      }
+    }
+  ]
+}</pre>
+    </div>
+  </section>
+  <section class="pane pane-lint">
+    <div class="sheet-head">
+      <span class="sheet-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></span>
+      <span class="sheet-title">
+        <h2>Проверки текста</h2>
+        <span class="who">generator/validators.py</span>
+      </span>
+      <label class="sheet-close" for="p-none" title="Закрыть панель">×</label>
+    </div>
+    <div class="sheet-body">
+      <p>Счётчики и правила ловят то, за что глупо платить модели: слайд без заголовка, перебор по словам, двойные пробелы, дефис вместо тире, пропущенную «ё», повтор факта. Здесь же ошибка, если слот заполнен, а раскладка его не отрисует — иначе данные пропали бы молча.</p>
+      <div class="chips"><span class="chip"><span class="k">проверок</span><b>57</b></span><span class="chip"><span class="k">ошибок</span><b>0</b></span><span class="chip"><span class="k">замечаний</span><b>2</b></span><span class="chip"><span class="k">время</span><b>0,08 с</b></span></div>
+      <div class="out-label">Выход ноды</div>
+      <pre>{
+  <span class="j-key">"errors"</span>: <span class="j-num">0</span>,
+  <span class="j-key">"warnings"</span>: <span class="j-num">2</span>,
+  <span class="j-key">"issues"</span>: [
+    {
+      <span class="j-key">"level"</span>: <span class="j-str">"warn"</span>,
+      <span class="j-key">"code"</span>: <span class="j-str">"sentence-len"</span>,
+      <span class="j-key">"slide"</span>: <span class="j-num">8</span>,
+      <span class="j-key">"message"</span>: <span class="j-str">"тезис 7 слов (коридор 8–16)"</span>
+    },
+    {
+      <span class="j-key">"level"</span>: <span class="j-str">"warn"</span>,
+      <span class="j-key">"code"</span>: <span class="j-str">"missing-terms"</span>,
+      <span class="j-key">"slide"</span>: <span class="j-bool">null</span>,
+      <span class="j-key">"message"</span>: <span class="j-str">"не раскрыто понятие «великокняжеская власть»"</span>
+    }
+  ]
+}</pre>
+    </div>
+  </section>
+  <section class="pane pane-art">
+    <div class="sheet-head">
+      <span class="sheet-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.5"/><path d="M21 15l-5-5L5 20"/></svg></span>
+      <span class="sheet-title">
+        <h2>Иллюстрации</h2>
+        <span class="who">навык illustrator · 1,8 ₽ за картинку</span>
+      </span>
+      <label class="sheet-close" for="p-none" title="Закрыть панель">×</label>
+    </div>
+    <div class="sheet-body">
+      <p>По описаниям сцен рисуются картинки — параллельно с проверкой текста, чтобы не ждать дважды. Внутри изображения не должно быть ни одной надписи: впечатанный текст не исправить, не найти поиском и не прочитать незрячим.</p>
+      <div class="chips"><span class="chip"><span class="k">сгенерировано</span><b>11</b></span><span class="chip"><span class="k">из кэша</span><b>2</b></span><span class="chip"><span class="k">время</span><b>24,80 с</b></span><span class="chip"><span class="k">стоимость</span><b>19,80 ₽</b></span></div>
+      <div class="out-label">Выход ноды</div>
+      <pre>{
+  <span class="j-key">"generated"</span>: <span class="j-num">11</span>,
+  <span class="j-key">"from_cache"</span>: <span class="j-num">2</span>,
+  <span class="j-key">"provider"</span>: <span class="j-str">"yandex-art"</span>,
+  <span class="j-key">"style_prompt"</span>: <span class="j-str">"плоская векторная иллюстрация в духе книжной миниатюры, без текста"</span>,
+  <span class="j-key">"images"</span>: [
+    {
+      <span class="j-key">"slide"</span>: <span class="j-num">2</span>,
+      <span class="j-key">"path"</span>: <span class="j-str">"img/s02_udel.png"</span>,
+      <span class="j-key">"bytes"</span>: <span class="j-num">184320</span>,
+      <span class="j-key">"sensitive"</span>: <span class="j-bool">false</span>
+    },
+    {
+      <span class="j-key">"slide"</span>: <span class="j-num">7</span>,
+      <span class="j-key">"path"</span>: <span class="j-str">"img/s07_smolensk.png"</span>,
+      <span class="j-key">"bytes"</span>: <span class="j-num">201113</span>,
+      <span class="j-key">"sensitive"</span>: <span class="j-bool">true</span>
+    }
+  ],
+  <span class="j-key">"refused"</span>: <span class="j-num">0</span>
+}</pre>
+    </div>
+  </section>
+  <section class="pane pane-insp">
+    <div class="sheet-head">
+      <span class="sheet-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg></span>
+      <span class="sheet-title">
+        <h2>ФГОС-инспектор</h2>
+        <span class="who">навык fgos-inspector</span>
+      </span>
+      <label class="sheet-close" for="p-none" title="Закрыть панель">×</label>
+    </div>
+    <div class="sheet-body">
+      <p>Судит то, что не берётся счётчиком: раскрыта ли тема по существу, а не по совпадению слов, выстроен ли урок методически, нет ли анахронизмов на картинках. Корона не той эпохи или храм, построенный веком позже, ловятся только глазами.</p>
+      <div class="chips"><span class="chip"><span class="k">охват</span><b>83 %</b></span><span class="chip"><span class="k">время</span><b>6,20 с</b></span><span class="chip"><span class="k">вердикт</span><b>правки</b></span></div>
+      <div class="out-label">Выход ноды</div>
+      <pre>{
+  <span class="j-key">"verdict"</span>: <span class="j-str">"fix"</span>,
+  <span class="j-key">"coverage_pct"</span>: <span class="j-num">83</span>,
+  <span class="j-key">"units_confirmed"</span>: [
+    "Отмирание удельной системы",
+    "Укрепление великокняжеской власти"
+  ],
+  <span class="j-key">"units_missing"</span>: [
+    "Отношения с Крымским и Казанским ханствами"
+  ],
+  <span class="j-key">"image_findings"</span>: [
+    {
+      <span class="j-key">"slide"</span>: <span class="j-num">3</span>,
+      <span class="j-key">"issue"</span>: <span class="j-str">"корона напоминает регалии XVIII в."</span>,
+      <span class="j-key">"action"</span>: <span class="j-str">"regenerate"</span>
+    }
+  ],
+  <span class="j-key">"notes"</span>: <span class="j-str">"Слайда с исторической картой нет — работа с картой не покрыта."</span>
+}</pre>
+    </div>
+  </section>
+  <section class="pane pane-render">
+    <div class="sheet-head">
+      <span class="sheet-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg></span>
+      <span class="sheet-title">
+        <h2>Сборка PPTX</h2>
+        <span class="who">generator/render.py</span>
+      </span>
+      <label class="sheet-close" for="p-none" title="Закрыть панель">×</label>
+    </div>
+    <div class="sheet-body">
+      <p>Описание слайдов превращается в настоящий файл PowerPoint: живой текст в блоках, настоящий жирный, картинки в готовых слотах, заметки в панели докладчика. Сборщик отчитывается, если текст где-то не поместился или на машине не хватило шрифта.</p>
+      <div class="chips"><span class="chip"><span class="k">слайдов</span><b>13</b></span><span class="chip"><span class="k">переполнений</span><b>0</b></span><span class="chip"><span class="k">размер</span><b>1,9 МБ</b></span><span class="chip"><span class="k">время</span><b>0,42 с</b></span></div>
+      <div class="out-label">Выход ноды</div>
+      <pre>{
+  <span class="j-key">"path"</span>: <span class="j-str">"out/vasiliy-iii.pptx"</span>,
+  <span class="j-key">"slides"</span>: <span class="j-num">13</span>,
+  <span class="j-key">"bytes"</span>: <span class="j-num">1994752</span>,
+  <span class="j-key">"overflowed"</span>: [],
+  <span class="j-key">"missing_fonts"</span>: [],
+  <span class="j-key">"notes_written"</span>: <span class="j-num">13</span>,
+  <span class="j-key">"theme"</span>: <span class="j-str">"manuscript"</span>,
+  <span class="j-key">"canvas"</span>: <span class="j-str">"13.33x7.5in"</span>
+}</pre>
+    </div>
+  </section>
+  <section class="pane pane-pdf">
+    <div class="sheet-head">
+      <span class="sheet-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 2h8l5 5v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z"/><path d="M14 2v5h5"/><path d="M8 15h2a1.5 1.5 0 0 0 0-3H8v5"/></svg></span>
+      <span class="sheet-title">
+        <h2>Экспорт PDF</h2>
+        <span class="who">в продакшене — Gotenberg</span>
+      </span>
+      <label class="sheet-close" for="p-none" title="Закрыть панель">×</label>
+    </div>
+    <div class="sheet-body">
+      <p>Тот же дек конвертируется в PDF — его удобно раздать детям или открыть с любого устройства. Шрифты обязаны стоять в образе конвертации, иначе вёрстка поедет незаметно для всех, кроме учителя у доски.</p>
+      <div class="chips"><span class="chip"><span class="k">страниц</span><b>13</b></span><span class="chip"><span class="k">размер</span><b>0,9 МБ</b></span><span class="chip"><span class="k">время</span><b>3,10 с</b></span></div>
+      <div class="out-label">Выход ноды</div>
+      <pre>{
+  <span class="j-key">"path"</span>: <span class="j-str">"out/vasiliy-iii.pdf"</span>,
+  <span class="j-key">"pages"</span>: <span class="j-num">13</span>,
+  <span class="j-key">"bytes"</span>: <span class="j-num">947104</span>,
+  <span class="j-key">"converter"</span>: <span class="j-str">"libreoffice-impress"</span>,
+  <span class="j-key">"fonts_embedded"</span>: <span class="j-bool">true</span>,
+  <span class="j-key">"text_layer"</span>: <span class="j-bool">true</span>
+}</pre>
+    </div>
+  </section>
+  <section class="pane pane-out">
+    <div class="sheet-head">
+      <span class="sheet-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 8v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8"/><path d="M2 4h20v4H2z"/><path d="M10 12h4"/></svg></span>
+      <span class="sheet-title">
+        <h2>Выдача учителю</h2>
+        <span class="who">ответ на поллинг job_id</span>
+      </span>
+      <label class="sheet-close" for="p-none" title="Закрыть панель">×</label>
+    </div>
+    <div class="sheet-body">
+      <p>Учитель забирает презентацию, PDF и отчёт о соответствии программе — что раскрыто, чего нет, на какие планируемые результаты работает урок. Такой отчёт можно приложить к уроку или показать на аттестации.</p>
+      <div class="chips"><span class="chip"><span class="k">файлов</span><b>2</b></span><span class="chip"><span class="k">кредитов</span><b>2</b></span><span class="chip"><span class="k">итого</span><b>74,2 с</b></span><span class="chip"><span class="k">себестоимость</span><b>46,30 ₽</b></span></div>
+      <div class="out-label">Выход ноды</div>
+      <pre>{
+  <span class="j-key">"job_id"</span>: <span class="j-str">"job_7c02"</span>,
+  <span class="j-key">"status"</span>: <span class="j-str">"done"</span>,
+  <span class="j-key">"files"</span>: [
+    {
+      <span class="j-key">"kind"</span>: <span class="j-str">"pptx"</span>,
+      <span class="j-key">"url"</span>: <span class="j-str">"/d/job_7c02.pptx"</span>,
+      <span class="j-key">"bytes"</span>: <span class="j-num">1994752</span>
+    },
+    {
+      <span class="j-key">"kind"</span>: <span class="j-str">"pdf"</span>,
+      <span class="j-key">"url"</span>: <span class="j-str">"/d/job_7c02.pdf"</span>,
+      <span class="j-key">"bytes"</span>: <span class="j-num">947104</span>
+    }
+  ],
+  <span class="j-key">"fgos_report"</span>: {
+    <span class="j-key">"mode"</span>: <span class="j-str">"full"</span>,
+    <span class="j-key">"coverage_pct"</span>: <span class="j-num">83</span>,
+    <span class="j-key">"blocking_errors"</span>: <span class="j-num">0</span>
+  },
+  <span class="j-key">"credits_spent"</span>: <span class="j-num">2</span>,
+  <span class="j-key">"elapsed_sec"</span>: <span class="j-num">74.2</span>
+}</pre>
+    </div>
+  </section>
 </aside>
 
-<script>
-"use strict";
-
-/* Иконки — простые штриховые, рисуются inline (без внешних зависимостей) */
-const ICON = {
-  bolt:  '<path d="M13 2 4 14h7l-1 8 9-12h-7z"/>',
-  doc:   '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M9 13h6M9 17h4"/>',
-  book:  '<path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2z"/><path d="M8 7h7M8 11h5"/>',
-  stack: '<path d="M12 3 3 8l9 5 9-5z"/><path d="M3 13l9 5 9-5"/>',
-  list:  '<path d="M8 6h12M8 12h12M8 18h12"/><path d="M4 6h.01M4 12h.01M4 18h.01"/>',
-  pen:   '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>',
-  check: '<path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>',
-  image: '<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.5"/><path d="M21 15l-5-5L5 20"/>',
-  eye:   '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/>',
-  slide: '<rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4"/>',
-  pdf:   '<path d="M6 2h8l5 5v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z"/><path d="M14 2v5h5"/><path d="M8 15h2a1.5 1.5 0 0 0 0-3H8v5"/>',
-  box:   '<path d="M21 8v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8"/><path d="M2 4h20v4H2z"/><path d="M10 12h4"/>',
-  tick:  '<path d="M4 12l5 5L20 6"/>'
-};
-
-/* ── Ноды: реальные стадии конвейера ───────────────────────────── */
-const NODES = [
-  { id:"in", x:60, y:296, icon:"bolt", trigger:true,
-    name:"Заявка учителя", sub:"POST /api/generate",
-    who:"HTTP-триггер · вход конвейера",
-    text:"Точка входа. Учитель называет предмет, класс и тему, при желании прикладывает учебник и пишет пожелания. Здесь же выбирается режим ФГОС: полный, справочный или без привязки к программе.",
-    chips:[["принято","1 заявка"],["время","0,04 с"]],
-    json:{ type:"presentation", subject:"История России", grade:6,
-           topic:"Правление Василия III", fgos_mode:"full",
-           wishes:"акцент на присоединении Пскова", source_doc_id:"doc_8f21" } },
-
-  { id:"src", x:268, y:168, icon:"doc",
-    name:"Разбор источника", sub:"pdf → чанки → e5-large",
-    who:"локальная модель · multilingual-e5-large",
-    text:"Учебник превращается в куски текста, и к каждому считается «отпечаток смысла». Дальше автор получит не всю книгу, а те два-три абзаца, что относятся к теме. Именно поэтому слайды пишутся по источнику, а не по памяти модели.",
-    chips:[["чанков","34"],["время","2,10 с"],["стоимость","0 ₽"]],
-    json:{ doc_id:"doc_8f21", pages:412, chunks:34,
-           embedder:"intfloat/multilingual-e5-large",
-           top_k:[{ id:"c_118", score:0.87,
-                    text:"Великий князь запретил своим братьям чеканить монету…" },
-                  { id:"c_121", score:0.81,
-                    text:"13 января 1510 года псковский вечевой колокол…" }] } },
-
-  { id:"fgos", x:268, y:424, icon:"book",
-    name:"Требования ФГОС", sub:"реестр, редакция 2025",
-    who:"детерминированный справочник · без модели",
-    text:"По предмету, классу и теме из справочника достаётся список того, что урок обязан раскрыть. Справочник жёсткий, без ИИ: текст стандарта нормативный, и «вспоминать» его моделью нельзя — она выдаст правдоподобную выдумку.",
-    chips:[["раздел","ru6.vasiliy3"],["единиц","7"],["время","0,01 с"]],
-    json:{ subject:"История", grade_matched:6, section:"ru6.vasiliy3",
-           units:["Вхождение Псковской, Смоленской, Рязанской земель",
-                  "Отмирание удельной системы",
-                  "Укрепление великокняжеской власти"],
-           required_terms:["удельная система","великокняжеская власть","Псков"],
-           required_dates:["1510","1514"],
-           anachronism_guard:{ period_end_year:1533,
-                               forbidden_terms:["царская семья","император"] } } },
-
-  { id:"prompt", x:476, y:296, icon:"stack",
-    name:"Сборка промпта", sub:"навык + схема + ФГОС",
-    who:"skills/loader.py",
-    text:"Блоки складываются по убыванию стабильности: сначала навык роли и схема, потом требования и возрастной профиль, и только в конце — тема с источником. Порядок здесь не косметика: кэш работает побайтово, и всё, что выше первой правки, стоит в десять раз дешевле.",
-    chips:[["кэшируется","98 %"],["префикс","6 529 ток."],["хвост","75 ток."]],
-    json:{ role:"author",
-           blocks:[{ type:"text", chars:15069, cache_control:{ type:"ephemeral" } },
-                   { type:"text", chars:174 }],
-           cached_ratio:0.98, model:"claude-opus-4-8" } },
-
-  { id:"outline", x:684, y:296, icon:"list",
-    name:"План дека", sub:"Opus 4.8 · роли и лейауты",
-    who:"навык author · первый вызов",
-    text:"Модель раскладывает урок по слайдам: какая роль у каждого, какая раскладка, о чём заголовок. Пока без текста — дёшево и быстро, зато структуру можно проверить до того, как за неё заплачено содержанием.",
-    chips:[["слайдов","13"],["время","8,60 с"],["токенов","1 240 вых."]],
-    json:{ slides:[{ role:"title", layout:"title_hero", title:"Правление Василия III" },
-                   { role:"definition", layout:"definition_top", title:"Удельная система" },
-                   { role:"timeline", layout:"timeline_rows", title:"Присоединение Пскова" },
-                   { role:"compare", layout:"compare_two_cols", title:"Два брака государя" },
-                   { role:"quiz", layout:"quiz_list", title:"Проверь себя" }] } },
-
-  { id:"content", x:892, y:296, icon:"pen",
-    name:"Контент слайдов", sub:"Opus 4.8 · тезисы и заметки",
-    who:"навык author · второй вызов",
-    text:"По плану пишутся тезисы, определения, вопросы и заметки для учителя. К каждому содержательному тезису прикладывается цитата из учебника, на которую он опирается — так потом видно, откуда взялся факт.",
-    chips:[["слайдов","13"],["время","31,40 с"],["токенов","6 480 вых."]],
-    json:{ meta:{ topic:"Правление Василия III", grade:6, theme:"manuscript" },
-           slides:[{ role:"content", layout:"card_left_image_right",
-                     title:"Начало правления",
-                     paragraphs:[{ text:"После смерти Ивана III престол занял его сын Василий III.",
-                                   bold_terms:["Василий III"],
-                                   source_quote:"После смерти Ивана III престол занял…" }],
-                     notes:"Обратить внимание на даты: 28 лет — целое поколение.",
-                     image:{ kind:"illustration", alt:"Портрет великого князя",
-                             prompt:"портрет русского князя начала XVI века, книжная миниатюра",
-                             sensitive:false } }] } },
-
-  { id:"lint", x:1100, y:150, icon:"check",
-    name:"Проверки текста", sub:"без модели · бесплатно",
-    who:"generator/validators.py",
-    text:"Счётчики и правила ловят то, за что глупо платить модели: слайд без заголовка, перебор по словам, двойные пробелы, дефис вместо тире, пропущенную «ё», повтор факта. Здесь же ошибка, если слот заполнен, а раскладка его не отрисует — иначе данные пропали бы молча.",
-    chips:[["проверок","57"],["ошибок","0"],["замечаний","2"],["время","0,08 с"]],
-    json:{ errors:0, warnings:2,
-           issues:[{ level:"warn", code:"sentence-len", slide:8,
-                     message:"тезис 7 слов (коридор 8–16)" },
-                   { level:"warn", code:"missing-terms", slide:null,
-                     message:"не раскрыто понятие «великокняжеская власть»" }] } },
-
-  { id:"art", x:1100, y:442, icon:"image",
-    name:"Иллюстрации", sub:"YandexART · без текста в кадре",
-    who:"навык illustrator · 1,8 ₽ за картинку",
-    text:"По описаниям сцен рисуются картинки — параллельно с проверкой текста, чтобы не ждать дважды. Внутри изображения не должно быть ни одной надписи: впечатанный текст не исправить, не найти поиском и не прочитать незрячим.",
-    chips:[["сгенерировано","11"],["из кэша","2"],["время","24,80 с"],["стоимость","19,80 ₽"]],
-    json:{ generated:11, from_cache:2, provider:"yandex-art",
-           style_prompt:"плоская векторная иллюстрация в духе книжной миниатюры, без текста",
-           images:[{ slide:2, path:"img/s02_udel.png", bytes:184320, sensitive:false },
-                   { slide:7, path:"img/s07_smolensk.png", bytes:201113, sensitive:true }],
-           refused:0 } },
-
-  { id:"insp", x:1308, y:150, icon:"eye",
-    name:"ФГОС-инспектор", sub:"Sonnet 5 · со зрением",
-    who:"навык fgos-inspector",
-    text:"Судит то, что не берётся счётчиком: раскрыта ли тема по существу, а не по совпадению слов, выстроен ли урок методически, нет ли анахронизмов на картинках. Корона не той эпохи или храм, построенный веком позже, ловятся только глазами.",
-    chips:[["охват","83 %"],["время","6,20 с"],["вердикт","правки"]],
-    json:{ verdict:"fix", coverage_pct:83,
-           units_confirmed:["Отмирание удельной системы","Укрепление великокняжеской власти"],
-           units_missing:["Отношения с Крымским и Казанским ханствами"],
-           image_findings:[{ slide:3, issue:"корона напоминает регалии XVIII в.",
-                             action:"regenerate" }],
-           notes:"Слайда с исторической картой нет — работа с картой не покрыта." } },
-
-  { id:"render", x:1516, y:296, icon:"slide",
-    name:"Сборка PPTX", sub:"python-pptx · холст 16:9",
-    who:"generator/render.py",
-    text:"Описание слайдов превращается в настоящий файл PowerPoint: живой текст в блоках, настоящий жирный, картинки в готовых слотах, заметки в панели докладчика. Сборщик отчитывается, если текст где-то не поместился или на машине не хватило шрифта.",
-    chips:[["слайдов","13"],["переполнений","0"],["размер","1,9 МБ"],["время","0,42 с"]],
-    json:{ path:"out/vasiliy-iii.pptx", slides:13, bytes:1994752,
-           overflowed:[], missing_fonts:[], notes_written:13,
-           theme:"manuscript", canvas:"13.33x7.5in" } },
-
-  { id:"pdf", x:1724, y:296, icon:"pdf",
-    name:"Экспорт PDF", sub:"LibreOffice headless",
-    who:"в продакшене — Gotenberg",
-    text:"Тот же дек конвертируется в PDF — его удобно раздать детям или открыть с любого устройства. Шрифты обязаны стоять в образе конвертации, иначе вёрстка поедет незаметно для всех, кроме учителя у доски.",
-    chips:[["страниц","13"],["размер","0,9 МБ"],["время","3,10 с"]],
-    json:{ path:"out/vasiliy-iii.pdf", pages:13, bytes:947104,
-           converter:"libreoffice-impress", fonts_embedded:true,
-           text_layer:true } },
-
-  { id:"out", x:1932, y:296, icon:"box",
-    name:"Выдача учителю", sub:"файлы + отчёт ФГОС",
-    who:"ответ на поллинг job_id",
-    text:"Учитель забирает презентацию, PDF и отчёт о соответствии программе — что раскрыто, чего нет, на какие планируемые результаты работает урок. Такой отчёт можно приложить к уроку или показать на аттестации.",
-    chips:[["файлов","2"],["кредитов","2"],["итого","74,2 с"],["себестоимость","46,30 ₽"]],
-    json:{ job_id:"job_7c02", status:"done",
-           files:[{ kind:"pptx", url:"/d/job_7c02.pptx", bytes:1994752 },
-                  { kind:"pdf",  url:"/d/job_7c02.pdf",  bytes:947104 }],
-           fgos_report:{ mode:"full", coverage_pct:83, blocking_errors:0 },
-           credits_spent:2, elapsed_sec:74.2 } }
-];
-
-/* Связи: где конвейер ветвится и сливается — ветвление настоящее */
-const EDGES = [
-  ["in","src",   "1"],
-  ["in","fgos",  "1"],
-  ["src","prompt","34"],
-  ["fgos","prompt","7"],
-  ["prompt","outline","1"],
-  ["outline","content","13"],
-  ["content","lint","13"],
-  ["content","art","11"],
-  ["lint","insp","13"],
-  ["insp","render","13"],
-  ["art","render","13"],
-  ["render","pdf","13"],
-  ["pdf","out","2"]
-];
-
-const LANES = [
-  { x:1088, y:104, t:"Проверка" },
-  { x:1088, y:404, t:"Графика" }
-];
-
-const byId = {};
-NODES.forEach(n => byId[n.id] = n);
-const canvas = document.getElementById("canvas");
-const wires  = document.getElementById("wires");
-const NS = "http://www.w3.org/2000/svg";
-const S = 96;                          // сторона ноды
-
-/* ── Рисуем ноды ───────────────────────────────────────────────── */
-NODES.forEach(n => {
-  const el = document.createElement("button");
-  el.className = "node" + (n.trigger ? " trigger" : "");
-  el.style.left = n.x + "px";
-  el.style.top  = n.y + "px";
-  el.dataset.id = n.id;
-  el.setAttribute("aria-current", "false");
-  el.innerHTML =
-    '<div class="box"><svg viewBox="0 0 24 24">' + ICON[n.icon] + '</svg>' +
-      '<span class="tick"><svg viewBox="0 0 24 24">' + ICON.tick + '</svg></span>' +
-    '</div>' +
-    '<div class="caption"><div class="t">' + n.name + '</div>' +
-      '<div class="s">' + n.sub + '</div></div>';
-  el.addEventListener("click", () => open(n.id));
-  canvas.appendChild(el);
-});
-
-LANES.forEach(l => {
-  const d = document.createElement("div");
-  d.className = "lane";
-  d.style.left = l.x + "px";
-  d.style.top  = l.y + "px";
-  d.textContent = l.t;
-  canvas.appendChild(d);
-});
-
-/* ── Рисуем связи: кубические кривые между краями нод ──────────── */
-const countsG = document.createElementNS(NS, "g");
-countsG.setAttribute("class", "counts");
-
-EDGES.forEach(([a, b, n]) => {
-  const A = byId[a], B = byId[b];
-  const x1 = A.x + S, y1 = A.y + S / 2;
-  const x2 = B.x,     y2 = B.y + S / 2;
-  const dx = Math.max(58, (x2 - x1) * 0.55);
-
-  const p = document.createElementNS(NS, "path");
-  p.setAttribute("class", "wire");
-  p.setAttribute("d", `M ${x1} ${y1} C ${x1 + dx} ${y1}, ${x2 - dx} ${y2}, ${x2} ${y2}`);
-  p.dataset.a = a; p.dataset.b = b;
-  wires.appendChild(p);
-
-  // Счётчик — на середине кривой
-  const mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
-  const w = 15 + n.length * 6;
-  const r = document.createElementNS(NS, "rect");
-  r.setAttribute("class", "count-bg");
-  r.setAttribute("x", mx - w / 2); r.setAttribute("y", my - 9);
-  r.setAttribute("width", w); r.setAttribute("height", 18);
-  r.setAttribute("rx", 9);
-  const t = document.createElementNS(NS, "text");
-  t.setAttribute("class", "count");
-  t.setAttribute("x", mx); t.setAttribute("y", my + 3.6);
-  t.setAttribute("text-anchor", "middle");
-  t.textContent = n;
-  countsG.appendChild(r); countsG.appendChild(t);
-});
-wires.appendChild(countsG);
-
-/* ── Подсветка JSON ────────────────────────────────────────────── */
-function esc(s) {
-  return s.replace(/[&<>]/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;" }[c]));
-}
-function paint(obj) {
-  const raw = esc(JSON.stringify(obj, null, 2));
-  return raw
-    .replace(/"([^"\\]*(?:\\.[^"\\]*)*)"(\s*:)/g, '<span class="j-key">"$1"</span>$2')
-    .replace(/:\s*"([^"\\]*(?:\\.[^"\\]*)*)"/g, ': <span class="j-str">"$1"</span>')
-    .replace(/:\s*(-?\d+\.?\d*)/g, ': <span class="j-num">$1</span>')
-    .replace(/:\s*(true|false|null)/g, ': <span class="j-bool">$1</span>');
-}
-
-/* ── Панель ────────────────────────────────────────────────────── */
-const sheet = document.getElementById("sheet");
-let current = null;
-
-function open(id) {
-  const n = byId[id];
-  current = id;
-
-  document.querySelectorAll(".node").forEach(el =>
-    el.setAttribute("aria-current", String(el.dataset.id === id)));
-  document.querySelectorAll(".wire").forEach(w =>
-    w.classList.toggle("lit", w.dataset.a === id || w.dataset.b === id));
-
-  document.getElementById("sheet-icon").innerHTML =
-    '<svg viewBox="0 0 24 24">' + ICON[n.icon] + '</svg>';
-  document.getElementById("sheet-name").textContent = n.name;
-  document.getElementById("sheet-who").textContent  = n.who;
-  document.getElementById("sheet-text").textContent = n.text;
-  document.getElementById("sheet-chips").innerHTML =
-    n.chips.map(([k, v]) =>
-      '<span class="chip"><span class="k">' + k + '</span><b>' + v + '</b></span>').join("");
-  document.getElementById("sheet-json").innerHTML = paint(n.json);
-
-  sheet.classList.add("open");
-  document.body.classList.add("picking");
-  keepInView(id);
-}
-
-/* Панель занимает низ экрана — выбранная нода не должна оказаться
-   под ней или за краем холста. */
-function keepInView(id) {
-  const el = document.querySelector('.node[data-id="' + id + '"]');
-  if (!el) return;
-  const vp = document.querySelector(".viewport");
-  const box = el.getBoundingClientRect();
-  const win = vp.getBoundingClientRect();
-  /* Панель ещё уезжает по transition, поэтому берём её будущий верх
-     из высоты, а не из текущей позиции. */
-  const visibleBottom = Math.min(win.bottom, window.innerHeight - sheet.offsetHeight);
-
-  const padX = 24;
-  if (box.left < win.left + padX)        vp.scrollLeft -= win.left + padX - box.left;
-  else if (box.right > win.right - padX) vp.scrollLeft += box.right - (win.right - padX);
-
-  const padY = 16;
-  if (box.top < win.top + padY)              vp.scrollTop -= win.top + padY - box.top;
-  else if (box.bottom > visibleBottom - padY) vp.scrollTop += box.bottom - (visibleBottom - padY);
-}
-
-function close() {
-  sheet.classList.remove("open");
-  document.body.classList.remove("picking");
-  current = null;
-  document.querySelectorAll(".node").forEach(el => el.setAttribute("aria-current", "false"));
-  document.querySelectorAll(".wire").forEach(w => w.classList.remove("lit"));
-}
-
-document.getElementById("sheet-close").addEventListener("click", close);
-document.addEventListener("keydown", e => { if (e.key === "Escape" && current) close(); });
-
-/* ── Режимы ────────────────────────────────────────────────────── */
-const bEdit = document.getElementById("btn-edit");
-const bRun  = document.getElementById("btn-run");
-
-function mode(run) {
-  document.body.classList.toggle("run", run);
-  bEdit.setAttribute("aria-pressed", String(!run));
-  bRun.setAttribute("aria-pressed", String(run));
-}
-bEdit.addEventListener("click", () => mode(false));
-bRun.addEventListener("click",  () => mode(true));
-
-/* ── Масштаб ───────────────────────────────────────────────────── */
-const STEPS = [0.4, 0.5, 0.65, 0.8, 1];
-const zVal = document.getElementById("z-val");
-const zIn  = document.getElementById("z-in");
-const zOut = document.getElementById("z-out");
-let zi = STEPS.length - 1;
-
-function applyZoom() {
-  const z = STEPS[zi];
-  document.documentElement.style.setProperty("--z", String(z));
-  zVal.textContent = Math.round(z * 100) + "%";
-  zOut.disabled = zi === 0;
-  zIn.disabled  = zi === STEPS.length - 1;
-}
-zIn.addEventListener("click",  () => { if (zi < STEPS.length - 1) { zi++; applyZoom(); } });
-zOut.addEventListener("click", () => { if (zi > 0)                { zi--; applyZoom(); } });
-
-/* Стартовый масштаб — по ширине экрана: на телефоне схему надо видеть,
-   а не разглядывать по одной ноде. */
-const w = window.innerWidth;
-zi = w < 520 ? 2 : w < 900 ? 3 : STEPS.length - 1;
-applyZoom();
-</script>
 </body>
 </html>
