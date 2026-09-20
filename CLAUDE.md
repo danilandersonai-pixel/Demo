@@ -35,6 +35,13 @@ code in this repository.
 │       ├── reference/collect.md    — сбор данных (репозитории, ветки, PR)
 │       ├── reference/render.md     — отрисовка вывода
 │       └── assets/template.html    — HTML-шаблон карты
+├── mini-llm/                       — учебная LLM на NumPy (к сайту не относится)
+│   ├── README.md                   — руководство: архитектура, запуск, параметры
+│   ├── requirements.txt            — единственная зависимость: numpy
+│   ├── train.py / generate.py      — CLI обучения и генерации
+│   ├── minillm/                    — tokenizer, model, optim, data, sample
+│   ├── data/make_corpus.py         — генератор учебного корпуса + corpus.txt
+│   └── tests/test_grad.py          — численная проверка градиентов
 └── yegor-diana-wedding/            — САМ САЙТ (публикуется в корень Pages)
     ├── index.html                  — вся разметка, одна страница (~670 строк)
     ├── favicon.svg                 — монограмма «Е&Д»
@@ -175,6 +182,28 @@ reduced-motion** (всегда в конце файла). Дизайн-сист�
 Подробности и альтернатива с Telegram, включая объяснение, почему она хуже для
 публичного сайта, — в `yegor-diana-wedding/README.md`. Honeypot-поле `website`
 сохранять как антиспам: если оно заполнено, отправка молча прерывается.
+
+## Проект `mini-llm`
+
+`mini-llm/` — самостоятельный учебный проект: GPT-подобная языковая модель на
+чистом NumPy с **рукописным обратным распространением** (без PyTorch и
+автодиффа). К свадебному сайту отношения не имеет, на GitHub Pages не
+публикуется, деплой не затрагивает.
+
+Отличия от правил сайта: здесь Python, а не HTML/CSS/JS, и здесь есть одна
+внешняя зависимость (`numpy`) — запрет на зависимости относится только к
+сайту. Стиль кода: комментарии и вывод на русском, docstring у каждого модуля.
+
+```bash
+cd mini-llm
+python3 tests/test_grad.py      # ОБЯЗАТЕЛЬНО после любой правки model.py
+python3 train.py --steps 900 --tokenizer bpe --out runs/demo
+python3 generate.py --run runs/demo --prompt "Егор и Диана"
+```
+
+`tests/test_grad.py` сверяет аналитические градиенты с конечными разностями
+и ловит ошибки в backward, которые иначе выглядят как «модель плохо учится».
+Каталог `runs/` (веса и логи) в git не попадает — он в `mini-llm/.gitignore`.
 
 ## Скилл `repo-map`
 
