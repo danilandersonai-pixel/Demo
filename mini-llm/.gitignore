@@ -3,3 +3,6 @@ runs/
 *.npz
 __pycache__/
 *.pyc
+
+# скачанные корпусы (восстанавливаются скриптами data/fetch_*.py)
+data/chekhov.txt
