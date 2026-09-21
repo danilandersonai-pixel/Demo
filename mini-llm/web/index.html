@@ -1,0 +1,869 @@
+<title>Мини-LLM изнутри</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700&family=Manrope:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  :root {
+    color-scheme: light;
+    --ground: #F3F5F8;
+    --surface: #FFFFFF;
+    --surface-2: #E9EDF3;
+    --line: #D3D9E3;
+    --ink: #16213A;
+    --ink-2: #5B6478;
+    --ink-3: #8A93A6;
+    --accent: #1F4E9C;
+    --accent-ink: #FFFFFF;
+    --bar: #2a78d6;
+    --bar-soft: #B9D3F2;
+    --head-1: #2a78d6;
+    --head-2: #eb6834;
+    --head-3: #1baf7a;
+    --head-4: #4a3aa7;
+    --neg: #eb6834;
+    --pos: #2a78d6;
+    --focus: #eb6834;
+    --shadow: 0 1px 2px rgba(22,33,58,.06), 0 8px 24px rgba(22,33,58,.06);
+    --display: "Unbounded", "Manrope", system-ui, sans-serif;
+    --body: "Manrope", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --ground: #141A24;
+      --surface: #1C2431;
+      --surface-2: #232D3C;
+      --line: #33405260;
+      --ink: #E8ECF3;
+      --ink-2: #A5AFC2;
+      --ink-3: #7A8499;
+      --accent: #6FA5F0;
+      --accent-ink: #0F1826;
+      --bar: #3987e5;
+      --bar-soft: #2A4A73;
+      --head-1: #3987e5;
+      --head-2: #d95926;
+      --head-3: #199e70;
+      --head-4: #9085e9;
+      --neg: #d95926;
+      --pos: #3987e5;
+      --focus: #F0A070;
+      --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.25);
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --ground: #141A24;
+    --surface: #1C2431;
+    --surface-2: #232D3C;
+    --line: #33405260;
+    --ink: #E8ECF3;
+    --ink-2: #A5AFC2;
+    --ink-3: #7A8499;
+    --accent: #6FA5F0;
+    --accent-ink: #0F1826;
+    --bar: #3987e5;
+    --bar-soft: #2A4A73;
+    --head-1: #3987e5;
+    --head-2: #d95926;
+    --head-3: #199e70;
+    --head-4: #9085e9;
+    --neg: #d95926;
+    --pos: #3987e5;
+    --focus: #F0A070;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.25);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--body);
+    font-size: 16px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1120px; margin: 0 auto; padding-inline: 20px; padding-block: 0 80px; }
+  h1, h2, h3 { font-family: var(--display); text-wrap: balance; margin: 0; line-height: 1.15; }
+  h1 { font-size: clamp(26px, 4.2vw, 42px); font-weight: 700; letter-spacing: -.01em; }
+  h2 { font-size: clamp(19px, 2.4vw, 25px); font-weight: 500; }
+  h3 { font-family: var(--body); font-weight: 700; font-size: 15px; }
+  p { margin: 0; }
+  .lede { color: var(--ink-2); max-width: 62ch; font-size: 17px; }
+  .prose { max-width: 60ch; display: grid; gap: 12px; color: var(--ink-2); }
+  .prose strong { color: var(--ink); font-weight: 600; }
+  .prose .note { border-left: 3px solid var(--head-2); padding-left: 12px; color: var(--ink-2); }
+  .eyebrow { font-family: var(--mono); font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3); }
+  code, .mono { font-family: var(--mono); }
+  button { font: inherit; }
+  :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+  /* ---------- шапка + панель ввода ---------- */
+  header.hero { padding-block: 44px 20px; display: grid; gap: 14px; }
+  .console {
+    position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20;
+    background: var(--surface); border: 1px solid var(--line); border-radius: 14px;
+    box-shadow: var(--shadow); padding: 14px 16px; display: grid; gap: 10px;
+  }
+  .console-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  .console textarea {
+    flex: 1 1 320px; min-height: 44px; max-height: 120px; resize: vertical;
+    font: 500 16px/1.4 var(--body); color: var(--ink); background: var(--ground);
+    border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px;
+  }
+  .chips { display: flex; gap: 6px; flex-wrap: wrap; }
+  .chip {
+    border: 1px solid var(--line); background: var(--surface); color: var(--ink-2);
+    border-radius: 999px; padding: 4px 11px; font-size: 13px; cursor: pointer;
+  }
+  .chip:hover { color: var(--ink); border-color: var(--ink-3); }
+  .stat-row { display: flex; gap: 18px; flex-wrap: wrap; font-size: 13px; color: var(--ink-2); }
+  .stat-row b { font-family: var(--mono); font-weight: 500; color: var(--ink); }
+
+  /* ---------- станции ---------- */
+  .station { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 28px; padding-block: 44px; border-top: 1px solid var(--line); }
+  .station > .text { display: grid; gap: 14px; align-content: start; }
+  .station > .viz { min-width: 0; display: grid; gap: 14px; align-content: start; }
+  .station-num { font-family: var(--mono); font-size: 13px; color: var(--ink-3); letter-spacing: .06em; }
+  .panel { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px; display: grid; gap: 12px; min-width: 0; }
+  .panel-title { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+  .panel-title .eyebrow { margin: 0; }
+  @media (max-width: 800px) {
+    .station { grid-template-columns: 1fr; gap: 18px; padding-block: 32px; }
+  }
+
+  /* ---------- токены ---------- */
+  .tokens { display: flex; flex-wrap: wrap; gap: 6px; }
+  .tok {
+    font-family: var(--mono); font-size: 14px; line-height: 1; padding: 7px 8px 6px;
+    border-radius: 6px; border: 1px solid transparent; background: var(--surface-2);
+    cursor: pointer; display: grid; gap: 4px; justify-items: center; color: var(--ink);
+    white-space: pre;
+  }
+  .tok small { font-size: 10px; color: var(--ink-3); font-family: var(--mono); }
+  .tok:nth-child(odd) { background: var(--bar-soft); }
+  .tok.sel { border-color: var(--head-2); box-shadow: 0 0 0 2px var(--head-2) inset; }
+  .tok.new { animation: pop .35s var(--ease, ease-out); }
+  @keyframes pop { from { transform: translateY(6px); opacity: 0; } to { transform: none; opacity: 1; } }
+
+  /* ---------- вектор ---------- */
+  .vec { display: grid; grid-template-columns: repeat(32, 1fr); gap: 2px; }
+  .vec i { display: block; aspect-ratio: 1; border-radius: 2px; background: var(--surface-2); }
+  .vec-row { display: grid; gap: 6px; }
+  .vec-row .lbl { display: flex; justify-content: space-between; font-size: 13px; color: var(--ink-2); }
+  .legend-div { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--ink-3); }
+  .legend-div .ramp { flex: 0 0 120px; height: 8px; border-radius: 4px; background: linear-gradient(90deg, var(--neg), var(--surface-2), var(--pos)); }
+
+  /* ---------- внимание ---------- */
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+  .seg button { border: 0; background: transparent; color: var(--ink-2); padding: 6px 12px; cursor: pointer; font-size: 13px; }
+  .seg button[aria-pressed="true"] { background: var(--ink); color: var(--surface); }
+  .heads { display: inline-flex; gap: 6px; flex-wrap: wrap; }
+  .heads button { border: 1px solid var(--line); background: transparent; border-radius: 999px; padding: 5px 11px 5px 8px; cursor: pointer; font-size: 13px; color: var(--ink-2); display: inline-flex; align-items: center; gap: 6px; }
+  .heads button i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; background: var(--c); }
+  .heads button[aria-pressed="true"] { border-color: var(--c); color: var(--ink); background: color-mix(in srgb, var(--c) 12%, transparent); }
+  .heat-wrap { overflow-x: auto; }
+  canvas.heat { display: block; max-width: 100%; height: auto; border-radius: 6px; cursor: crosshair; }
+  .attn-row { display: flex; flex-wrap: wrap; gap: 4px; }
+  .attn-row span { font-family: var(--mono); font-size: 13px; padding: 5px 6px; border-radius: 5px; background: color-mix(in srgb, var(--c) calc(var(--w) * 100%), var(--surface-2)); color: var(--ink); white-space: pre; }
+  .attn-row span.cur { outline: 2px solid var(--head-2); }
+
+  /* ---------- бары ---------- */
+  .bars { display: grid; gap: 6px; }
+  .bar-row { display: grid; grid-template-columns: 92px 1fr 56px; align-items: center; gap: 10px; font-size: 14px; }
+  .bar-row .name { font-family: var(--mono); white-space: pre; overflow: hidden; text-overflow: ellipsis; text-align: right; }
+  .bar-row .track { height: 14px; background: var(--surface-2); border-radius: 4px; overflow: hidden; }
+  .bar-row .fill { height: 100%; width: 0; background: var(--bar); border-radius: 0 4px 4px 0; transition: width .35s ease; }
+  .bar-row.win .fill { background: var(--head-2); }
+  .bar-row .val { font-family: var(--mono); font-size: 13px; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+  .lens { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+  .lens .col { display: grid; gap: 6px; }
+  .lens .col h3 { font-size: 13px; color: var(--ink-2); font-weight: 600; }
+  .lens .bar-row { grid-template-columns: 64px 1fr 44px; font-size: 13px; }
+
+  /* ---------- контролы ---------- */
+  .controls { display: grid; gap: 10px; }
+  .ctl { display: grid; grid-template-columns: 120px 1fr 56px; align-items: center; gap: 10px; font-size: 14px; }
+  .ctl output { font-family: var(--mono); font-size: 13px; text-align: right; }
+  input[type="range"] { width: 100%; accent-color: var(--accent); }
+  .btns { display: flex; gap: 8px; flex-wrap: wrap; }
+  .btn { border: 1px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 9px; padding: 8px 14px; cursor: pointer; font-weight: 600; font-size: 14px; }
+  .btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  .btn:disabled { opacity: .5; cursor: default; }
+  .hint { font-size: 13px; color: var(--ink-3); }
+
+  /* ---------- график обучения ---------- */
+  .chart { position: relative; }
+  .chart svg { width: 100%; height: auto; display: block; }
+  .chart .grid line { stroke: var(--line); stroke-width: 1; }
+  .chart .axis text { fill: var(--ink-3); font-family: var(--mono); font-size: 11px; }
+  .chart .train { fill: none; stroke: var(--bar); stroke-width: 2; stroke-linejoin: round; }
+  .chart .val { fill: var(--head-2); stroke: var(--surface); stroke-width: 2; }
+  .chart .cross { stroke: var(--ink-3); stroke-dasharray: 3 3; }
+  .chart .marker { fill: var(--bar); stroke: var(--surface); stroke-width: 2; }
+  .chart .ref { stroke: var(--ink-3); stroke-dasharray: 2 4; }
+  .chart .ref-lbl { fill: var(--ink-3); font-family: var(--mono); font-size: 11px; }
+  .tip { position: absolute; pointer-events: none; background: var(--ink); color: var(--surface); font-family: var(--mono); font-size: 12px; padding: 6px 8px; border-radius: 6px; white-space: nowrap; transform: translate(-50%, -110%); z-index: 5; }
+  .tip[hidden] { display: none; }
+  .legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 13px; color: var(--ink-2); }
+  .legend i { display: inline-block; width: 14px; height: 3px; vertical-align: middle; margin-right: 6px; border-radius: 2px; background: var(--c); }
+  .legend i.dot { width: 9px; height: 9px; border-radius: 50%; }
+  .stages { display: grid; gap: 8px; }
+  .stage { display: grid; grid-template-columns: 96px 1fr; gap: 12px; align-items: start; padding: 10px 12px; border-radius: 10px; background: var(--surface-2); cursor: pointer; border: 1px solid transparent; }
+  .stage[aria-pressed="true"] { border-color: var(--bar); background: color-mix(in srgb, var(--bar) 10%, var(--surface-2)); }
+  .stage .k { font-family: var(--mono); font-size: 12px; color: var(--ink-2); display: grid; gap: 2px; }
+  .stage .k b { color: var(--ink); font-weight: 500; font-size: 14px; }
+  .stage .t { font-size: 14px; color: var(--ink); line-height: 1.45; }
+  @media (max-width: 480px) { .stage { grid-template-columns: 1fr; } .bar-row { grid-template-columns: 72px 1fr 50px; } .ctl { grid-template-columns: 96px 1fr 50px; } }
+
+  /* ---------- схема ---------- */
+  figure { margin: 0; display: grid; gap: 8px; }
+  figure svg { width: 100%; height: auto; max-width: 100%; }
+  figcaption { font-size: 13px; color: var(--ink-3); }
+  .arch text { font-family: var(--body); font-size: 12px; fill: currentColor; }
+  .arch .box { fill: var(--surface); stroke: currentColor; stroke-width: 1.2; }
+  .arch .box.hot { stroke: var(--head-2); stroke-width: 2; }
+  .arch .edge { stroke: currentColor; stroke-width: 1.2; fill: none; }
+  .arch .lbl { fill: var(--ink-3); font-size: 11px; }
+
+  footer { border-top: 1px solid var(--line); padding-block: 24px; font-size: 13px; color: var(--ink-3); display: grid; gap: 6px; }
+  @media (prefers-reduced-motion: reduce) {
+    .tok.new { animation: none; }
+    .bar-row .fill { transition: none; }
+  }
+</style>
+
+<div class="wrap">
+  <header class="hero">
+    <p class="eyebrow">Живая модель · 668 800 параметров · работает прямо в этой вкладке</p>
+    <h1>Мини-LLM изнутри</h1>
+    <p class="lede">Это не мультик, а настоящая языковая модель, обученная с нуля на NumPy. Ниже она разбирает ваш текст по шагам: режет на токены, превращает их в числа, «смотрит» вниманием на прошлое и угадывает следующий кусочек. Меняйте текст — всё пересчитывается.</p>
+  </header>
+
+  <div class="console" id="console">
+    <div class="console-row">
+      <textarea id="input" rows="2" aria-label="Текст для модели" spellcheck="false">Егор и Диана ждут вас ровно в</textarea>
+      <div class="btns">
+        <button class="btn primary" id="btn-next" type="button">Угадать следующий токен</button>
+        <button class="btn" id="btn-gen" type="button">Дописать 30</button>
+        <button class="btn" id="btn-clear" type="button">Очистить</button>
+      </div>
+    </div>
+    <div class="console-row" style="justify-content: space-between;">
+      <div class="chips" id="chips">
+        <button class="chip" type="button" data-text="Программа дня:">Программа дня:</button>
+        <button class="chip" type="button" data-text="В меню:">В меню:</button>
+        <button class="chip" type="button" data-text="Дорогой гость, мы будем рады">Дорогой гость</button>
+        <button class="chip" type="button" data-text="Кот сидел на">Кот сидел на</button>
+      </div>
+      <div class="stat-row">
+        <span>токенов <b id="st-tokens">0</b></span>
+        <span>уверенность <b id="st-conf">—</b></span>
+        <span>расчёт <b id="st-ms">—</b></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======================= 0. Схема ======================= -->
+  <section class="station" id="s0">
+    <div class="text">
+      <p class="station-num">Маршрут</p>
+      <h2>Что происходит с текстом по дороге</h2>
+      <div class="prose">
+        <p>У языковой модели одна работа: <strong>угадать следующий кусочек текста</strong>. Не «понять», не «ответить» — угадать. Всё остальное, что вы видите у ChatGPT, вырастает из этого фокуса, повторённого миллиарды раз.</p>
+        <p>Текст проходит шесть станций. Ниже каждая показана на ваших словах, с живыми числами, а не с картинками из презентации.</p>
+        <p class="note">Модель крошечная: она училась 23 минуты на 400 КБ шаблонных свадебных приглашений. Про свадьбы она «в теме», про котов — нет. Это сделано нарочно: на маленьком мирке видно, как работает механизм.</p>
+      </div>
+    </div>
+    <div class="viz">
+      <figure>
+        <svg class="arch" viewBox="0 0 700 270" role="img" aria-label="Текст превращается в токены, затем в векторы, проходит три блока внимания и на выходе даёт вероятности следующего токена">
+          <defs>
+            <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" fill="currentColor"></path>
+            </marker>
+          </defs>
+          <g>
+            <rect class="box" x="16" y="30" width="132" height="44" rx="8"></rect>
+            <text x="82" y="56" text-anchor="middle">«Егор и Диана»</text>
+            <path class="edge" d="M148,52 L204,52" marker-end="url(#arr)"></path>
+            <text class="lbl" x="176" y="44" text-anchor="middle">режем</text>
+
+            <rect class="box" x="206" y="30" width="132" height="44" rx="8"></rect>
+            <text x="272" y="56" text-anchor="middle">токены (числа)</text>
+            <path class="edge" d="M338,52 L394,52" marker-end="url(#arr)"></path>
+            <text class="lbl" x="366" y="44" text-anchor="middle">таблица</text>
+
+            <rect class="box" x="396" y="30" width="132" height="44" rx="8"></rect>
+            <text x="462" y="56" text-anchor="middle">векторы × 128</text>
+            <path class="edge" d="M462,74 L462,106" marker-end="url(#arr)"></path>
+          </g>
+          <g>
+            <rect class="box hot" x="316" y="108" width="292" height="92" rx="10"></rect>
+            <text x="462" y="128" text-anchor="middle" font-weight="600">блок × 3</text>
+            <rect class="box" x="332" y="138" width="122" height="44" rx="6"></rect>
+            <text x="393" y="157" text-anchor="middle">внимание</text>
+            <text class="lbl" x="393" y="172" text-anchor="middle">кто на кого смотрит</text>
+            <path class="edge" d="M454,160 L468,160" marker-end="url(#arr)"></path>
+            <rect class="box" x="470" y="138" width="122" height="44" rx="6"></rect>
+            <text x="531" y="157" text-anchor="middle">MLP</text>
+            <text class="lbl" x="531" y="172" text-anchor="middle">обдумать</text>
+            <path class="edge" d="M608,170 C640,170 640,124 608,124" marker-end="url(#arr)"></path>
+            <text class="lbl" x="644" y="150" text-anchor="start">ещё раз,</text>
+            <text class="lbl" x="644" y="163" text-anchor="start">всего ×3</text>
+          </g>
+          <g>
+            <path class="edge" d="M462,200 L462,224" marker-end="url(#arr)"></path>
+            <rect class="box" x="352" y="226" width="220" height="30" rx="8"></rect>
+            <text x="462" y="246" text-anchor="middle">вероятности следующего токена</text>
+            <path class="edge" d="M352,241 L82,241 L82,76" stroke-dasharray="4 4" marker-end="url(#arr)"></path>
+            <text class="lbl" x="92" y="176" text-anchor="start">выбираем один,</text>
+            <text class="lbl" x="92" y="190" text-anchor="start">дописываем к тексту,</text>
+            <text class="lbl" x="92" y="204" text-anchor="start">повторяем</text>
+          </g>
+        </svg>
+        <figcaption>Слева направо и вниз: текст → токены → векторы → три блока «внимание + обдумывание» → вероятности. Пунктир — цикл генерации: выбранный токен приписывается к тексту, и всё начинается заново.</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <!-- ======================= 1. Токены ======================= -->
+  <section class="station" id="s1">
+    <div class="text">
+      <p class="station-num">Станция 1 из 6</p>
+      <h2>Текст режется на токены</h2>
+      <div class="prose">
+        <p>Нейросеть не умеет читать буквы — она умножает числа. Поэтому текст сначала режут на кусочки-<strong>токены</strong>, и каждому кусочку выдают номер из словаря.</p>
+        <p>Кусочки — не буквы и не слова, а что-то среднее. Алгоритм BPE смотрел на корпус и 256 раз склеивал самую частую пару соседей: сначала «ст», потом «при», потом « и». Что часто встречается — стало одним токеном, редкое так и осталось по буквам.</p>
+        <p>Нажмите на любой токен: следующие станции покажут его глазами модели.</p>
+      </div>
+    </div>
+    <div class="viz">
+      <div class="panel">
+        <div class="panel-title"><span class="eyebrow">Ваш текст как видит его модель</span><span class="hint" id="tok-hint">пробел показан как ␣</span></div>
+        <div class="tokens" id="tokens"></div>
+        <p class="hint">Словарь модели — всего 512 токенов. Незнакомое слово («кот») распадается на короткие куски: модель его никогда не видела целиком.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ======================= 2. Эмбеддинги ======================= -->
+  <section class="station" id="s2">
+    <div class="text">
+      <p class="station-num">Станция 2 из 6</p>
+      <h2>Номер превращается в вектор смысла</h2>
+      <div class="prose">
+        <p>Номер токена — просто ярлык, в нём нет смысла. Поэтому у модели есть таблица: на каждый номер — <strong>128 чисел</strong>. Это координаты токена в пространстве смыслов. Похожие по употреблению токены со временем оказываются рядом.</p>
+        <p>В начале обучения все числа случайные. Никто не объяснял модели, что «Егор» и «Диана» — имена: она сама расставила их рядом, потому что после них в корпусе следует одно и то же.</p>
+        <p>К вектору токена прибавляется вектор его <strong>позиции</strong> — иначе модель не отличит «Егор ждёт Диану» от «Диана ждёт Егора».</p>
+      </div>
+    </div>
+    <div class="viz">
+      <div class="panel">
+        <div class="panel-title"><span class="eyebrow">Токен <span class="mono" id="emb-tok">—</span> в 128 числах</span>
+          <span class="legend-div"><span>−</span><i class="ramp"></i><span>+</span></span></div>
+        <div class="vec-row"><div class="lbl"><span>Что это за токен (строка таблицы)</span><span class="mono" id="emb-id"></span></div><div class="vec" id="vec-tok"></div></div>
+        <div class="vec-row"><div class="lbl"><span>Где он стоит (позиция)</span><span class="mono" id="emb-pos"></span></div><div class="vec" id="vec-pos"></div></div>
+        <div class="vec-row"><div class="lbl"><span>Сумма — с этим модель работает дальше</span></div><div class="vec" id="vec-sum"></div></div>
+        <p class="hint">Каждая клетка — одно число. Синий — положительное, оранжевый — отрицательное, чем ярче, тем больше. Сами по себе они ничего не значат; смысл — в том, какие токены получают похожие узоры.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ======================= 3. Внимание ======================= -->
+  <section class="station" id="s3">
+    <div class="text">
+      <p class="station-num">Станция 3 из 6</p>
+      <h2>Внимание: каждый токен оглядывается назад</h2>
+      <div class="prose">
+        <p>Главная идея всей современной ИИ-революции. Каждый токен задаёт вопрос остальным: «кто из вас мне сейчас важен?» — и берёт информацию у тех, кто ответил громче. Так слово после «в» узнаёт, что дальше ждут время, а «его» находит, к кому относится.</p>
+        <p>На карте: строка — кто смотрит, столбец — на кого. Чем ярче клетка, тем сильнее связь. <strong>Правая верхняя половина пустая</strong>: смотреть в будущее запрещено. Иначе на обучении модель просто подглядывала бы ответ.</p>
+        <p>Голов четыре — четыре независимых читателя одного текста. Один часто следит за предыдущим словом, другой ищет начало фразы. Переключайте их и слои.</p>
+      </div>
+    </div>
+    <div class="viz">
+      <div class="panel">
+        <div class="panel-title">
+          <div class="seg" id="layer-seg" role="group" aria-label="Слой"></div>
+          <div class="heads" id="head-seg" role="group" aria-label="Голова внимания"></div>
+        </div>
+        <div class="heat-wrap"><canvas class="heat" id="heat" width="10" height="10" aria-label="Карта внимания"></canvas></div>
+        <div>
+          <p class="hint" style="margin-bottom:6px">На что смотрит выбранный токен (ярче = сильнее):</p>
+          <div class="attn-row" id="attn-row"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ======================= 4. Слои ======================= -->
+  <section class="station" id="s4">
+    <div class="text">
+      <p class="station-num">Станция 4 из 6</p>
+      <h2>Три слоя — три уточнения догадки</h2>
+      <div class="prose">
+        <p>Блоков в модели три, и каждый не заменяет то, что было, а <strong>дописывает</strong> своё поверх — как пометки на полях. Первый слой видит грубое: «тут цифра, тут предлог». Последний — «здесь ждут время начала».</p>
+        <p>Можно подсмотреть, что модель «думала бы» после каждого слоя, если бы её остановили раньше. Обычно догадка становится увереннее слева направо.</p>
+      </div>
+    </div>
+    <div class="viz">
+      <div class="panel">
+        <div class="panel-title"><span class="eyebrow">Догадка о следующем токене после каждого слоя</span></div>
+        <div class="lens" id="lens"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ======================= 5. Предсказание ======================= -->
+  <section class="station" id="s5">
+    <div class="text">
+      <p class="station-num">Станция 5 из 6</p>
+      <h2>Вероятности — и одна монетка</h2>
+      <div class="prose">
+        <p>На выходе — не текст, а таблица: каждому из 512 токенов модель приписала шанс быть следующим. Дальше программа тянет один вариант из этой таблицы, приписывает к тексту и спрашивает снова. Вот и весь «искусственный интеллект».</p>
+        <p><strong>Температура</strong> решает, насколько честно тянуть. Ноль — всегда брать лидера: надёжно, но модель зацикливается. Больше единицы — шансы уравниваются, и выпадает ерунда. <strong>Top-k</strong> отрезает хвост: рассматриваем только k лучших.</p>
+        <p>Кнопка «Угадать следующий токен» наверху делает ровно один шаг этого цикла.</p>
+      </div>
+    </div>
+    <div class="viz">
+      <div class="panel">
+        <div class="panel-title"><span class="eyebrow">10 самых вероятных следующих токенов</span><span class="hint" id="pred-note"></span></div>
+        <div class="bars" id="bars"></div>
+        <div class="controls">
+          <label class="ctl" for="temp"><span>Температура</span><input type="range" id="temp" min="0" max="2" step="0.05" value="0.8"><output id="temp-out">0.80</output></label>
+          <label class="ctl" for="topk"><span>Top-k</span><input type="range" id="topk" min="0" max="50" step="1" value="0"><output id="topk-out">все</output></label>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ======================= 6. Обучение ======================= -->
+  <section class="station" id="s6">
+    <div class="text">
+      <p class="station-num">Станция 6 из 6</p>
+      <h2>Как она этому научилась</h2>
+      <div class="prose">
+        <p>Обучение — это 900 повторений одного упражнения. Берём кусок корпуса, прячем продолжение, просим угадать. Сравниваем с правдой и получаем число — <strong>ошибку (loss)</strong>. Потом для каждого из 668 800 чисел в модели считаем: подкрутить вверх или вниз, чтобы ошибка стала меньше. Подкручиваем чуть-чуть. Повторяем.</p>
+        <p>Ошибка стартует с 6,24 — это ровно ln(512), уровень «тыкаю пальцем наугад» при словаре в 512 токенов. И падает до 0,35. Нажимайте на этапы справа, чтобы прочитать, что модель писала на каждом.</p>
+        <p class="note">Дальше 900 шагов учить бессмысленно: в корпусе даты и имена подставлены случайно, их не угадать никакой моделью. Модель не может стать умнее своих данных.</p>
+      </div>
+    </div>
+    <div class="viz">
+      <div class="panel">
+        <div class="panel-title"><span class="eyebrow">Ошибка по шагам обучения</span>
+          <div class="legend"><span><i style="--c: var(--bar)"></i>на обучении</span><span><i class="dot" style="--c: var(--head-2)"></i>на отложенных данных</span></div></div>
+        <div class="chart" id="chart"><div class="tip" id="chart-tip" hidden></div></div>
+        <div class="stages" id="stages"></div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <span>Модель: 3 слоя × 4 головы, размерность 128, контекст 64 токена, BPE-словарь 512. Обучена на NumPy без PyTorch; прямой проход здесь выполняется на JavaScript теми же формулами.</span>
+    <span>Исходный код — каталог <code>mini-llm/</code> в репозитории, страница — <code>mini-llm/web/</code>.</span>
+  </footer>
+</div>
+
+<script src="model.js"></script>
+<script>
+(function () {
+  'use strict';
+  var M = window.MINI_LLM_MODEL;
+  if (!M) { document.getElementById('tokens').textContent = 'Не удалось загрузить model.js'; return; }
+  var cfg = M.config;
+  var D = cfg.n_embd, NH = cfg.n_head, HD = D / NH, NL = cfg.n_layer, V = cfg.vocab_size, BS = cfg.block_size;
+  var reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var HEAD_VARS = ['--head-1', '--head-2', '--head-3', '--head-4'];
+
+  // ---------- float16 -> Float32Array ----------
+  function decodeParam(p) {
+    var bin = atob(p.data), n = bin.length / 2, out = new Float32Array(n);
+    for (var i = 0; i < n; i++) {
+      var h = bin.charCodeAt(2 * i) | (bin.charCodeAt(2 * i + 1) << 8);
+      var s = (h & 0x8000) ? -1 : 1, e = (h >> 10) & 0x1f, f = h & 0x3ff;
+      if (e === 0) out[i] = s * Math.pow(2, -14) * (f / 1024);
+      else if (e === 31) out[i] = f ? NaN : s * Infinity;
+      else out[i] = s * Math.pow(2, e - 15) * (1 + f / 1024);
+    }
+    return out;
+  }
+  var P = {};
+  Object.keys(M.params).forEach(function (k) { P[k] = decodeParam(M.params[k]); });
+
+  // ---------- BPE ----------
+  var merges = M.tokenizer.merges, ranks = {}, vocab = [];
+  for (var b = 0; b < 256; b++) vocab.push([b]);
+  merges.forEach(function (pr, i) { ranks[pr[0] + ',' + pr[1]] = i; vocab.push(vocab[pr[0]].concat(vocab[pr[1]])); });
+  var enc = new TextEncoder(), dec = new TextDecoder('utf-8');
+  var CHUNK_RE = /\s*\S+|\s+/g;
+  function encodeChunk(chunk) {
+    var ids = Array.prototype.slice.call(enc.encode(chunk));
+    while (ids.length >= 2) {
+      var best = null, bestRank = Infinity;
+      for (var i = 0; i < ids.length - 1; i++) {
+        var r = ranks[ids[i] + ',' + ids[i + 1]];
+        if (r !== undefined && r < bestRank) { bestRank = r; best = i; }
+      }
+      if (best === null) break;
+      var a = ids[best], bb = ids[best + 1], out = [];
+      for (var j = 0; j < ids.length;) {
+        if (j < ids.length - 1 && ids[j] === a && ids[j + 1] === bb) { out.push(256 + bestRank); j += 2; }
+        else { out.push(ids[j]); j++; }
+      }
+      ids = out;
+    }
+    return ids;
+  }
+  function encode(text) {
+    var out = [], m, re = new RegExp(CHUNK_RE.source, 'g');
+    while ((m = re.exec(text)) !== null) out = out.concat(encodeChunk(m[0]));
+    return out;
+  }
+  function decodeIds(ids) {
+    var bytes = [];
+    ids.forEach(function (id) { bytes = bytes.concat(vocab[id] || []); });
+    return dec.decode(new Uint8Array(bytes));
+  }
+  var tokText = [];
+  for (var t = 0; t < V; t++) tokText.push(dec.decode(new Uint8Array(vocab[t])));
+  function showTok(s) { return s.replace(/ /g, '␣').replace(/\n/g, '↵').replace(/\ufffd/g, '□'); }
+
+  // ---------- математика ----------
+  function layerNorm(x, T, g, bta) {
+    var out = new Float32Array(T * D);
+    for (var t = 0; t < T; t++) {
+      var mu = 0, i; for (i = 0; i < D; i++) mu += x[t * D + i]; mu /= D;
+      var v = 0; for (i = 0; i < D; i++) { var d = x[t * D + i] - mu; v += d * d; } v /= D;
+      var inv = 1 / Math.sqrt(v + 1e-5);
+      for (i = 0; i < D; i++) out[t * D + i] = (x[t * D + i] - mu) * inv * g[i] + bta[i];
+    }
+    return out;
+  }
+  function matmul(x, T, K, w, N, bias) { // x: T×K, w: K×N
+    var out = new Float32Array(T * N);
+    for (var t = 0; t < T; t++) {
+      var xo = t * K, oo = t * N, n;
+      if (bias) for (n = 0; n < N; n++) out[oo + n] = bias[n];
+      for (var k = 0; k < K; k++) {
+        var xv = x[xo + k]; if (xv === 0) continue;
+        var wo = k * N;
+        for (n = 0; n < N; n++) out[oo + n] += xv * w[wo + n];
+      }
+    }
+    return out;
+  }
+  function gelu(v) { return 0.5 * v * (1 + Math.tanh(0.7978845608 * (v + 0.044715 * v * v * v))); }
+  function softmaxInPlace(a, off, n) {
+    var mx = -Infinity, i; for (i = 0; i < n; i++) if (a[off + i] > mx) mx = a[off + i];
+    var s = 0; for (i = 0; i < n; i++) { a[off + i] = Math.exp(a[off + i] - mx); s += a[off + i]; }
+    for (i = 0; i < n; i++) a[off + i] /= s;
+  }
+  function logitsAt(h, T, pos) { // применяем финальный LN и wte^T к позиции pos
+    var xf = layerNorm(h.subarray(pos * D, pos * D + D), 1, P.lnf_g, P.lnf_b);
+    var lg = new Float32Array(V);
+    for (var v = 0; v < V; v++) { var s = 0, wo = v * D; for (var i = 0; i < D; i++) s += xf[i] * P.wte[wo + i]; lg[v] = s; }
+    return lg;
+  }
+  function forward(ids) {
+    var T = ids.length, x = new Float32Array(T * D), t, i;
+    for (t = 0; t < T; t++) for (i = 0; i < D; i++) x[t * D + i] = P.wte[ids[t] * D + i] + P.wpe[t * D + i];
+    var attn = [], hidden = [x.slice()], scale = 1 / Math.sqrt(HD);
+    for (var l = 0; l < NL; l++) {
+      var pre = 'h' + l + '.';
+      var a = layerNorm(x, T, P[pre + 'ln1_g'], P[pre + 'ln1_b']);
+      var qkv = matmul(a, T, D, P[pre + 'attn_w'], 3 * D, P[pre + 'attn_b']);
+      var heads = [], y = new Float32Array(T * D);
+      for (var h = 0; h < NH; h++) {
+        var att = new Float32Array(T * T);
+        for (var q = 0; q < T; q++) {
+          for (var k = 0; k <= q; k++) {
+            var s = 0;
+            for (i = 0; i < HD; i++) s += qkv[q * 3 * D + h * HD + i] * qkv[k * 3 * D + D + h * HD + i];
+            att[q * T + k] = s * scale;
+          }
+          for (k = q + 1; k < T; k++) att[q * T + k] = -1e9;
+          softmaxInPlace(att, q * T, T);
+          for (i = 0; i < HD; i++) { var acc = 0; for (k = 0; k <= q; k++) acc += att[q * T + k] * qkv[k * 3 * D + 2 * D + h * HD + i]; y[q * D + h * HD + i] = acc; }
+        }
+        heads.push(att);
+      }
+      attn.push(heads);
+      var proj = matmul(y, T, D, P[pre + 'proj_w'], D, P[pre + 'proj_b']);
+      for (i = 0; i < T * D; i++) x[i] += proj[i];
+      var hh = layerNorm(x, T, P[pre + 'ln2_g'], P[pre + 'ln2_b']);
+      var f = matmul(hh, T, D, P[pre + 'fc_w'], 4 * D, P[pre + 'fc_b']);
+      for (i = 0; i < f.length; i++) f[i] = gelu(f[i]);
+      var o = matmul(f, T, 4 * D, P[pre + 'fcproj_w'], D, P[pre + 'fcproj_b']);
+      for (i = 0; i < T * D; i++) x[i] += o[i];
+      hidden.push(x.slice());
+    }
+    return { T: T, attn: attn, hidden: hidden, logits: logitsAt(x, T, T - 1) };
+  }
+
+  // ---------- состояние ----------
+  var state = { ids: [], fw: null, sel: 0, layer: NL - 1, head: 0, temp: 0.8, topk: 0, busy: false };
+  var $ = function (id) { return document.getElementById(id); };
+  var input = $('input');
+
+  function currentIds() {
+    var ids = encode(input.value);
+    if (ids.length > BS) ids = ids.slice(ids.length - BS);
+    if (!ids.length) ids = [encode(' ')[0]];
+    return ids;
+  }
+  function recompute(keepSel) {
+    var t0 = performance.now();
+    state.ids = currentIds();
+    state.fw = forward(state.ids);
+    if (!keepSel || state.sel >= state.ids.length) state.sel = state.ids.length - 1;
+    $('st-tokens').textContent = state.ids.length + (input.value && encode(input.value).length > BS ? ' (видны последние ' + BS + ')' : '');
+    $('st-ms').textContent = (performance.now() - t0).toFixed(0) + ' мс';
+    renderAll();
+  }
+  function renderAll() { renderTokens(); renderEmb(); renderAttn(); renderLens(); renderBars(); }
+
+  // ---------- 1. токены ----------
+  function renderTokens() {
+    var box = $('tokens'); box.innerHTML = '';
+    state.ids.forEach(function (id, i) {
+      var el = document.createElement('button'); el.type = 'button'; el.className = 'tok' + (i === state.sel ? ' sel' : '');
+      el.innerHTML = '<span></span><small></small>';
+      el.firstChild.textContent = showTok(tokText[id]); el.lastChild.textContent = '#' + id;
+      el.title = 'токен №' + id + ' на позиции ' + i;
+      el.addEventListener('click', function () { state.sel = i; renderAll(); });
+      box.appendChild(el);
+    });
+  }
+
+  // ---------- 2. эмбеддинги ----------
+  var vecCells = {};
+  function vecCellsFor(id) {
+    if (!vecCells[id]) {
+      var box = $(id), frag = document.createDocumentFragment(), arr = [];
+      for (var i = 0; i < D; i++) { var c = document.createElement('i'); frag.appendChild(c); arr.push(c); }
+      box.appendChild(frag); vecCells[id] = arr;
+    }
+    return vecCells[id];
+  }
+  function paintVec(id, vec, off, scaleMax) {
+    var cells = vecCellsFor(id), pos = getComputedStyle(document.documentElement).getPropertyValue('--pos').trim(), neg = getComputedStyle(document.documentElement).getPropertyValue('--neg').trim();
+    for (var i = 0; i < D; i++) {
+      var v = vec[off + i], a = Math.min(1, Math.abs(v) / scaleMax);
+      cells[i].style.background = 'color-mix(in srgb, ' + (v >= 0 ? pos : neg) + ' ' + Math.round(a * 100) + '%, var(--surface-2))';
+      cells[i].title = v.toFixed(3);
+    }
+  }
+  function renderEmb() {
+    var s = state.sel, id = state.ids[s];
+    $('emb-tok').textContent = '«' + showTok(tokText[id]) + '»'; $('emb-id').textContent = '№' + id; $('emb-pos').textContent = 'позиция ' + s;
+    var mx = 0, i;
+    for (i = 0; i < D; i++) { mx = Math.max(mx, Math.abs(P.wte[id * D + i]), Math.abs(P.wpe[s * D + i])); }
+    paintVec('vec-tok', P.wte, id * D, mx); paintVec('vec-pos', P.wpe, s * D, mx); paintVec('vec-sum', state.fw.hidden[0], s * D, mx);
+  }
+
+  // ---------- 3. внимание ----------
+  function buildSeg() {
+    var ls = $('layer-seg'); ls.innerHTML = '';
+    for (var l = 0; l < NL; l++) (function (l) {
+      var b = document.createElement('button'); b.type = 'button'; b.textContent = 'слой ' + (l + 1); b.setAttribute('aria-pressed', String(l === state.layer));
+      b.addEventListener('click', function () { state.layer = l; renderAttn(); }); ls.appendChild(b);
+    })(l);
+    var hs = $('head-seg'); hs.innerHTML = '';
+    for (var h = 0; h < NH; h++) (function (h) {
+      var b = document.createElement('button'); b.type = 'button'; b.style.setProperty('--c', 'var(' + HEAD_VARS[h % 4] + ')');
+      b.innerHTML = '<i></i>голова ' + (h + 1); b.setAttribute('aria-pressed', String(h === state.head));
+      b.addEventListener('click', function () { state.head = h; renderAttn(); }); hs.appendChild(b);
+    })(h);
+  }
+  var heat = $('heat'), heatTip = null;
+  function cssVar(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+  function renderAttn() {
+    Array.prototype.forEach.call($('layer-seg').children, function (b, i) { b.setAttribute('aria-pressed', String(i === state.layer)); });
+    Array.prototype.forEach.call($('head-seg').children, function (b, i) { b.setAttribute('aria-pressed', String(i === state.head)); });
+    var T = state.fw.T, att = state.fw.attn[state.layer][state.head];
+    var cell = Math.max(6, Math.min(22, Math.floor(520 / T))), pad = Math.max(40, Math.min(84, cell * 4)), size = pad + T * cell + 4;
+    var dpr = window.devicePixelRatio || 1;
+    heat.width = size * dpr; heat.height = size * dpr; heat.style.width = size + 'px'; heat.style.height = size + 'px';
+    var ctx = heat.getContext('2d'); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, size, size);
+    var col = cssVar(HEAD_VARS[state.head % 4]), surf = cssVar('--surface-2'), ink3 = cssVar('--ink-3'), sel = cssVar('--head-2');
+    ctx.font = Math.min(11, cell) + 'px ' + cssVar('--mono');
+    for (var q = 0; q < T; q++) {
+      for (var k = 0; k < T; k++) {
+        var y = pad + q * cell, x = pad + k * cell;
+        if (k > q) { continue; }
+        var w = att[q * T + k];
+        ctx.fillStyle = surf; ctx.fillRect(x, y, cell - 1, cell - 1);
+        ctx.globalAlpha = Math.min(1, Math.pow(w, 0.6)); ctx.fillStyle = col; ctx.fillRect(x, y, cell - 1, cell - 1); ctx.globalAlpha = 1;
+      }
+    }
+    if (T * cell >= 120) {
+      ctx.fillStyle = ink3;
+      var lbl = Math.max(1, Math.floor(T / Math.max(1, Math.floor(T * cell / 44))));
+      for (var t = 0; t < T; t++) {
+        if (t % lbl) continue;
+        var s = showTok(tokText[state.ids[t]]).slice(0, 6);
+        ctx.textAlign = 'right'; ctx.textBaseline = 'middle'; ctx.fillText(s, pad - 4, pad + t * cell + cell / 2);
+        ctx.save(); ctx.translate(pad + t * cell + cell / 2, pad - 4); ctx.rotate(-Math.PI / 2); ctx.textAlign = 'left'; ctx.fillText(s, 0, 0); ctx.restore();
+      }
+    }
+    ctx.strokeStyle = sel; ctx.lineWidth = 2; ctx.strokeRect(pad - 1, pad + state.sel * cell - 1, T * cell + 1, cell + 1);
+    heat._geom = { pad: pad, cell: cell, T: T };
+    var row = $('attn-row'); row.innerHTML = '';
+    for (var k2 = 0; k2 <= state.sel; k2++) {
+      var sp = document.createElement('span'); sp.textContent = showTok(tokText[state.ids[k2]]);
+      sp.style.setProperty('--c', 'var(' + HEAD_VARS[state.head % 4] + ')'); sp.style.setProperty('--w', Math.min(1, Math.pow(att[state.sel * T + k2], 0.6)).toFixed(3));
+      sp.title = (att[state.sel * T + k2] * 100).toFixed(1) + '%'; if (k2 === state.sel) sp.className = 'cur';
+      row.appendChild(sp);
+    }
+  }
+  heat.addEventListener('mousemove', function (e) {
+    var g = heat._geom; if (!g) return;
+    var r = heat.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top;
+    var k = Math.floor((x - g.pad) / g.cell), q = Math.floor((y - g.pad) / g.cell);
+    if (k < 0 || q < 0 || k >= g.T || q >= g.T || k > q) { heat.title = ''; return; }
+    var w = state.fw.attn[state.layer][state.head][q * g.T + k];
+    heat.title = '«' + showTok(tokText[state.ids[q]]) + '» смотрит на «' + showTok(tokText[state.ids[k]]) + '»: ' + (w * 100).toFixed(1) + '%';
+  });
+  heat.addEventListener('click', function (e) {
+    var g = heat._geom; if (!g) return;
+    var r = heat.getBoundingClientRect(), q = Math.floor((e.clientY - r.top - g.pad) / g.cell);
+    if (q >= 0 && q < g.T) { state.sel = q; renderAll(); }
+  });
+
+  // ---------- 4. слои (logit lens) ----------
+  function topK(lg, k) {
+    var idx = []; for (var i = 0; i < lg.length; i++) idx.push(i);
+    idx.sort(function (a, b) { return lg[b] - lg[a]; }); return idx.slice(0, k);
+  }
+  function probsFrom(lg, temp, topk) {
+    var p = new Float32Array(V), i;
+    if (temp <= 0) { var best = topK(lg, 1)[0]; p[best] = 1; return p; }
+    var order = topK(lg, V), keep = topk > 0 ? Math.min(topk, V) : V, mx = lg[order[0]], s = 0;
+    for (i = 0; i < keep; i++) { var v = Math.exp((lg[order[i]] - mx) / temp); p[order[i]] = v; s += v; }
+    for (i = 0; i < keep; i++) p[order[i]] /= s;
+    return p;
+  }
+  function renderLens() {
+    var box = $('lens'); box.innerHTML = '';
+    var T = state.fw.T, pos = T - 1;
+    for (var l = 1; l <= NL; l++) {
+      var lg = logitsAt(state.fw.hidden[l], T, pos), p = probsFrom(lg, 1, 0), top = topK(lg, 5);
+      var col = document.createElement('div'); col.className = 'col';
+      var h = document.createElement('h3'); h.textContent = l === NL ? 'после слоя ' + l + ' (итог)' : 'после слоя ' + l; col.appendChild(h);
+      top.forEach(function (id) {
+        var r = document.createElement('div'); r.className = 'bar-row';
+        r.innerHTML = '<span class="name"></span><span class="track"><span class="fill"></span></span><span class="val"></span>';
+        r.children[0].textContent = showTok(tokText[id]); r.children[0].title = '№' + id;
+        r.children[1].firstChild.style.width = (p[id] * 100).toFixed(1) + '%'; r.children[2].textContent = (p[id] * 100).toFixed(0) + '%';
+        col.appendChild(r);
+      });
+      box.appendChild(col);
+    }
+  }
+
+  // ---------- 5. вероятности ----------
+  function renderBars(winner) {
+    var lg = state.fw.logits, p = probsFrom(lg, state.temp, state.topk), top = topK(lg, 10), box = $('bars');
+    var rows = box.children;
+    if (rows.length !== 10) {
+      box.innerHTML = '';
+      for (var i = 0; i < 10; i++) { var r = document.createElement('div'); r.className = 'bar-row'; r.innerHTML = '<span class="name"></span><span class="track"><span class="fill"></span></span><span class="val"></span>'; box.appendChild(r); }
+    }
+    top.forEach(function (id, i) {
+      var r = rows[i]; r.classList.toggle('win', id === winner);
+      r.children[0].textContent = showTok(tokText[id]); r.children[0].title = '№' + id;
+      r.children[1].firstChild.style.width = (p[id] * 100).toFixed(1) + '%'; r.children[2].textContent = (p[id] * 100).toFixed(1) + '%';
+    });
+    var ent = 0; for (var v = 0; v < V; v++) if (p[v] > 0) ent -= p[v] * Math.log(p[v]);
+    var eff = Math.exp(ent);
+    $('st-conf').textContent = 'выбирает из ~' + eff.toFixed(1);
+    $('pred-note').textContent = state.temp <= 0 ? 'температура 0: всегда лидер' : 'сумма всех 512 = 100%';
+  }
+  function sample(p) {
+    var r = Math.random(), acc = 0;
+    for (var i = 0; i < V; i++) { acc += p[i]; if (r < acc) return i; }
+    return topK(state.fw.logits, 1)[0];
+  }
+  function step(done) {
+    var p = probsFrom(state.fw.logits, state.temp, state.topk), id = sample(p);
+    renderBars(id);
+    var apply = function () {
+      input.value = decodeIds(state.ids.concat([id]).slice(-BS)) ;
+      recompute(false);
+      var toks = $('tokens').children; if (toks.length) toks[toks.length - 1].classList.add('new');
+      if (done) done();
+    };
+    if (reduceMotion) apply(); else setTimeout(apply, 260);
+  }
+  function setBusy(b) { state.busy = b; $('btn-next').disabled = b; $('btn-gen').disabled = b; }
+  $('btn-next').addEventListener('click', function () { if (state.busy) return; setBusy(true); step(function () { setBusy(false); }); });
+  $('btn-gen').addEventListener('click', function () {
+    if (state.busy) return; setBusy(true); var n = 30;
+    (function loop() { if (n-- <= 0) { setBusy(false); return; } step(loop); })();
+  });
+  $('btn-clear').addEventListener('click', function () { input.value = ''; recompute(false); input.focus(); });
+  Array.prototype.forEach.call($('chips').children, function (c) { c.addEventListener('click', function () { input.value = c.getAttribute('data-text'); recompute(false); }); });
+  var timer = null;
+  input.addEventListener('input', function () { clearTimeout(timer); timer = setTimeout(function () { recompute(false); }, 120); });
+  $('temp').addEventListener('input', function (e) { state.temp = parseFloat(e.target.value); $('temp-out').textContent = state.temp.toFixed(2); renderBars(); });
+  $('topk').addEventListener('input', function (e) { state.topk = parseInt(e.target.value, 10); $('topk-out').textContent = state.topk ? String(state.topk) : 'все'; renderBars(); });
+
+  // ---------- 6. обучение ----------
+  function renderChart() {
+    var H = M.history || [], train = H.filter(function (r) { return r.loss !== undefined; }), val = H.filter(function (r) { return r.val_loss !== undefined; });
+    if (!train.length) return;
+    var W = 620, Hh = 260, ml = 44, mr = 14, mt = 14, mb = 30, iw = W - ml - mr, ih = Hh - mt - mb;
+    var maxStep = Math.max.apply(null, train.map(function (r) { return r.step; })), lnV = Math.log(V);
+    var yMax = Math.ceil(Math.max(lnV, Math.max.apply(null, train.map(function (r) { return r.loss; })))), yMin = 0;
+    var X = function (s) { return ml + iw * s / maxStep; }, Y = function (v) { return mt + ih * (1 - (v - yMin) / (yMax - yMin)); };
+    var svg = '<svg viewBox="0 0 ' + W + ' ' + Hh + '" role="img" aria-label="Ошибка обучения падает с ' + train[0].loss.toFixed(2) + ' до ' + train[train.length - 1].loss.toFixed(2) + '">';
+    svg += '<g class="grid">'; var yt; for (yt = 0; yt <= yMax; yt += 1) svg += '<line x1="' + ml + '" x2="' + (W - mr) + '" y1="' + Y(yt) + '" y2="' + Y(yt) + '"></line>'; svg += '</g>';
+    svg += '<g class="axis">'; for (yt = 0; yt <= yMax; yt += 1) svg += '<text x="' + (ml - 8) + '" y="' + (Y(yt) + 4) + '" text-anchor="end">' + yt + '</text>';
+    [0, 0.25, 0.5, 0.75, 1].forEach(function (f) { svg += '<text x="' + X(f * maxStep) + '" y="' + (Hh - 10) + '" text-anchor="middle">шаг ' + Math.round(f * maxStep) + '</text>'; }); svg += '</g>';
+    svg += '<line class="ref" x1="' + ml + '" x2="' + (W - mr) + '" y1="' + Y(lnV) + '" y2="' + Y(lnV) + '"></line><text class="ref-lbl" x="' + (W - mr) + '" y="' + (Y(lnV) - 5) + '" text-anchor="end">наугад: ln(512) = ' + lnV.toFixed(2) + '</text>';
+    svg += '<polyline class="train" points="' + train.map(function (r) { return X(r.step).toFixed(1) + ',' + Y(r.smooth !== undefined ? r.smooth : r.loss).toFixed(1); }).join(' ') + '"></polyline>';
+    val.forEach(function (r) { svg += '<circle class="val" r="4.5" cx="' + X(r.step) + '" cy="' + Y(r.val_loss) + '"></circle>'; });
+    svg += '<line class="cross" id="cross" y1="' + mt + '" y2="' + (Hh - mb) + '" x1="0" x2="0" visibility="hidden"></line><circle class="marker" id="cross-dot" r="4" visibility="hidden"></circle></svg>';
+    var chart = $('chart'), tip = $('chart-tip'); chart.insertAdjacentHTML('afterbegin', svg);
+    var svgEl = chart.querySelector('svg');
+    function nearest(clientX) {
+      var r = svgEl.getBoundingClientRect(), fx = (clientX - r.left) / r.width * W, best = train[0], bd = Infinity;
+      train.forEach(function (row) { var d = Math.abs(X(row.step) - fx); if (d < bd) { bd = d; best = row; } });
+      return best;
+    }
+    svgEl.addEventListener('mousemove', function (e) {
+      var row = nearest(e.clientX), x = X(row.step), y = Y(row.smooth !== undefined ? row.smooth : row.loss), r = svgEl.getBoundingClientRect();
+      var cr = $('cross'), cd = $('cross-dot'); cr.setAttribute('x1', x); cr.setAttribute('x2', x); cr.setAttribute('visibility', 'visible'); cd.setAttribute('cx', x); cd.setAttribute('cy', y); cd.setAttribute('visibility', 'visible');
+      var vrow = null; val.forEach(function (v) { if (v.step <= row.step + 1) vrow = v; });
+      tip.textContent = 'шаг ' + row.step + ' · ошибка ' + (row.smooth !== undefined ? row.smooth : row.loss).toFixed(2) + (vrow ? ' · отложенные ' + vrow.val_loss.toFixed(2) : '');
+      tip.style.left = (x / W * r.width) + 'px'; tip.style.top = (y / Hh * r.height) + 'px'; tip.hidden = false;
+    });
+    svgEl.addEventListener('mouseleave', function () { tip.hidden = true; $('cross').setAttribute('visibility', 'hidden'); $('cross-dot').setAttribute('visibility', 'hidden'); });
+  }
+  function renderStages() {
+    var box = $('stages'), S = M.samples || [], H = M.history || [];
+    var stages = [{ step: 0, text: 'До обучения модель выдаёт случайные токены: «', synth: true }].concat(S.map(function (s) { return { step: s.step, text: s.text }; }));
+    if (stages[0].synth) {
+      var rnd = []; for (var i = 0; i < 40; i++) rnd.push(Math.floor(Math.random() * V));
+      stages[0].text = decodeIds(rnd).replace(/\n/g, ' ');
+    }
+    box.innerHTML = '';
+    stages.forEach(function (s, i) {
+      var lossRow = null; H.forEach(function (r) { if (r.loss !== undefined && r.step <= s.step) lossRow = r; });
+      var el = document.createElement('button'); el.type = 'button'; el.className = 'stage'; el.setAttribute('aria-pressed', String(i === stages.length - 1));
+      el.innerHTML = '<span class="k"><b></b><span></span></span><span class="t"></span>';
+      el.querySelector('b').textContent = s.step === 0 ? 'шаг 0' : '≈ шаг ' + s.step;
+      el.querySelector('.k span').textContent = lossRow ? 'ошибка ' + (lossRow.smooth || lossRow.loss).toFixed(2) : 'ошибка ' + Math.log(V).toFixed(2);
+      el.querySelector('.t').textContent = s.text.length > 220 ? s.text.slice(0, 220) + '…' : s.text;
+      el.addEventListener('click', function () { Array.prototype.forEach.call(box.children, function (c) { c.setAttribute('aria-pressed', 'false'); }); el.setAttribute('aria-pressed', 'true'); });
+      box.appendChild(el);
+    });
+  }
+
+  // ---------- старт ----------
+  buildSeg(); renderChart(); renderStages(); recompute(false);
+  if (window.matchMedia) { var mq = window.matchMedia('(prefers-color-scheme: dark)'); if (mq.addEventListener) mq.addEventListener('change', function () { renderAll(); }); }
+  new MutationObserver(function () { renderAll(); }).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+})();
+</script>
