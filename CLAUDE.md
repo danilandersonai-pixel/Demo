@@ -39,8 +39,11 @@ code in this repository.
 │   ├── README.md                   — руководство: архитектура, запуск, параметры
 │   ├── requirements.txt            — единственная зависимость: numpy
 │   ├── train.py / generate.py      — CLI обучения и генерации
+│   ├── export_web.py               — экспорт весов в web/model.js
 │   ├── minillm/                    — tokenizer, model, optim, data, sample
 │   ├── data/make_corpus.py         — генератор учебного корпуса + corpus.txt
+│   ├── data/fetch_chekhov.py       — загрузчик прозы Чехова с Викитеки
+│   ├── web/                        — браузерный визуализатор (index.html + model.js)
 │   └── tests/test_grad.py          — численная проверка градиентов
 └── yegor-diana-wedding/            — САМ САЙТ (публикуется в корень Pages)
     ├── index.html                  — вся разметка, одна страница (~670 строк)
@@ -204,6 +207,11 @@ python3 generate.py --run runs/demo --prompt "Егор и Диана"
 `tests/test_grad.py` сверяет аналитические градиенты с конечными разностями
 и ловит ошибки в backward, которые иначе выглядят как «модель плохо учится».
 Каталог `runs/` (веса и логи) в git не попадает — он в `mini-llm/.gitignore`.
+
+`web/index.html` — визуализатор: прямой проход модели продублирован на
+JavaScript (ES5, один IIFE), веса лежат в `web/model.js` (float16 в base64,
+генерируется `export_web.py`, ~1,8 МБ, коммитится). При правке формул в
+`minillm/model.py` — синхронизировать `forward` в `web/index.html`.
 
 ## Скилл `repo-map`
 

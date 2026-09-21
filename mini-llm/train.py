@@ -156,7 +156,7 @@ def main():
             sample = generate(model, tokenizer, prompt=args.sample_prompt,
                               max_new_tokens=160, temperature=0.8, top_k=20,
                               seed=step)
-            print("  -- образец --\n%s\n  -------------" % sample.strip())
+            print("  -- образец (шаг %d) --\n%s\n  -------------" % (step, sample.strip()))
 
     if best_val == float("inf"):
         # валидации не было (--eval-interval 0) — сохраняем финальные веса
