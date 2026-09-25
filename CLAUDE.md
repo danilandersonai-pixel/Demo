@@ -176,6 +176,25 @@ reduced-motion** (всегда в конце файла). Дизайн-сист�
 публичного сайта, — в `yegor-diana-wedding/README.md`. Honeypot-поле `website`
 сохранять как антиспам: если оно заполнено, отправка молча прерывается.
 
+## Приложение `habitquest/`
+
+Отдельный проект, не связанный со свадебным сайтом: RPG-трекер привычек на
+React 19 + TypeScript + Tailwind v4 + Framer Motion + Lucide, сборка — Vite.
+Правила «без npm и сборки» из разделов выше относятся **только** к
+`yegor-diana-wedding/`. Деплой Pages этот каталог не публикует.
+
+```bash
+cd habitquest && npm install
+npm run dev          # разработка
+npm run typecheck    # обязательно перед коммитом
+npm run build        # dist/;  build:single → dist-single/index.html одним файлом
+```
+
+Игровая логика — чистые функции в `src/game/engine.ts`
+(`(state) → { state, events }`), React-связка и автосохранение в localStorage —
+`src/hooks/useGame.ts`. Баланс и формулы — `src/game/constants.ts`. Подробнее —
+`habitquest/README.md`.
+
 ## Скилл `repo-map`
 
 `.claude/skills/repo-map/` — самостоятельный скилл, к сайту отношения не
