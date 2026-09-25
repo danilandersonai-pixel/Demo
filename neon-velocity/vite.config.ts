@@ -12,5 +12,8 @@ export default defineConfig(({ mode }) => ({
   build: {
     outDir: mode === 'single' ? 'dist-single' : 'dist',
     target: 'es2022',
+    // Игра — одна страница без маршрутов: единый бандл (React + Framer Motion + игра)
+    // осознанно больше стандартного порога в 500 кБ, дробить его незачем.
+    chunkSizeWarningLimit: 900,
   },
 }));

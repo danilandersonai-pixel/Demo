@@ -1,0 +1,489 @@
+/*
+ * Стили меню, которых нет в index.css: хромированный логотип с хроматическими
+ * «двойниками» и глитчем, парение корабля в превью, неоновые слайдеры,
+ * пульс подсвеченной строки рекордов. Цвета — литералами из палитры index.css
+ * (Tailwind выводит переменные темы только для используемых утилит) и
+ * переменные --theme-a/b/c, которые выставляет App.
+ * Бесконечные «фоновые» анимации — на CSS: глобальное правило
+ * prefers-reduced-motion из index.css гасит их само.
+ */
+
+/* ─── Подложка главного меню: затемняет центр, но оставляет сцену видимой ─── */
+
+.nvm-scrim {
+  background:
+    radial-gradient(ellipse 58% 46% at 50% 44%, rgba(5, 5, 10, 0.62), rgba(5, 5, 10, 0.18) 62%, rgba(5, 5, 10, 0) 78%),
+    linear-gradient(180deg, rgba(5, 5, 10, 0.7) 0%, rgba(5, 5, 10, 0) 16%, rgba(5, 5, 10, 0) 78%, rgba(5, 5, 10, 0.72) 100%);
+}
+
+/* ─── Логотип ──────────────────────────────────────────────────────────── */
+
+.nvm-logo-main {
+  font-size: min(13vw, 15.5vh, 7.4rem);
+  line-height: 0.92;
+}
+/* Низкий экран (телефон боком): логотип ниже, чтобы меню влезло без прокрутки. */
+@media (max-height: 560px) {
+  .nvm-logo-main {
+    font-size: min(13vw, 13vh, 7.4rem);
+  }
+}
+.nvm-logo-neon {
+  font-size: min(7vw, 6.4vh, 2.6rem);
+  line-height: 1;
+}
+
+/* Хром восьмидесятых: небо сверху, резкая линия горизонта, закат снизу. */
+.nvm-chrome {
+  background-image: linear-gradient(
+    180deg,
+    #ffffff 0%,
+    #c8fbff 26%,
+    #22f0ff 47%,
+    #1b0838 49.5%,
+    #3b0a5c 51%,
+    #ff2bd6 66%,
+    #ffc2f1 88%,
+    #ffffff 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 0 1px rgba(255, 255, 255, 0.85)) drop-shadow(0 0 10px rgba(255, 43, 214, 0.7))
+    drop-shadow(0 0 30px rgba(255, 43, 214, 0.4));
+}
+
+/* Хроматические двойники за хромом: пурпурный влево, бирюзовый вправо. */
+.nvm-chroma {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  mix-blend-mode: screen;
+  opacity: 0.8;
+}
+.nvm-chroma-pink {
+  color: #ff2bd6;
+  text-shadow: 0 0 18px rgba(255, 43, 214, 0.8);
+  animation: nvm-chroma-pink 4.6s steps(1, end) infinite;
+  transform: translate(-3px, 1px);
+}
+.nvm-chroma-cyan {
+  color: #22f0ff;
+  text-shadow: 0 0 18px rgba(34, 240, 255, 0.8);
+  animation: nvm-chroma-cyan 4.6s steps(1, end) infinite;
+  transform: translate(3px, -1px);
+}
+@keyframes nvm-chroma-pink {
+  0%,
+  86%,
+  100% {
+    transform: translate(-3px, 1px);
+  }
+  87% {
+    transform: translate(-9px, 0);
+  }
+  89% {
+    transform: translate(-1px, 2px);
+  }
+  91% {
+    transform: translate(-12px, -1px);
+  }
+  93% {
+    transform: translate(-3px, 1px);
+  }
+}
+@keyframes nvm-chroma-cyan {
+  0%,
+  86%,
+  100% {
+    transform: translate(3px, -1px);
+  }
+  87% {
+    transform: translate(8px, 1px);
+  }
+  89% {
+    transform: translate(1px, -2px);
+  }
+  91% {
+    transform: translate(11px, 0);
+  }
+  93% {
+    transform: translate(3px, -1px);
+  }
+}
+
+/* Срезы глитча: большую часть времени скрыты, раз в несколько секунд — рывок. */
+.nvm-glitch {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  color: #ffffff;
+  clip-path: inset(0 0 100% 0);
+}
+.nvm-glitch-a {
+  text-shadow:
+    -4px 0 #ff2bd6,
+    4px 0 #22f0ff;
+  animation: nvm-slice-a 4.6s steps(1, end) infinite;
+}
+.nvm-glitch-b {
+  color: #ffe94a;
+  text-shadow: 0 0 14px rgba(255, 233, 74, 0.8);
+  animation: nvm-slice-b 7.3s steps(1, end) infinite;
+}
+@keyframes nvm-slice-a {
+  0%,
+  86%,
+  94%,
+  100% {
+    clip-path: inset(0 0 100% 0);
+    transform: translate(0, 0);
+  }
+  87% {
+    clip-path: inset(14% 0 64% 0);
+    transform: translate(-10px, 0);
+  }
+  89% {
+    clip-path: inset(58% 0 22% 0);
+    transform: translate(8px, 0);
+  }
+  91% {
+    clip-path: inset(34% 0 44% 0);
+    transform: translate(-14px, 0);
+  }
+  92.5% {
+    clip-path: inset(76% 0 4% 0);
+    transform: translate(6px, 0);
+  }
+}
+@keyframes nvm-slice-b {
+  0%,
+  61%,
+  65%,
+  100% {
+    clip-path: inset(100% 0 0 0);
+    transform: translate(0, 0);
+  }
+  62% {
+    clip-path: inset(44% 0 40% 0);
+    transform: translate(12px, 0);
+  }
+  63.5% {
+    clip-path: inset(8% 0 78% 0);
+    transform: translate(-8px, 0);
+  }
+}
+
+/* Неоновая трубка «NEON»: гудит и иногда проседает. */
+.nvm-tube {
+  animation: nvm-tube 5.2s linear infinite;
+}
+@keyframes nvm-tube {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  41% {
+    opacity: 1;
+  }
+  42% {
+    opacity: 0.35;
+  }
+  43% {
+    opacity: 1;
+  }
+  44.5% {
+    opacity: 0.55;
+  }
+  46% {
+    opacity: 1;
+  }
+  78% {
+    opacity: 0.92;
+  }
+  79% {
+    opacity: 0.4;
+  }
+  80% {
+    opacity: 1;
+  }
+}
+
+/* Главная кнопка «Играть»: залитая неоном, с бликом сверху. */
+.nvm-play {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.3) 0%, rgba(255, 255, 255, 0) 48%),
+    linear-gradient(90deg, #ff2bd6 0%, #ff4fdc 48%, #b04dff 100%);
+  box-shadow:
+    0 0 0 1px #ffc2f1,
+    0 0 22px rgba(255, 43, 214, 0.75),
+    0 0 58px rgba(255, 43, 214, 0.32);
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.35);
+  transition: filter 0.15s ease;
+}
+.nvm-play:hover {
+  filter: brightness(1.12) saturate(1.1);
+}
+
+/* Пульсирующее свечение за главной кнопкой. */
+.nvm-play-aura {
+  background: radial-gradient(ellipse at center, rgba(255, 43, 214, 0.55), rgba(255, 43, 214, 0) 70%);
+  filter: blur(10px);
+  animation: nvm-aura 2.2s ease-in-out infinite;
+}
+@keyframes nvm-aura {
+  0%,
+  100% {
+    opacity: 0.6;
+    transform: scale(0.96);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.05);
+  }
+}
+
+/* Блик, пробегающий по главной кнопке. */
+.nvm-sweep {
+  background: linear-gradient(100deg, transparent 20%, rgba(255, 255, 255, 0.28) 48%, transparent 76%);
+  animation: nvm-sweep 3.4s ease-in-out infinite;
+  transform: translateX(-120%);
+}
+@keyframes nvm-sweep {
+  0%,
+  55% {
+    transform: translateX(-120%);
+  }
+  85%,
+  100% {
+    transform: translateX(120%);
+  }
+}
+
+/* ─── Превью корабля ───────────────────────────────────────────────────── */
+
+.nvm-ship-float {
+  animation: nvm-float 3.2s ease-in-out infinite;
+}
+@keyframes nvm-float {
+  0%,
+  100% {
+    transform: translateY(0.05px);
+  }
+  50% {
+    transform: translateY(-0.09px);
+  }
+}
+
+/* Корабль приподнимается, когда курсор над карточкой. */
+.nvm-ship-lift {
+  transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+  transform-box: fill-box;
+  transform-origin: 50% 50%;
+}
+.group:hover .nvm-ship-lift,
+.group:focus-within .nvm-ship-lift {
+  transform: translateY(-0.1px) scale(1.07);
+}
+
+.nvm-flame {
+  transform-box: fill-box;
+  transform-origin: 50% 0%;
+  animation: nvm-flame 0.16s steps(2, end) infinite alternate;
+}
+@keyframes nvm-flame {
+  from {
+    transform: scaleY(0.82);
+    opacity: 0.85;
+  }
+  to {
+    transform: scaleY(1.12);
+    opacity: 1;
+  }
+}
+
+.nvm-trail-dot {
+  animation: nvm-trail 1.1s linear infinite;
+}
+@keyframes nvm-trail {
+  0% {
+    transform: translateY(0);
+    opacity: 0.95;
+  }
+  100% {
+    transform: translateY(0.7px);
+    opacity: 0;
+  }
+}
+
+.nvm-spin-slow {
+  /* fill-box: центр группы-кольца совпадает с центром корабля (0, 0). */
+  transform-box: fill-box;
+  transform-origin: 50% 50%;
+  animation: nvm-spin 14s linear infinite;
+}
+.nvm-spin-rev {
+  transform-box: fill-box;
+  transform-origin: 50% 50%;
+  animation: nvm-spin 9s linear infinite reverse;
+}
+@keyframes nvm-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ─── Превью темы ──────────────────────────────────────────────────────── */
+
+.nvm-sun-glow {
+  animation: nvm-sun 3.6s ease-in-out infinite;
+}
+@keyframes nvm-sun {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 0.95;
+  }
+}
+
+/* ─── Слайдер громкости ────────────────────────────────────────────────── */
+
+.nvm-range {
+  --fill: 50%;
+  --c: #22f0ff;
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 28px;
+  margin: 0;
+  background: transparent;
+  cursor: pointer;
+  touch-action: pan-y;
+}
+.nvm-range::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 3px;
+  background: linear-gradient(90deg, var(--c) 0, var(--c) var(--fill), rgba(255, 255, 255, 0.09) var(--fill));
+  box-shadow: 0 0 10px color-mix(in srgb, var(--c) 40%, transparent);
+}
+.nvm-range::-moz-range-track {
+  height: 6px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.09);
+}
+.nvm-range::-moz-range-progress {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--c);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--c) 40%, transparent);
+}
+.nvm-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  margin-top: -6px;
+  border: 2px solid var(--c);
+  border-radius: 2px;
+  background: #05050a;
+  transform: rotate(45deg);
+  box-shadow:
+    0 0 12px var(--c),
+    inset 0 0 6px var(--c);
+  transition: transform 0.15s ease;
+}
+.nvm-range::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--c);
+  border-radius: 2px;
+  background: #05050a;
+  transform: rotate(45deg);
+  box-shadow:
+    0 0 12px var(--c),
+    inset 0 0 6px var(--c);
+}
+.nvm-range:hover::-webkit-slider-thumb,
+.nvm-range:active::-webkit-slider-thumb {
+  transform: rotate(45deg) scale(1.18);
+}
+.nvm-range:focus-visible {
+  outline-offset: 4px;
+}
+.nvm-range[data-muted='true'] {
+  --c: #5d5885;
+}
+
+/* ─── Таблица рекордов ─────────────────────────────────────────────────── */
+
+.nvm-row-pulse {
+  /* Базовое свечение — оно же остаётся, когда анимации выключены. */
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--theme-a) 85%, transparent),
+    0 0 12px color-mix(in srgb, var(--theme-a) 35%, transparent),
+    inset 0 0 12px color-mix(in srgb, var(--theme-a) 16%, transparent);
+  animation: nvm-row-pulse 1.8s ease-in-out infinite;
+}
+@keyframes nvm-row-pulse {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 1px color-mix(in srgb, var(--theme-a) 85%, transparent),
+      0 0 12px color-mix(in srgb, var(--theme-a) 35%, transparent),
+      inset 0 0 12px color-mix(in srgb, var(--theme-a) 16%, transparent);
+  }
+  50% {
+    box-shadow:
+      0 0 0 1px var(--theme-a),
+      0 0 26px color-mix(in srgb, var(--theme-a) 60%, transparent),
+      inset 0 0 20px color-mix(in srgb, var(--theme-a) 28%, transparent);
+  }
+}
+
+.nvm-crown {
+  filter: drop-shadow(0 0 6px rgba(255, 233, 74, 0.9));
+  animation: nvm-crown 2.6s ease-in-out infinite;
+}
+@keyframes nvm-crown {
+  0%,
+  100% {
+    transform: translateY(0) rotate(-6deg);
+  }
+  50% {
+    transform: translateY(-2px) rotate(4deg);
+  }
+}
+
+/* ─── Разное ───────────────────────────────────────────────────────────── */
+
+/* Цифры: одинаковая ширина, чтобы счёт не «прыгал». */
+.nvm-digits {
+  font-variant-numeric: tabular-nums slashed-zero;
+  font-feature-settings:
+    'tnum' 1,
+    'zero' 1;
+}
+
+/* Полоса обратного отсчёта подтверждения сброса. */
+.nvm-countdown {
+  transform-origin: 0 50%;
+  animation: nvm-countdown var(--nvm-countdown, 8s) linear forwards;
+}
+@keyframes nvm-countdown {
+  from {
+    transform: scaleX(1);
+  }
+  to {
+    transform: scaleX(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* Обратный отсчёт остаётся честным: полоса просто не анимируется. */
+  .nvm-countdown {
+    animation: none;
+  }
+}

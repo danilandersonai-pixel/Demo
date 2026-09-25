@@ -83,7 +83,12 @@ export function NeonButton({
       <span aria-hidden className="pointer-events-none absolute bottom-0 right-0 h-1.5 w-1.5 border-b-2 border-r-2 border-current" />
       {Icon && <Icon size={ICON[size]} strokeWidth={2.25} className="shrink-0" aria-hidden />}
       <span className="nv-label whitespace-nowrap">{children}</span>
-      {hotkey && <Kbd className="ml-1 hidden sm:inline-flex">{hotkey}</Kbd>}
+      {/* Обёртка прячет подсказку на телефонах: у самого Kbd свой display, и hidden на нём проигрывает. */}
+      {hotkey && (
+        <span className="ml-1 hidden sm:inline-flex">
+          <Kbd>{hotkey}</Kbd>
+        </span>
+      )}
     </motion.button>
   );
 }

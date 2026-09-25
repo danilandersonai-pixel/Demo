@@ -1,0 +1,118 @@
+/*
+ * Стили оболочки, которых нет в index.css: мерцание «NEW RECORD!», глитч
+ * «GAME OVER», световая развёртка баннеров. Цвета — литералами из палитры
+ * index.css (переменные темы Tailwind выводит только для используемых утилит).
+ * prefers-reduced-motion гасит все анимации глобальным правилом index.css,
+ * поэтому конечные кадры ниже — «спокойные» состояния.
+ */
+
+/* ─── NEW RECORD! — неоновая вывеска, которая «зажигается» с перебоями ───── */
+
+@keyframes nv-record-ignite {
+  0% { opacity: 0.15; filter: brightness(2.2); }
+  6% { opacity: 1; }
+  9% { opacity: 0.2; }
+  13% { opacity: 1; filter: brightness(1.6); }
+  17% { opacity: 0.35; }
+  22%, 58% { opacity: 1; filter: brightness(1); }
+  60% { opacity: 0.55; }
+  62%, 84% { opacity: 1; }
+  86% { opacity: 0.7; filter: brightness(1.5); }
+  88%, 100% { opacity: 1; filter: brightness(1); }
+}
+
+/* После зажигания вывеска «гудит»: лёгкое дыхание яркости и редкий провал. */
+@keyframes nv-neon-hum {
+  0%, 100% { opacity: 1; filter: brightness(1); }
+  40% { opacity: 1; filter: brightness(1.18); }
+  71% { opacity: 1; filter: brightness(1); }
+  72% { opacity: 0.55; }
+  74% { opacity: 1; }
+  76% { opacity: 0.75; }
+  77% { opacity: 1; }
+}
+
+.nv-record-flicker {
+  animation:
+    nv-record-ignite 0.9s linear 1 both,
+    nv-neon-hum 2.4s linear 0.9s infinite;
+}
+
+/* Хроматические «двойники» надписи: розовый и бирюзовый сдвиги. */
+@keyframes nv-chroma-a {
+  0%, 100% { transform: translate(-3px, 0); }
+  25% { transform: translate(-5px, 1px); }
+  50% { transform: translate(-2px, -1px); }
+  75% { transform: translate(-4px, 0); }
+}
+@keyframes nv-chroma-b {
+  0%, 100% { transform: translate(3px, 0); }
+  25% { transform: translate(2px, -1px); }
+  50% { transform: translate(5px, 1px); }
+  75% { transform: translate(3px, 1px); }
+}
+
+.nv-chroma {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  mix-blend-mode: screen;
+}
+.nv-chroma-pink {
+  color: #ff2bd6;
+  animation: nv-chroma-a 0.24s steps(2, end) infinite;
+}
+.nv-chroma-cyan {
+  color: #22f0ff;
+  animation: nv-chroma-b 0.28s steps(2, end) infinite;
+}
+
+/* ─── GAME OVER — глитч срезами ──────────────────────────────────────────── */
+
+@keyframes nv-glitch-slice-a {
+  0%, 7%, 34%, 38%, 71%, 100% { clip-path: inset(0 0 100% 0); transform: translate(0, 0); }
+  2% { clip-path: inset(12% 0 62% 0); transform: translate(-6px, 0); }
+  5% { clip-path: inset(58% 0 18% 0); transform: translate(5px, 0); }
+  35% { clip-path: inset(30% 0 48% 0); transform: translate(-4px, 0); }
+  72%, 74% { clip-path: inset(70% 0 6% 0); transform: translate(7px, 0); }
+}
+@keyframes nv-glitch-slice-b {
+  0%, 9%, 45%, 49%, 83%, 100% { clip-path: inset(100% 0 0 0); transform: translate(0, 0); }
+  3% { clip-path: inset(40% 0 35% 0); transform: translate(6px, 0); }
+  8% { clip-path: inset(5% 0 80% 0); transform: translate(-5px, 0); }
+  46% { clip-path: inset(62% 0 12% 0); transform: translate(4px, 0); }
+  84%, 86% { clip-path: inset(20% 0 55% 0); transform: translate(-7px, 0); }
+}
+
+.nv-glitch-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  clip-path: inset(0 0 100% 0);
+}
+.nv-glitch-a {
+  color: #22f0ff;
+  text-shadow: 0 0 12px rgba(34, 240, 255, 0.7);
+  animation: nv-glitch-slice-a 2.6s steps(1, end) infinite;
+}
+.nv-glitch-b {
+  color: #ffe94a;
+  text-shadow: 0 0 12px rgba(255, 233, 74, 0.7);
+  animation: nv-glitch-slice-b 3.1s steps(1, end) infinite;
+}
+
+/* ─── Мигающий курсор / индикатор ───────────────────────────────────────── */
+
+@keyframes nv-blink {
+  0%, 49% { opacity: 1; }
+  50%, 100% { opacity: 0.15; }
+}
+.nv-blink {
+  animation: nv-blink 0.9s steps(1, end) infinite;
+}
+
+/* Цифры HUD: моноширинные, без «прыжков» ширины при смене значения. */
+.nv-digits {
+  font-variant-numeric: tabular-nums slashed-zero;
+  font-feature-settings: "tnum" 1, "zero" 1;
+}

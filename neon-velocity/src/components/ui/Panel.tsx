@@ -54,7 +54,14 @@ export function Panel({
       initial={{ opacity: 0, y: 28, scale: 0.95, filter: 'blur(8px)' }}
       animate={{ opacity: 1, y: 0, scale: 1, filter: 'blur(0px)' }}
       exit={{ opacity: 0, y: 18, scale: 0.97, filter: 'blur(6px)' }}
-      transition={{ type: 'spring', stiffness: 260, damping: 26 }}
+      // Пружина с перелётом увела бы blur() в минус — фильтр и прозрачность идут отдельной плавной кривой.
+      transition={{
+        type: 'spring',
+        stiffness: 260,
+        damping: 26,
+        filter: { type: 'tween', duration: 0.3, ease: 'easeOut' },
+        opacity: { type: 'tween', duration: 0.25, ease: 'easeOut' },
+      }}
       className={['glass relative flex max-h-full w-full flex-col rounded-[4px]', a.frame, WIDTH[width], className].join(' ')}
     >
       {/* Уголки-скобы. */}
