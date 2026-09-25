@@ -195,6 +195,16 @@ npm run build        # dist/;  build:single → dist-single/index.html одни�
 `src/hooks/useGame.ts`. Баланс и формулы — `src/game/constants.ts`. Подробнее —
 `habitquest/README.md`.
 
+## Игра `mathion/`
+
+Ещё один независимый проект: математическая RPG «Mathion: Числовой Алхимик»
+на том же стеке, что и HabitQuest (React 19 + TS + Tailwind v4 + Framer Motion +
+Lucide, Vite). Команды те же (`npm run dev / typecheck / build / build:single`).
+Движок — чистые функции в `src/game/engine.ts` (`(state) → { state, events }`,
+время приходит через `tick(dt)`), генератор примеров — `src/game/problems.ts`,
+боссы — `src/game/enemies.ts`, игровые часы и автосохранение —
+`src/hooks/useGame.ts`. Подробнее — `mathion/README.md`.
+
 ## Скилл `repo-map`
 
 `.claude/skills/repo-map/` — самостоятельный скилл, к сайту отношения не
