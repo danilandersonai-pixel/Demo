@@ -54,11 +54,11 @@ export function SettingsView({ state, today, actions, saveFailed }: SettingsView
   return (
     <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
       <Panel title="Игровое время" icon={<CalendarClock size={16} className="text-cyan-300" />}>
-        <p className="text-sm text-violet-100/80">
+        <p className="text-sm text-slate-300">
           Сегодня в игре: <span className="font-semibold text-white capitalize">{formatLongDate(today)}</span>
           {state.dayOffset > 0 && <span className="text-amber-300"> (симуляция +{state.dayOffset} дн.)</span>}
         </p>
-        <p className="mt-2 text-xs leading-relaxed text-violet-200/55">
+        <p className="mt-2 text-xs leading-relaxed text-slate-400">
           Сутки сменяются автоматически в полночь (проверка каждые 30 секунд и при возвращении во вкладку). Чтобы увидеть механику дейликов
           прямо сейчас, промотайте время вперёд: невыполненные сегодня дейлики и пропущенные привычки нанесут урон.
         </p>
@@ -67,12 +67,12 @@ export function SettingsView({ state, today, actions, saveFailed }: SettingsView
         </Button>
       </Panel>
 
-      <Panel title="Сохранение" icon={<Database size={16} className="text-violet-300" />} delay={0.05}>
-        <p className={`flex items-center gap-2 text-sm ${saveFailed ? 'text-rose-300' : 'text-emerald-300'}`}>
+      <Panel title="Сохранение" icon={<Database size={16} className="text-fuchsia-300" />} delay={0.05}>
+        <p className={`flex items-center gap-2 text-sm ${saveFailed ? 'text-red-300' : 'text-emerald-300'}`}>
           {saveFailed ? <TriangleAlert size={16} /> : <CheckCircle2 size={16} />}
           {saveFailed ? 'Браузер запретил localStorage — прогресс не сохранится после закрытия.' : 'Автосохранение в localStorage включено.'}
         </p>
-        <p className="mt-2 text-xs text-violet-200/55">Экспортируйте героя в JSON, чтобы перенести его в другой браузер или сделать резервную копию.</p>
+        <p className="mt-2 text-xs text-slate-400">Экспортируйте героя в JSON, чтобы перенести его в другой браузер или сделать резервную копию.</p>
         <div className="mt-4 flex flex-wrap gap-2">
           <Button variant="primary" icon={<Download size={16} />} onClick={() => exportState(state)}>
             Экспорт
@@ -83,15 +83,15 @@ export function SettingsView({ state, today, actions, saveFailed }: SettingsView
           <input ref={fileRef} type="file" accept="application/json,.json" className="hidden" onChange={onImport} aria-hidden="true" tabIndex={-1} />
         </div>
         {importMessage && (
-          <p role="status" className={`mt-3 text-sm ${importMessage.ok ? 'text-emerald-300' : 'text-rose-300'}`}>
+          <p role="status" className={`mt-3 text-sm ${importMessage.ok ? 'text-emerald-300' : 'text-red-300'}`}>
             {importMessage.text}
           </p>
         )}
-        <div className="mt-6 rounded-xl border border-rose-500/25 bg-rose-500/5 p-4">
-          <p className="flex items-center gap-2 text-sm font-semibold text-rose-200">
+        <div className="mt-6 rounded-xl border border-red-500/20 bg-red-500/[0.04] p-4">
+          <p className="flex items-center gap-2 text-sm font-semibold text-red-200">
             <TriangleAlert size={16} /> Опасная зона
           </p>
-          <p className="mt-1 text-xs text-violet-200/55">Начать игру заново со стартовыми квестами и наградами. Текущий герой будет удалён.</p>
+          <p className="mt-1 text-xs text-slate-400">Начать игру заново со стартовыми квестами и наградами. Текущий герой будет удалён.</p>
           <Button variant="danger" size="sm" className="mt-3" icon={<RotateCcw size={14} />} onClick={() => setConfirmReset(true)}>
             Сбросить прогресс
           </Button>
@@ -101,17 +101,17 @@ export function SettingsView({ state, today, actions, saveFailed }: SettingsView
       <Panel title="Правила игры" icon={<BookOpen size={16} className="text-amber-300" />} className="xl:col-span-2" delay={0.1}>
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           <div>
-            <h3 className="mb-2 font-display text-xs tracking-[0.18em] text-violet-200/70 uppercase">Награды и штрафы</h3>
-            <div className="overflow-x-auto rounded-xl border border-violet-400/15">
+            <h3 className="mb-2 font-display text-xs tracking-[0.18em] text-slate-400 uppercase">Награды и штрафы</h3>
+            <div className="overflow-x-auto rounded-xl border border-white/[0.08]">
               <table className="w-full min-w-[420px] text-left text-xs">
-                <thead className="bg-white/5 text-violet-200/70">
+                <thead className="bg-white/[0.04] font-mono text-[10px] tracking-wider text-slate-400 uppercase">
                   <tr>
                     <th className="px-3 py-2 font-semibold">Тип</th>
                     <th className="px-3 py-2 font-semibold">Сложность</th>
-                    <th className="px-3 py-2 text-right font-semibold text-violet-300">XP</th>
+                    <th className="px-3 py-2 text-right font-semibold text-fuchsia-300">XP</th>
                     <th className="px-3 py-2 text-right font-semibold text-amber-300">Золото</th>
                     <th className="px-3 py-2 text-right font-semibold text-emerald-300">Стат</th>
-                    <th className="px-3 py-2 text-right font-semibold text-rose-400">Урон</th>
+                    <th className="px-3 py-2 text-right font-semibold text-red-400">Урон</th>
                   </tr>
                 </thead>
                 <tbody className="font-mono">
@@ -119,9 +119,9 @@ export function SettingsView({ state, today, actions, saveFailed }: SettingsView
                     DIFFICULTY_ORDER.map((difficulty, i) => {
                       const row = REWARD_TABLE[type][difficulty];
                       return (
-                        <tr key={`${type}-${difficulty}`} className={i === 0 ? 'border-t border-violet-400/15' : ''}>
-                          <td className="px-3 py-1.5 font-sans text-violet-100">{i === 0 ? TYPE_LABELS[type] : ''}</td>
-                          <td className="px-3 py-1.5 font-sans text-violet-200/70">{DIFFICULTY_META[difficulty].label}</td>
+                        <tr key={`${type}-${difficulty}`} className={i === 0 ? 'border-t border-white/[0.08]' : ''}>
+                          <td className="px-3 py-1.5 font-sans text-slate-200">{i === 0 ? TYPE_LABELS[type] : ''}</td>
+                          <td className="px-3 py-1.5 font-sans text-slate-400">{DIFFICULTY_META[difficulty].label}</td>
                           <td className="px-3 py-1.5 text-right">{row.xp}</td>
                           <td className="px-3 py-1.5 text-right">{row.gold}</td>
                           <td className="px-3 py-1.5 text-right">+{row.statPoints}</td>
@@ -133,14 +133,14 @@ export function SettingsView({ state, today, actions, saveFailed }: SettingsView
                 </tbody>
               </table>
             </div>
-            <p className="mt-2 text-xs text-violet-200/50">
+            <p className="mt-2 text-xs text-slate-400">
               Урон для привычки — за нажатие «−»; пропуск дня у привычки со штрафом — половина урона. Для дейлика — за пропуск в запланированный день.
             </p>
           </div>
 
-          <ul className="space-y-3 text-sm text-violet-100/80">
+          <ul className="space-y-3 text-sm text-slate-300">
             <li>
-              <span className="font-semibold text-violet-300">Уровни.</span> Для уровня 2 нужно {xpToNextLevel(1)} XP, затем лимит растёт на 25:{' '}
+              <span className="font-semibold text-fuchsia-300">Уровни.</span> Для уровня 2 нужно {xpToNextLevel(1)} XP, затем лимит растёт на 25:{' '}
               {[2, 3, 4, 5].map((l) => xpToNextLevel(l)).join(', ')}… Излишек опыта переносится. За впервые достигнутый уровень — полное HP и бонус
               золота (уровень × {levelUpGoldBonus(1)}).
             </li>
@@ -156,11 +156,11 @@ export function SettingsView({ state, today, actions, saveFailed }: SettingsView
               {Math.round(STREAK_BONUS_PER_DAY * STREAK_BONUS_CAP * 100)}%).
             </li>
             <li>
-              <span className="font-semibold text-rose-300">Гибель.</span> Когда HP падает до нуля, герой теряет уровень и{' '}
+              <span className="font-semibold text-red-300">Гибель.</span> Когда HP падает до нуля, герой теряет уровень и{' '}
               {Math.round(DEATH_GOLD_PENALTY * 100)}% золота, затем возрождается. Зелье здоровья в магазине восстанавливает {POTION_HEAL} HP.
             </li>
             <li>
-              <span className="font-semibold text-violet-300">Отмена.</span> Выполнение дейлика или квеста можно отменить — награда списывается обратно, если
+              <span className="font-semibold text-fuchsia-300">Отмена.</span> Выполнение дейлика или квеста можно отменить — награда списывается обратно, если
               золото ещё не потрачено.
             </li>
           </ul>

@@ -18,7 +18,7 @@ export function ConfirmDialog({ open, title, message, confirmLabel, tone = 'dang
       open={open}
       onClose={onCancel}
       title={title}
-      icon={<TriangleAlert size={18} className={tone === 'danger' ? 'text-rose-400' : 'text-cyan-300'} />}
+      icon={<TriangleAlert size={18} className={tone === 'danger' ? 'text-red-400' : 'text-cyan-300'} />}
       footer={
         <>
           <Button variant="ghost" onClick={onCancel}>
@@ -37,7 +37,7 @@ export function ConfirmDialog({ open, title, message, confirmLabel, tone = 'dang
         </>
       }
     >
-      <p className="text-sm leading-relaxed text-violet-100/80">{message}</p>
+      <p className="text-sm leading-relaxed text-slate-300">{message}</p>
     </Modal>
   );
 }

@@ -55,7 +55,11 @@ export default function App() {
 
   return (
     <MotionConfig reducedMotion="user">
-      <div className="app-backdrop" aria-hidden="true" />
+      <div className="cyber-backdrop" aria-hidden="true">
+        <div className="cyber-blob -top-[20vh] -left-[15vw] h-[70vh] w-[60vw] animate-drift-a bg-purple-600/25" />
+        <div className="cyber-blob top-[10vh] -right-[20vw] h-[65vh] w-[55vw] animate-drift-b bg-cyan-500/15" />
+        <div className="cyber-blob -bottom-[25vh] left-[25vw] h-[60vh] w-[50vw] animate-drift-c bg-fuchsia-600/15" />
+      </div>
       <Sidebar active={tab} onChange={changeTab} badges={badges} today={derived.today} dayOffset={state.dayOffset} />
 
       <div className="relative z-10 lg:pl-64">
@@ -66,10 +70,10 @@ export default function App() {
           <AnimatePresence mode="wait">
             <motion.div
               key={tab}
-              initial={{ opacity: 0, y: 14, filter: 'blur(6px)' }}
-              animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
-              exit={{ opacity: 0, y: -10, filter: 'blur(6px)' }}
-              transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
             >
               {tab === 'dashboard' && (
                 <Dashboard

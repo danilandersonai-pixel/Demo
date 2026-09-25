@@ -75,11 +75,11 @@ function ProfileForm({ hero, onSave, onClose, formId }: Omit<ProfileModalProps, 
                 whileHover={{ y: -3 }}
                 whileTap={{ scale: 0.92 }}
                 className={`focus-ring flex cursor-pointer flex-col items-center gap-1.5 rounded-xl border p-2 text-[11px] font-semibold transition-all ${
-                  active ? 'border-cyan-300/60 bg-cyan-500/10 text-white shadow-[0_0_18px_-4px_rgba(34,211,238,0.9)]' : 'border-violet-400/15 bg-white/[0.03] text-violet-200/60'
+                  active ? 'border-cyan-300/60 bg-cyan-500/10 text-white shadow-[0_0_18px_-4px_rgba(34,211,238,0.9)]' : 'border-white/[0.08] bg-white/[0.02] text-slate-400'
                 }`}
               >
                 <span className={`grid h-11 w-11 place-items-center rounded-xl bg-gradient-to-br p-[2px] ${meta.gradient}`}>
-                  <span className="grid h-full w-full place-items-center rounded-[10px] bg-[#0b0820]">
+                  <span className="grid h-full w-full place-items-center rounded-[10px] bg-[#0b0d17]">
                     <Icon size={20} className="text-white" />
                   </span>
                 </span>

@@ -3,7 +3,6 @@ import {
   Activity,
   CalendarCheck,
   Coins,
-  Crown,
   Flame,
   Heart,
   Hourglass,
@@ -32,7 +31,7 @@ import { AVATARS, STAT_COLORS, STAT_ICONS } from '../../game/icons';
 import type { GameActions } from '../../hooks/useGame';
 import type { DateKey, GameState, StatKey, TabId } from '../../types';
 import { Button } from '../ui/Button';
-import { AnimatedNumber, Avatar, EmptyState, Panel } from '../ui/Misc';
+import { AnimatedNumber, Avatar, EmptyState, GoldCounter, Panel } from '../ui/Misc';
 import { NeonBar } from '../ui/NeonBar';
 import { DailyCard, originFrom } from '../quests/TaskCards';
 
@@ -68,47 +67,45 @@ export function Dashboard({ state, today, maxHp, xpNeeded, actions, onOpenProfil
 
   return (
     <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
-      {/* Профиль героя */}
-      <Panel className="overflow-hidden xl:col-span-7">
-        <div className="pointer-events-none absolute -top-24 -right-24 h-64 w-64 rounded-full bg-fuchsia-600/20 blur-3xl" />
+      {/* Профиль героя — вспыхивает неоновой рамкой при повышении уровня */}
+      <Panel className="xl:col-span-7" flashOnLevel={hero.level}>
+        <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden rounded-[inherit]">
+          <div className="absolute -top-28 -right-20 h-72 w-72 rounded-full bg-fuchsia-600/20 blur-3xl" />
+          <div className="absolute -bottom-32 -left-24 h-72 w-72 rounded-full bg-cyan-500/10 blur-3xl" />
+        </div>
         <div className="relative flex flex-col gap-6 sm:flex-row sm:items-center">
-          <motion.div
-            className="self-center"
-            animate={{ y: [0, -6, 0] }}
-            transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
-          >
-            <Avatar avatar={hero.avatar} size="lg" level={hero.level} />
+          <motion.div className="self-center p-3" animate={{ y: [0, -6, 0] }} transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}>
+            <Avatar avatar={hero.avatar} size="lg" />
           </motion.div>
           <div className="min-w-0 flex-1 space-y-4">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
-                <p className="font-display text-[11px] tracking-[0.3em] text-cyan-300/80 uppercase">{avatarMeta.label}</p>
-                <h1 className="truncate font-display text-2xl text-white sm:text-3xl">{hero.name}</h1>
-                <p className="mt-0.5 flex items-center gap-1.5 text-sm text-violet-200/70">
-                  <Crown size={14} className="text-amber-300" /> Уровень {hero.level} · {heroTitle(hero.level)}
-                </p>
+                <p className="font-mono text-[10px] font-bold tracking-[0.35em] text-cyan-300/80 uppercase">class // {avatarMeta.label}</p>
+                <h1 className="mt-1 truncate font-display text-2xl font-bold text-white sm:text-[28px]">{hero.name}</h1>
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <span className="rounded-md border border-fuchsia-400/30 bg-gradient-to-r from-fuchsia-500/20 to-indigo-600/20 px-2 py-0.5 font-mono text-xs font-bold tracking-[0.2em] text-fuchsia-100 shadow-[0_0_14px_-4px_rgba(217,70,239,0.9)]">
+                    LVL <AnimatedNumber value={hero.level} pad={2} />
+                  </span>
+                  <span className="text-sm text-slate-300">{heroTitle(hero.level)}</span>
+                </div>
               </div>
               <Button variant="ghost" size="sm" icon={<Pencil size={14} />} onClick={onOpenProfile}>
                 Профиль
               </Button>
             </div>
-            <NeonBar tone="hp" label="Здоровье" icon={<Heart size={13} />} value={hero.hp} max={maxHp} size="lg" warnBelow={0.3} />
+            <NeonBar tone="hp" label="Здоровье" icon={<Heart size={12} />} value={hero.hp} max={maxHp} size="lg" warnBelow={0.3} />
             <NeonBar
               tone="xp"
               label="Опыт"
-              icon={<Sparkles size={13} />}
+              icon={<Sparkles size={12} />}
               value={hero.xp}
               max={xpNeeded}
               size="lg"
               valueText={`${hero.xp} / ${xpNeeded} · ещё ${xpNeeded - hero.xp}`}
             />
             <div className="flex flex-wrap items-center gap-3">
-              <div className="flex items-center gap-2 rounded-xl border border-amber-400/30 bg-amber-500/10 px-3 py-2">
-                <Coins size={18} className="text-amber-300" />
-                <AnimatedNumber value={hero.gold} className="font-display text-xl text-amber-200 neon-gold" />
-                <span className="text-xs text-amber-200/60">золота</span>
-              </div>
-              <p className="text-xs text-violet-200/50">
+              <GoldCounter value={hero.gold} size="md" suffix="золота" />
+              <p className="max-w-sm text-xs text-slate-400">
                 Каждый уровень требует на 25 XP больше. Новый уровень восстанавливает HP и даёт бонус золота.
               </p>
             </div>
@@ -117,23 +114,23 @@ export function Dashboard({ state, today, maxHp, xpNeeded, actions, onOpenProfil
       </Panel>
 
       {/* Сегодня */}
-      <Panel title="Сегодня" icon={<Activity size={16} className="text-cyan-300" />} className="xl:col-span-5" delay={0.05}>
+      <Panel title="Сегодня" icon={<Activity size={15} className="text-cyan-300" />} className="xl:col-span-5" delay={0.06}>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 xl:grid-cols-2 2xl:grid-cols-4">
-          <MiniStat icon={<Sparkles size={15} />} label="Опыт" value={state.today.xp} tone="text-violet-300" />
-          <MiniStat icon={<Coins size={15} />} label="Золото" value={state.today.gold} tone="text-amber-300" />
-          <MiniStat icon={<Swords size={15} />} label="Квестов" value={state.today.quests} tone="text-cyan-300" />
-          <MiniStat icon={<Zap size={15} />} label="Урон" value={state.today.damage} tone="text-rose-400" />
+          <MiniStat icon={<Sparkles size={13} />} label="Опыт" value={state.today.xp} tone="text-fuchsia-300" />
+          <MiniStat icon={<Coins size={13} />} label="Золото" value={state.today.gold} tone="text-amber-300" />
+          <MiniStat icon={<Swords size={13} />} label="Квестов" value={state.today.quests} tone="text-cyan-300" />
+          <MiniStat icon={<Zap size={13} />} label="Урон" value={state.today.damage} tone="text-red-400" />
         </div>
         <div className="mt-4">
           <NeonBar
             tone="cyber"
             label="Дейлики"
-            icon={<CalendarCheck size={13} />}
+            icon={<CalendarCheck size={12} />}
             value={dailiesDone}
             max={Math.max(1, dueDailies.length)}
             valueText={`${dailiesDone} / ${dueDailies.length}`}
           />
-          <p className="mt-2 text-xs text-violet-200/50">
+          <p className="mt-2 text-xs text-slate-400">
             {dueDailies.length === 0
               ? 'Сегодня дейликов по расписанию нет.'
               : dailiesDone === dueDailies.length
@@ -142,22 +139,25 @@ export function Dashboard({ state, today, maxHp, xpNeeded, actions, onOpenProfil
           </p>
         </div>
         {urgentTodos.length > 0 && (
-          <div className="mt-4 rounded-xl border border-amber-400/25 bg-amber-500/5 p-3">
-            <p className="flex items-center gap-1.5 text-xs font-semibold text-amber-200">
-              <Hourglass size={13} /> Горящие квесты
+          <div className="mt-4 rounded-xl border border-amber-400/20 bg-amber-400/[0.04] p-3">
+            <p className="flex items-center gap-1.5 font-mono text-[10px] font-bold tracking-[0.2em] text-amber-300 uppercase">
+              <Hourglass size={12} /> Горящие квесты
             </p>
             <ul className="mt-2 space-y-1.5">
               {urgentTodos.slice(0, 4).map((todo) => {
                 const days = diffDays(today, todo.dueDate ?? today);
                 return (
                   <li key={todo.id} className="flex items-center justify-between gap-2 text-sm">
-                    <span className="truncate text-violet-50">{todo.title}</span>
+                    <span className="truncate text-slate-100">{todo.title}</span>
                     <motion.button
                       type="button"
-                      whileTap={{ scale: 0.9 }}
+                      whileHover={{ y: -1 }}
+                      whileTap={{ scale: 0.95 }}
                       onClick={(e) => actions.toggleTodo(todo.id, originFrom(e))}
-                      className={`focus-ring shrink-0 cursor-pointer rounded-md border px-2 py-0.5 text-[11px] font-semibold ${
-                        days < 0 ? 'border-rose-400/40 bg-rose-500/15 text-rose-200' : 'border-amber-400/40 bg-amber-500/15 text-amber-200'
+                      className={`focus-ring shrink-0 cursor-pointer rounded-md border px-2 py-0.5 font-mono text-[10px] font-bold tracking-wider transition-colors duration-300 ${
+                        days < 0
+                          ? 'border-red-400/40 bg-red-500/15 text-red-200 hover:bg-red-500/25'
+                          : 'border-amber-400/40 bg-amber-400/15 text-amber-200 hover:bg-amber-400/25'
                       }`}
                     >
                       {days < 0 ? 'просрочен' : days === 0 ? 'сегодня' : 'завтра'} · выполнить
@@ -171,26 +171,26 @@ export function Dashboard({ state, today, maxHp, xpNeeded, actions, onOpenProfil
       </Panel>
 
       {/* Характеристики */}
-      <Panel title="Характеристики" icon={<Target size={16} className="text-emerald-300" />} className="xl:col-span-7" delay={0.1}>
+      <Panel title="Характеристики" icon={<Target size={15} className="text-emerald-300" />} className="xl:col-span-7" delay={0.12}>
         <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
           {STAT_ORDER.map((stat, i) => (
-            <StatCard key={stat} stat={stat} level={hero.stats[stat].level} xp={hero.stats[stat].xp} delay={0.12 + i * 0.05} />
+            <StatCard key={stat} stat={stat} level={hero.stats[stat].level} xp={hero.stats[stat].xp} delay={0.14 + i * 0.06} />
           ))}
         </div>
         <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
-          <Bonus icon={<Heart size={14} />} label="Макс. HP" value={`${maxHp}`} tone="text-rose-300" />
-          <Bonus icon={<Shield size={14} />} label="Защита" value={`${Math.round(damageReduction(hero) * 100)}%`} tone="text-rose-200" />
-          <Bonus icon={<Sparkles size={14} />} label="Бонус XP" value={`+${Math.round((xpMultiplier(hero) - 1) * 100)}%`} tone="text-cyan-300" />
-          <Bonus icon={<Coins size={14} />} label="Бонус золота" value={`+${Math.round((goldMultiplier(hero) - 1) * 100)}%`} tone="text-emerald-300" />
+          <Bonus icon={<Heart size={13} />} label="Макс. HP" value={`${maxHp}`} tone="text-red-300" />
+          <Bonus icon={<Shield size={13} />} label="Защита" value={`${Math.round(damageReduction(hero) * 100)}%`} tone="text-rose-200" />
+          <Bonus icon={<Sparkles size={13} />} label="Бонус XP" value={`+${Math.round((xpMultiplier(hero) - 1) * 100)}%`} tone="text-cyan-300" />
+          <Bonus icon={<Coins size={13} />} label="Бонус золота" value={`+${Math.round((goldMultiplier(hero) - 1) * 100)}%`} tone="text-emerald-300" />
         </div>
       </Panel>
 
       {/* Дейлики на сегодня */}
       <Panel
         title="Квесты дня"
-        icon={<CalendarCheck size={16} className="text-cyan-300" />}
+        icon={<CalendarCheck size={15} className="text-cyan-300" />}
         className="xl:col-span-5"
-        delay={0.15}
+        delay={0.18}
         actions={
           <Button variant="ghost" size="sm" onClick={() => onNavigate('quests')}>
             Все квесты
@@ -200,27 +200,27 @@ export function Dashboard({ state, today, maxHp, xpNeeded, actions, onOpenProfil
         {dueDailies.length === 0 ? (
           <EmptyState icon={<CalendarCheck size={26} />} title="Выходной" hint="На сегодня нет дейликов по расписанию." />
         ) : (
-          <ul className="flex max-h-80 flex-col gap-2 overflow-y-auto pr-1">
-            {dueDailies.map((daily) => (
-              <DailyCard key={daily.id} daily={daily} hero={hero} today={today} onToggle={(o) => actions.toggleDaily(daily.id, o)} />
+          <ul className="-mx-1 flex max-h-80 flex-col gap-2.5 overflow-y-auto px-1 pt-1 pb-2">
+            {dueDailies.map((daily, index) => (
+              <DailyCard key={daily.id} index={index} daily={daily} hero={hero} today={today} onToggle={(o) => actions.toggleDaily(daily.id, o)} />
             ))}
           </ul>
         )}
       </Panel>
 
       {/* Летопись */}
-      <Panel title="Летопись героя" icon={<Medal size={16} className="text-amber-300" />} className="xl:col-span-12" delay={0.2}>
+      <Panel title="Летопись героя" icon={<Medal size={15} className="text-amber-300" />} className="xl:col-span-12" delay={0.24}>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
-          <Record icon={<Swords size={16} />} label="Квестов выполнено" value={totals.questsCompleted} tone="text-violet-300" />
-          <Record icon={<Sparkles size={16} />} label="Опыта заработано" value={totals.xpEarned} tone="text-fuchsia-300" />
-          <Record icon={<Coins size={16} />} label="Золота добыто" value={totals.goldEarned} tone="text-amber-300" />
-          <Record icon={<Coins size={16} />} label="Золота потрачено" value={totals.goldSpent} tone="text-amber-500" />
-          <Record icon={<Medal size={16} />} label="Наград куплено" value={totals.rewardsBought} tone="text-emerald-300" />
-          <Record icon={<Flame size={16} />} label="Лучшая серия" value={bestStreak} tone="text-orange-300" />
-          <Record icon={<Zap size={16} />} label="Критов" value={totals.crits} tone="text-cyan-300" />
-          <Record icon={<Target size={16} />} label="Срывов («−»)" value={totals.habitsMinus} tone="text-rose-300" />
-          <Record icon={<Heart size={16} />} label="Урона получено" value={totals.damageTaken} tone="text-rose-400" />
-          <Record icon={<Skull size={16} />} label="Гибелей" value={totals.deaths} tone="text-slate-300" />
+          <Record icon={<Swords size={14} />} label="Квестов выполнено" value={totals.questsCompleted} tone="text-cyan-300" />
+          <Record icon={<Sparkles size={14} />} label="Опыта заработано" value={totals.xpEarned} tone="text-fuchsia-300" />
+          <Record icon={<Coins size={14} />} label="Золота добыто" value={totals.goldEarned} tone="text-amber-300" />
+          <Record icon={<Coins size={14} />} label="Золота потрачено" value={totals.goldSpent} tone="text-orange-400" />
+          <Record icon={<Medal size={14} />} label="Наград куплено" value={totals.rewardsBought} tone="text-emerald-300" />
+          <Record icon={<Flame size={14} />} label="Лучшая серия" value={bestStreak} tone="text-orange-300" />
+          <Record icon={<Zap size={14} />} label="Критов" value={totals.crits} tone="text-sky-300" />
+          <Record icon={<Target size={14} />} label="Срывов («−»)" value={totals.habitsMinus} tone="text-rose-300" />
+          <Record icon={<Heart size={14} />} label="Урона получено" value={totals.damageTaken} tone="text-red-400" />
+          <Record icon={<Skull size={14} />} label="Гибелей" value={totals.deaths} tone="text-slate-300" />
         </div>
       </Panel>
     </div>
@@ -229,12 +229,12 @@ export function Dashboard({ state, today, maxHp, xpNeeded, actions, onOpenProfil
 
 function MiniStat({ icon, label, value, tone }: { icon: ReactNode; label: string; value: number; tone: string }) {
   return (
-    <div className="rounded-xl border border-violet-400/15 bg-black/25 p-3">
-      <p className={`flex items-center gap-1.5 text-[11px] font-semibold tracking-wide uppercase ${tone}`}>
+    <div className="rounded-xl border border-white/[0.06] bg-black/20 p-3">
+      <p className={`flex items-center gap-1.5 font-mono text-[10px] font-bold tracking-[0.18em] uppercase ${tone}`}>
         {icon}
         {label}
       </p>
-      <AnimatedNumber value={value} className="mt-1 block font-display text-2xl text-white" />
+      <AnimatedNumber value={value} className="mt-1.5 block text-2xl font-bold tracking-wider text-white" />
     </div>
   );
 }
@@ -246,57 +246,66 @@ function StatCard({ stat, level, xp, delay }: { stat: StatKey; level: number; xp
   const pct = Math.min(100, (xp / need) * 100);
   return (
     <motion.div
-      initial={{ opacity: 0, y: 10 }}
+      initial={{ opacity: 0, y: 14 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ delay }}
+      transition={{ delay, duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
       whileHover={{ y: -3 }}
-      className={`rounded-xl border p-3.5 ${colors.soft}`}
+      className={`card-shine rounded-xl border p-3.5 transition-colors duration-300 hover:border-white/[0.2] ${colors.soft}`}
     >
       <div className="flex items-center justify-between">
-        <p className={`flex items-center gap-2 font-display text-sm tracking-wide ${colors.text}`}>
-          <Icon size={18} /> {STAT_META[stat].label}
+        <p className={`flex items-center gap-2 text-sm font-semibold ${colors.text}`}>
+          <Icon size={17} /> {STAT_META[stat].label}
         </p>
-        <motion.span key={level} initial={{ scale: 1.6 }} animate={{ scale: 1 }} className="font-display text-2xl text-white">
-          {level}
+        <motion.span key={level} initial={{ scale: 1.6, opacity: 0.4 }} animate={{ scale: 1, opacity: 1 }} className="font-mono text-2xl font-bold tracking-wider text-white">
+          {String(level).padStart(2, '0')}
         </motion.span>
       </div>
-      <div className="mt-3 h-2 overflow-hidden rounded-full bg-black/40" role="progressbar" aria-label={STAT_META[stat].label} aria-valuenow={xp} aria-valuemax={need}>
+      <div
+        className="mt-3 h-1.5 overflow-hidden rounded-full bg-black/40"
+        role="progressbar"
+        aria-label={STAT_META[stat].label}
+        aria-valuenow={xp}
+        aria-valuemax={need}
+      >
         <motion.div
           className={`h-full rounded-full bg-gradient-to-r ${colors.bar} ${colors.glow}`}
           initial={false}
           animate={{ width: `${pct}%` }}
-          transition={{ type: 'spring', stiffness: 120, damping: 20 }}
+          transition={{ type: 'spring', stiffness: 110, damping: 20 }}
         />
       </div>
-      <p className="mt-1.5 font-mono text-[10px] text-violet-200/50">
-        {xp} / {need} до ур. {level + 1}
+      <p className="mt-1.5 font-mono text-[10px] tracking-wider text-slate-500">
+        {xp}/{need} → LVL {String(level + 1).padStart(2, '0')}
       </p>
-      <p className="mt-2 text-xs text-violet-100/70">{STAT_META[stat].bonus}</p>
-      <p className="mt-1 text-[11px] text-violet-200/45">Качается: {STAT_SOURCE[stat]}</p>
+      <p className="mt-2 text-xs text-slate-300">{STAT_META[stat].bonus}</p>
+      <p className="mt-1 text-[11px] text-slate-500">Качается: {STAT_SOURCE[stat]}</p>
     </motion.div>
   );
 }
 
 function Bonus({ icon, label, value, tone }: { icon: ReactNode; label: string; value: string; tone: string }) {
   return (
-    <div className="flex items-center justify-between gap-2 rounded-lg border border-violet-400/10 bg-black/20 px-3 py-2">
+    <div className="flex items-center justify-between gap-2 rounded-lg border border-white/[0.06] bg-black/20 px-3 py-2">
       <span className={`flex items-center gap-1.5 text-xs ${tone}`}>
         {icon}
         {label}
       </span>
-      <span className="font-mono text-sm font-semibold text-white">{value}</span>
+      <span className="font-mono text-sm font-bold tracking-wider text-white">{value}</span>
     </div>
   );
 }
 
 function Record({ icon, label, value, tone }: { icon: ReactNode; label: string; value: number; tone: string }) {
   return (
-    <motion.div whileHover={{ scale: 1.03 }} className="rounded-xl border border-violet-400/10 bg-black/25 p-3">
+    <motion.div
+      whileHover={{ y: -3 }}
+      className="card-shine rounded-xl border border-white/[0.06] bg-black/20 p-3 transition-colors duration-300 hover:border-white/[0.18]"
+    >
       <p className={`flex items-center gap-1.5 text-[11px] ${tone}`}>
         {icon}
         {label}
       </p>
-      <AnimatedNumber value={value} className="mt-1 block font-display text-xl text-white" />
+      <AnimatedNumber value={value} className="mt-1 block text-xl font-bold tracking-wider text-white" />
     </motion.div>
   );
 }

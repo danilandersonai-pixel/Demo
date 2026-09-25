@@ -190,19 +190,19 @@ function TaskFormBody({ target, hero, actions, onClose, formId }: Omit<TaskFormM
       <div>
         <FieldLabel>Сложность</FieldLabel>
         <DifficultyPicker value={values.difficulty} onChange={(d) => set('difficulty', d)} />
-        <p className="mt-2 font-mono text-xs text-violet-200/60">
-          Награда: <span className="text-violet-300">+{reward.xp} XP</span> · <span className="text-amber-300">+{reward.gold} золота</span>
+        <p className="mt-2 font-mono text-xs text-slate-400">
+          Награда: <span className="text-fuchsia-300">+{reward.xp} XP</span> · <span className="text-amber-300">+{reward.gold} золота</span>
           {damage > 0 && (
             <>
-              {' '}· Штраф: <span className="text-rose-400">−{damage} HP</span>
+              {' '}· Штраф: <span className="text-red-400">−{damage} HP</span>
             </>
           )}
         </p>
       </div>
 
       {target.type === 'habit' ? (
-        <div className="space-y-4 rounded-xl border border-violet-400/15 bg-black/20 p-4">
-          <p className="text-xs text-violet-200/60">
+        <div className="space-y-4 rounded-xl border border-white/[0.08] bg-black/20 p-4">
+          <p className="text-xs text-slate-400">
             Привычки всегда прокачивают <span className="text-emerald-300">{STAT_META.discipline.label}</span>.
           </p>
           <Toggle label="Кнопка «+» — полезное действие" hint="Даёт опыт и золото." checked={values.positive} onChange={(v) => set('positive', v)} />
@@ -220,7 +220,7 @@ function TaskFormBody({ target, hero, actions, onClose, formId }: Omit<TaskFormM
         <div>
           <FieldLabel>Качает характеристику</FieldLabel>
           <StatPicker value={values.stat} onChange={(s) => set('stat', s)} />
-          <p className="mt-2 text-xs text-violet-200/50">{STAT_META[values.stat].description}</p>
+          <p className="mt-2 text-xs text-slate-400">{STAT_META[values.stat].description}</p>
         </div>
       )}
 
@@ -228,7 +228,7 @@ function TaskFormBody({ target, hero, actions, onClose, formId }: Omit<TaskFormM
         <div>
           <FieldLabel>Расписание</FieldLabel>
           <WeekdayPicker value={values.days} onChange={(d) => set('days', d)} />
-          <p className="mt-2 text-xs text-violet-200/50">Пропуск дейлика в запланированный день снимает HP и обнуляет серию.</p>
+          <p className="mt-2 text-xs text-slate-400">Пропуск дейлика в запланированный день снимает HP и обнуляет серию.</p>
         </div>
       )}
 
@@ -247,7 +247,7 @@ function TaskFormBody({ target, hero, actions, onClose, formId }: Omit<TaskFormM
       )}
 
       {error && (
-        <p role="alert" className="rounded-lg border border-rose-400/40 bg-rose-500/10 px-3 py-2 text-sm text-rose-200">
+        <p role="alert" className="rounded-lg border border-red-400/40 bg-red-500/10 px-3 py-2 text-sm text-red-200">
           {error}
         </p>
       )}

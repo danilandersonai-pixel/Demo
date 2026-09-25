@@ -9,7 +9,7 @@ import type { GameState, Reward, RewardIconId } from '../../types';
 import { Button, IconButton } from '../ui/Button';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { FieldLabel, Segmented } from '../ui/Controls';
-import { AnimatedNumber, Panel } from '../ui/Misc';
+import { GoldCounter, Panel } from '../ui/Misc';
 import { Modal } from '../ui/Modal';
 import { originFrom } from '../quests/TaskCards';
 
@@ -42,26 +42,32 @@ export function ShopView({ state, actions }: ShopViewProps) {
   return (
     <div className="flex flex-col gap-4">
       <Panel>
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div>
-            <h1 className="flex items-center gap-2 font-display text-xl text-white">
-              <Store size={22} className="text-amber-300" /> Магазин наград
-            </h1>
-            <p className="mt-1 max-w-xl text-sm text-violet-200/60">
-              Придумайте, чем себя порадовать, и покупайте это за золото, заработанное квестами. Доступно сейчас: {affordable} из {state.rewards.length}.
-            </p>
+        <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden rounded-[inherit]">
+          <div className="absolute -top-24 right-10 h-60 w-60 rounded-full bg-amber-500/15 blur-3xl" />
+        </div>
+        <div className="relative flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div className="flex items-start gap-3">
+            <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-amber-400/30 bg-gradient-to-br from-amber-400/20 to-orange-500/20 text-amber-200 shadow-[0_0_18px_-4px_rgba(251,146,60,0.8)]">
+              <Store size={20} />
+            </span>
+            <div>
+              <h1 className="font-display text-lg font-bold text-white">Магазин наград</h1>
+              <p className="mt-1 max-w-xl text-sm text-slate-400">
+                Придумайте, чем себя порадовать, и покупайте это за золото, заработанное квестами.
+              </p>
+              <p className="mt-1 font-mono text-[11px] tracking-wider text-amber-300/80">
+                ДОСТУПНО: {affordable} / {state.rewards.length}
+              </p>
+            </div>
           </div>
           <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2 rounded-xl border border-amber-400/35 bg-amber-500/10 px-4 py-2.5">
-              <Coins size={22} className="text-amber-300 drop-shadow-[0_0_8px_rgba(251,191,36,0.9)]" />
-              <AnimatedNumber value={hero.gold} className="font-display text-2xl text-amber-200 neon-gold" />
-            </div>
+            <GoldCounter value={hero.gold} size="lg" />
             <Button variant="gold" icon={<Plus size={16} />} onClick={() => setEditTarget({ reward: null })}>
               Награда
             </Button>
           </div>
         </div>
-        <div className="mt-4 max-w-xl">
+        <div className="relative mt-4 max-w-xl">
           <Segmented
             ariaLabel="Сортировка"
             value={sort}
@@ -77,7 +83,7 @@ export function ShopView({ state, actions }: ShopViewProps) {
       </Panel>
 
       <motion.ul layout className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-        <AnimatePresence initial={false}>
+        <AnimatePresence>
           {rewards.map((reward, i) => (
             <RewardCard
               key={reward.id}
@@ -91,15 +97,17 @@ export function ShopView({ state, actions }: ShopViewProps) {
             />
           ))}
         </AnimatePresence>
-        <motion.li layout>
+        <motion.li layout initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
           <motion.button
             type="button"
             onClick={() => setEditTarget({ reward: null })}
-            whileHover={{ y: -4, scale: 1.01 }}
-            whileTap={{ scale: 0.97 }}
-            className="focus-ring flex h-full min-h-44 w-full cursor-pointer flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-amber-400/30 bg-amber-500/[0.03] text-amber-200/70 transition-colors hover:border-amber-300/60 hover:text-amber-100"
+            whileHover={{ y: -3 }}
+            whileTap={{ scale: 0.95 }}
+            className="focus-ring flex h-full min-h-48 w-full cursor-pointer flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-amber-400/25 bg-amber-400/[0.02] text-amber-200/70 backdrop-blur-xl transition-colors duration-300 hover:border-amber-300/60 hover:bg-amber-400/[0.05] hover:text-amber-100"
           >
-            <Plus size={28} />
+            <span className="grid h-11 w-11 place-items-center rounded-full border border-amber-400/40 shadow-[0_0_16px_-4px_rgba(251,191,36,0.8)]">
+              <Plus size={22} />
+            </span>
             <span className="text-sm font-semibold">Придумать награду</span>
           </motion.button>
         </motion.li>
@@ -146,27 +154,26 @@ function RewardCard({ reward, gold, hpFull, index, onBuy, onEdit, onDelete }: Re
   return (
     <motion.li
       layout
-      initial={{ opacity: 0, y: 16, scale: 0.96 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      exit={{ opacity: 0, scale: 0.9 }}
-      transition={{ type: 'spring', stiffness: 380, damping: 30, delay: Math.min(index * 0.03, 0.3) }}
+      initial={{ opacity: 0, y: 18 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, scale: 0.92 }}
       whileHover={{ y: -4 }}
-      className={`glass group relative flex flex-col gap-3 overflow-hidden rounded-2xl p-4 ${
-        canAfford ? 'border-amber-400/30' : ''
+      transition={{ type: 'spring', stiffness: 360, damping: 30, delay: Math.min(index * 0.04, 0.3) }}
+      className={`glass group card-shine flex flex-col gap-3 rounded-2xl p-4 transition-colors duration-300 hover:border-white/[0.2] ${
+        canAfford && !blockedByHp ? 'border-amber-400/20' : ''
       }`}
     >
-      {canAfford && !blockedByHp && (
-        <div className="pointer-events-none absolute -top-10 -right-10 h-28 w-28 rounded-full bg-amber-400/15 blur-2xl" />
-      )}
-      <div className="relative flex items-start justify-between gap-2">
+      <div className="flex items-start justify-between gap-2">
         <div
           className={`grid h-12 w-12 place-items-center rounded-xl border ${
-            isPotion ? 'border-rose-400/40 bg-rose-500/15 text-rose-200' : 'border-amber-400/35 bg-amber-500/10 text-amber-200'
+            isPotion
+              ? 'border-red-400/35 bg-gradient-to-br from-red-500/20 to-rose-600/20 text-red-200 shadow-[0_0_16px_-4px_rgba(239,68,68,0.8)]'
+              : 'border-amber-400/30 bg-gradient-to-br from-amber-400/15 to-orange-500/15 text-amber-200 shadow-[0_0_16px_-6px_rgba(251,146,60,0.8)]'
           }`}
         >
-          <Icon size={24} />
+          <Icon size={22} />
         </div>
-        <div className="flex gap-0.5 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100 sm:opacity-0">
+        <div className="flex gap-0.5 transition-opacity duration-300 group-focus-within:opacity-100 group-hover:opacity-100 sm:opacity-0">
           <IconButton label="Редактировать награду" tone="cyber" onClick={onEdit}>
             <Pencil size={14} />
           </IconButton>
@@ -177,18 +184,21 @@ function RewardCard({ reward, gold, hpFull, index, onBuy, onEdit, onDelete }: Re
           )}
         </div>
       </div>
-      <div className="relative min-w-0 flex-1">
-        <p className="font-semibold text-violet-50">{reward.title}</p>
-        {reward.notes && <p className="mt-0.5 line-clamp-2 text-xs text-violet-200/55">{reward.notes}</p>}
-        {isPotion && <p className="mt-1 text-xs text-rose-300/80">Восстанавливает {POTION_HEAL} HP</p>}
-        <p className="mt-1.5 text-[11px] text-violet-200/40">Куплено: {reward.purchases}</p>
+      <div className="min-w-0 flex-1">
+        <p className="font-semibold text-slate-100">{reward.title}</p>
+        {reward.notes && <p className="mt-0.5 line-clamp-2 text-xs text-slate-400">{reward.notes}</p>}
+        {isPotion && <p className="mt-1 text-xs text-red-300/90">Восстанавливает {POTION_HEAL} HP</p>}
+        <p className="mt-1.5 font-mono text-[10px] tracking-wider text-slate-500">КУПЛЕНО: {reward.purchases}</p>
       </div>
       {!canAfford && (
-        <div className="relative">
-          <div className="h-1 overflow-hidden rounded-full bg-black/40">
-            <div className="h-full rounded-full bg-amber-500/60" style={{ width: `${progress}%` }} />
+        <div>
+          <div className="h-1.5 overflow-hidden rounded-full border border-amber-500/15 bg-amber-950/40">
+            <div
+              className="h-full rounded-full bg-gradient-to-r from-amber-400 to-orange-500 drop-shadow-[0_0_6px_rgba(251,146,60,0.5)]"
+              style={{ width: `${progress}%` }}
+            />
           </div>
-          <p className="mt-1 text-[11px] text-amber-200/60">Не хватает {reward.cost - gold} золота</p>
+          <p className="mt-1 font-mono text-[10px] tracking-wider text-amber-200/60">НЕ ХВАТАЕТ {reward.cost - gold} G</p>
         </div>
       )}
       <Button
@@ -196,11 +206,14 @@ function RewardCard({ reward, gold, hpFull, index, onBuy, onEdit, onDelete }: Re
         disabled={disabled}
         onClick={(e) => onBuy(originFrom(e))}
         icon={disabled ? <Lock size={15} /> : <ShoppingCart size={15} />}
-        className="relative w-full"
+        className="w-full"
         aria-label={`Купить «${reward.title}» за ${reward.cost} золота`}
       >
-        <span className="flex items-center gap-1">
-          {blockedByHp ? 'HP полное' : 'Купить'} · <Coins size={14} /> {reward.cost}
+        <span className="flex items-center gap-1.5">
+          {blockedByHp ? 'HP полное' : 'Купить'}
+          <span className="opacity-50">·</span>
+          <Coins size={14} />
+          <span className="font-mono tracking-wider">{reward.cost}</span>
         </span>
       </Button>
     </motion.li>
@@ -241,7 +254,17 @@ function RewardFormModal({ target, onClose, onSubmit }: RewardFormModalProps) {
   );
 }
 
-function RewardForm({ reward, formId, onClose, onSubmit }: { reward: Reward | null; formId: string; onClose: () => void; onSubmit: RewardFormModalProps['onSubmit'] }) {
+function RewardForm({
+  reward,
+  formId,
+  onClose,
+  onSubmit,
+}: {
+  reward: Reward | null;
+  formId: string;
+  onClose: () => void;
+  onSubmit: RewardFormModalProps['onSubmit'];
+}) {
   const [title, setTitle] = useState(reward?.title ?? '');
   const [notes, setNotes] = useState(reward?.notes ?? '');
   const [cost, setCost] = useState(String(reward?.cost ?? 30));
@@ -298,7 +321,7 @@ function RewardForm({ reward, formId, onClose, onSubmit }: { reward: Reward | nu
             inputMode="numeric"
             min={1}
             max={100000}
-            className="field w-32"
+            className="field w-32 font-mono tracking-wider"
             value={cost}
             onChange={(e) => {
               setCost(e.target.value);
@@ -309,9 +332,9 @@ function RewardForm({ reward, formId, onClose, onSubmit }: { reward: Reward | nu
             <motion.button
               key={preset}
               type="button"
-              whileTap={{ scale: 0.9 }}
+              whileTap={{ scale: 0.95 }}
               onClick={() => setCost(String(preset))}
-              className="focus-ring cursor-pointer rounded-lg border border-amber-400/25 bg-amber-500/10 px-2.5 py-1.5 text-xs font-semibold text-amber-200 hover:bg-amber-500/20"
+              className="focus-ring cursor-pointer rounded-lg border border-amber-400/25 bg-amber-400/10 px-2.5 py-1.5 font-mono text-xs font-bold tracking-wider text-amber-200 transition-colors duration-300 hover:bg-amber-400/20"
             >
               {preset}
             </motion.button>
@@ -336,11 +359,11 @@ function RewardForm({ reward, formId, onClose, onSubmit }: { reward: Reward | nu
                   title={meta.label}
                   onClick={() => setIcon(id)}
                   whileHover={{ y: -2 }}
-                  whileTap={{ scale: 0.88 }}
-                  className={`focus-ring grid aspect-square cursor-pointer place-items-center rounded-xl border transition-all ${
+                  whileTap={{ scale: 0.92 }}
+                  className={`focus-ring grid aspect-square cursor-pointer place-items-center rounded-xl border transition-[background-color,border-color,color,box-shadow] duration-300 ${
                     active
-                      ? 'border-amber-300/70 bg-amber-500/20 text-amber-100 shadow-[0_0_16px_-4px_rgba(251,191,36,0.9)]'
-                      : 'border-violet-400/15 bg-white/[0.03] text-violet-200/55 hover:text-violet-100'
+                      ? 'border-amber-300/60 bg-amber-400/15 text-amber-100 shadow-[0_0_16px_-4px_rgba(251,191,36,0.9)]'
+                      : 'border-white/[0.08] bg-white/[0.02] text-slate-400 hover:border-white/[0.18] hover:text-slate-100'
                   }`}
                 >
                   <Icon size={20} />
@@ -351,7 +374,7 @@ function RewardForm({ reward, formId, onClose, onSubmit }: { reward: Reward | nu
         </div>
       )}
       {error && (
-        <p role="alert" className="rounded-lg border border-rose-400/40 bg-rose-500/10 px-3 py-2 text-sm text-rose-200">
+        <p role="alert" className="rounded-lg border border-red-400/40 bg-red-500/10 px-3 py-2 text-sm text-red-200">
           {error}
         </p>
       )}

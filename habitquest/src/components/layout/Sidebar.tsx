@@ -6,15 +6,15 @@ import type { TabId } from '../../types';
 export interface NavItem {
   id: TabId;
   label: string;
+  code: string;
   icon: LucideIcon;
-  badge?: number;
 }
 
-export const NAV_ITEMS: Array<Omit<NavItem, 'badge'>> = [
-  { id: 'dashboard', label: 'Персонаж', icon: LayoutDashboard },
-  { id: 'quests', label: 'Квесты', icon: Swords },
-  { id: 'shop', label: 'Магазин', icon: Store },
-  { id: 'settings', label: 'Настройки', icon: Settings },
+export const NAV_ITEMS: NavItem[] = [
+  { id: 'dashboard', label: 'Персонаж', code: 'HERO', icon: LayoutDashboard },
+  { id: 'quests', label: 'Квесты', code: 'QST', icon: Swords },
+  { id: 'shop', label: 'Магазин', code: 'SHOP', icon: Store },
+  { id: 'settings', label: 'Настройки', code: 'SYS', icon: Settings },
 ];
 
 interface NavProps {
@@ -25,15 +25,16 @@ interface NavProps {
 
 function Logo() {
   return (
-    <div className="flex items-center gap-2.5">
-      <div className="grid h-10 w-10 place-items-center rounded-xl border border-violet-300/40 bg-gradient-to-br from-violet-600 to-fuchsia-700 shadow-[0_0_24px_-2px_rgba(168,85,247,0.9)]">
-        <Swords size={20} className="text-white" />
+    <div className="flex items-center gap-3">
+      <div className="relative grid h-10 w-10 place-items-center rounded-xl bg-gradient-to-br from-fuchsia-500 via-purple-600 to-indigo-600 shadow-[0_0_24px_-4px_rgba(192,38,211,0.9)]">
+        <Swords size={19} className="text-white" />
+        <span aria-hidden="true" className="absolute inset-0 rounded-xl border border-white/25" />
       </div>
       <div className="leading-tight">
-        <p className="font-display text-lg tracking-wider text-white">
-          Habit<span className="text-cyan-300 neon-cyber">Quest</span>
+        <p className="font-display text-[17px] font-bold tracking-tight text-white">
+          Habit<span className="bg-gradient-to-r from-cyan-300 to-fuchsia-400 bg-clip-text text-transparent">Quest</span>
         </p>
-        <p className="text-[10px] tracking-[0.3em] text-violet-200/50 uppercase">life rpg</p>
+        <p className="font-mono text-[9px] tracking-[0.35em] text-slate-500 uppercase">life.rpg // v1</p>
       </div>
     </div>
   );
@@ -42,9 +43,10 @@ function Logo() {
 /** Боковое меню для широких экранов. */
 export function Sidebar({ active, onChange, badges, today, dayOffset }: NavProps & { today: string; dayOffset: number }) {
   return (
-    <aside className="glass fixed inset-y-0 left-0 z-40 hidden w-64 flex-col border-y-0 border-l-0 px-4 py-6 lg:flex">
+    <aside className="fixed inset-y-0 left-0 z-40 hidden w-64 flex-col border-r border-white/[0.06] bg-[#0b0d17]/70 px-4 py-6 backdrop-blur-xl lg:flex">
       <Logo />
-      <nav className="mt-10 flex flex-col gap-1.5" aria-label="Разделы">
+      <p className="mt-9 mb-2 px-3 font-mono text-[9px] tracking-[0.3em] text-slate-600 uppercase">Навигация</p>
+      <nav className="flex flex-col gap-1" aria-label="Разделы">
         {NAV_ITEMS.map((item) => {
           const isActive = item.id === active;
           const Icon = item.icon;
@@ -54,30 +56,38 @@ export function Sidebar({ active, onChange, badges, today, dayOffset }: NavProps
               key={item.id}
               type="button"
               onClick={() => onChange(item.id)}
-              whileHover={{ x: 4 }}
+              whileHover={{ x: 3 }}
               whileTap={{ scale: 0.97 }}
               aria-current={isActive ? 'page' : undefined}
-              className={`focus-ring relative flex cursor-pointer items-center gap-3 rounded-xl px-4 py-3 text-left text-sm font-semibold tracking-wide transition-colors ${
-                isActive ? 'text-white' : 'text-violet-200/60 hover:text-violet-50'
+              className={`focus-ring group relative flex cursor-pointer items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-semibold transition-colors duration-300 ${
+                isActive ? 'text-white' : 'text-slate-400 hover:text-slate-100'
               }`}
             >
               {isActive && (
                 <motion.span
                   layoutId="sidebar-active"
-                  className="absolute inset-0 rounded-xl border border-violet-300/35 bg-gradient-to-r from-violet-600/45 to-fuchsia-600/15 shadow-[0_0_24px_-6px_rgba(168,85,247,0.9)]"
-                  transition={{ type: 'spring', stiffness: 450, damping: 35 }}
+                  className="absolute inset-0 rounded-xl border border-white/[0.1] bg-gradient-to-r from-fuchsia-500/20 via-purple-600/10 to-transparent shadow-[inset_0_0_24px_-10px_rgba(217,70,239,0.8)]"
+                  transition={{ type: 'spring', stiffness: 450, damping: 36 }}
                 />
               )}
               {isActive && (
                 <motion.span
                   layoutId="sidebar-bar"
-                  className="absolute top-2 bottom-2 left-0 w-1 rounded-full bg-cyan-300 shadow-[0_0_10px_rgba(34,211,238,1)]"
+                  className="absolute top-2.5 bottom-2.5 -left-4 w-[3px] rounded-r-full bg-gradient-to-b from-cyan-300 to-fuchsia-500 shadow-[0_0_12px_rgba(34,211,238,1)]"
+                  transition={{ type: 'spring', stiffness: 450, damping: 36 }}
                 />
               )}
-              <Icon size={18} className="relative z-10" />
+              <span
+                className={`relative z-10 grid h-8 w-8 place-items-center rounded-lg border transition-colors duration-300 ${
+                  isActive ? 'border-fuchsia-400/40 bg-fuchsia-500/15 text-fuchsia-200' : 'border-white/[0.06] bg-white/[0.02] group-hover:border-white/[0.15]'
+                }`}
+              >
+                <Icon size={16} />
+              </span>
               <span className="relative z-10 flex-1">{item.label}</span>
+              <span className="relative z-10 font-mono text-[9px] tracking-widest text-slate-600">{item.code}</span>
               {badge !== undefined && badge > 0 && (
-                <span className="relative z-10 grid min-w-6 place-items-center rounded-md bg-rose-500/80 px-1.5 py-0.5 text-[11px] font-bold text-white shadow-[0_0_10px_rgba(255,59,92,0.7)]">
+                <span className="relative z-10 grid min-w-5 place-items-center rounded-md bg-red-500 px-1 py-0.5 font-mono text-[10px] font-bold text-white shadow-[0_0_12px_rgba(239,68,68,0.8)]">
                   {badge}
                 </span>
               )}
@@ -86,12 +96,12 @@ export function Sidebar({ active, onChange, badges, today, dayOffset }: NavProps
         })}
       </nav>
 
-      <div className="mt-auto rounded-xl border border-violet-400/15 bg-black/20 p-3 text-xs text-violet-200/60">
-        <p className="flex items-center gap-1.5 font-semibold text-violet-100/80">
-          <CalendarClock size={14} className="text-cyan-300" /> Игровой день
+      <div className="glass mt-auto rounded-xl p-3.5">
+        <p className="flex items-center gap-2 font-mono text-[10px] font-bold tracking-[0.2em] text-cyan-300 uppercase">
+          <CalendarClock size={13} /> Игровой день
         </p>
-        <p className="mt-1 capitalize">{formatLongDate(today)}</p>
-        {dayOffset > 0 && <p className="mt-1 text-amber-300/80">Симуляция: +{dayOffset} дн.</p>}
+        <p className="mt-1.5 text-sm text-slate-200 first-letter:uppercase">{formatLongDate(today)}</p>
+        {dayOffset > 0 && <p className="mt-1 font-mono text-[11px] text-amber-300/90">SIM +{dayOffset} дн.</p>}
       </div>
     </aside>
   );
@@ -100,7 +110,7 @@ export function Sidebar({ active, onChange, badges, today, dayOffset }: NavProps
 /** Верхняя навигация для телефонов и планшетов. */
 export function MobileNav({ active, onChange, badges }: NavProps) {
   return (
-    <div className="glass sticky top-[env(safe-area-inset-top,0px)] z-40 border-x-0 border-t-0 px-4 pt-3 pb-2 lg:hidden">
+    <div className="sticky top-[env(safe-area-inset-top,0px)] z-40 border-b border-white/[0.06] bg-[#0b0d17]/80 px-4 pt-3 pb-2 backdrop-blur-xl lg:hidden">
       <Logo />
       <nav className="mt-3 grid grid-cols-4 gap-1" aria-label="Разделы">
         {NAV_ITEMS.map((item) => {
@@ -115,20 +125,20 @@ export function MobileNav({ active, onChange, badges }: NavProps) {
               whileTap={{ scale: 0.92 }}
               aria-current={isActive ? 'page' : undefined}
               className={`focus-ring relative flex cursor-pointer flex-col items-center gap-1 rounded-lg px-1 py-2 text-[11px] font-semibold transition-colors ${
-                isActive ? 'text-white' : 'text-violet-200/55'
+                isActive ? 'text-white' : 'text-slate-400'
               }`}
             >
               {isActive && (
                 <motion.span
                   layoutId="mobile-active"
-                  className="absolute inset-0 rounded-lg border border-violet-300/35 bg-violet-600/35"
+                  className="absolute inset-0 rounded-lg border border-white/[0.1] bg-gradient-to-b from-fuchsia-500/25 to-indigo-600/10"
                   transition={{ type: 'spring', stiffness: 450, damping: 35 }}
                 />
               )}
               <Icon size={18} className="relative z-10" />
               <span className="relative z-10">{item.label}</span>
               {badge !== undefined && badge > 0 && (
-                <span className="absolute top-1 right-2 z-10 grid h-4 min-w-4 place-items-center rounded-full bg-rose-500 px-1 text-[9px] font-bold text-white">
+                <span className="absolute top-1 right-2 z-10 grid h-4 min-w-4 place-items-center rounded-full bg-red-500 px-1 font-mono text-[9px] font-bold text-white shadow-[0_0_10px_rgba(239,68,68,0.8)]">
                   {badge}
                 </span>
               )}

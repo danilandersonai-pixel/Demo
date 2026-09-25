@@ -1,6 +1,7 @@
 import { AnimatePresence, motion } from 'framer-motion';
 import { X } from 'lucide-react';
 import { useEffect, useId, useRef, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { IconButton } from './Button';
 
 interface ModalProps {
@@ -25,8 +26,8 @@ export function Modal({ open, onClose, title, icon, children, footer, width = 'm
     if (!open) return;
     const previouslyFocused = document.activeElement as HTMLElement | null;
     const focusTimer = window.setTimeout(() => {
-      const first = panelRef.current?.querySelector<HTMLElement>('[data-autofocus]') ??
-        panelRef.current?.querySelector<HTMLElement>(FOCUSABLE);
+      const first =
+        panelRef.current?.querySelector<HTMLElement>('[data-autofocus]') ?? panelRef.current?.querySelector<HTMLElement>(FOCUSABLE);
       first?.focus();
     }, 60);
 
@@ -60,7 +61,8 @@ export function Modal({ open, onClose, title, icon, children, footer, width = 'm
     };
   }, [open]);
 
-  return (
+  // Портал в body: модалка не зависит от stacking context страницы и всегда лежит поверх журнала.
+  return createPortal(
     <AnimatePresence>
       {open && (
         <motion.div
@@ -69,7 +71,7 @@ export function Modal({ open, onClose, title, icon, children, footer, width = 'm
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
         >
-          <motion.div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} aria-hidden="true" />
+          <motion.div className="absolute inset-0 bg-[#05060c]/75 backdrop-blur-md" onClick={onClose} aria-hidden="true" />
           <motion.div
             ref={panelRef}
             role="dialog"
@@ -81,8 +83,9 @@ export function Modal({ open, onClose, title, icon, children, footer, width = 'm
             exit={{ y: 30, scale: 0.97, opacity: 0 }}
             transition={{ type: 'spring', stiffness: 380, damping: 32 }}
           >
-            <div className="flex items-center justify-between gap-3 border-b border-violet-400/15 px-5 py-4">
-              <h2 id={titleId} className="flex items-center gap-2 font-display text-lg tracking-wide text-white">
+            <span aria-hidden="true" className="absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-fuchsia-400/80 to-transparent" />
+            <div className="flex items-center justify-between gap-3 border-b border-white/[0.06] px-5 py-4">
+              <h2 id={titleId} className="flex items-center gap-2.5 font-display text-[15px] font-medium tracking-wide text-white">
                 {icon}
                 {title}
               </h2>
@@ -91,10 +94,11 @@ export function Modal({ open, onClose, title, icon, children, footer, width = 'm
               </IconButton>
             </div>
             <div className="overflow-y-auto px-5 py-5">{children}</div>
-            {footer && <div className="flex flex-wrap justify-end gap-2 border-t border-violet-400/15 px-5 py-4">{footer}</div>}
+            {footer && <div className="flex flex-wrap justify-end gap-2 border-t border-white/[0.06] px-5 py-4">{footer}</div>}
           </motion.div>
         </motion.div>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body,
   );
 }

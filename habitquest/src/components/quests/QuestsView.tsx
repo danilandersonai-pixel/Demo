@@ -29,21 +29,21 @@ const COLUMN_META: Record<TaskType, { title: string; subtitle: string; icon: Luc
     title: 'Привычки',
     subtitle: 'Многоразовые «+» и «−». Качают Дисциплину.',
     icon: Repeat,
-    accent: 'text-emerald-300',
+    accent: 'text-emerald-300 border-emerald-400/30 bg-emerald-400/10 shadow-[0_0_14px_-4px_rgba(52,211,153,0.8)]',
     placeholder: 'Новая привычка + Enter',
   },
   daily: {
     title: 'Дейлики',
     subtitle: 'Обновляются каждые сутки. Пропуск ранит.',
     icon: CalendarCheck,
-    accent: 'text-cyan-300',
+    accent: 'text-cyan-300 border-cyan-400/30 bg-cyan-400/10 shadow-[0_0_14px_-4px_rgba(34,211,238,0.8)]',
     placeholder: 'Новый дейлик + Enter',
   },
   todo: {
     title: 'Разовые квесты',
     subtitle: 'Сложность определяет награду.',
     icon: ListTodo,
-    accent: 'text-fuchsia-300',
+    accent: 'text-fuchsia-300 border-fuchsia-400/30 bg-fuchsia-500/10 shadow-[0_0_14px_-4px_rgba(217,70,239,0.8)]',
     placeholder: 'Новый квест + Enter',
   },
 };
@@ -97,6 +97,7 @@ export function QuestsView({ state, today, actions }: QuestsViewProps) {
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
         <Column
+          key={`habit-${mobileColumn === 'habit'}`}
           type="habit"
           className={columnClass('habit')}
           count={state.habits.length}
@@ -107,11 +108,12 @@ export function QuestsView({ state, today, actions }: QuestsViewProps) {
           {state.habits.length === 0 ? (
             <EmptyState icon={<Repeat size={28} />} title="Привычек нет" hint="Добавьте то, что хотите делать чаще — или реже." />
           ) : (
-            <ul className="flex flex-col gap-2">
-              <AnimatePresence initial={false}>
+            <ul className="flex flex-col gap-2.5">
+              <AnimatePresence>
                 {state.habits.map((habit, index) => (
                   <HabitCard
                     key={habit.id}
+                    index={index}
                     habit={habit}
                     hero={state.hero}
                     today={today}
@@ -129,6 +131,7 @@ export function QuestsView({ state, today, actions }: QuestsViewProps) {
         </Column>
 
         <Column
+          key={`daily-${mobileColumn === 'daily'}`}
           type="daily"
           className={columnClass('daily')}
           count={`${dailiesDone}/${dueDailies.length}`}
@@ -155,13 +158,14 @@ export function QuestsView({ state, today, actions }: QuestsViewProps) {
               hint={dailyFilter === 'due' ? 'Свободный день — или время добавить новый ритуал.' : 'Добавьте ежедневный ритуал.'}
             />
           ) : (
-            <ul className="flex flex-col gap-2">
-              <AnimatePresence initial={false}>
-                {shownDailies.map((daily) => {
+            <ul key={dailyFilter} className="flex flex-col gap-2.5">
+              <AnimatePresence>
+                {shownDailies.map((daily, position) => {
                   const index = state.dailies.findIndex((d) => d.id === daily.id);
                   return (
                     <DailyCard
                       key={daily.id}
+                      index={position}
                       daily={daily}
                       hero={state.hero}
                       today={today}
@@ -181,6 +185,7 @@ export function QuestsView({ state, today, actions }: QuestsViewProps) {
         </Column>
 
         <Column
+          key={`todo-${mobileColumn === 'todo'}`}
           type="todo"
           className={columnClass('todo')}
           count={activeTodos.length}
@@ -213,14 +218,15 @@ export function QuestsView({ state, today, actions }: QuestsViewProps) {
               hint={todoFilter === 'active' ? 'Добавьте новую цель — эпичные квесты дают больше всего наград.' : 'Выполненные квесты появятся здесь, их можно вернуть в работу.'}
             />
           ) : (
-            <ul className="flex flex-col gap-2">
-              <AnimatePresence initial={false}>
-                {shownTodos.map((todo) => {
+            <ul key={todoFilter} className="flex flex-col gap-2.5">
+              <AnimatePresence>
+                {shownTodos.map((todo, position) => {
                   const index = activeTodos.findIndex((t) => t.id === todo.id);
                   const fullIndex = state.todos.findIndex((t) => t.id === todo.id);
                   return (
                     <TodoCard
                       key={todo.id}
+                      index={position}
                       todo={todo}
                       hero={state.hero}
                       today={today}
@@ -292,18 +298,22 @@ function Column({ type, className, count, onQuickAdd, onOpenForm, toolbar, progr
     <motion.section
       initial={{ opacity: 0, y: 18 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.45, delay, ease: [0.22, 1, 0.36, 1] }}
+      transition={{ duration: 0.5, delay, ease: [0.22, 1, 0.36, 1] }}
       className={`glass flex-col gap-3 rounded-2xl p-4 ${className}`}
       aria-label={meta.title}
     >
       <header className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h2 className="flex items-center gap-2 font-display text-sm tracking-[0.14em] text-violet-50 uppercase">
-            <Icon size={16} className={meta.accent} />
-            {meta.title}
-            <span className="rounded-md bg-white/10 px-1.5 py-0.5 font-mono text-[11px] tracking-normal text-violet-100/80">{count}</span>
-          </h2>
-          <p className="mt-1 text-xs text-violet-200/50">{meta.subtitle}</p>
+        <div className="flex min-w-0 items-start gap-3">
+          <span className={`grid h-9 w-9 shrink-0 place-items-center rounded-lg border ${meta.accent}`}>
+            <Icon size={17} />
+          </span>
+          <div className="min-w-0">
+            <h2 className="flex items-center gap-2 font-display text-[12px] font-medium tracking-[0.14em] text-slate-100 uppercase">
+              {meta.title}
+              <span className="rounded border border-white/[0.08] bg-white/[0.05] px-1.5 py-0.5 font-mono text-[10px] tracking-wider text-slate-300">{count}</span>
+            </h2>
+            <p className="mt-1 text-xs text-slate-400">{meta.subtitle}</p>
+          </div>
         </div>
         <Button variant="cyber" size="sm" icon={<SlidersHorizontal size={14} />} onClick={onOpenForm} aria-label={`Создать: ${meta.title}`}>
           Создать
@@ -311,12 +321,12 @@ function Column({ type, className, count, onQuickAdd, onOpenForm, toolbar, progr
       </header>
 
       {progress !== undefined && (
-        <div className="h-1 overflow-hidden rounded-full bg-white/5" aria-hidden="true">
+        <div className="h-1 overflow-hidden rounded-full bg-white/[0.05]" aria-hidden="true">
           <motion.div
-            className="h-full rounded-full bg-gradient-to-r from-cyan-400 to-violet-500 shadow-[0_0_10px_rgba(34,211,238,0.8)]"
+            className="h-full rounded-full bg-gradient-to-r from-cyan-400 to-fuchsia-500 shadow-[0_0_10px_rgba(34,211,238,0.8)]"
             initial={false}
             animate={{ width: `${Math.round(progress * 100)}%` }}
-            transition={{ type: 'spring', stiffness: 120, damping: 20 }}
+            transition={{ type: 'spring', stiffness: 110, damping: 20 }}
           />
         </div>
       )}
@@ -336,7 +346,7 @@ function Column({ type, className, count, onQuickAdd, onOpenForm, toolbar, progr
       </form>
 
       {toolbar}
-      <div className="max-h-[calc(100vh-24rem)] min-h-40 overflow-y-auto pr-1 xl:max-h-[calc(100vh-26rem)]">{children}</div>
+      <div className="-mx-1 max-h-[calc(100vh-24rem)] min-h-40 overflow-y-auto px-1 pt-1 pb-2 xl:max-h-[calc(100vh-26rem)]">{children}</div>
     </motion.section>
   );
 }
