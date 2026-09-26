@@ -13,15 +13,14 @@ import { computeFactor } from './worldEvents';
 const PUMP_RATE = 10; // oil / s
 const COMPUTE: Partial<Record<string, number>> = { aicore: 6, server: 12, datacenter: 150 };
 
-let stockCache: Record<string, number> = {};
-let stockTick = -1;
-/** Global stock snapshot refreshed every 30 ticks (limits check it per machine). */
+/** Per-sim stock snapshot refreshed every 30 ticks (limits check it per machine). */
 export function cachedStock(sim: Sim, item: string): number {
-  if (sim.tick - stockTick >= 30 || stockTick > sim.tick) {
-    stockCache = sim.stockAll();
-    stockTick = sim.tick;
+  const c = sim.stockCache;
+  if (sim.tick - c.tick >= 30 || c.tick > sim.tick) {
+    c.data = sim.stockAll();
+    c.tick = sim.tick;
   }
-  return stockCache[item] ?? 0;
+  return c.data[item] ?? 0;
 }
 
 export function updateMachines(sim: Sim, dt: number): void {

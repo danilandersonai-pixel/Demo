@@ -141,6 +141,8 @@ export class Sim {
   craftEvents: { x: number; y: number }[] = [];
   lastProdScore = 0;
   manualTouch = 0;
+  /** Stock snapshot for limit() checks (per instance: sandbox clones must not share it). */
+  stockCache: { tick: number; data: Record<string, number> } = { tick: -1e9, data: {} };
 
   constructor(world: World, seed: number) {
     this.world = world;
@@ -390,22 +392,43 @@ export class Sim {
   }
 
   private pairUnderground(e: Entity): void {
-    // Look backwards (against dir) for an unpaired entrance with the same direction.
+    // entrance behind us (against dir) → we are the exit
     for (let d = 1; d <= 6; d++) {
-      const bx = e.x - DX[e.dir] * d;
-      const by = e.y - DY[e.dir] * d;
-      const o = this.entityAt(bx, by);
+      const o = this.entityAt(e.x - DX[e.dir] * d, e.y - DY[e.dir] * d);
       if (o && o.type === 'underground' && !o.ghost && o.dir === e.dir) {
         if (o.ug === 'in' && !o.pair) {
           e.ug = 'out';
           e.pair = o.id;
           o.pair = e.id;
+          this.topoDirty = true;
           return;
         }
         break;
       }
     }
     e.ug = 'in';
+    // an unpaired underground ahead of us (built first) becomes our exit
+    for (let d = 1; d <= 6; d++) {
+      const o = this.entityAt(e.x + DX[e.dir] * d, e.y + DY[e.dir] * d);
+      if (o && o.type === 'underground' && !o.ghost && o.dir === e.dir) {
+        if (!o.pair) {
+          o.ug = 'out';
+          o.pair = e.id;
+          e.pair = o.id;
+          this.topoDirty = true;
+        }
+        break;
+      }
+    }
+  }
+
+  /** A pairing was broken: let the former partner find a new role. */
+  private unpairUnderground(partnerId: number | undefined): void {
+    if (!partnerId) return;
+    const p = this.ents.get(partnerId);
+    if (!p || p.type !== 'underground') return;
+    delete p.pair;
+    if (!p.ghost) this.pairUnderground(p);
   }
 
   /** Place a building as a ghost (or instantly when instantBuild / force). */
@@ -426,6 +449,7 @@ export class Sim {
     const instant = opts.instant || this.settings.instantBuild;
     const def = BUILDINGS[type];
     if (instant && !opts.force) {
+      if (!opts.byScript) this.noteManual();
       if (!this.takeStock(def.cost)) {
         const e = this.createEntity(type, x, y, dir, true);
         if (opts.recipe) e.recipe = opts.recipe;
@@ -459,11 +483,9 @@ export class Sim {
     if (!def.rotatable) return;
     e.dir = ((e.dir + 1) & 3) as Dir;
     if (e.type === 'underground' && !e.ghost) {
-      if (e.pair) {
-        const p = this.ents.get(e.pair);
-        if (p) delete p.pair;
-      }
+      const partner = e.pair;
       delete e.pair;
+      this.unpairUnderground(partner);
       this.pairUnderground(e);
     }
     this.topoDirty = true;
@@ -504,15 +526,13 @@ export class Sim {
       if (refund) for (const it of items) this.addStock(ITEM_BY_INDEX[it]!, 1);
       this.belts.release(e.bi);
     }
-    if (e.pair) {
-      const p = this.ents.get(e.pair);
-      if (p) delete p.pair;
-    }
+    const partner = e.pair;
     for (let yy = e.y; yy < e.y + e.h; yy++) for (let xx = e.x; xx < e.x + e.w; xx++) {
       const i = this.world.idx(xx, yy);
       if (this.world.occ[i] === e.id) this.world.occ[i] = 0;
     }
     this.ents.delete(e.id);
+    if (e.type === 'underground') this.unpairUnderground(partner);
     const idx = this.list.indexOf(e);
     if (idx >= 0) this.list.splice(idx, 1);
     for (const g in this.groups) {

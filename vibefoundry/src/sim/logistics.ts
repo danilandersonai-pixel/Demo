@@ -181,6 +181,15 @@ export function offer(sim: Sim, e: Entity, itemIdx: number, commit: boolean, dro
   return false;
 }
 
+/** Would this building accept the item at all under its current configuration? */
+function canEverAccept(dst: Entity, itemIdx: number): boolean {
+  const item = ITEM_BY_INDEX[itemIdx] as ItemId;
+  const r = dst.recipe ? RECIPES[dst.recipe] : undefined;
+  if (dst.type === 'smelter') return !r || r.inputs.some((s) => s.item === item) || !!SMELT_BY_INPUT[item];
+  if (r) return r.inputs.some((s) => s.item === item);
+  return dst.type === 'lab' || dst.type === 'reactor' || dst.type === 'aicore' || dst.type === 'server';
+}
+
 function isEmpty(bag: Record<string, number> | undefined): boolean {
   if (!bag) return true;
   for (const k in bag) if (bag[k] > 0) return false;
@@ -316,6 +325,11 @@ export function updateInserters(sim: Sim, dt: number): void {
         continue;
       }
       const it = pick(sim, e, src, dst);
+      if (it && dst.type === 'smelter' && !dst.recipe) {
+        // reserve the smelting recipe now, so a second inserter can't bring a different ore meanwhile
+        const rid = SMELT_BY_INPUT[ITEM_BY_INDEX[it] as ItemId];
+        if (rid) dst.recipe = rid;
+      }
       if (it) {
         e.hand = it;
         e.phase = 1;
@@ -343,7 +357,10 @@ export function updateInserters(sim: Sim, dt: number): void {
       } else {
         e.status = 'output_full';
         e.wantPower = def.idle;
-        if (!dst) {
+        e.t = (e.t ?? 1) + dt;
+        // the target will never take this item (recipe changed under us): give it back to storage
+        const stuck = !!dst && e.t > 6 && !BELTLIKE.has(dst.type) && !BUILDINGS[dst.type].storage && !canEverAccept(dst, e.hand!);
+        if (!dst || stuck) {
           // target removed: drop back to storage
           const it = ITEM_BY_INDEX[e.hand!];
           if (it) sim.addStock(it, 1);

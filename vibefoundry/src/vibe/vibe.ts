@@ -132,7 +132,7 @@ function describeRule(r: IntentResult['rules'][number]): string {
 
 function assign(sim: Sim, agent: Agent, payload: VibePayload, cost = 0): void {
   if (agent.status === 'working' && agent.task) {
-    (sim.ai as any).queue = [...((sim.ai as any).queue ?? []), { agentId: agent.id, payload }];
+    (sim.ai as any).queue = [...((sim.ai as any).queue ?? []), { agentId: agent.id, payload, cost }];
     return;
   }
   const speed = agent.speed;
@@ -188,11 +188,11 @@ export function processAgents(sim: Sim, dt: number): void {
       a.status = 'idle';
       completeTask(sim, a, payload);
       if (gainXp(a, 1)) sim.toast({ kind: 'success', title: `${a.name} повысил уровень`, text: `Уровень ${a.level}: быстрее и точнее`, key: 'lvl' + a.id + a.level });
-      const q = ((sim.ai as any).queue ?? []) as { agentId: number; payload: VibePayload }[];
+      const q = ((sim.ai as any).queue ?? []) as { agentId: number; payload: VibePayload; cost?: number }[];
       const next = q.findIndex((x) => x.agentId === a.id);
       if (next >= 0) {
         const [item] = q.splice(next, 1);
-        assign(sim, a, item.payload);
+        assign(sim, a, item.payload, item.cost ?? 0);
       }
     }
   }

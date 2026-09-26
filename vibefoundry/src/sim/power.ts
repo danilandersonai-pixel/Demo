@@ -239,6 +239,7 @@ export function mainPower(sim: Sim): PowerNetStats {
 export function powerRatio(sim: Sim): number {
   const n = mainPower(sim);
   if (n.nominal <= 0) return 1;
-  const accBoost = n.charge > 1 ? (n.chargeMax / ACC_CAPACITY) * ACC_RATE : 0;
+  // reserve counts only what the bank can actually sustain for ~10 s
+  const accBoost = Math.min((n.chargeMax / ACC_CAPACITY) * ACC_RATE, n.charge / 10);
   return Math.max(0, Math.min(1, (n.capacity + accBoost) / n.nominal));
 }
