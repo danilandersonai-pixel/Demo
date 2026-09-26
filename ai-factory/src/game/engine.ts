@@ -52,12 +52,14 @@ export function emptyFlow(): Flow {
     brownout: false,
     computeSupply: 0,
     computeDemand: 0,
+    computeNeedMax: 0,
     computeRatio: 1,
     prod: { data: 0, code: 0, models: 0 },
     cons: { data: 0, code: 0, models: 0 },
     sold: { data: 0, code: 0 },
     caps: { ...BAL.baseCaps },
     income: 0,
+    incomeSustained: 0,
     incomeSaas: 0,
     incomeAgi: 0,
     incomeExchange: 0,
@@ -90,6 +92,7 @@ export function createState(seed: number, now: number): GameState {
       refactors: 0,
       autoRefactors: 0,
       blackoutTicks: 0,
+      commissioned: 0,
       agiBuiltAt: null,
     },
     flow: emptyFlow(),
@@ -124,6 +127,19 @@ function bind(pairs: Array<[number, Limit]>): [number, Limit] {
     }
   }
   return [Math.max(0, v), lim];
+}
+
+/** Какой из множителей ограничивает сильнее всего (для подписи «почему не 100%»). */
+function weakest(pairs: Array<[number, Limit]>): Limit {
+  let v = 1 - EPS;
+  let lim: Limit = 'none';
+  for (const [x, l] of pairs) {
+    if (x < v) {
+      v = x;
+      lim = l;
+    }
+  }
+  return lim;
 }
 
 /**
@@ -162,39 +178,82 @@ export function computeFlow(s: GameState): Flow {
     }
   }
 
-  // --- Вычислительная мощность --------------------------------------------
-  let computeSupply = 0;
-  let computeDemand = 0;
-  for (let i = 0; i < n; i++) {
-    const b = bs[i];
-    if (!b.enabled) continue;
-    if (b.type === 'gpu') computeSupply += R[i].computeOut * power;
-    else if (b.type === 'trainer' || b.type === 'agi') computeDemand += R[i].computeNeed;
-  }
-  const computeRatio = computeDemand > EPS ? Math.min(1, computeSupply / computeDemand) : 1;
-
+  // --- Спрос на входы -------------------------------------------------------
   const S0 = s.res;
   const price = modelPrice(s, mods);
   const u = new Float64Array(n);
   const lim: Limit[] = new Array(n).fill('none');
 
-  // --- Продажа моделей: AGI забирает модели первым, SaaS — остаток ---------
   let dAgi = 0;
   let dSaas = 0;
+  let dDataCoders = 0;
+  let dDataTrainers = 0;
+  let dCode = 0;
+  let computeSupply = 0;
+  let computeNeedMax = 0;
   for (let i = 0; i < n; i++) {
     const b = bs[i];
     if (!b.enabled) continue;
-    if (b.type === 'agi') dAgi += R[i].inModels;
-    else if (b.type === 'publisher') dSaas += R[i].inModels;
+    switch (b.type) {
+      case 'agi':
+        dAgi += R[i].inModels;
+        computeNeedMax += R[i].computeNeed;
+        break;
+      case 'publisher':
+        dSaas += R[i].inModels;
+        break;
+      case 'coder':
+        dDataCoders += R[i].inData;
+        break;
+      case 'trainer':
+        dDataTrainers += R[i].inData;
+        dCode += R[i].inCode;
+        computeNeedMax += R[i].computeNeed;
+        break;
+      case 'gpu':
+        computeSupply += R[i].computeOut * power;
+        break;
+      default:
+        break;
+    }
   }
+  // Модели: AGI забирает первым, SaaS — остаток. Данные делят кодеры и кластеры.
   const fAgi = dAgi > EPS ? Math.min(1, S0.models / dAgi) : 0;
+  const dData = dDataCoders + dDataTrainers;
+  const fData = dData > EPS ? Math.min(1, S0.data / dData) : 1;
+  // Лаборатория НИОКР — тоже потребитель кода. Спрос берём по номинальной
+  // ставке, а не по остатку: иначе к концу исследования её доля таяла бы
+  // вместе с остатком и прогресс «висел» бы на 100%.
+  const act = s.research.active;
+  const researchDemand = act && power > EPS ? (RESEARCH[act.id].code / RESEARCH[act.id].time) * power : 0;
+  const dCodeTotal = dCode + researchDemand;
+  const fCode = dCodeTotal > EPS ? Math.min(1, S0.code / dCodeTotal) : 1;
+
+  // --- Вычислительная мощность --------------------------------------------
+  // Спрос считаем по реальной загрузке: AGI без моделей или кластер без
+  // данных не бронируют PFLOPS у тех, кто может работать. Итоговая загрузка —
+  // произведение, чтобы суммарный расход не превысил мощность GPU.
+  const pre = new Float64Array(n);
+  let computeDemand = 0;
+  for (let i = 0; i < n; i++) {
+    const b = bs[i];
+    if (!b.enabled) continue;
+    if (b.type === 'agi') pre[i] = Math.min(power, fAgi);
+    else if (b.type === 'trainer') pre[i] = Math.min(power, fData, fCode);
+    else continue;
+    computeDemand += R[i].computeNeed * pre[i];
+  }
+  const computeRatio = computeDemand > EPS ? Math.min(1, computeSupply / computeDemand) : 1;
+
+  // --- Продажа моделей ---------------------------------------------------------
   let consAgi = 0;
   for (let i = 0; i < n; i++) {
     if (bs[i].type !== 'agi' || !bs[i].enabled) continue;
-    [u[i], lim[i]] = bind([
+    u[i] = pre[i] * computeRatio;
+    lim[i] = weakest([
       [power, 'power'],
-      [computeRatio, 'compute'],
       [fAgi, 'models'],
+      [computeRatio, 'compute'],
     ]);
     consAgi += u[i] * R[i].inModels;
   }
@@ -213,37 +272,12 @@ export function computeFlow(s: GameState): Flow {
   const incomeSaas = consSaas * price;
   const consModels = consAgi + consSaas;
 
-  // --- Общие входы: данные делят кодеры и кластеры, код — кластеры --------
-  let dDataCoders = 0;
-  let dDataTrainers = 0;
-  let dCode = 0;
-  for (let i = 0; i < n; i++) {
-    const b = bs[i];
-    if (!b.enabled) continue;
-    if (b.type === 'coder') dDataCoders += R[i].inData;
-    else if (b.type === 'trainer') {
-      dDataTrainers += R[i].inData;
-      dCode += R[i].inCode;
-    }
-  }
-  const dData = dDataCoders + dDataTrainers;
-  const fData = dData > EPS ? Math.min(1, S0.data / dData) : 1;
-
-  // Лаборатория НИОКР тоже потребитель кода: делит его с кластерами пропорционально.
-  const act = s.research.active;
-  let researchRate = 0;
-  if (act && power > EPS) {
-    const def = RESEARCH[act.id];
-    researchRate = Math.max(0, Math.min((def.code / def.time) * power, def.code - act.paid));
-  }
-  const dCodeTotal = dCode + researchRate;
-  const fCode = dCodeTotal > EPS ? Math.min(1, S0.code / dCodeTotal) : 1;
-
   // --- Кластеры обучения ----------------------------------------------------
   let modelsPre = 0;
   for (let i = 0; i < n; i++) {
     if (bs[i].type !== 'trainer' || !bs[i].enabled) continue;
-    [u[i], lim[i]] = bind([
+    u[i] = pre[i] * computeRatio;
+    lim[i] = weakest([
       [power, 'power'],
       [computeRatio, 'compute'],
       [fData, 'data'],
@@ -258,14 +292,16 @@ export function computeFlow(s: GameState): Flow {
   let prodModels = 0;
   for (let i = 0; i < n; i++) {
     if (bs[i].type !== 'trainer' || !bs[i].enabled) continue;
-    if (gModels < u[i] - EPS) lim[i] = 'space';
+    if (gModels < 1 - EPS && gModels <= u[i]) lim[i] = 'space';
     u[i] *= gModels;
     consDataT += u[i] * R[i].inData;
     consCodeT += u[i] * R[i].inCode;
     prodModels += u[i] * R[i].outModels;
   }
 
-  const researchDraw = Math.min(researchRate * fCode, Math.max(0, S0.code - consCodeT));
+  const researchDraw = act
+    ? Math.max(0, Math.min(researchDemand * fCode, RESEARCH[act.id].code - act.paid, S0.code - consCodeT))
+    : 0;
 
   // --- Блоки вайбкодинга ------------------------------------------------------
   let codePre = 0;
@@ -277,13 +313,16 @@ export function computeFlow(s: GameState): Flow {
     ]);
     codePre += u[i] * R[i].outCode;
   }
+  // При включённой автопродаже место на складе не ограничивает выпуск:
+  // излишек уходит на биржу, и запас не растёт выше max(текущий, резерв).
+  const sellCode = s.autoSell.code && power > EPS;
   const spaceCode = Math.max(0, caps.code - S0.code + consCodeT + researchDraw);
-  const gCode = codePre > EPS ? Math.min(1, spaceCode / codePre) : 1;
+  const gCode = sellCode || codePre <= EPS ? 1 : Math.min(1, spaceCode / codePre);
   let consDataC = 0;
   let prodCode = 0;
   for (let i = 0; i < n; i++) {
     if (bs[i].type !== 'coder' || !bs[i].enabled) continue;
-    if (gCode < u[i] - EPS) lim[i] = 'space';
+    if (gCode < 1 - EPS && gCode <= u[i]) lim[i] = 'space';
     u[i] *= gCode;
     consDataC += u[i] * R[i].inData;
     prodCode += u[i] * R[i].outCode;
@@ -294,15 +333,16 @@ export function computeFlow(s: GameState): Flow {
   for (let i = 0; i < n; i++) {
     if (bs[i].type === 'miner' && bs[i].enabled) dataPre += power * R[i].outData;
   }
+  const sellData = s.autoSell.data && power > EPS;
   const spaceData = Math.max(0, caps.data - S0.data + consDataT + consDataC);
-  const gData = dataPre > EPS ? Math.min(1, spaceData / dataPre) : 1;
+  const gData = sellData || dataPre <= EPS ? 1 : Math.min(1, spaceData / dataPre);
   for (let i = 0; i < n; i++) {
     if (bs[i].type !== 'miner' || !bs[i].enabled) continue;
-    [u[i], lim[i]] = bind([
+    u[i] = power * gData;
+    lim[i] = weakest([
       [power, 'power'],
       [gData, 'space'],
     ]);
-    u[i] = power * gData;
   }
   const prodData = dataPre * gData;
 
@@ -311,19 +351,17 @@ export function computeFlow(s: GameState): Flow {
   // склада давало бы разовый всплеск «пассивного» дохода и фальшивый рекорд.
   const data1 = S0.data - consDataT - consDataC + prodData;
   const code1 = S0.code - consCodeT - researchDraw + prodCode;
-  const exchangeOn = power > EPS;
   const surplusData = Math.max(0, prodData - consDataT - consDataC);
   const surplusCode = Math.max(0, prodCode - consCodeT - researchDraw);
-  const soldData =
-    exchangeOn && s.autoSell.data
-      ? Math.min(surplusData, Math.max(0, data1 - caps.data * BAL.autoSellReserve))
-      : 0;
-  const soldCode =
-    exchangeOn && s.autoSell.code
-      ? Math.min(surplusCode, Math.max(0, code1 - caps.code * BAL.autoSellReserve))
-      : 0;
-  const incomeExchange =
-    soldData * exchangePrice(s, 'data') + soldCode * exchangePrice(s, 'code');
+  const soldData = sellData ? Math.min(surplusData, Math.max(0, data1 - caps.data * BAL.autoSellReserve)) : 0;
+  const soldCode = sellCode ? Math.min(surplusCode, Math.max(0, code1 - caps.code * BAL.autoSellReserve)) : 0;
+  const incomeExchange = soldData * exchangePrice(s, 'data') + soldCode * exchangePrice(s, 'code');
+
+  // Доход, обеспеченный текущим производством: распродажа накопленных моделей
+  // приносит деньги, но в рекорд и контракты «$N/с» не засчитывается.
+  const modelIncome = incomeAgi + incomeSaas;
+  const backed = consModels > EPS ? Math.min(1, prodModels / consModels) : 1;
+  const incomeSustained = incomeExchange + modelIncome * backed;
 
   // --- Остальные здания и статусы ----------------------------------------------
   const b: Record<number, BuildingFlow> = {};
@@ -349,12 +387,10 @@ export function computeFlow(s: GameState): Flow {
       li = 'power';
     } else if (ui >= 0.98) {
       status = 'working';
-    } else if (li === 'space') {
-      status = 'blocked';
     } else if (ui > 0.005) {
       status = 'partial';
     } else {
-      status = 'idle';
+      status = li === 'space' ? 'blocked' : 'idle';
     }
     let out = 0;
     switch (bd.type) {
@@ -394,12 +430,14 @@ export function computeFlow(s: GameState): Flow {
     brownout,
     computeSupply,
     computeDemand,
+    computeNeedMax,
     computeRatio,
     prod: { data: prodData, code: prodCode, models: prodModels },
     cons: { data: consDataT + consDataC, code: consCodeT + researchDraw, models: consModels },
     sold: { data: soldData, code: soldCode },
     caps,
-    income: incomeAgi + incomeSaas + incomeExchange,
+    income: modelIncome + incomeExchange,
+    incomeSustained,
     incomeSaas,
     incomeAgi,
     incomeExchange,
@@ -420,14 +458,14 @@ function powerTransition(s: GameState, prev: Flow, f: Flow, notices: Notice[]): 
     }
     pushLog(s, 'alert', `ОБЕСТОЧИВАНИЕ: нагрузка ${num(f.load)} МВт, генерация ${num(f.gen)} МВт`);
     s.lastPowerNotice = s.tick;
-  } else if (!f.blackout && prev.blackout) {
+  } else if (!f.blackout && prev.blackout && !f.brownout) {
     notices.push({
       tone: 'good',
       title: 'Питание восстановлено',
       text: `Генерация ${num(f.gen)} МВт покрывает нагрузку ${num(f.load)} МВт`,
     });
     pushLog(s, 'info', 'Питание восстановлено, цех снова работает');
-  } else if (f.brownout && !prev.brownout) {
+  } else if (f.brownout && (!prev.brownout || prev.blackout)) {
     notices.push({
       tone: 'warn',
       title: 'Дефицит мощности',
@@ -536,6 +574,11 @@ export function step(s: GameState): Notice[] {
   const mods = getMods(s);
   for (const b of s.buildings) {
     if (!b.enabled) continue;
+    // Пусконаладка: узел засчитывается в рекорд после 30 секунд работы под током.
+    if (b.work < BAL.commissionTicks && !f.blackout) {
+      b.work += 1;
+      if (b.work >= BAL.commissionTicks) st.commissioned += 1;
+    }
     const bf = f.b[b.id];
     if (!bf) continue;
     if (b.type === 'coder' && bf.u > 0) {
@@ -564,7 +607,7 @@ export function step(s: GameState): Notice[] {
 
   powerTransition(s, prev, f, notices);
 
-  s.incomeHistory.push(f.income);
+  s.incomeHistory.push(f.incomeSustained);
   if (s.incomeHistory.length > BAL.historyLen) s.incomeHistory.shift();
   s.market.history.push(f.price);
   if (s.market.history.length > BAL.historyLen) s.market.history.shift();
@@ -653,6 +696,7 @@ export function build(s: GameState, type: BuildingType, x: number, y: number): A
     debt: 0,
     invested: cost,
     acc: 0,
+    work: 0,
   };
   s.buildings.push(b);
   s.stats.built += 1;

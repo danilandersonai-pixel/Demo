@@ -1,4 +1,4 @@
-import { motion } from 'framer-motion';
+import { motion, useReducedMotion } from 'framer-motion';
 import { Check, Clock, FlaskConical, Lock } from 'lucide-react';
 import { RESEARCH, RESEARCH_ORDER, TIER_NAMES } from '../game/config';
 import { researchBlocker } from '../game/engine';
@@ -17,6 +17,7 @@ function statusOf(state: GameState, id: ResearchId): TechStatus {
 }
 
 function ActiveResearch({ state }: { state: GameState }) {
+  const reduce = useReducedMotion();
   const act = state.research.active;
   if (!act) {
     return (
@@ -34,12 +35,14 @@ function ActiveResearch({ state }: { state: GameState }) {
   const rate = def.code / def.time;
   return (
     <div className="relative overflow-hidden rounded-md border border-code/60 bg-code/10 p-3">
-      <motion.div
-        className="pointer-events-none absolute inset-y-0 w-1/4"
-        style={{ background: 'linear-gradient(90deg, transparent, rgba(168,85,247,0.18), transparent)' }}
-        animate={{ left: ['-30%', '110%'] }}
-        transition={{ duration: 2.4, repeat: Infinity, ease: 'linear' }}
-      />
+      {!reduce && (
+        <motion.div
+          className="pointer-events-none absolute inset-y-0 w-1/4"
+          style={{ background: 'linear-gradient(90deg, transparent, rgba(168,85,247,0.18), transparent)' }}
+          animate={{ left: ['-30%', '110%'] }}
+          transition={{ duration: 2.4, repeat: Infinity, ease: 'linear' }}
+        />
+      )}
       <div className="relative flex items-center gap-2">
         <Icon size={18} className="text-code" aria-hidden />
         <div className="min-w-0 flex-1">

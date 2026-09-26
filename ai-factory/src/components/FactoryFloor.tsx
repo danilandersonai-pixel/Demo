@@ -1,4 +1,4 @@
-import { AnimatePresence, motion } from 'framer-motion';
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { Bug, Lock, Move, Plus, Zap } from 'lucide-react';
 import { memo, useMemo } from 'react';
 import { BUILDINGS, COLS, FEEDS, GRID, LINK_COLORS, LINK_RES } from '../game/config';
@@ -64,7 +64,8 @@ function buildLinks(state: GameState): Link[] {
         const fs = state.flow.b[src.id];
         const fb = state.flow.b[b.id];
         links.push({
-          key: `${src.id}>${b.id}@${cx},${cy}`,
+          // В ключе обе клетки: после переноса поставщика лента должна перерисоваться.
+          key: `${src.id}@${nx},${ny}>${b.id}@${cx},${cy}`,
           res,
           // Отрезок от края плитки-поставщика до края плитки-потребителя.
           x1: nx + 0.5 + dx * -(0.5 - INSET) * 0.8,
@@ -114,6 +115,8 @@ const Belts = memo(function Belts({ links }: { links: Link[] }) {
 
 /** Бегущие по лентам пакеты ресурсов — отдельный слой, чтобы анимация не перерисовывала ленты. */
 const Packets = memo(function Packets({ links }: { links: Link[] }) {
+  const reduce = useReducedMotion();
+  if (reduce) return null;
   return (
     <svg
       className="pointer-events-none absolute inset-0 z-[1] h-full w-full [will-change:transform]"
@@ -204,7 +207,7 @@ const Tile = memo(function Tile({
         onClick={() => onClick(b.id)}
         className={`tile text-left ${selected ? 'tile-selected' : ''} ${!b.enabled ? 'tile-off' : ''} ${
           status === 'nopower' ? 'tile-dead' : ''
-        } ${moving ? 'animate-pulse' : ''}`}
+        } ${moving ? 'motion-safe:animate-pulse' : ''}`}
         style={{ ['--c' as string]: def.color, ['--glow' as string]: glow }}
         aria-label={`${def.name} ${serialOf(b)}, Mk.${roman(b.level)}, ${cellName(b.x, b.y)}: ${STATUS_LABEL[status]}, загрузка ${pct(u)}`}
       >

@@ -177,6 +177,11 @@ export function BuildingPanel({
           </div>
           <Meter value={bf?.u ?? 0} color={STATUS_COLOR[status]} label="Загрузка здания" />
           <p className="mt-1.5 text-[12px] text-steel-300">{LIMIT_TEXT[bf?.lim ?? 'none']}</p>
+          {b.work < BAL.commissionTicks && (
+            <p className="num mt-1 text-[11px] text-data">
+              Пусконаладка: {b.work} / {BAL.commissionTicks} с — после неё узел попадёт в рекорд построек.
+            </p>
+          )}
         </div>
 
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">

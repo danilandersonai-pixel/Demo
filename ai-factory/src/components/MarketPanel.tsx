@@ -120,7 +120,7 @@ export function MarketPanel({
       </section>
 
       <section aria-label="Структура дохода">
-        <h3 className="mb-1.5 font-display text-[11px] uppercase tracking-[0.14em] text-steel-200">Пассивный доход сейчас</h3>
+        <h3 className="mb-1.5 font-display text-[11px] uppercase tracking-[0.14em] text-steel-200">Выручка по источникам</h3>
         {[
           { label: 'Терминалы SaaS', v: f.incomeSaas, c: '#34d399' },
           { label: 'Суперкомпьютеры AGI', v: f.incomeAgi, c: '#f0abfc' },

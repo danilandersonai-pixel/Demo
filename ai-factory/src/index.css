@@ -291,7 +291,7 @@ body {
   .tile-label {
     display: none;
   }
-  @container (min-width: 60px) {
+  @container (min-width: 52px) {
     .tile-serial {
       display: block;
     }

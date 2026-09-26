@@ -1,4 +1,4 @@
-import { AnimatePresence, motion } from 'framer-motion';
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { Bug, GitMerge, WandSparkles } from 'lucide-react';
 import { useState } from 'react';
 import { BAL } from '../game/config';
@@ -19,6 +19,7 @@ export function TechDebt({ state, onRefactor }: { state: GameState; onRefactor: 
   const cost = refactorCost(state);
   const coders = state.buildings.filter((b) => b.type === 'coder').sort((a, b) => b.debt - a.debt);
   const [sweep, setSweep] = useState(0);
+  const reduce = useReducedMotion();
 
   let lost = 0;
   for (const b of coders) {
@@ -40,7 +41,7 @@ export function TechDebt({ state, onRefactor }: { state: GameState; onRefactor: 
       className="relative overflow-hidden"
     >
       <AnimatePresence>
-        {sweep > 0 && (
+        {sweep > 0 && !reduce && (
           <motion.div
             key={sweep}
             className="pointer-events-none absolute inset-y-0 z-10 w-1/3"

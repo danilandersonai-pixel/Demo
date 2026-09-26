@@ -133,7 +133,7 @@ function lowestLevel(s: GameState, type: BuildingType) {
 
 function energyOf(s: GameState, type: BuildingType): number {
   const mods = getMods(s);
-  return energyUse({ id: 0, type, x: 0, y: 0, level: 1, enabled: true, debt: 0, invested: 0, acc: 0 }, mods);
+  return energyUse({ id: 0, type, x: 0, y: 0, level: 1, enabled: true, debt: 0, invested: 0, acc: 0, work: 0 }, mods);
 }
 
 /** Прибавка нагрузки от улучшения здания на один уровень. */

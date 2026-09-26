@@ -137,7 +137,7 @@ export function Inventory({
           text: computeFree >= 0 ? `${signed(computeFree)} свободно` : `${signed(computeFree)} не хватает`,
           className: computeFree >= 0 ? 'text-cash' : 'text-alert',
         }}
-        detail="спрос / мощность"
+        detail={`спрос / мощность · макс. ${num(f.computeNeedMax)}`}
       />
       <Row
         icon={RES_ICONS.credits}

@@ -67,9 +67,12 @@ function boot(): Boot {
     // Пока вкладка была закрыта, фабрика работала сама (не дольше 4 часов).
     const elapsed = Math.floor((Date.now() - state.savedAt) / 1000);
     if (elapsed >= 2) {
+      const before = state.stats.commissioned;
       const summary = engine.simulate(state, Math.min(elapsed, BAL.offlineCap));
       if (elapsed >= 60) offline = summary;
       records = trackIncome(records, avgIncome(state), Date.now()).r;
+      const fresh = state.stats.commissioned - before;
+      if (fresh > 0) records = trackBuilt(records, fresh).r;
     }
   }
   return { state, records, prefs, offline, storageOk };
@@ -154,7 +157,15 @@ export function useGame() {
   }, []);
 
   const afterTicks = useCallback(
-    (next: GameState) => {
+    (next: GameState, commissionedBefore: number) => {
+      // Рекорд построек растёт, когда узлы проходят 30-секундную пусконаладку.
+      const fresh = next.stats.commissioned - commissionedBefore;
+      if (fresh > 0) {
+        const { r, milestone } = trackBuilt(recordsRef.current, fresh);
+        setRecordsBoth(r);
+        saveRecords(r);
+        if (milestone) celebrate({ kind: 'built', value: milestone, prev: milestone });
+      }
       const inc = avgIncome(next);
       const res = trackIncome(recordsRef.current, inc, Date.now());
       if (res.r !== recordsRef.current) {
@@ -172,6 +183,7 @@ export function useGame() {
   // ---------- игровой цикл ----------
   const advance = useCallback(
     (ticks: number) => {
+      const commissionedBefore = stateRef.current.stats.commissioned;
       const next = structuredClone(stateRef.current);
       if (ticks > BATCH_REPORT) {
         const summary = engine.simulate(next, Math.min(ticks, BAL.offlineCap));
@@ -183,7 +195,7 @@ export function useGame() {
         commit(next);
         pushToasts(notices);
       }
-      afterTicks(next);
+      afterTicks(next, commissionedBefore);
     },
     [afterTicks, commit, pushToasts],
   );
@@ -244,14 +256,13 @@ export function useGame() {
       act(
         (s) => engine.build(s, type, x, y),
         (s) => {
-          const { r, milestone } = trackBuilt(recordsRef.current, 1);
-          const rec = type === 'agi' ? trackAgi(r, s.tick) : r;
+          if (type !== 'agi') return;
+          const rec = trackAgi(recordsRef.current, s.tick);
           setRecordsBoth(rec);
           saveRecords(rec);
-          if (milestone) celebrate({ kind: 'built', value: milestone, prev: milestone });
         },
       ),
-    [act, celebrate, setRecordsBoth],
+    [act, setRecordsBoth],
   );
 
   const actions = useMemo(

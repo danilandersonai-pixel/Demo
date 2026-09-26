@@ -11,7 +11,7 @@ import { Modal } from '../ui/primitives';
 /** Короткая «формула» здания уровня Mk.I с учётом исследований (без бонуса соседства). */
 export function recipeOf(state: GameState, type: BuildingType, level = 1): { io: string; energy: string } {
   const mods = getMods(state);
-  const b: Building = { id: 0, type, x: 0, y: 0, level, enabled: true, debt: 0, invested: 0, acc: 0 };
+  const b: Building = { id: 0, type, x: 0, y: 0, level, enabled: true, debt: 0, invested: 0, acc: 0, work: 0 };
   const r = ratesFor(b, mods, 0);
   const price = modelPrice(state, mods);
   let io = '';

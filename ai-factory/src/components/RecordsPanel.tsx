@@ -35,10 +35,10 @@ export function RecordsPanel({ state, records }: { state: GameState; records: Re
         </div>
         <div className="relative overflow-hidden rounded-md border border-data/50 bg-data/10 p-3">
           <Crown className="absolute -right-2 -top-2 text-data/15" size={64} aria-hidden />
-          <div className="font-mono text-[9.5px] uppercase tracking-wider text-data">Построено узлов за всё время</div>
+          <div className="font-mono text-[9.5px] uppercase tracking-wider text-data">Запущено узлов за всё время</div>
           <div className="num mt-0.5 text-xl font-bold text-data text-glow">{int(records.totalBuilt)}</div>
           <div className="num mt-0.5 text-[10.5px] text-steel-400">
-            {next ? `следующий рубеж — ${next}` : 'все рубежи взяты'}
+            {next ? `следующий рубеж — ${next}` : 'все рубежи взяты'} · узел засчитывается после 30 с работы
           </div>
           {next && <Meter value={records.totalBuilt / next} color="#22d3ee" height={4} className="mt-1.5" label="До рубежа" />}
         </div>

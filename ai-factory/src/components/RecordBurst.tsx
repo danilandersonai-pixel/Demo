@@ -1,4 +1,4 @@
-import { AnimatePresence, motion } from 'framer-motion';
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { Crown, Trophy } from 'lucide-react';
 import { useEffect, useMemo } from 'react';
 import { money, pct } from '../game/format';
@@ -36,7 +36,11 @@ export function RecordBurst({ celebration, onDone }: { celebration: Celebration 
     return () => window.clearTimeout(t);
   }, [celebration, onDone]);
 
-  const parts = useMemo(() => (celebration ? particles(celebration.id * 7 + 3) : []), [celebration]);
+  const reduce = useReducedMotion();
+  const parts = useMemo(
+    () => (celebration && !reduce ? particles(celebration.id * 7 + 3) : []),
+    [celebration, reduce],
+  );
   const income = celebration?.kind === 'income';
   const color = income ? '#34d399' : '#22d3ee';
   const Icon = income ? Trophy : Crown;
@@ -58,6 +62,7 @@ export function RecordBurst({ celebration, onDone }: { celebration: Celebration 
             animate={{ opacity: 0.25 }}
             transition={{ duration: 1.2 }}
           />
+          {!reduce && (
           <motion.div
             className="absolute h-[150vmax] w-[150vmax]"
             style={{
@@ -69,6 +74,7 @@ export function RecordBurst({ celebration, onDone }: { celebration: Celebration 
             animate={{ rotate: 55, scale: 1, opacity: 1 }}
             transition={{ duration: 4.8, ease: 'linear' }}
           />
+          )}
           {parts.map((p) => (
             <motion.span
               key={p.i}

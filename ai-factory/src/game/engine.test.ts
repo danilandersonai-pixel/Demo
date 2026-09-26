@@ -202,6 +202,10 @@ describe('производственная цепочка', () => {
     step(s);
     expect(s.res.data).toBeCloseTo(BAL.baseCaps.data, 6);
     const miner = s.buildings[1];
+    // Места хватило на треть выработки — загрузка неполная, причина — склад.
+    expect(s.flow.b[miner.id].status).toBe('partial');
+    expect(s.flow.b[miner.id].lim).toBe('space');
+    step(s);
     expect(s.flow.b[miner.id].status).toBe('blocked');
     mustBuild(s, 'storage', 4, 4);
     expect(s.flow.caps.data).toBeCloseTo(BAL.baseCaps.data * 2, 6);
@@ -380,3 +384,111 @@ describe('сохранение и офлайн', () => {
     expect(ra.code).toBeGreaterThan(0);
   });
 });
+
+describe('регрессии из ревью', () => {
+  it('автопродажа разгружает полный склад: добыча не встаёт навсегда', () => {
+    const s = fresh();
+    mustBuild(s, 'reactor', 1, 1);
+    const miner = mustBuild(s, 'miner', 2, 2);
+    s.res.data = BAL.baseCaps.data; // склад забит под завязку
+    step(s);
+    expect(s.flow.b[miner.id].status).toBe('blocked');
+    setAutoSell(s, 'data', true);
+    step(s);
+    expect(s.flow.b[miner.id].u).toBeCloseTo(1, 6);
+    expect(s.flow.sold.data).toBeCloseTo(BAL.minerOut, 6);
+    expect(s.res.data).toBeCloseTo(BAL.baseCaps.data, 6); // запас не превысил вместимость
+  });
+
+  it('AGI без моделей не отнимает вычисления у кластеров обучения', () => {
+    const s = fresh();
+    s.research.done.push('transformers');
+    for (let i = 0; i < 4; i++) mustBuild(s, 'reactor', 1, 1 + i);
+    mustBuild(s, 'gpu', 6, 6); // 10 PFLOPS
+    const trainer = mustBuild(s, 'trainer', 6, 1); // нужно 5 PFLOPS
+    mustBuild(s, 'agi', 3, 1); // нужно 30 PFLOPS, но моделей нет
+    s.res.data = 500;
+    s.res.code = 500;
+    s.res.models = 0;
+    const f = computeFlow(s);
+    expect(f.b[trainer.id].u).toBeCloseTo(1, 6);
+    expect(f.computeNeedMax).toBeGreaterThan(f.computeSupply);
+    expect(f.computeDemand).toBeCloseTo(BAL.trainerCompute, 6);
+  });
+
+  it('исследование не зависает у 100% при дефиците кода', () => {
+    const s = fresh();
+    for (let i = 0; i < 3; i++) mustBuild(s, 'reactor', 1, 1 + i);
+    for (let i = 0; i < 3; i++) mustBuild(s, 'trainer', 3 + i, 1);
+    mustBuild(s, 'gpu', 3, 3);
+    mustBuild(s, 'gpu', 4, 3);
+    mustBuild(s, 'coder', 6, 6);
+    mustBuild(s, 'miner', 5, 6);
+    mustBuild(s, 'miner', 4, 6);
+    s.res.data = 2000;
+    startResearch(s, 'softRefactor');
+    let almost = -1;
+    for (let t = 0; t < 3000 && s.research.active; t++) {
+      step(s);
+      const act = s.research.active;
+      if (almost < 0 && act && act.paid >= RESEARCH.softRefactor.code * 0.99) almost = s.tick;
+    }
+    expect(s.research.done).toContain('softRefactor');
+    // Последний процент добирается за считанные секунды, а не за минуты.
+    expect(s.tick - almost).toBeLessThan(10);
+  });
+
+  it('распродажа накопленных моделей не накручивает рекордный доход', () => {
+    const s = fresh();
+    for (let i = 0; i < 3; i++) mustBuild(s, 'reactor', 1, 1 + i);
+    mustBuild(s, 'gpu', 3, 3);
+    mustBuild(s, 'trainer', 5, 5);
+    const pubs = [mustBuild(s, 'publisher', 2, 5), mustBuild(s, 'publisher', 2, 6), mustBuild(s, 'publisher', 3, 6)];
+    s.res.data = 900;
+    s.res.code = 700;
+    s.res.models = BAL.baseCaps.models; // терминалы копили склад моделей
+    for (const p of pubs) expect(p.enabled).toBe(true);
+    step(s);
+    const f = s.flow;
+    expect(f.incomeSaas).toBeGreaterThan(0);
+    // Засчитывается не больше, чем обеспечено выпуском моделей на этом тике.
+    expect(f.incomeSustained).toBeLessThanOrEqual(f.prod.models * f.price + f.incomeExchange + 1e-6);
+    expect(f.incomeSustained).toBeLessThan(f.income);
+    expect(s.incomeHistory[s.incomeHistory.length - 1]).toBeCloseTo(f.incomeSustained, 6);
+  });
+
+  it('выход из блэкаута в дефицит мощности не выдаётся за восстановление', () => {
+    const s = fresh();
+    s.research.done.push('smartGrid');
+    const reactor = mustBuild(s, 'reactor', 1, 1);
+    for (let i = 0; i < 10; i++) mustBuild(s, 'miner', 2 + (i % 5), 2 + Math.floor(i / 5)); // 30 МВт
+    toggle(s, reactor.id);
+    expect(s.flow.blackout).toBe(true);
+    const r = toggle(s, reactor.id);
+    expect(s.flow.brownout).toBe(true);
+    const titles = (r.notices ?? []).map((n) => n.title);
+    expect(titles).toContain('Дефицит мощности');
+    expect(titles).not.toContain('Питание восстановлено');
+  });
+
+  it('узел засчитывается в рекорд только после пусконаладки', () => {
+    const s = fresh();
+    mustBuild(s, 'reactor', 1, 1);
+    const miner = mustBuild(s, 'miner', 2, 2);
+    for (let i = 0; i < BAL.commissionTicks - 1; i++) step(s);
+    expect(s.stats.commissioned).toBe(0);
+    demolish(s, miner.id); // снесли до конца пусконаладки — в рекорд не попал
+    step(s);
+    expect(s.stats.commissioned).toBe(1); // засчитан только реактор
+  });
+
+  it('битая запись журнала без id отбрасывается при загрузке', () => {
+    const s = fresh();
+    const raw = JSON.parse(serialize(s));
+    raw.log.push({ t: 5, kind: 'info', text: 'без id' });
+    const copy = deserialize(JSON.stringify(raw))!;
+    expect(copy.log.every((e) => Number.isFinite(e.id))).toBe(true);
+    expect(Number.isFinite(copy.logSeq)).toBe(true);
+  });
+});
+

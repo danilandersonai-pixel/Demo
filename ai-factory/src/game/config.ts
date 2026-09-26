@@ -51,6 +51,9 @@ export const BAL = {
   autoRefactorAt: 40,
   autoRefactorDiscount: 0.5,
 
+  /** Узел засчитывается в рекорд «построено узлов» после 30 секунд работы. */
+  commissionTicks: 30,
+
   /** Автопродажа оставляет на складе 25% вместимости как буфер для цехов. */
   autoSellReserve: 0.25,
   startCredits: 2000,

@@ -48,6 +48,8 @@ export interface Building {
   invested: number;
   /** Накопитель выпуска моделей: когда доходит до 1, на плитке всплывает «+1». */
   acc: number;
+  /** Секунды пусконаладки (0…30): после них узел засчитывается в рекорд построек. */
+  work: number;
 }
 
 /** Почему здание работает не на 100%. */
@@ -88,7 +90,10 @@ export interface Flow {
   blackout: boolean;
   brownout: boolean;
   computeSupply: number;
+  /** Спрос на вычисления с учётом реальной загрузки. */
   computeDemand: number;
+  /** Спрос, если все потребители вычислений заработают на 100%. */
+  computeNeedMax: number;
   computeRatio: number;
   prod: Record<ResKey, number>;
   cons: Record<ResKey, number>;
@@ -97,6 +102,8 @@ export interface Flow {
   caps: Record<ResKey, number>;
   /** Пассивный доход за тик (SaaS + AGI + автопродажа сырья). */
   income: number;
+  /** Та же выручка, но продажа моделей учитывается не больше их выпуска за тик. */
+  incomeSustained: number;
   incomeSaas: number;
   incomeAgi: number;
   incomeExchange: number;
@@ -138,6 +145,8 @@ export interface Stats {
   refactors: number;
   autoRefactors: number;
   blackoutTicks: number;
+  /** Сколько узлов этой фабрики прошли пусконаладку. */
+  commissioned: number;
   agiBuiltAt: number | null;
 }
 

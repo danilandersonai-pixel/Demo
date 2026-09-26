@@ -123,6 +123,8 @@ export function deserialize(raw: string): GameState | null {
       debt: type === 'coder' ? Math.min(100, nonNeg(b.debt, 0)) : 0,
       invested: nonNeg(b.invested, BUILDINGS[type].cost),
       acc: Math.min(1, nonNeg(b.acc, 0)),
+      // В старых сохранениях поля нет — такие узлы уже засчитаны в рекорд.
+      work: Math.min(BAL.commissionTicks, Math.floor(nonNeg(b.work, BAL.commissionTicks))),
     };
     if (cand.id <= 0 || buildings.some((x) => x.id === cand.id)) continue;
     const cells = cellsOf(cand);
@@ -170,6 +172,9 @@ export function deserialize(raw: string): GameState | null {
     refactors: Math.floor(nonNeg(st.refactors, 0)),
     autoRefactors: Math.floor(nonNeg(st.autoRefactors, 0)),
     blackoutTicks: Math.floor(nonNeg(st.blackoutTicks, 0)),
+    commissioned: Math.floor(
+      nonNeg(st.commissioned, s.buildings.filter((b) => b.work >= BAL.commissionTicks).length),
+    ),
     agiBuiltAt: typeof st.agiBuiltAt === 'number' ? st.agiBuiltAt : null,
   };
 
@@ -183,7 +188,13 @@ export function deserialize(raw: string): GameState | null {
     ? (o.log as unknown[])
         .filter((e): e is LogEntry => {
           const x = e as LogEntry;
-          return !!x && typeof x.text === 'string' && typeof x.t === 'number' && LOG_KINDS.has(x.kind);
+          return (
+            !!x &&
+            typeof x.text === 'string' &&
+            Number.isFinite(x.t) &&
+            Number.isFinite(x.id) &&
+            LOG_KINDS.has(x.kind)
+          );
         })
         .slice(-BAL.logLen)
     : [];

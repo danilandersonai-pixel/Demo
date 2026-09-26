@@ -1,4 +1,4 @@
-import { motion } from 'framer-motion';
+import { motion, useReducedMotion } from 'framer-motion';
 import { Activity, Atom, TriangleAlert } from 'lucide-react';
 import { BUILDINGS } from '../game/config';
 import { num, pct } from '../game/format';
@@ -43,6 +43,8 @@ export function PowerGrid({ state }: { state: GameState }) {
   const ev = state.market.event;
   const coderMw = BUILDINGS.coder.energy * mods.coderEnergy;
   const ratio = f.gen > 0 ? f.load / f.gen : f.load > 0 ? 1 : 0;
+  const reduce = useReducedMotion();
+  const blink = g.hazard && !reduce;
 
   return (
     <Panel
@@ -54,8 +56,8 @@ export function PowerGrid({ state }: { state: GameState }) {
       <motion.div
         className={`relative overflow-hidden rounded border px-3 py-2 ${g.hazard ? 'hazard-red' : ''}`}
         style={{ borderColor: `${g.color}88`, background: g.hazard ? undefined : `${g.color}12` }}
-        animate={g.hazard ? { opacity: [1, 0.55, 1] } : { opacity: 1 }}
-        transition={g.hazard ? { duration: 0.9, repeat: Infinity } : undefined}
+        animate={blink ? { opacity: [1, 0.55, 1] } : { opacity: 1 }}
+        transition={blink ? { duration: 0.9, repeat: Infinity } : undefined}
       >
         <div className="flex items-center gap-2">
           {g.hazard && <TriangleAlert size={16} color={g.color} aria-hidden />}
