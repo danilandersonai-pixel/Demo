@@ -1,4 +1,4 @@
-import { useEffect, type RefObject } from 'react';
+import { useEffect, useRef, type RefObject } from 'react';
 
 const FOCUSABLE =
   'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
@@ -7,6 +7,12 @@ function focusables(root: HTMLElement): HTMLElement[] {
   return Array.from(root.querySelectorAll<HTMLElement>(FOCUSABLE)).filter(
     (el) => el.offsetParent !== null || el === document.activeElement,
   );
+}
+
+/** Кто открыл панель и вернуть ли ему фокус при закрытии. */
+interface Opener {
+  element: HTMLElement;
+  restore: boolean;
 }
 
 /**
@@ -18,12 +24,25 @@ function focusables(root: HTMLElement): HTMLElement[] {
  * внутри диалога: Panel не пробрасывает ref, диалог находится через closest().
  */
 export function useDialogFocus(anchor: RefObject<HTMLElement | null>, initial?: RefObject<HTMLElement | null>): void {
+  /**
+   * Открывший запоминается один раз за открытие (undefined — ещё не смотрели,
+   * null — фокус был ничей). StrictMode в разработке прогоняет эффект дважды:
+   * ко второму прогону фокус уже внутри диалога, а слой под панелью inert, и
+   * «вернуть» фокус туда в промежуточной очистке нельзя — без ref открывший
+   * терялся бы.
+   */
+  const opener = useRef<Opener | null | undefined>(undefined);
+
   useEffect(() => {
     const dialog = anchor.current?.closest<HTMLElement>('[role="dialog"]') ?? null;
     if (!dialog) return;
-    const opener = document.activeElement;
-    const previous = opener instanceof HTMLElement && !dialog.contains(opener) ? opener : null;
-    const restore = previous?.matches(':focus-visible') ?? false;
+    if (opener.current === undefined) {
+      const active = document.activeElement;
+      opener.current =
+        active instanceof HTMLElement && active !== document.body && !dialog.contains(active)
+          ? { element: active, restore: active.matches(':focus-visible') }
+          : null;
+    }
 
     const target = initial?.current ?? focusables(dialog)[0] ?? null;
     target?.focus({ preventScroll: true });
@@ -48,7 +67,10 @@ export function useDialogFocus(anchor: RefObject<HTMLElement | null>, initial?: 
 
     return () => {
       document.removeEventListener('keydown', onKeyDown);
-      if (restore && previous?.isConnected) previous.focus({ preventScroll: true });
+      // Настоящее закрытие: App снимает inert со слоя под панелью в том же
+      // коммите, что и закрывает её, — к концу анимации выхода кнопка снова фокусируема.
+      const back = opener.current;
+      if (back?.restore && back.element.isConnected) back.element.focus({ preventScroll: true });
     };
     // Ref-объекты стабильны: эффект срабатывает один раз — при открытии панели.
   }, [anchor, initial]);

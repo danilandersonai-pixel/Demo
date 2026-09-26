@@ -48,6 +48,11 @@ export interface GameOverOverlayProps {
   onShop(): void;
   onLeaderboard(): void;
   onMenu(): void;
+  /**
+   * Поверх открыта панель («Рекорды»): карточка со своими кнопками уходит из
+   * дерева доступности и из фокуса — модальным остаётся только диалог панели.
+   */
+  covered?: boolean;
 }
 
 const EASE_OUT: [number, number, number, number] = [0.16, 1, 0.3, 1];
@@ -203,7 +208,16 @@ function Stat({ icon: Icon, label, short, tone, children, note }: StatProps) {
 
 // ─── Экран ──────────────────────────────────────────────────────────────────
 
-export function GameOverOverlay({ result, outcome, wallet, onRetry, onShop, onLeaderboard, onMenu }: GameOverOverlayProps) {
+export function GameOverOverlay({
+  result,
+  outcome,
+  wallet,
+  onRetry,
+  onShop,
+  onLeaderboard,
+  onMenu,
+  covered = false,
+}: GameOverOverlayProps) {
   const titleId = useId();
   const retryRef = useRef<HTMLButtonElement>(null);
   // Экран уже уходит (анимация выхода): кнопки не ловят клики.
@@ -235,7 +249,7 @@ export function GameOverOverlay({ result, outcome, wallet, onRetry, onShop, onLe
   const best = Math.max(outcome.previousHighscore, result.score);
 
   return (
-    <Overlay blur="lg" label="Итоги забега" className={isPresent ? '' : 'pointer-events-none'}>
+    <Overlay blur="lg" label="Итоги забега" inert={covered} className={isPresent ? '' : 'pointer-events-none'}>
       <NeonCard
         accent="pink"
         labelledBy={titleId}

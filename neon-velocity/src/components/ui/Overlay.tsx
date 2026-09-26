@@ -17,6 +17,12 @@ export interface OverlayProps {
   className?: string;
   /** Подпись для скринридеров. */
   label?: string;
+  /**
+   * Слой перекрыт модальной панелью (например, «Рекорды» поверх Game Over):
+   * inert убирает его целиком из дерева доступности, порядка Tab и из-под
+   * указателя — открытым остаётся ровно один диалог.
+   */
+  inert?: boolean;
 }
 
 /**
@@ -38,11 +44,13 @@ const BLUR = { sm: 'backdrop-blur-sm', md: 'backdrop-blur-md', lg: 'backdrop-blu
  * размытием заднего плана. Оборачивайте в <AnimatePresence>, чтобы работала
  * анимация выхода.
  */
-export function Overlay({ children, onBackdropClick, blur, layer = 30, className = '', label }: OverlayProps) {
+export function Overlay({ children, onBackdropClick, blur, layer = 30, className = '', label, inert = false }: OverlayProps) {
   return (
     <motion.div
       role="presentation"
       aria-label={label}
+      // React 19 снимает атрибут при false.
+      inert={inert}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}

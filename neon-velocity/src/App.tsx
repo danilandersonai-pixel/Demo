@@ -63,15 +63,22 @@ function isActivatable(target: EventTarget | null): boolean {
  * проходит мимо него. Уходящие пауза и Game Over уже прозрачны для кликов, а
  * меню с первого кадра лежит поверх них — второй тап двойного нажатия «В меню»
  * иначе открыл бы панель или забег под пальцем. Клавиатуру это не трогает.
- * display: contents — обёртка не создаёт своего бокса, а pointer-events наследуется.
+ * Пока поверх открыта панель (covered), меню inert: его кнопки не читаются
+ * скринридером и не берут фокус из-под модального диалога.
+ * display: contents — обёртка не создаёт своего бокса, а pointer-events и
+ * инертность наследуются.
  */
-function ArrivingMenu({ children }: { children: ReactNode }) {
+function ArrivingMenu({ covered, children }: { covered: boolean; children: ReactNode }) {
   const [armed, setArmed] = useState(false);
   useEffect(() => {
     const t = window.setTimeout(() => setArmed(true), MENU_ARM_MS);
     return () => window.clearTimeout(t);
   }, []);
-  return <div className={armed ? 'contents' : 'pointer-events-none contents'}>{children}</div>;
+  return (
+    <div inert={covered} className={armed ? 'contents' : 'pointer-events-none contents'}>
+      {children}
+    </div>
+  );
 }
 
 export default function App() {
@@ -355,7 +362,7 @@ export default function App() {
 
         <AnimatePresence>
           {screen === 'menu' && (
-            <ArrivingMenu key="menu">
+            <ArrivingMenu key="menu" covered={panel !== null}>
               <MainMenu save={save} storageOk={storageOk} onPlay={play} onOpenPanel={openPanel} onToggleSound={toggleSound} />
             </ArrivingMenu>
           )}
@@ -379,6 +386,9 @@ export default function App() {
               onShop={openShopFromGameOver}
               onLeaderboard={openLeaderboard}
               onMenu={toMenu}
+              // Панель закрывается синхронно (setPanel(null)), и inert снимается раньше,
+              // чем уходящая панель вернёт фокус на кнопку, которая её открыла.
+              covered={panel !== null}
             />
           )}
         </AnimatePresence>
