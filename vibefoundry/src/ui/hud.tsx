@@ -56,7 +56,7 @@ export function TopBar({ game }: { game: Game }) {
       </div>
       <div class="res-strip">
         {res.map((r) => (
-          <div class={'panel res' + (r.bad ? ' bad' : '')} key={r.key} data-tip={r.tip}>
+          <div class={'panel res' + (r.bad ? ' bad' : '')} key={r.key} data-tip={r.tip} data-p={['silicon', 'oil', 'uranium'].includes(r.key) ? 'low' : r.key === 'copper' || r.key === 'compute' ? 'mid' : 'high'}>
             <ResIcon name={r.icon} size={26} />
             <div>
               <div class="t">{r.name}</div>
