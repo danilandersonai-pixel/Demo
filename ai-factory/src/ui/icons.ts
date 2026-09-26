@@ -1,0 +1,68 @@
+import {
+  Atom,
+  Binary,
+  Blocks,
+  BrainCircuit,
+  CodeXml,
+  Coins,
+  Cpu,
+  Database,
+  FastForward,
+  GitMerge,
+  Globe,
+  Grid3x3,
+  HardDrive,
+  Infinity as InfinityIcon,
+  Layers,
+  Megaphone,
+  Microchip,
+  Network,
+  Orbit,
+  Radiation,
+  ShieldCheck,
+  Snowflake,
+  WandSparkles,
+  Warehouse,
+  Workflow,
+  Zap,
+  type LucideIcon,
+} from 'lucide-react';
+import type { BuildingType, ResearchId } from '../game/types';
+
+export const BUILDING_ICONS: Record<BuildingType, LucideIcon> = {
+  reactor: Atom,
+  miner: Database,
+  coder: CodeXml,
+  gpu: Cpu,
+  trainer: BrainCircuit,
+  publisher: Globe,
+  storage: Warehouse,
+  agi: Orbit,
+};
+
+export const RES_ICONS = {
+  data: HardDrive,
+  code: CodeXml,
+  models: BrainCircuit,
+  energy: Zap,
+  compute: Cpu,
+  credits: Coins,
+} satisfies Record<string, LucideIcon>;
+
+export const RESEARCH_ICONS: Record<ResearchId, LucideIcon> = {
+  conveyor: Workflow,
+  softRefactor: WandSparkles,
+  coldStorage: Snowflake,
+  smartGrid: Network,
+  codeReview: ShieldCheck,
+  synthData: Binary,
+  tensorCores: Microchip,
+  fusion: Radiation,
+  viral: Megaphone,
+  expansion: Grid3x3,
+  cicd: GitMerge,
+  distill: Layers,
+  hyper: FastForward,
+  transformers: Blocks,
+  singularity: InfinityIcon,
+};

@@ -1,0 +1,410 @@
+@import "tailwindcss";
+
+/*
+ * Дизайн-система «Industrial Cyber-Factory».
+ * Фон — #0a0c10, нейтрали — сталь с холодным синим оттенком,
+ * у каждого ресурса свой неон: данные — циан, код — фиолетовый,
+ * модели — розовый, вычисления — синий, энергия — жёлтый, деньги — зелёный.
+ */
+@theme {
+  --font-display: "Russo One", "Arial Black", Impact, system-ui, sans-serif;
+  --font-sans: "IBM Plex Sans Condensed", "Roboto Condensed", "Arial Narrow", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  --color-void: #0a0c10;
+  --color-steel-950: #0c0f14;
+  --color-steel-900: #10141b;
+  --color-steel-850: #141922;
+  --color-steel-800: #192029;
+  --color-steel-750: #1f2632;
+  --color-steel-700: #28303d;
+  --color-steel-600: #343e4d;
+  --color-steel-500: #4b5667;
+  --color-steel-400: #6b7788;
+  --color-steel-300: #8f9bad;
+  --color-steel-200: #b8c2d0;
+  --color-steel-100: #dde3ec;
+
+  --color-data: #22d3ee;
+  --color-code: #a855f7;
+  --color-model: #f472b6;
+  --color-compute: #60a5fa;
+  --color-energy: #facc15;
+  --color-cash: #34d399;
+  --color-debt: #fb923c;
+  --color-alert: #f43f5e;
+  --color-agi: #f0abfc;
+}
+
+:root {
+  color-scheme: dark;
+}
+
+html,
+body {
+  height: 100%;
+  background: #0a0c10;
+}
+
+body {
+  margin: 0;
+  color: var(--color-steel-100);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+#root {
+  min-height: 100%;
+}
+
+@media (min-width: 768px) {
+  #root {
+    height: 100%;
+  }
+}
+
+/* Фон всего экрана: тонкая инженерная сетка и виньетка. */
+.app-bg {
+  background:
+    radial-gradient(ellipse at 50% 0%, rgba(34, 211, 238, 0.05), transparent 55%),
+    radial-gradient(ellipse at 50% 120%, rgba(168, 85, 247, 0.06), transparent 60%),
+    linear-gradient(rgba(255, 255, 255, 0.018) 1px, transparent 1px) 0 0 / 32px 32px,
+    linear-gradient(90deg, rgba(255, 255, 255, 0.018) 1px, transparent 1px) 0 0 / 32px 32px,
+    #0a0c10;
+}
+
+/* Лёгкие ЭЛТ-сканлайны поверх интерфейса. */
+.scanlines {
+  pointer-events: none;
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  background: repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.012) 0 1px, transparent 1px 3px);
+}
+
+@layer components {
+  /* Стальная панель с заклёпками по углам и шлифовкой. */
+  .panel {
+    position: relative;
+    border: 1px solid #242c38;
+    border-radius: 6px;
+    background:
+      radial-gradient(circle at 8px 8px, #3a4455 1.3px, transparent 2px),
+      radial-gradient(circle at calc(100% - 8px) 8px, #3a4455 1.3px, transparent 2px),
+      radial-gradient(circle at 8px calc(100% - 8px), #3a4455 1.3px, transparent 2px),
+      radial-gradient(circle at calc(100% - 8px) calc(100% - 8px), #3a4455 1.3px, transparent 2px),
+      repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.011) 0 1px, transparent 1px 4px),
+      linear-gradient(180deg, #151a23 0%, #0f131a 100%);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.045),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.5),
+      0 10px 30px rgba(0, 0, 0, 0.35);
+  }
+
+  .panel-head {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.55rem 0.9rem 0.45rem 1.4rem;
+    border-bottom: 1px solid #202733;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.025), transparent);
+  }
+
+  .panel-code {
+    flex-shrink: 0;
+    white-space: nowrap;
+    font-family: var(--font-mono);
+    font-size: 0.625rem;
+    letter-spacing: 0.08em;
+    color: var(--color-steel-400);
+    padding: 0.05rem 0.3rem;
+    border: 1px solid #2b3441;
+    border-radius: 2px;
+    background: #0d1117;
+  }
+
+  .panel-title {
+    font-family: var(--font-display);
+    font-size: 0.8rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--color-steel-100);
+  }
+
+  /* Кнопки в стиле пульта: сталь, цветная кромка, неоновая подсветка. */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    min-height: 2rem;
+    padding: 0.35rem 0.75rem;
+    border: 1px solid #2d3644;
+    border-top-color: var(--btn-c, #3b4556);
+    border-radius: 4px;
+    background: linear-gradient(180deg, #1c2330, #141a23);
+    color: var(--color-steel-100);
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    transition:
+      border-color 0.15s,
+      box-shadow 0.15s,
+      transform 0.1s,
+      background 0.15s;
+    cursor: pointer;
+    user-select: none;
+  }
+  .btn:hover:not(:disabled) {
+    border-color: var(--btn-c, #4b5667);
+    box-shadow:
+      0 0 0 1px color-mix(in srgb, var(--btn-c, #4b5667) 35%, transparent),
+      0 0 18px color-mix(in srgb, var(--btn-c, #4b5667) 30%, transparent);
+  }
+  .btn:active:not(:disabled) {
+    transform: translateY(1px);
+  }
+  .btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+  .btn-primary {
+    --btn-c: #34d399;
+    background: linear-gradient(180deg, #123127, #0d211b);
+    color: #b7f7dc;
+  }
+  .btn-warn {
+    --btn-c: #fb923c;
+    background: linear-gradient(180deg, #33200f, #22160b);
+    color: #fed7aa;
+  }
+  .btn-danger {
+    --btn-c: #f43f5e;
+    background: linear-gradient(180deg, #34121a, #230c12);
+    color: #fecdd3;
+  }
+  .btn-info {
+    --btn-c: #22d3ee;
+    background: linear-gradient(180deg, #0f2a31, #0b1d22);
+    color: #bff4fb;
+  }
+  .btn-violet {
+    --btn-c: #a855f7;
+    background: linear-gradient(180deg, #241535, #180e24);
+    color: #e9d5ff;
+  }
+
+  :where(button, [role="button"], a, input, select):focus-visible {
+    outline: 2px solid #22d3ee;
+    outline-offset: 2px;
+  }
+
+  /* Полосы «осторожно»: закрытые зоны и аварийные табло. */
+  .hazard {
+    background: repeating-linear-gradient(-45deg, rgba(250, 204, 21, 0.85) 0 7px, rgba(10, 12, 16, 0.9) 7px 14px);
+  }
+  .hazard-soft {
+    background: repeating-linear-gradient(-45deg, rgba(250, 204, 21, 0.07) 0 9px, transparent 9px 18px);
+  }
+  .hazard-red {
+    background: repeating-linear-gradient(-45deg, rgba(244, 63, 94, 0.16) 0 14px, rgba(10, 12, 16, 0.2) 14px 28px);
+  }
+
+  /* Пол цеха — рифлёная сталь. */
+  .floor {
+    background:
+      linear-gradient(135deg, rgba(255, 255, 255, 0.022) 25%, transparent 25%) 0 0 / 14px 14px,
+      linear-gradient(225deg, rgba(255, 255, 255, 0.022) 25%, transparent 25%) 0 0 / 14px 14px,
+      linear-gradient(315deg, rgba(0, 0, 0, 0.18) 25%, transparent 25%) 7px 7px / 14px 14px,
+      linear-gradient(45deg, rgba(0, 0, 0, 0.18) 25%, transparent 25%) 7px 7px / 14px 14px,
+      #0e1218;
+    border: 1px solid #232b37;
+    box-shadow:
+      inset 0 0 40px rgba(0, 0, 0, 0.65),
+      0 0 0 1px rgba(34, 211, 238, 0.04);
+  }
+
+  .cell-plate {
+    border: 1px dashed rgba(143, 155, 173, 0.13);
+    border-radius: 5px;
+    background: radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.015), transparent 70%);
+    transition:
+      border-color 0.15s,
+      background 0.15s,
+      box-shadow 0.15s;
+  }
+  .cell-plate:hover {
+    border-color: rgba(34, 211, 238, 0.55);
+    background: radial-gradient(circle at 50% 50%, rgba(34, 211, 238, 0.09), transparent 75%);
+    box-shadow: inset 0 0 18px rgba(34, 211, 238, 0.12);
+  }
+
+  /* Плитка здания. Цвет приходит через --c. */
+  .tile {
+    container-type: size;
+    position: relative;
+    width: 100%;
+    height: 100%;
+    border-radius: 6px;
+    border: 1px solid color-mix(in srgb, var(--c) 40%, #2a3340);
+    background:
+      radial-gradient(circle at 50% 42%, color-mix(in srgb, var(--c) calc(var(--glow, 0) * 22%), transparent), transparent 68%),
+      linear-gradient(180deg, #1b222d, #10151c);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.06),
+      inset 0 0 0 1px rgba(0, 0, 0, 0.4),
+      0 4px 10px rgba(0, 0, 0, 0.5),
+      0 0 calc(var(--glow, 0) * 14px) color-mix(in srgb, var(--c) 35%, transparent);
+    transition:
+      box-shadow 0.4s,
+      border-color 0.3s,
+      filter 0.3s;
+    overflow: hidden;
+  }
+  .tile::before {
+    content: "";
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: 3px;
+    background: var(--c);
+    opacity: calc(0.35 + var(--glow, 0) * 0.65);
+    box-shadow: 0 0 10px var(--c);
+  }
+  .tile:hover {
+    border-color: var(--c);
+  }
+  .tile-selected {
+    outline: 2px solid var(--c);
+    outline-offset: 2px;
+  }
+  .tile-off {
+    filter: grayscale(0.85) brightness(0.7);
+  }
+  .tile-dead {
+    filter: brightness(0.45) saturate(0.4);
+  }
+
+  /* Подписи на плитке видны, только когда плитка достаточно крупная. */
+  .tile-serial,
+  .tile-label {
+    display: none;
+  }
+  @container (min-width: 60px) {
+    .tile-serial {
+      display: block;
+    }
+    .tile-label {
+      display: flex;
+    }
+  }
+
+  .led {
+    width: 7px;
+    height: 7px;
+    border-radius: 999px;
+    background: var(--led, #4b5667);
+    box-shadow: 0 0 8px var(--led, transparent);
+  }
+  .led-pulse {
+    animation: led-pulse 1.6s ease-in-out infinite;
+  }
+
+  .spin-slow {
+    animation: spin 9s linear infinite;
+  }
+
+  .blackout-flicker {
+    animation: blackout 1.8s steps(1, end) infinite;
+  }
+
+  .scroll-thin {
+    scrollbar-width: thin;
+    scrollbar-color: #2b3442 transparent;
+  }
+  .scroll-thin::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  .scroll-thin::-webkit-scrollbar-thumb {
+    background: #2b3442;
+    border-radius: 8px;
+  }
+
+  .num {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .text-glow {
+    text-shadow: 0 0 12px currentColor;
+  }
+}
+
+@keyframes led-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes blackout {
+  0% {
+    opacity: 1;
+  }
+  8% {
+    opacity: 0.35;
+  }
+  11% {
+    opacity: 1;
+  }
+  55% {
+    opacity: 0.8;
+  }
+  58% {
+    opacity: 0.25;
+  }
+  61% {
+    opacity: 0.9;
+  }
+}
+
+/* Пропорции цеха: на широком экране квадрат вписывается в свободную высоту. */
+.floor-fit {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+}
+@media (min-width: 768px) {
+  .floor-host {
+    container-type: size;
+    flex: 1 1 0%;
+    min-height: 16rem;
+    display: grid;
+    place-items: center;
+  }
+  .floor-fit {
+    width: min(100cqw, 100cqh);
+    height: min(100cqw, 100cqh);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .led-pulse,
+  .spin-slow,
+  .blackout-flicker {
+    animation: none !important;
+  }
+  .scanlines {
+    display: none;
+  }
+}

@@ -19,12 +19,18 @@ code in this repository.
 `.claude/` (скилл `repo-map` и список разрешённых вызовов). Это отдельный
 слой: правки сайта его не касаются и наоборот.
 
+Ещё один отдельный проект — игра **AI-Factory: Automation Sandbox** в каталоге
+`ai-factory/` (React + Vite, со своими npm-зависимостями и тестами). Правила
+«без сборки и npm» ниже относятся только к сайту; руководство по игре — в
+`ai-factory/CLAUDE.md`.
+
 ## Структура
 
 ```
 .
 ├── CLAUDE.md                       — этот файл (актуальное руководство)
 ├── .github/workflows/deploy-pages.yml  — деплой на GitHub Pages
+├── ai-factory/                     — игра-песочница (React + Vite), см. ai-factory/CLAUDE.md
 ├── .claude/                        — инфраструктура Claude Code (к сайту не относится)
 │   ├── settings.json               — разрешённые читающие команды и MCP-вызовы
 │   ├── repo-map/snapshot.json      — последний снимок карты репозиториев
