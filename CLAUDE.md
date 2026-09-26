@@ -19,6 +19,24 @@ code in this repository.
 `.claude/` (скилл `repo-map` и список разрешённых вызовов). Это отдельный
 слой: правки сайта его не касаются и наоборот.
 
+## Второй проект: `cybernet-neon-syndicate/`
+
+Отдельное приложение — браузерная стратегия «CyberNet: Neon Syndicate» (React 19 + TS +
+Vite + Tailwind 4 + Framer Motion + Lucide). **К свадебному сайту не относится**, и правило
+«без npm и сборки» на него не распространяется: у него свой `package.json`.
+
+```bash
+cd cybernet-neon-syndicate && npm install
+npm run dev                # разработка
+npm run typecheck          # tsc
+npm run build:standalone   # вся игра одним файлом → standalone/index.html (коммитится)
+npm run sim                # headless-симуляция баланса ботами
+```
+
+Ядро игры — чистый reducer в `src/game/` (сидированный RNG в состоянии, 1 тик = 1 день),
+все числа баланса — в `src/game/config.ts`. После правок экономики прогоняй `npm run sim`,
+после любых правок — пересобирай `standalone/index.html`. Подробности — в его `README.md`.
+
 ## Структура
 
 ```
@@ -35,6 +53,7 @@ code in this repository.
 │       ├── reference/collect.md    — сбор данных (репозитории, ветки, PR)
 │       ├── reference/render.md     — отрисовка вывода
 │       └── assets/template.html    — HTML-шаблон карты
+├── cybernet-neon-syndicate/        — отдельная игра на React/Vite (см. раздел выше)
 └── yegor-diana-wedding/            — САМ САЙТ (публикуется в корень Pages)
     ├── index.html                  — вся разметка, одна страница (~670 строк)
     ├── favicon.svg                 — монограмма «Е&Д»
