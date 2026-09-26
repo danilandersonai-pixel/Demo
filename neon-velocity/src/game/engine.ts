@@ -45,7 +45,12 @@ import { heightFactor } from './viewport';
 /** Крен корабля — так же, как его рисует рендер (render/ship.ts): поворот и сжатие по X. */
 const BANK_ANGLE = 0.3;
 const BANK_SQUASH = 0.16;
-/** Сфера засчитана пропущенной, уйдя ниже корабля на столько (ARCHITECTURE §4). */
+/**
+ * Сфера засчитана пропущенной, уйдя ниже корабля на (радиус + столько) единиц
+ * эталонной высоты (ARCHITECTURE §4). В мире это × heightFactor — пропуск
+ * фиксируется через одно и то же время после линии корабля на любом экране, и
+ * окно, за которое магнит успевает вернуть проскочившую сферу, тоже одинаково.
+ */
 const MISS_MARGIN = 30;
 /** Демо-сцена сразу «населена»: столько секунд прогоняется заранее. */
 const ATTRACT_PREWARM = 6;
@@ -695,10 +700,19 @@ export class GameEngine {
     const list = this.crystals;
     const playing = s.mode === 'playing' && p.alive;
     const attract = s.mode === 'attract';
+    // Магнит работает в эталонной высоте, как и скорости падения: вертикальные
+    // расстояния делятся на hf, вертикальная тяга умножается на hf. Иначе на
+    // низком мире (телефон боком) сфера медленнее проходит поле в мировых
+    // единицах, дольше висит в нём и уезжает вбок в разы дальше, а на высоком
+    // (телефон стоя) — наоборот. В мировых координатах поле — эллипс R × R·hf.
+    const hf = this.motion.hf;
     const R = s.magnetRadius;
     const magnetOn = R > 0 && p.alive && (playing || attract);
     const drag = Math.exp(-MAGNET_DRAG * h);
-    const missLine = p.y + p.radius + MISS_MARGIN;
+    // Порог пропуска ниже линии корабля. На очень низком мире он короче касания
+    // хитбоксов (они в мировых единицах) — сферу, которую корабль ещё задевает,
+    // пропущенной не считаем: порог не меньше p.radius + c.radius.
+    const missAfter = (p.radius + MISS_MARGIN) * hf;
     const bottom = s.viewport.worldH + 40;
     let w = 0;
     for (let i = 0; i < list.length; i++) {
@@ -707,14 +721,14 @@ export class GameEngine {
       c.magnetized = false;
       if (magnetOn && !c.missed) {
         const dx = p.x - c.x;
-        const dy = p.y - c.y;
+        const dy = (p.y - c.y) / hf;
         const d2 = dx * dx + dy * dy;
         if (d2 < R * R && d2 > 1e-6) {
           // Сила растёт к центру: на краю поля 0, у корабля — GAME.magnet.strength.
           const d = Math.sqrt(d2);
           const a = GAME.magnet.strength * (1 - d / R);
           c.mvx += (dx / d) * a * h;
-          c.mvy += (dy / d) * a * h;
+          c.mvy += (dy / d) * a * h * hf;
           c.magnetized = true;
         }
       }
@@ -731,7 +745,7 @@ export class GameEngine {
         if (playing) this.collect(c);
         else this.fx.attractPop(c.x, c.y, c.rare ? s.theme.colors.crystalRare : s.theme.colors.crystal);
         keep = false;
-      } else if (playing && !c.missed && c.y > missLine) {
+      } else if (playing && !c.missed && c.y - p.y > Math.max(missAfter, p.radius + c.radius)) {
         c.missed = true;
         this.breakCombo('miss');
       }

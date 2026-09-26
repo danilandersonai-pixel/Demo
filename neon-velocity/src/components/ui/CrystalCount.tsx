@@ -1,5 +1,5 @@
 import { Gem } from 'lucide-react';
-import { formatNumber } from './format';
+import { formatNumber, plural } from './format';
 
 const SIZE = {
   sm: { text: 'text-xs', icon: 13, gap: 'gap-1' },
@@ -15,19 +15,24 @@ export interface CrystalCountProps {
   className?: string;
 }
 
-/** Кристаллы — валюта магазина: иконка-кристалл и число. */
+/**
+ * Кристаллы — валюта магазина: иконка-кристалл и число. Скринридер читает не
+ * «+4», а sr-only подпись со склонением: «плюс 4 кристалла». Не aria-label:
+ * у span без роли ARIA имя запрещает, и скринридер читает текст внутри.
+ */
 export function CrystalCount({ value, size = 'md', signed = false, className = '' }: CrystalCountProps) {
   const s = SIZE[size];
+  const spoken = `${signed ? 'плюс ' : ''}${formatNumber(value)} ${plural(value, ['кристалл', 'кристалла', 'кристаллов'])}`;
   return (
     <span
       className={['inline-flex items-center font-mono font-bold tabular-nums text-neon-cyan text-glow-cyan', s.gap, s.text, className].join(' ')}
-      aria-label={`${signed ? 'плюс ' : ''}${value} кристаллов`}
     >
       <Gem size={s.icon} strokeWidth={2.25} aria-hidden />
-      <span>
+      <span aria-hidden>
         {signed ? '+' : ''}
         {formatNumber(value)}
       </span>
+      <span className="sr-only">{spoken}</span>
     </span>
   );
 }

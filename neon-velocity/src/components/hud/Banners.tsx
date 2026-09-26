@@ -17,15 +17,24 @@ import { BANNER_SLOT, type BannerSlot } from './constants';
  * полка стоит сразу под HUD, нижняя — сразу над кораблём, средняя — посередине,
  * а надписи берут компактные размеры вместо sm: — иначе «NEW RECORD!» ложится
  * на HUD, а соседние полки наезжают друг на друга.
+ *
+ * Нижняя полка там впритык к кораблю: поле всегда 420 px (масштаб 0.875), центр
+ * корабля — на 103 px от низа, кольцо щита — на 127 px. Поэтому SHIELD DOWN и
+ * COMBO BREAK пишутся в одну строку (≈ 28 px вместо 46), их коробка — от 164 до
+ * 136 px над низом, а бейдж xN COMBO только читается экранным диктором: холст и
+ * так пишет «xN COMBO» прямо над кораблём, второй такой же ложился бы на него.
  */
 const SLOTS: readonly { slot: BannerSlot; className: string }[] = [
   { slot: 'top', className: 'top-[25%] [@media(max-height:560px)_and_(orientation:landscape)]:top-[116px]' },
   { slot: 'mid', className: 'top-[41%] [@media(max-height:560px)_and_(orientation:landscape)]:top-[calc(50%-12px)]' },
-  { slot: 'low', className: 'top-[56%] [@media(max-height:560px)_and_(orientation:landscape)]:top-[calc(100%-140px)]' },
+  { slot: 'low', className: 'top-[56%] [@media(max-height:560px)_and_(orientation:landscape)]:top-[calc(100%-150px)]' },
 ];
 
 /** Каждый баннер центрирован по линии своей полки. */
 const PLACE = 'absolute inset-x-0 flex -translate-y-1/2 flex-col items-center px-3 text-center';
+/** Низкий экран: баннер нижней полки — заголовок и подпись в одну строку (см. выше). */
+const LOW_INLINE =
+  '[@media(max-height:560px)_and_(orientation:landscape)]:flex-row [@media(max-height:560px)_and_(orientation:landscape)]:items-baseline [@media(max-height:560px)_and_(orientation:landscape)]:justify-center [@media(max-height:560px)_and_(orientation:landscape)]:gap-3';
 const EASE_OUT: [number, number, number, number] = [0.16, 1, 0.3, 1];
 
 /** Вытесненный баннер нижней полки гаснет быстро — новый ждёт его ухода. */
@@ -333,7 +342,7 @@ const COMBO_UP_EXIT = lowExit({ opacity: 0, y: -26, transition: { duration: 0.35
 function ShieldBanner({ banner }: { banner: Banner }) {
   return (
     <motion.div
-      className={PLACE}
+      className={`${PLACE} ${LOW_INLINE}`}
       variants={SHIELD_EXIT}
       initial={{ opacity: 0, scale: 1.35 }}
       animate={{ opacity: 1, scale: 1, x: [0, -7, 6, -4, 2, 0] }}
@@ -351,7 +360,7 @@ function ShieldBanner({ banner }: { banner: Banner }) {
         {banner.text}
       </span>
       {banner.sub && (
-        <span className="mt-1.5 text-[10px] font-bold tracking-[0.3em] text-neon-cyan sm:text-xs [@media(max-height:560px)_and_(orientation:landscape)]:mt-1 [@media(max-height:560px)_and_(orientation:landscape)]:text-[10px]">
+        <span className="mt-1.5 text-[10px] font-bold tracking-[0.3em] text-neon-cyan sm:text-xs [@media(max-height:560px)_and_(orientation:landscape)]:mt-0 [@media(max-height:560px)_and_(orientation:landscape)]:text-[10px]">
           {banner.sub}
         </span>
       )}
@@ -362,7 +371,7 @@ function ShieldBanner({ banner }: { banner: Banner }) {
 function ComboBreakBanner({ banner }: { banner: Banner }) {
   return (
     <motion.div
-      className={PLACE}
+      className={`${PLACE} ${LOW_INLINE}`}
       variants={COMBO_BREAK_EXIT}
       initial={{ opacity: 0, scale: 1.25 }}
       animate={{ opacity: 1, scale: 1, x: [0, -10, 9, -6, 4, 0] }}
@@ -373,7 +382,7 @@ function ComboBreakBanner({ banner }: { banner: Banner }) {
         {banner.text}
       </span>
       {banner.sub && (
-        <span className="mt-1 text-[10px] font-bold tracking-[0.3em] text-neon-red/80 line-through decoration-2 sm:text-xs [@media(max-height:560px)_and_(orientation:landscape)]:text-[10px]">
+        <span className="mt-1 text-[10px] font-bold tracking-[0.3em] text-neon-red/80 line-through decoration-2 sm:text-xs [@media(max-height:560px)_and_(orientation:landscape)]:mt-0 [@media(max-height:560px)_and_(orientation:landscape)]:text-[10px]">
           {banner.sub}
         </span>
       )}
@@ -391,7 +400,8 @@ function ComboUpBanner({ banner }: { banner: Banner }) {
       exit="exit"
       transition={{ type: 'spring', stiffness: 520, damping: 18 }}
     >
-      <span className="flex items-baseline gap-2 rounded-[3px] border border-neon-yellow/70 bg-void/50 px-3 py-1 shadow-[0_0_14px_rgba(255,233,74,0.45)]">
+      {/* Низкий экран: бейдж только для экранного диктора — на виду «xN COMBO» холста у корабля. */}
+      <span className="flex items-baseline gap-2 rounded-[3px] border border-neon-yellow/70 bg-void/50 px-3 py-1 shadow-[0_0_14px_rgba(255,233,74,0.45)] [@media(max-height:560px)_and_(orientation:landscape)]:sr-only">
         <span className="font-display text-2xl font-black text-neon-yellow text-glow-yellow sm:text-3xl [@media(max-height:560px)_and_(orientation:landscape)]:text-2xl">
           {banner.text}
         </span>

@@ -30,6 +30,15 @@ export interface HudProps {
 /** Сколько секунд забега висит подсказка управления. */
 const HINT_SECONDS = 7;
 
+/** Нижний отступ как у подсказки управления — FPS стоит на той же линии. */
+const BOTTOM_INSET = 'max(0.75rem, env(safe-area-inset-bottom, 0px))';
+/**
+ * Пока видна подсказка, FPS поднимается над ней: на узком телефоне плашка
+ * подсказки во всю ширину и легла бы на число. Плашка — 27 px на телефоне и
+ * 36 px с sm, 2.5rem хватает на обе с зазором.
+ */
+const FPS_ABOVE_HINT = `calc(${BOTTOM_INSET} + 2.5rem)`;
+
 function fpsTone(fps: number): string {
   if (fps >= 55) return 'text-neon-green';
   if (fps >= 40) return 'text-neon-yellow';
@@ -40,6 +49,7 @@ export function Hud({ runId, showFps, showHint, onHintDone, onPause, canPause }:
   const hud = useHudSnapshot();
   const hintReported = useRef(false);
   const hintTimeUp = hud.elapsed >= HINT_SECONDS;
+  const hintVisible = showHint && !hintTimeUp;
 
   useEffect(() => {
     if (showHint && hintTimeUp && !hintReported.current) {
@@ -84,12 +94,12 @@ export function Hud({ runId, showFps, showHint, onHintDone, onPause, canPause }:
 
       <Banners />
 
-      <AnimatePresence>{showHint && !hintTimeUp && <ControlHint key="hint" />}</AnimatePresence>
+      <AnimatePresence>{hintVisible && <ControlHint key="hint" />}</AnimatePresence>
 
       {showFps && (
         <div
-          className={`nv-digits absolute left-3 text-[10px] font-bold tracking-widest sm:left-5 sm:text-xs ${fpsTone(hud.fps)}`}
-          style={{ bottom: 'max(0.75rem, env(safe-area-inset-bottom, 0px))' }}
+          className={`nv-digits absolute left-3 text-[10px] font-bold tracking-widest transition-[bottom] duration-500 sm:left-5 sm:text-xs ${fpsTone(hud.fps)}`}
+          style={{ bottom: hintVisible ? FPS_ABOVE_HINT : BOTTOM_INSET }}
         >
           {hud.fps > 0 ? hud.fps : '--'} FPS
         </div>

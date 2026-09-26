@@ -54,7 +54,8 @@ export function drawShip(
   drawSprite(ctx, sprites.glow(ship.hull), 0, 0, S * 3);
   ctx.restore();
 
-  // Радиус магнита: едва заметное вращающееся кольцо.
+  // Поле магнита: едва заметное вращающееся кольцо. Движок задаёт поле для эталонной
+  // высоты, по Y оно × heightFactor — в мире это эллипс, и кольцо рисуется им же.
   if (state.magnetRadius > 0) {
     ctx.setLineDash(DASH_RANGE);
     ctx.lineDashOffset = -t * 14;
@@ -62,7 +63,7 @@ export function drawShip(
     ctx.lineWidth = 1;
     ctx.globalAlpha = (0.16 + 0.08 * f.beat) * vis;
     ctx.beginPath();
-    ctx.arc(p.x, p.y, state.magnetRadius, 0, TAU);
+    ctx.ellipse(p.x, p.y, state.magnetRadius, state.magnetRadius * f.heightFactor, 0, 0, TAU);
     ctx.stroke();
     ctx.setLineDash(NO_DASH);
     ctx.lineDashOffset = 0;

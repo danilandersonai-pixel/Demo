@@ -13,6 +13,10 @@ export interface AnimatedNumberProps {
 /**
  * Число, которое «докручивается» до нового значения. Пишет текст прямо в DOM
  * через MotionValue — без ререндеров React на каждом кадре анимации.
+ *
+ * Для скринридера оно скрыто: во время прокрутки в DOM лежат промежуточные
+ * значения, а итоговое число вызывающий озвучивает сам — sr-only подписью рядом
+ * (со склонением), чтобы число не читалось дважды.
  */
 export function AnimatedNumber({ value, duration = 0.7, format = formatNumber, className = '' }: AnimatedNumberProps) {
   const reduce = useReducedMotionConfig();
@@ -28,5 +32,9 @@ export function AnimatedNumber({ value, duration = 0.7, format = formatNumber, c
     return () => controls.stop();
   }, [mv, value, duration, reduce]);
 
-  return <motion.span className={className}>{text}</motion.span>;
+  return (
+    <motion.span aria-hidden className={className}>
+      {text}
+    </motion.span>
+  );
 }

@@ -102,6 +102,19 @@ function emptyTally(): RunTally {
 }
 
 /**
+ * Снаряжение для забега, начатого сразу после сдачи прерванного («Заново» из
+ * паузы). Сданный итог уже поднял рекорд в сохранении, но loadout в пропсах ещё
+ * из рендера до этой записи — рекорд поднимается здесь так же, как в
+ * progress.recordRun (максимум из прежнего и счёта). Иначе весь новый забег
+ * сравнивается со старым рекордом: BEST в HUD и «NEW RECORD!» врут.
+ */
+function withBankedRecord(loadout: Loadout, banked: RunResult | null): Loadout {
+  if (!banked) return loadout;
+  const score = Math.max(0, Math.floor(banked.score));
+  return score > loadout.highscore ? { ...loadout, highscore: score } : loadout;
+}
+
+/**
  * Всё императивное хозяйство холста: цикл, размеры, события движка. Живёт в
  * useState, поэтому один на компонент; attach/detach идемпотентны.
  */
@@ -204,9 +217,9 @@ class GameDriver {
     audio.setPaused(screen === 'paused');
     if (screen === 'menu') {
       // «В меню» из паузы: забег ещё идёт — сдать его итог до демо-сцены.
-      this.bankRun(false);
+      const banked = this.bankRun(false);
       if (core.engine.state) {
-        core.engine.setLoadout(this.props.current.loadout);
+        core.engine.setLoadout(withBankedRecord(this.props.current.loadout, banked));
         core.engine.enterAttract();
       }
       audio.setMusicActive(false);
@@ -222,11 +235,11 @@ class GameDriver {
     const core = this.core;
     if (!core || !core.engine.state) return;
     // «Заново» из паузы: прежний забег ещё в движке и в this.runId — сдать его итог.
-    this.bankRun(false);
+    const banked = this.bankRun(false);
     this.runId = runId;
     this.tally = emptyTally();
     hudStore.clearBanners();
-    core.engine.startRun(this.props.current.loadout);
+    core.engine.startRun(withBankedRecord(this.props.current.loadout, banked));
     core.input.reset();
     audio.setPaused(false);
     audio.setMusicActive(true);
@@ -240,18 +253,20 @@ class GameDriver {
    * Забег обрывается без гибели: итог уходит наверх, чтобы кристаллы, рекорд и
    * запись в таблице не пропали. Каждый забег сообщается ровно один раз — здесь
    * или событием gameOver; закончившийся забег сюда уже не попадает.
+   * Возвращает сданный итог или null, если сдавать было нечего.
    */
-  private bankRun(unload: boolean): void {
+  private bankRun(unload: boolean): RunResult | null {
     const engine = this.core?.engine;
     const state = engine?.state;
-    if (!engine || !state || this.runId === 0 || this.reportedRun === this.runId) return;
-    if (state.mode !== 'playing' && state.mode !== 'dying') return;
+    if (!engine || !state || this.runId === 0 || this.reportedRun === this.runId) return null;
+    if (state.mode !== 'playing' && state.mode !== 'dying') return null;
     const result = this.abandonedResult(engine, state);
     // Пустой забег (рестарт на READY) не засчитывается. Он и не помечается
     // сданным: вернувшись из bfcache, такой забег доиграет и сообщит итог сам.
-    if (result.score <= 0 && result.crystals <= 0) return;
+    if (result.score <= 0 && result.crystals <= 0) return null;
     this.reportedRun = this.runId;
     this.props.current.onRunAbandoned(result, unload);
+    return result;
   }
 
   /** Итог прерванного забега: счёт и прочее из снимка HUD, статистика — из событий. */

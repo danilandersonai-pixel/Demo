@@ -5,13 +5,13 @@
  *   z-0 холст · z-10 HUD · z-20 вспышка смерти · z-30 экраны · z-40 панели · z-50 ЭЛТ-эффекты.
  */
 import { AnimatePresence, MotionConfig } from 'framer-motion';
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { DeathFlash } from './components/DeathFlash';
 import { GameCanvas, type ScreenPoint } from './components/GameCanvas';
 import { GameOverOverlay } from './components/GameOverOverlay';
 import { HowToPlay } from './components/HowToPlay';
 import { Hud } from './components/Hud';
-import { GAME_OVER_ARM_MS } from './components/hud/constants';
+import { GAME_OVER_ARM_MS, MENU_ARM_MS } from './components/hud/constants';
 import { Leaderboard } from './components/Leaderboard';
 import { MainMenu } from './components/MainMenu';
 import { PauseOverlay } from './components/PauseOverlay';
@@ -56,6 +56,22 @@ function isActivatable(target: EventTarget | null): boolean {
       'button, a[href], input, select, textarea, summary, [role="button"], [role="switch"], [role="slider"], [role="tab"], [role="checkbox"], [role="radio"], [role="menuitem"], [role="option"]',
     ) !== null
   );
+}
+
+/**
+ * Обёртка главного меню: первые MENU_ARM_MS после появления меню указатель
+ * проходит мимо него. Уходящие пауза и Game Over уже прозрачны для кликов, а
+ * меню с первого кадра лежит поверх них — второй тап двойного нажатия «В меню»
+ * иначе открыл бы панель или забег под пальцем. Клавиатуру это не трогает.
+ * display: contents — обёртка не создаёт своего бокса, а pointer-events наследуется.
+ */
+function ArrivingMenu({ children }: { children: ReactNode }) {
+  const [armed, setArmed] = useState(false);
+  useEffect(() => {
+    const t = window.setTimeout(() => setArmed(true), MENU_ARM_MS);
+    return () => window.clearTimeout(t);
+  }, []);
+  return <div className={armed ? 'contents' : 'pointer-events-none contents'}>{children}</div>;
 }
 
 export default function App() {
@@ -175,6 +191,8 @@ export default function App() {
 
   const toggleSound = useCallback(() => {
     audio.unlock();
+    // Щелчок-подтверждение включения — только в этой вкладке, не во всех открытых.
+    audio.armToggleConfirm();
     actions.updateSettings({ sound: !settings.sound });
   }, [actions, settings.sound]);
 
@@ -304,7 +322,10 @@ export default function App() {
 
   return (
     <MotionConfig reducedMotion="user">
-      <main className="relative h-full w-full overflow-hidden bg-void font-mono text-ink">
+      {/* text-base — свой размер и межстрочный интервал на корне: страница-хост может
+          задать body шорткатом font (14px, line-height: normal), и надписи, у которых
+          задан только размер, съехали бы по высоте. */}
+      <main className="relative h-full w-full overflow-hidden bg-void font-mono text-base text-ink">
         <GameCanvas
           screen={screen}
           runId={runId}
@@ -334,7 +355,9 @@ export default function App() {
 
         <AnimatePresence>
           {screen === 'menu' && (
-            <MainMenu key="menu" save={save} storageOk={storageOk} onPlay={play} onOpenPanel={openPanel} onToggleSound={toggleSound} />
+            <ArrivingMenu key="menu">
+              <MainMenu save={save} storageOk={storageOk} onPlay={play} onOpenPanel={openPanel} onToggleSound={toggleSound} />
+            </ArrivingMenu>
           )}
           {screen === 'paused' && (
             <PauseOverlay

@@ -149,7 +149,7 @@ function EntryRow({
       {/* Счёт — главный; на телефоне занимает всю верхнюю строку карточки. */}
       <div className="min-w-0">
         <span className="sr-only">
-          Место {rank}: {formatNumber(entry.score)} очков
+          Место {rank}: {formatNumber(entry.score)} {plural(entry.score, ['очко', 'очка', 'очков'])}
         </span>
         {/* Без overflow:hidden (truncate): он резал неоновое свечение цифр по рамке строки
             в жёсткий прямоугольник. Семизначный счёт с запасом влезает в колонку. */}
@@ -334,13 +334,13 @@ export function Leaderboard({ save, highlightId = null, onClose }: LeaderboardPr
                   {plural(games, ['забег', 'забега', 'забегов'])}
                 </span>
               </Stat>
-              <Stat icon={Gem} label="Всего кристаллов" tone="text-neon-cyan">
+              <Stat icon={Gem} label="Кристаллы" tone="text-neon-cyan">
                 <CrystalCount value={stats.totalCrystals} size="md" className="text-base! sm:text-lg!" />
               </Stat>
-              <Stat icon={Hourglass} label="Суммарное время" tone="text-neon-yellow">
+              <Stat icon={Hourglass} label="Время в игре" tone="text-neon-yellow">
                 {formatPlayTime(stats.totalTime)}
               </Stat>
-              <Stat icon={Flame} label="Лучший множитель" tone="text-neon-pink">
+              <Stat icon={Flame} label="Лучшее комбо" tone="text-neon-pink">
                 x{stats.bestMultiplier}
               </Stat>
             </div>

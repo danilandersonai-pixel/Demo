@@ -93,10 +93,12 @@ export function Shop({ save, actions, onClose, initialTab = 'skins' }: ShopProps
       >
         {/* Шапка магазина закреплена: кошелёк и вкладки видны при прокрутке. Она — прямой
             потомок прокручиваемого тела панели (иначе sticky не выйдет за рамки обёртки), а
-            отрицательный top компенсирует padding тела — липкая зона считается от него. */}
+            отрицательный top компенсирует padding тела — липкая зона считается от него.
+            Фон непрозрачный: без backdrop-blur (он дорог на каждом кадре) даже 5 % прозрачности
+            пропускают прокрученные под шапку карточки чётким «призрачным» текстом. */}
         <div
           ref={anchor}
-          className="sticky -top-4 z-20 -mx-4 -mt-4 mb-4 flex flex-wrap items-center gap-2.5 border-b border-white/5 bg-[#0d0b1f]/95 px-4 pb-3 pt-4 sm:-top-5 sm:-mx-6 sm:-mt-5 sm:flex-nowrap sm:gap-4 sm:px-6 sm:pt-5 [@media(max-height:560px)]:mb-3 [@media(max-height:560px)]:pb-2 [@media(max-height:560px)]:pt-2"
+          className="sticky -top-4 z-20 -mx-4 -mt-4 mb-4 flex flex-wrap items-center gap-2.5 border-b border-white/5 bg-[#0d0b1f] px-4 pb-3 pt-4 sm:-top-5 sm:-mx-6 sm:-mt-5 sm:flex-nowrap sm:gap-4 sm:px-6 sm:pt-5 [@media(max-height:560px)]:mb-3 [@media(max-height:560px)]:pb-2 [@media(max-height:560px)]:pt-2"
         >
           <TabBar
             tabs={tabs}

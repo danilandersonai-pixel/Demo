@@ -20,6 +20,7 @@ import {
   VolumeX,
 } from 'lucide-react';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { audio } from '../game/audio';
 import { SKIN_ORDER, THEME_ORDER, UPGRADE_ORDER } from '../game/config';
 import type { SaveData } from '../game/types';
 import { playUiSound } from '../game/uiSound';
@@ -175,7 +176,11 @@ export function SettingsPanel({ save, actions, storageOk, onClose }: SettingsPan
               label="Звук"
               description="Синтвейв-саундтрек в ритме игры и звуки интерфейса"
               checked={settings.sound}
-              onChange={(sound) => actions.updateSettings({ sound })}
+              onChange={(sound) => {
+                // Щелчок-подтверждение включения — только в этой вкладке, не во всех открытых.
+                audio.armToggleConfirm();
+                actions.updateSettings({ sound });
+              }}
               silent
             />
             <div className="grid gap-2 sm:grid-cols-2">

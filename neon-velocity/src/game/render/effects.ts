@@ -3,6 +3,7 @@
  * Частиц до GAME.particles.max за кадр — поэтому здесь нет ни одного shadowBlur,
  * ни одной новой строки цвета, а стиль меняется только при смене цвета.
  */
+import { WORLD_W } from '../config';
 import { clamp, easeOutBack, TAU } from '../math';
 import type { Floater, GameState, Viewport } from '../types';
 import type { FrameInfo } from './frame';
@@ -124,23 +125,28 @@ function drawFloater(ctx: CanvasRenderingContext2D, fl: Floater): void {
   if (fade <= 0) return;
   const size = fl.size * pop;
   ctx.font = fontFor(size);
+  // Надпись целиком внутри поля: всплывашка у края (сфера или корабль у борта) иначе
+  // обрезалась бы краем экрана на телефоне. Полуширина — по реальному тексту плюс
+  // половина самой широкой обводки (0.34·size).
+  const half = Math.min(ctx.measureText(fl.text).width / 2 + size * 0.17, WORLD_W / 2);
+  const x = clamp(fl.x, half, WORLD_W - half);
   // Тёмная обводка снизу — текст читается и на ярком солнце, и на вспышках.
   ctx.globalCompositeOperation = 'source-over';
   ctx.strokeStyle = SHADE;
   ctx.lineWidth = size * 0.3;
   ctx.globalAlpha = 0.75 * fade;
-  ctx.strokeText(fl.text, fl.x, fl.y);
+  ctx.strokeText(fl.text, x, fl.y);
   ctx.globalCompositeOperation = 'lighter';
   ctx.strokeStyle = fl.color;
   ctx.lineWidth = size * 0.34;
   ctx.globalAlpha = 0.2 * fade;
-  ctx.strokeText(fl.text, fl.x, fl.y);
+  ctx.strokeText(fl.text, x, fl.y);
   ctx.lineWidth = size * 0.13;
   ctx.globalAlpha = 0.65 * fade;
-  ctx.strokeText(fl.text, fl.x, fl.y);
+  ctx.strokeText(fl.text, x, fl.y);
   ctx.fillStyle = hotColor(fl.color);
   ctx.globalAlpha = fade;
-  ctx.fillText(fl.text, fl.x, fl.y);
+  ctx.fillText(fl.text, x, fl.y);
 }
 
 /** Полноэкранная вспышка цвета flashColor (трансформ — CSS-пиксели). */

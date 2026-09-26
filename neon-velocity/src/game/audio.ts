@@ -113,6 +113,8 @@ export class AudioEngine {
   private riser: { voice: Voice; level: number; impact: number } | null = null;
   private collectAt = 0;
   private readonly lastPlayed: Record<Throttled, number> = { hover: -1, nearMiss: -1, comboBreak: -1, comboUp: -1 };
+  /** Звук переключили в этой вкладке — ближайший setSettings подтвердит включение щелчком. */
+  private confirmNextToggle = false;
   private gestureListeners: AbortController | null = null;
 
   /** Состояние контекста: 'locked' — ещё не было unlock(). */
@@ -154,8 +156,22 @@ export class AudioEngine {
     this.onStateChange();
   }
 
+  /**
+   * Звать из обработчика своего переключателя звука прямо перед сохранением новой настройки:
+   * если следующий setSettings включит звук, он подтвердит это щелчком. Настройки, принятые
+   * из другой вкладки (событие storage), флаг не взводят и применяются молча — иначе щелчок
+   * звучал бы в каждой открытой вкладке, хотя нажимали только в одной.
+   */
+  armToggleConfirm(): void {
+    this.confirmNextToggle = true;
+  }
+
   setSettings(settings: AudioSettings): void {
     const wasEnabled = this.settings.enabled;
+    // Флаг одноразовый: гаснет при любом применении настроек, даже пока контекста ещё нет,
+    // чтобы не дожить до чужого включения.
+    const confirm = this.confirmNextToggle;
+    this.confirmNextToggle = false;
     this.settings = sanitize(settings, this.settings);
     const mix = this.mix;
     const ctx = this.ctx;
@@ -164,7 +180,9 @@ export class AudioEngine {
     mix.setLevels(this.settings, now);
     // Щелчок самой кнопки звучал бы при старой настройке (в заглушённый микшер),
     // поэтому подтверждение включения играет здесь — когда мастер уже открывается.
-    if (!wasEnabled && this.settings.enabled && ctx.state === 'running') sfxUi(mix, now + 0.06, 'toggle');
+    if (confirm && !wasEnabled && this.settings.enabled && ctx.state === 'running') {
+      sfxUi(mix, now + 0.06, 'toggle');
+    }
   }
 
   /** Музыка звучит только во время забега; вне забега beat-события игнорируются. */

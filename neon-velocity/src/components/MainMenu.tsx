@@ -28,7 +28,7 @@ import { ShipPreview } from './ShipPreview';
 import { IconButton } from './ui/IconButton';
 import { Kbd } from './ui/Kbd';
 import { NeonButton, type NeonVariant } from './ui/NeonButton';
-import { padScore } from './ui/format';
+import { formatNumber, padScore, plural } from './ui/format';
 
 export interface MainMenuProps {
   save: SaveData;
@@ -113,7 +113,7 @@ function WalletPlaque({ value }: { value: number }) {
       <div className="flex flex-col leading-none">
         <span className="text-[9px] font-bold tracking-[0.32em] text-neon-cyan/70">КРИСТАЛЛЫ</span>
         <span className="mt-1 font-mono text-[15px] font-extrabold tracking-wider text-neon-cyan text-glow-cyan sm:text-lg">
-          <span className="sr-only">{value} кристаллов</span>
+          <span className="sr-only">{`${formatNumber(value)} ${plural(value, ['кристалл', 'кристалла', 'кристаллов'])}`}</span>
           <AnimatedNumber value={value} className="nvm-digits" />
         </span>
       </div>

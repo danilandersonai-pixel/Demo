@@ -106,7 +106,9 @@ function CountUpScore({ value }: { value: number }) {
 
   return (
     <div className="relative">
-      <span className="sr-only">{formatNumber(value)} очков</span>
+      <span className="sr-only">
+        {formatNumber(value)} {plural(value, ['очко', 'очка', 'очков'])}
+      </span>
       <span
         aria-hidden
         className="nv-digits inline-flex font-mono text-[44px] font-extrabold leading-none tracking-wider sm:text-6xl sm:tracking-widest"

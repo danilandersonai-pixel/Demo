@@ -64,6 +64,11 @@ function useCardFx() {
  */
 const ACTION_ROW = 'mt-auto flex flex-wrap items-end justify-between gap-2 [&>button]:ml-auto';
 
+/** Цена для скринридера, со склонением: «400 кристаллов», «1 кристалл». */
+function spokenPrice(price: number): string {
+  return `${formatNumber(price)} ${plural(price, ['кристалл', 'кристалла', 'кристаллов'])}`;
+}
+
 function CardFlash({ flashKey, color }: { flashKey: number; color: string }) {
   if (flashKey === 0) return null;
   return (
@@ -153,7 +158,7 @@ function ItemCard(props: ItemCardProps) {
         icon={locked ? Lock : ShoppingCart}
         inactive={locked}
         aria-describedby={locked ? missingId : undefined}
-        aria-label={`Купить ${name} за ${price} кристаллов`}
+        aria-label={`Купить ${name} за ${spokenPrice(price)}`}
         onClick={act}
       >
         Купить
@@ -564,7 +569,7 @@ export function UpgradeCard({ id, upgrades, wallet, magnetless, burstColors, fir
               icon={locked ? Lock : ShoppingCart}
               inactive={locked}
               aria-describedby={locked ? missingId : undefined}
-              aria-label={`Улучшить «${up.title}» до уровня ${tier + 1} за ${price} кристаллов`}
+              aria-label={`Улучшить «${up.title}» до уровня ${tier + 1} за ${spokenPrice(price)}`}
               onClick={buy}
             >
               Улучшить

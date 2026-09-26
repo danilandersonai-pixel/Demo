@@ -6,6 +6,16 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no" />
     <meta name="theme-color" content="#05050a" />
     <meta name="description" content="Neon Velocity: Rhythm & Dodge — неоновая аркада на рекорд" />
+    <!-- Тёмный фон с первого кадра. В однофайловой сборке основной CSS вместе со
+         шрифтами весит сотни килобайт, и пока он грузится, страница-хост красила бы
+         кадр своим светлым фоном. Этот стиль стоит раньше бандла и не зависит от него. -->
+    <style>
+      html,
+      body {
+        background: #05050a;
+        color-scheme: dark;
+      }
+    </style>
   </head>
   <body>
     <div id="root"></div>

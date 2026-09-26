@@ -303,7 +303,10 @@ export interface GameState {
   /** Только живые частицы (движок сам переиспользует объекты). */
   particles: Particle[];
   floaters: Floater[];
-  /** Радиус магнита в мировых единицах; 0 — магнита нет. */
+  /**
+   * Радиус магнита по X в мировых единицах; по Y поле, как и скорости падения,
+   * × heightFactor(viewport) — в мире это эллипс. 0 — магнита нет.
+   */
   magnetRadius: number;
   score: number;
   multiplier: number;
