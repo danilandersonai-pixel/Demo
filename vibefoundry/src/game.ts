@@ -224,14 +224,15 @@ export class Game {
     // main menu: a slow cinematic drift over the island
     if (this.ui.mainMenu) {
       const c = this.renderer.cam;
-      c.x += 14 * dtReal;
+      c.x += 9 * dtReal;
       c.y += 4 * Math.sin(performance.now() / 9000) * dtReal;
       c.tx = c.x;
       c.ty = c.y;
     }
     let steps = 0;
     const ts = performance.now();
-    if (!this.paused && !this.ui.mainMenu && !this.ui.victory) {
+    const menuBackdrop = this.ui.mainMenu && this.sim.events.muted;
+    if (!this.paused && (!this.ui.mainMenu || menuBackdrop) && !this.ui.victory) {
       this.acc += dtReal * this.speed;
       const maxSteps = Math.max(8, this.speed * 3);
       while (this.acc >= DT && steps < maxSteps) {
