@@ -164,7 +164,11 @@ export function DronesWindow({ game }: { game: Game }) {
                 <span style={{ color: 'var(--amber)' }}><Icon name="question" size={16} /></span>
                 <span class="mono">({p.x}, {p.y})</span>
                 <span class="muted">{Math.round(Math.hypot(p.x - hq.x, p.y - hq.y))} тайлов</span>
-                {p.claimedBy ? <span class="pos" style={{ marginLeft: 'auto' }}>дрон в пути</span> : (
+                {p.claimedBy ? (() => {
+                  const d = sim.drones.find((x) => x.id === p.claimedBy);
+                  const left = d && d.state === 'expedition' ? Math.max(0, Math.ceil((d.kind === 'worker' ? 15 : 30) - d.t)) : null;
+                  return <span class="pos" style={{ marginLeft: 'auto' }}>{left !== null ? `экспедиция: ${left} с` : 'дрон в пути'}</span>;
+                })() : (
                   <button class="btn small" style={{ marginLeft: 'auto' }} onClick={() => {
                     const d = sim.drones.find((x) => (x.kind === 'worker' || x.kind === 'construction') && x.state === 'idle');
                     if (d && sendToPoi(sim, d, p.id)) game.pushToast({ kind: 'info', title: 'Экспедиция отправлена', text: `${DRONE_NAMES[d.kind]} → (${p.x}, ${p.y})` });

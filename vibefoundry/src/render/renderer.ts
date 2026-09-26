@@ -297,7 +297,7 @@ export class WorldRenderer {
     const p = this.preview;
     if (p) {
       const def = BUILDINGS[p.type];
-      const coverage = !!def.power || !!def.poleReach || !!def.gen;
+      const coverage = !!def.power || !!def.poleReach || !!def.gen || this.altMode;
       this.drawCoverage(coverage);
       p.tiles.forEach((t, i) => {
         const ok = p.valid[i];
@@ -333,7 +333,7 @@ export class WorldRenderer {
         if (def.rotatable && p.type !== 'belt') this.drawArrowFor(g, p.type, t.x, t.y, t.dir, def.w, def.h);
         if (def.poleSupply && i === 0) this.diamond(g, t.x - def.poleSupply, t.y - def.poleSupply, 1 + def.poleSupply * 2, 1 + def.poleSupply * 2, PAL.amber, 1.5, 0.8, { color: PAL.amber, alpha: 0.06 });
       });
-    } else this.drawCoverage(false);
+    } else this.drawCoverage(this.altMode);
   }
 
   private circle(g: Graphics, cx: number, cy: number, r: number, color: number): void {
