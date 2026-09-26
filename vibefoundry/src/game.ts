@@ -7,6 +7,10 @@ import { WorldRenderer } from './render/renderer';
 import { rotCW, type Dir } from './core/iso';
 import { audio } from './ui/audio';
 import { sendToPoi, DRONE_NAMES } from './sim/drones';
+import { rollbackTo, requestFix, acceptProposal } from './vibe/vibe';
+import { startSandbox, type SandboxJob } from './vibe/sandbox';
+import { findSpot, placeBlueprint, type BpEntity } from './ai/architect';
+import type { Proposal } from './ai/state';
 
 export type Tool =
   | { kind: 'none' }
@@ -67,6 +71,8 @@ export class Game {
   blueprints: Blueprint[] = [];
   settings = loadSettings();
   demoAvailable = false;
+  sandbox: { pid: number; job: SandboxJob } | null = null;
+  llm: { active: () => boolean; request: (text: string, target?: number) => Promise<void> } = { active: () => false, request: async () => {} };
   startDemo: () => void = () => {};
   renderLlmSettings?: () => any;
   private autosaveT = 0;
@@ -187,6 +193,7 @@ export class Game {
       if (steps >= maxSteps) this.acc = 0;
     }
     const tickMs = steps ? (performance.now() - ts) / steps : this.perf.tickMs;
+    this.stepSandbox();
     this.renderer.render(this.paused ? 0 : this.acc / DT, dtReal);
     // perf
     const p = this.perf;
@@ -700,12 +707,87 @@ export class Game {
       case 'panel':
         this.ui.panel = arg;
         break;
+      case 'rollback': {
+        const c = rollbackTo(sim, arg);
+        if (c) this.pushToast({ kind: 'info', title: `Откат выполнен: ${c.message}`, text: 'Скрипты, группы и приоритеты восстановлены' });
+        break;
+      }
+      case 'debugFix':
+        requestFix(sim, arg);
+        this.ui.panel = 'vibe';
+        break;
       default:
         this.onCommand?.(cmd, arg);
     }
     this.emit();
   }
   onCommand?: (cmd: string, arg?: any) => void;
+
+  runSandbox(pid: number): void {
+    const p = this.sim.ai.proposals.find((x) => x.id === pid);
+    if (!p) return;
+    p.status = 'sandbox';
+    this.sandbox = { pid, job: startSandbox(this.sim, p) };
+    this.emit();
+  }
+
+  private stepSandbox(): void {
+    const s = this.sandbox;
+    if (!s) return;
+    s.job.step(7);
+    if (s.job.done) {
+      const p = this.sim.ai.proposals.find((x) => x.id === s.pid);
+      if (p) {
+        p.forecast = s.job.forecast;
+        p.sandboxed = true;
+        p.status = 'pending';
+        this.sim.flags.sandboxRuns = (this.sim.flags.sandboxRuns ?? 0) + 1;
+        this.pushToast({ kind: 'info', title: 'Песочница: прогноз готов', text: s.job.forecast?.summary });
+      }
+      this.sandbox = null;
+      this.emit();
+    }
+  }
+
+  /** Architect blueprint → paste tool so the player picks the spot. */
+  useBlueprint(p: Proposal): void {
+    if (!p.blueprint) return;
+    const bp: Blueprint = { name: `Линия: ${p.blueprint.item}`, w: 0, h: 0, entities: p.blueprint.entities.map((e) => ({ type: e.type as BuildingType, dx: e.dx, dy: e.dy, dir: e.dir as Dir, recipe: e.recipe })) };
+    this.blueprints.push(bp);
+    acceptProposal(this.sim, p.id);
+    this.sim.flags.blueprintsPlaced = (this.sim.flags.blueprintsPlaced ?? 0) + 1;
+    this.ui.panel = null;
+    this.setTool({ kind: 'paste', bp });
+    this.pushToast({ kind: 'info', title: 'Укажите место для чертежа', text: 'ЛКМ — поставить призраки, Esc — отмена' });
+  }
+
+  placeBlueprintNearBase(p: Proposal): void {
+    if (!p.blueprint) return;
+    const ents = p.blueprint.entities as BpEntity[];
+    const w = Math.max(...ents.map((e) => e.dx)) + 3;
+    const h = Math.max(...ents.map((e) => e.dy)) + 3;
+    const spot = findSpot(this.sim, w, h, this.sim.world.base.x, this.sim.world.base.y + 14);
+    if (!spot) {
+      this.pushToast({ kind: 'warning', title: 'Нет места рядом с базой', text: 'Укажите место вручную' });
+      return;
+    }
+    const n = placeBlueprint(this.sim, ents, spot.x, spot.y);
+    acceptProposal(this.sim, p.id);
+    this.focusTile(spot.x + Math.floor(w / 2), spot.y + Math.floor(h / 2), 0.9);
+    this.pushToast({ kind: 'success', title: 'Чертёж поставлен', text: `${n} призраков — дроны уже летят строить` });
+  }
+
+  restoreSnapshot(commitId: number): void {
+    const c = this.sim.git.commits.find((x) => x.id === commitId);
+    if (!c?.snapshot) return;
+    const git = structuredClone(this.sim.git);
+    const snap = structuredClone(c.snapshot);
+    snap.git = git;
+    const sim = Sim.deserialize(snap);
+    rollbackTo(sim, commitId);
+    this.load(sim);
+    this.pushToast({ kind: 'info', title: `Полный откат к ${c.version}`, text: 'Фабрика восстановлена из снимка' });
+  }
 
   togglePanel(p: Panel): void {
     this.ui.panel = this.ui.panel === p ? null : p;

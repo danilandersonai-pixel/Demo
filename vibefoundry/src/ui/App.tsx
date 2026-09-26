@@ -5,6 +5,9 @@ import { MainMenu, EscMenu, SettingsBody, Tooltip } from './menus';
 import { Icon } from './icons';
 import { buildThumbs, onThumbs } from './thumbs';
 import './hud.css';
+import './vibe.css';
+import { VibeWindow } from './vibe';
+import { AgentsWindow } from './agents';
 
 export function useGame(game: Game): number {
   const [, setV] = useState(0);
@@ -51,6 +54,8 @@ export function App({ game }: { game: Game }) {
       <ToolHint game={game} />
       <PerfOverlay game={game} />
       <GroupPrompt game={game} />
+      {(ui.panel === 'vibe' || ui.panel === 'git') && <VibeWindow game={game} />}
+      {ui.panel === 'agents' && <AgentsWindow game={game} />}
       {ui.panel === 'settings' && <Window title="Настройки" icon="settings" width={460} onClose={close}><SettingsBody game={game} /></Window>}
       {ui.panel === 'menu' && <EscMenu game={game} />}
       <Tooltip />

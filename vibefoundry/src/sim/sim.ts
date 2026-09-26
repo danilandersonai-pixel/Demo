@@ -22,6 +22,8 @@ import { updateAI, aiEverySecond } from '../ai/ai';
 import { GitState, newGitState } from '../vibe/git';
 import { ScriptRuntime } from '../script/runtime';
 import { QuestState, newQuestState, updateQuests } from './quests';
+import { architectBuild } from '../ai/architect';
+import { initGit } from '../vibe/vibe';
 
 export interface SimEvents extends Record<string, unknown> {
   toast: Toast;
@@ -146,6 +148,7 @@ export class Sim {
     this.belts = new BeltStore(512);
     this.supply = new Int32Array(world.w * world.h);
     this.scripts = new ScriptRuntime();
+    this.architect = (name, near) => architectBuild(this, name, near);
   }
 
   static newGame(opts: NewGameOptions): Sim {
@@ -160,6 +163,7 @@ export class Sim {
     };
     hq.storeTotal = 660;
     for (let i = 0; i < 2; i++) sim.addDrone('construction', hq.id);
+    initGit(sim);
     return sim;
   }
 
