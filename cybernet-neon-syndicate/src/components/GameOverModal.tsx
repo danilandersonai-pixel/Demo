@@ -1,5 +1,6 @@
 import { motion } from 'framer-motion';
 import { RotateCcw, Skull, Trophy } from 'lucide-react';
+import { MIN_RECORD_DAYS } from '../game/config.ts';
 import { fmt } from '../game/format.ts';
 import { useGameContext } from './GameContext.tsx';
 import { cn } from './ui/cn.ts';
@@ -12,8 +13,9 @@ export function GameOverModal({ open, onNewGame, inert }: { open: boolean; onNew
   const { state } = useGameContext();
   // Рекорд капитала хранится в целых кредитах — показываем и сравниваем так же.
   const peak = Math.floor(state.stats.peakCapital);
-  const recordDays = state.day > state.baseline.days;
-  const recordCapital = peak > state.baseline.capital;
+  const eligible = state.day >= MIN_RECORD_DAYS;
+  const recordDays = eligible && state.day > state.baseline.days;
+  const recordCapital = eligible && peak > state.baseline.capital;
   const stats = [
     { label: 'Дней продержались', value: String(state.day), cls: 'text-ink' },
     { label: 'Пиковый капитал', value: `${fmt(peak)}₵`, cls: 'text-credit' },
@@ -47,6 +49,10 @@ export function GameOverModal({ open, onNewGame, inert }: { open: boolean; onNew
         <p className="mt-3 text-[14px] leading-relaxed text-muted">
           Кредиты держались в минусе 5 дней подряд. Кредиторы ликвидировали синдикат «Neon» на {state.day}-й день.
         </p>
+
+        {!eligible ? (
+          <p className="mt-2 font-mono text-[11px] text-dim">Забег короче {MIN_RECORD_DAYS} дней не попадает в Зал славы и не ставит рекордов.</p>
+        ) : null}
 
         {recordDays || recordCapital ? (
           <motion.div

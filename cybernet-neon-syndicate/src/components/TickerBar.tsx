@@ -17,7 +17,8 @@ const ITEMS = 10;
 export function TickerBar({ onOpenLog, inert }: { onOpenLog: () => void; inert?: boolean }) {
   const { state } = useGameContext();
   const reduce = useReducedMotion();
-  const items = state.log.slice(-ITEMS);
+  // Без анимации строка стоит на месте — показываем свежие записи первыми, чтобы они были видны.
+  const items = reduce ? state.log.slice(-ITEMS).reverse() : state.log.slice(-ITEMS);
   const track = useRef<HTMLDivElement>(null);
   const firstCopy = useRef<HTMLDivElement>(null);
   const offset = useRef(0);
@@ -27,6 +28,13 @@ export function TickerBar({ onOpenLog, inert }: { onOpenLog: () => void; inert?:
 
   useLayoutEffect(() => {
     const ids = items.map((item) => item.id);
+    if (reduce) {
+      offset.current = 0;
+      prevIds.current = ids;
+      widths.current.clear();
+      if (track.current) track.current.style.transform = '';
+      return;
+    }
     const dropped = prevIds.current.filter((id) => !ids.includes(id));
     for (const id of dropped) {
       offset.current -= widths.current.get(id) ?? 0;

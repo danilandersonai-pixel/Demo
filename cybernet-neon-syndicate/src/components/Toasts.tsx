@@ -66,11 +66,19 @@ function ToastItem({ toast }: { toast: Toast }) {
   );
 }
 
-/** Уведомления: рекорды (ярко-неоновые), завершённые исследования, тревоги. */
-export function Toasts() {
+/**
+ * Уведомления: рекорды (ярко-неоновые), завершённые исследования, тревоги.
+ * Живут внизу над бегущей строкой (на широких экранах — справа), чтобы не закрывать кнопки паузы.
+ * Пока открыто окно, тосты уходят под него и выпадают из порядка фокуса.
+ */
+export function Toasts({ underOverlay }: { underOverlay: boolean }) {
   const { state } = useGameContext();
   return (
-    <ol className="toast-stack pointer-events-none fixed inset-x-4 z-[70] mx-auto flex max-w-md flex-col-reverse gap-2 sm:flex-col" aria-live="assertive">
+    <ol
+      className={cn('toast-stack pointer-events-none fixed flex flex-col-reverse gap-2', underOverlay ? 'z-[45]' : 'z-[70]')}
+      aria-live="assertive"
+      inert={underOverlay}
+    >
       <AnimatePresence initial={false}>
         {state.toasts.map((toast) => (
           <ToastItem key={toast.id} toast={toast} />

@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { computeEconomy, projectTick } from '../game/economy.ts';
 import { gameReducer } from '../game/engine.ts';
 import { freshSeed } from '../game/rng.ts';
-import { SAVE_KEY, loadGame, readSaveOwner, saveGame } from '../game/storage.ts';
+import { OWNER_KEY, isNewerClaim, loadGame, parseClaim, readClaim, saveGame, writeClaim, type OwnerClaim } from '../game/storage.ts';
 import type { GameState } from '../game/types.ts';
 
 /** Не чаще одного сохранения в секунду — и на скорости 4× тоже. */
@@ -10,29 +10,60 @@ const SAVE_INTERVAL = 1000;
 
 /**
  * Состояние игры + автосохранение в localStorage.
+ *
  * Сохранение «троттлится»: сразу, если с прошлого прошло больше секунды, иначе один отложенный
  * вызов, который следующие тики не отменяют. Плюс сброс при скрытии и закрытии вкладки.
- * Если сейв перехватила другая вкладка, эта перестаёт писать и предлагает забрать управление.
+ *
+ * Несколько вкладок: при открытии вкладка пишет заявку на владение (id + время). Перед каждым
+ * сохранением заявка сверяется: если появилась более новая, эта вкладка замирает и больше
+ * ничего не пишет, а игроку предлагается «Продолжить здесь».
  */
 export function useGame() {
   const [boot] = useState(() => loadGame(Date.now(), freshSeed()));
   const [state, dispatch] = useReducer(gameReducer, boot.state);
   const [stale, setStale] = useState(false);
-  const tabId = useState(() => `tab-${freshSeed().toString(36)}`)[0];
+  const [tabId] = useState(() => `tab-${freshSeed().toString(36)}-${Math.random().toString(36).slice(2, 8)}`);
+  const claim = useRef<OwnerClaim>({ tab: tabId, at: 0 });
   const latest = useRef<GameState>(state);
   const staleRef = useRef(false);
   const lastSave = useRef(0);
   const pending = useRef<number | null>(null);
 
-  const flush = useCallback(() => {
-    if (staleRef.current) return;
+  const cancelPending = useCallback(() => {
     if (pending.current !== null) {
       window.clearTimeout(pending.current);
       pending.current = null;
     }
+  }, []);
+
+  const goStale = useCallback(() => {
+    staleRef.current = true;
+    setStale(true);
+    cancelPending();
+  }, [cancelPending]);
+
+  /** Заявить права на сейв: вызывается при открытии вкладки и при «Продолжить здесь». */
+  const claimOwnership = useCallback(() => {
+    claim.current = { tab: tabId, at: Date.now() };
+    writeClaim(claim.current);
+  }, [tabId]);
+
+  // Заявка пишется в layout-эффекте — раньше, чем любой эффект сохранения.
+  useLayoutEffect(() => {
+    claimOwnership();
+  }, [claimOwnership]);
+
+  const flush = useCallback(() => {
+    if (staleRef.current) return;
+    cancelPending();
+    const owner = readClaim();
+    if (owner && owner.tab !== tabId && isNewerClaim(owner, claim.current)) {
+      goStale();
+      return;
+    }
     lastSave.current = Date.now();
     saveGame(latest.current, tabId);
-  }, [tabId]);
+  }, [cancelPending, goStale, tabId]);
 
   useEffect(() => {
     latest.current = state;
@@ -47,16 +78,9 @@ export function useGame() {
       if (document.visibilityState === 'hidden') flush();
     };
     const onStorage = (event: StorageEvent) => {
-      if (event.key !== SAVE_KEY || event.newValue === null) return;
-      const owner = readSaveOwner(event.newValue);
-      if (owner && owner !== tabId) {
-        staleRef.current = true;
-        setStale(true);
-        if (pending.current !== null) {
-          window.clearTimeout(pending.current);
-          pending.current = null;
-        }
-      }
+      if (event.key !== OWNER_KEY) return;
+      const owner = parseClaim(event.newValue);
+      if (owner && owner.tab !== tabId && isNewerClaim(owner, claim.current)) goStale();
     };
     window.addEventListener('pagehide', flush);
     window.addEventListener('beforeunload', flush);
@@ -67,19 +91,20 @@ export function useGame() {
       window.removeEventListener('beforeunload', flush);
       document.removeEventListener('visibilitychange', onHide);
       window.removeEventListener('storage', onStorage);
-      if (pending.current !== null) window.clearTimeout(pending.current);
+      cancelPending();
     };
-  }, [flush, tabId]);
+  }, [flush, goStale, cancelPending, tabId]);
 
   /** Забрать управление: загрузить свежий сейв другой вкладки и снова стать владельцем. */
   const takeOver = useCallback(() => {
+    claimOwnership();
     const fresh = loadGame(Date.now(), freshSeed()).state;
     staleRef.current = false;
     setStale(false);
     latest.current = fresh;
     dispatch({ type: 'HYDRATE', state: fresh });
     flush();
-  }, [flush]);
+  }, [claimOwnership, flush]);
 
   const econ = useMemo(() => computeEconomy(state), [state]);
   const projection = useMemo(() => projectTick(state), [state]);

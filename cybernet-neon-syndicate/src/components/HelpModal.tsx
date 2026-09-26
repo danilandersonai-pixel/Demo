@@ -20,7 +20,7 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
 }
 
 /** Справка: правила, таблица построек, горячие клавиши и настройки. Пока открыта — игра на паузе. */
-export function HelpModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+export function HelpModal({ open, onClose, inert }: { open: boolean; onClose: () => void; inert?: boolean }) {
   const { state, dispatch } = useGameContext();
   const [wipeArmed, setWipeArmed] = useState(false);
 
@@ -29,7 +29,7 @@ export function HelpModal({ open, onClose }: { open: boolean; onClose: () => voi
   }, [open]);
 
   return (
-    <Modal open={open} onClose={onClose} labelledBy="help-title" className="max-w-3xl" layer="z-[80]">
+    <Modal open={open} onClose={onClose} labelledBy="help-title" className="max-w-3xl" layer="z-[80]" inert={inert}>
       <div className="max-h-[85vh] overflow-y-auto p-5 sm:p-7 scroll-thin">
         <div className="flex items-start justify-between gap-3">
           <div>

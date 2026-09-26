@@ -36,7 +36,7 @@ export function HallOfFame({ highlight, className }: { highlight?: number; class
             </thead>
             <tbody>
               {records.runs.map((run, i) => (
-                <tr key={`${run.runId}-${run.endedAt}`} className={cn('border-t border-line', run.runId === highlight && 'bg-credit/[0.07] text-credit')}>
+                <tr key={run.runId} className={cn('border-t border-line', run.runId === highlight && 'bg-credit/[0.07] text-credit')}>
                   <td className="py-1.5 pr-2 text-dim">{i + 1}</td>
                   <td className="py-1.5 pr-2">#{run.runId}</td>
                   <td className="tabular py-1.5 pr-2 text-right text-ink">{run.days}</td>

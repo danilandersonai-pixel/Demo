@@ -474,6 +474,15 @@ export function canChoose(s: GameState, optionId: string): boolean {
 
 /** Урон от провала обороны: лучшее здание теряет уровень, а если все на 1-м уровне — одно разрушается. */
 function raidDamage(s: GameState, rng: Rng): string {
+  const text = applyRaidDamage(s, rng);
+  // Хранилища могли уменьшиться — запасы не должны их превышать (как при демонтаже).
+  const econ = computeEconomy(s);
+  s.energy = Math.min(s.energy, econ.energyCap);
+  s.data = Math.min(s.data, econ.dataCap);
+  return text;
+}
+
+function applyRaidDamage(s: GameState, rng: Rng): string {
   let best = -1;
   s.grid.forEach((cell, index) => {
     if (cell.type && cell.level >= 2 && (best < 0 || cell.level > s.grid[best].level)) best = index;

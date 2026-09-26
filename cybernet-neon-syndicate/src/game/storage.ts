@@ -28,6 +28,8 @@ import type {
 
 export const SAVE_KEY = 'cybernet-neon-syndicate:save:v1';
 export const RECORDS_KEY = 'cybernet-neon-syndicate:records:v1';
+/** Какая вкладка сейчас ведёт игру. Пишется только при открытии вкладки и при «Продолжить здесь». */
+export const OWNER_KEY = 'cybernet-neon-syndicate:owner:v1';
 
 type Json = Record<string, unknown>;
 
@@ -48,6 +50,26 @@ function num(value: unknown, fallback: number, min = -MAX_AMOUNT, max = MAX_AMOU
 
 function int(value: unknown, fallback: number, min = -MAX_AMOUNT, max = MAX_AMOUNT): number {
   return Math.floor(num(value, fallback, min, max));
+}
+
+/** Метка времени (Date.now() уже больше MAX_AMOUNT, поэтому у меток свой потолок). */
+function ts(value: unknown, fallback = 0): number {
+  return num(value, fallback, 0, Number.MAX_SAFE_INTEGER);
+}
+
+/** Собственное поле справочника; `in` пропустил бы унаследованные 'constructor' и 'toString'. */
+function has(map: object, key: unknown): key is string {
+  return typeof key === 'string' && Object.hasOwn(map, key);
+}
+
+/** Один забег — одна строка: при дублях оставляем более длинный (затем более поздний). */
+function uniqueRuns(runs: RunSummary[]): RunSummary[] {
+  const best = new Map<number, RunSummary>();
+  for (const run of runs) {
+    const prev = best.get(run.runId);
+    if (!prev || run.days > prev.days || (run.days === prev.days && run.endedAt > prev.endedAt)) best.set(run.runId, run);
+  }
+  return [...best.values()].sort((a, b) => b.days - a.days || b.peakCapital - a.peakCapital).slice(0, 8);
 }
 
 function oneOf<T extends string>(value: unknown, allowed: readonly T[], fallback: T): T {
@@ -83,22 +105,24 @@ function writeRaw(key: string, value: unknown): boolean {
 export function sanitizeRecords(raw: unknown): Records {
   if (!isObj(raw)) return emptyRecords();
   const runs: RunSummary[] = Array.isArray(raw.runs)
-    ? raw.runs.filter(isObj).slice(0, 8).map((r) => ({
-        runId: int(r.runId, 0, 0),
-        days: int(r.days, 0, 0),
-        peakCapital: int(r.peakCapital, 0, 0),
-        researchDone: int(r.researchDone, 0, 0),
-        built: int(r.built, 0, 0),
-        endedAt: num(r.endedAt, 0, 0),
-        cause: r.cause === 'reset' ? 'reset' : 'bankrupt',
-      }))
+    ? uniqueRuns(
+        raw.runs.filter(isObj).slice(0, 16).map((r) => ({
+          runId: int(r.runId, 0, 0),
+          days: int(r.days, 0, 0),
+          peakCapital: int(r.peakCapital, 0, 0),
+          researchDone: int(r.researchDone, 0, 0),
+          built: int(r.built, 0, 0),
+          endedAt: ts(r.endedAt),
+          cause: r.cause === 'reset' ? 'reset' : 'bankrupt',
+        })),
+      )
     : [];
   return {
     bestDays: int(raw.bestDays, 0, 0),
     bestCapital: int(raw.bestCapital, 0, 0),
     totalRuns: int(raw.totalRuns, 0, 0),
     runs,
-    epoch: num(raw.epoch, 0, 0),
+    epoch: ts(raw.epoch),
   };
 }
 
@@ -109,16 +133,7 @@ export function sanitizeRecords(raw: unknown): Records {
 export function mergeRecords(mine: Records, stored: Records): Records {
   if (stored.epoch > mine.epoch) return { ...stored, totalRuns: Math.max(stored.totalRuns, mine.totalRuns) };
   if (mine.epoch > stored.epoch) return { ...mine, totalRuns: Math.max(stored.totalRuns, mine.totalRuns) };
-  const seen = new Set<string>();
-  const runs = [...mine.runs, ...stored.runs]
-    .filter((run) => {
-      const key = `${run.runId}:${run.endedAt}`;
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    })
-    .sort((a, b) => b.days - a.days || b.peakCapital - a.peakCapital)
-    .slice(0, 8);
+  const runs = uniqueRuns([...mine.runs, ...stored.runs]);
   return {
     bestDays: Math.max(mine.bestDays, stored.bestDays),
     bestCapital: Math.max(mine.bestCapital, stored.bestCapital),
@@ -129,7 +144,7 @@ export function mergeRecords(mine: Records, stored: Records): Records {
 }
 
 function sanitizeCell(raw: unknown): Cell {
-  if (!isObj(raw) || typeof raw.type !== 'string' || !(raw.type in BUILDINGS)) return emptyCell();
+  if (!isObj(raw) || !has(BUILDINGS, raw.type)) return emptyCell();
   return {
     uid: int(raw.uid, 1, 1),
     type: raw.type as BuildingId,
@@ -144,7 +159,7 @@ function sanitizeModifiers(raw: unknown, day: number): Modifier[] {
   if (!Array.isArray(raw)) return [];
   return raw
     .filter(isObj)
-    .filter((m) => typeof m.eventId === 'string' && m.eventId in EVENTS && typeof m.label === 'string')
+    .filter((m) => has(EVENTS, m.eventId) && typeof m.label === 'string')
     .map((m, i) => ({
       id: int(m.id, i + 1, 1),
       eventId: m.eventId as Modifier['eventId'],
@@ -170,7 +185,7 @@ function sanitizeOption(raw: unknown): DecisionOption | null {
 }
 
 function sanitizePending(raw: unknown, day: number): PendingDecision | null {
-  if (!isObj(raw) || typeof raw.eventId !== 'string' || !(raw.eventId in EVENTS)) return null;
+  if (!isObj(raw) || !has(EVENTS, raw.eventId)) return null;
   if (!Array.isArray(raw.options) || !isObj(raw.ctx) || typeof raw.defaultOption !== 'string') return null;
   const options = raw.options.map(sanitizeOption).filter((o): o is DecisionOption => o !== null);
   if (!options.some((o) => o.id === raw.defaultOption)) return null;
@@ -212,7 +227,7 @@ function sanitizeEventHistory(raw: unknown): EventRecord[] {
   if (!Array.isArray(raw)) return [];
   return raw
     .filter(isObj)
-    .filter((e) => typeof e.eventId === 'string' && e.eventId in EVENTS && typeof e.outcome === 'string')
+    .filter((e) => has(EVENTS, e.eventId) && typeof e.outcome === 'string')
     .slice(0, 12)
     .map((e, i) => ({
       id: int(e.id, i, 0),
@@ -262,13 +277,9 @@ export function sanitizeState(raw: unknown, records: Records, now: number, seed:
     const day = int(raw.day, 0, 0, 1e7);
     const grid = Array.from({ length: GRID_CELLS }, (_, i) => sanitizeCell((raw.grid as unknown[])[i]));
     const research = isObj(raw.research) ? raw.research : {};
-    const done = Array.isArray(research.done)
-      ? (research.done.filter((id) => typeof id === 'string' && id in RESEARCH) as ResearchId[])
-      : [];
+    const done = Array.isArray(research.done) ? (research.done.filter((id) => has(RESEARCH, id)) as ResearchId[]) : [];
     const active =
-      typeof research.active === 'string' && research.active in RESEARCH && !done.includes(research.active as ResearchId)
-        ? (research.active as ResearchId)
-        : null;
+      has(RESEARCH, research.active) && !done.includes(research.active as ResearchId) ? (research.active as ResearchId) : null;
     const market = isObj(raw.market) ? raw.market : {};
     const history = isObj(raw.history) ? raw.history : {};
     const stats = isObj(raw.stats) ? raw.stats : {};
@@ -298,7 +309,7 @@ export function sanitizeState(raw: unknown, records: Records, now: number, seed:
       modifiers: sanitizeModifiers(raw.modifiers, day),
       nextModId: int(raw.nextModId, 1, 1),
       pending: sanitizePending(raw.pending, day),
-      lastEventId: typeof raw.lastEventId === 'string' && raw.lastEventId in EVENTS ? (raw.lastEventId as GameState['lastEventId']) : null,
+      lastEventId: has(EVENTS, raw.lastEventId) ? (raw.lastEventId as GameState['lastEventId']) : null,
       market: {
         price: num(market.price, base.market.price, 0.5, 20),
         history: numList(market.history, base.market.history),
@@ -335,7 +346,7 @@ export function sanitizeState(raw: unknown, records: Records, now: number, seed:
       speed: raw.speed === 0 || raw.speed === 2 || raw.speed === 4 ? raw.speed : 1,
       settings: { autoPause: settings.autoPause !== false },
       lastTick: sanitizeLastTick(raw.lastTick),
-      startedAt: num(raw.startedAt, now, 0),
+      startedAt: ts(raw.startedAt, now),
     };
     state.nextLogId = Math.max(state.nextLogId, state.log.reduce((m, e) => Math.max(m, e.id), 0) + 1);
     state.nextModId = Math.max(state.nextModId, state.modifiers.reduce((m, e) => Math.max(m, e.id), 0) + 1);
@@ -360,15 +371,36 @@ export function loadGame(now: number, seed: number): { state: GameState; restore
   return { state: createInitialState(seed, now, records), restored: false };
 }
 
-/** Кто последним писал сейв (идентификатор вкладки) — чтобы вкладки не затирали друг друга. */
-export function readSaveOwner(raw: string | null): string | null {
+export interface OwnerClaim {
+  tab: string;
+  at: number;
+}
+
+/** Заявка a новее заявки b: позже по времени, при равенстве — по идентификатору вкладки. */
+export function isNewerClaim(a: OwnerClaim, b: OwnerClaim): boolean {
+  return a.at > b.at || (a.at === b.at && a.tab > b.tab);
+}
+
+export function parseClaim(raw: string | null): OwnerClaim | null {
   if (!raw) return null;
   try {
     const parsed: unknown = JSON.parse(raw);
-    return isObj(parsed) && typeof parsed.owner === 'string' ? parsed.owner : null;
+    return isObj(parsed) && typeof parsed.tab === 'string' && typeof parsed.at === 'number' ? { tab: parsed.tab, at: parsed.at } : null;
   } catch {
     return null;
   }
+}
+
+export function readClaim(): OwnerClaim | null {
+  try {
+    return parseClaim(globalThis.localStorage?.getItem(OWNER_KEY) ?? null);
+  } catch {
+    return null;
+  }
+}
+
+export function writeClaim(claim: OwnerClaim): void {
+  writeRaw(OWNER_KEY, claim);
 }
 
 /** Пишет забег и рекорды. Рекорды сливаются с сохранёнными, чтобы не откатить чужой прогресс. */

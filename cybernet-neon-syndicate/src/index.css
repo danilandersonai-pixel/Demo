@@ -249,14 +249,16 @@ body {
     background: transparent;
   }
 
-  /* Стек уведомлений: на телефоне — внизу над бегущей строкой, чтобы не закрывать кнопку паузы. */
+  /* Стек уведомлений: внизу над бегущей строкой; на широких экранах — в правом углу. */
   .toast-stack {
+    left: 16px;
+    right: 16px;
     bottom: calc(env(safe-area-inset-bottom, 0px) + 48px);
   }
   @media (min-width: 640px) {
     .toast-stack {
-      bottom: auto;
-      top: calc(env(safe-area-inset-top, 0px) + 12px);
+      left: auto;
+      width: 24rem;
     }
   }
 

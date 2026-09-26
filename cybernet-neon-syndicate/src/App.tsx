@@ -22,6 +22,9 @@ import { useGame } from './hooks/useGame.ts';
 import { useGameLoop } from './hooks/useGameLoop.ts';
 import { usePageVisible } from './hooks/usePageVisible.ts';
 
+/** Всё, что пробел может «нажать»: кнопки, ссылки, вкладки, переключатели. */
+const CONTROLS = 'button, a, [role="tab"], [role="switch"], input[type="checkbox"], input[type="radio"]';
+
 /** Поля ввода текста — там горячие клавиши не перехватываем вообще. */
 function isTextEntry(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
@@ -29,10 +32,6 @@ function isTextEntry(target: EventTarget | null): boolean {
   return target instanceof HTMLInputElement && !['checkbox', 'radio', 'button', 'submit', 'range'].includes(target.type);
 }
 
-/** Переключатели, где пробел — их собственное действие. */
-function isToggleControl(target: EventTarget | null): boolean {
-  return target instanceof HTMLElement && Boolean(target.closest('input[type="checkbox"], input[type="radio"], [role="switch"]'));
-}
 
 export default function App() {
   const { state, dispatch, econ, projection, restored, stale, takeOver } = useGame();
@@ -80,28 +79,48 @@ export default function App() {
     document.getElementById('terminal-title')?.closest('section')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }, []);
 
-  // Какую кнопку последней нажали мышью. :focus-visible тут не помогает: Chrome включает его
-  // в момент нажатия любой клавиши, поэтому источник фокуса запоминаем сами.
+  // Какой элемент последним нажали мышью. :focus-visible тут не помогает: Chrome включает его
+  // в момент нажатия любой клавиши, поэтому источник фокуса запоминаем сами. lastPressed
+  // переживает открытие окна: когда окно закроется и вернёт фокус на кнопку, она всё ещё «мышиная».
   const pointerFocus = useRef<Element | null>(null);
+  const lastPressed = useRef<Element | null>(null);
   useEffect(() => {
     const onPointerDown = (event: PointerEvent) => {
-      pointerFocus.current = event.target instanceof Element ? event.target.closest('button, a, [role="tab"]') : null;
+      const control = event.target instanceof Element ? event.target.closest(CONTROLS) : null;
+      pointerFocus.current = control;
+      lastPressed.current = control;
     };
     const onFocusIn = (event: FocusEvent) => {
-      if (event.target !== pointerFocus.current) pointerFocus.current = null;
+      pointerFocus.current = event.target === lastPressed.current ? lastPressed.current : null;
+    };
+    const onTab = (event: KeyboardEvent) => {
+      if (event.key === 'Tab') lastPressed.current = null;
     };
     window.addEventListener('pointerdown', onPointerDown, true);
     window.addEventListener('focusin', onFocusIn, true);
+    window.addEventListener('keydown', onTab, true);
     return () => {
       window.removeEventListener('pointerdown', onPointerDown, true);
       window.removeEventListener('focusin', onFocusIn, true);
+      window.removeEventListener('keydown', onTab, true);
     };
   }, []);
+
+  // Вкладка замерла — справку закрываем, чтобы она не осталась открытой под окном перехвата.
+  useEffect(() => {
+    if (stale) setHelpOpen(false);
+  }, [stale]);
 
   // Горячие клавиши: пробел — пауза, 1/2/3 — скорость, H — справка.
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.ctrlKey || event.metaKey || event.altKey || isTextEntry(event.target)) return;
+      if (stale) return;
+      // Автоповтор зажатой клавиши не должен дёргать паузу туда-сюда.
+      if (event.repeat) {
+        if (event.code === 'Space' && spaceHandled.current) event.preventDefault();
+        return;
+      }
       if (['h', 'H', 'р', 'Р', '?'].includes(event.key)) {
         event.preventDefault();
         setHelpOpen((open) => !open);
@@ -110,10 +129,10 @@ export default function App() {
       if (!booted || stale || state.status !== 'playing') return;
       if (event.code === 'Space') {
         // В окнах пробел нажимает выбранную кнопку — это нужно для выбора с клавиатуры.
-        if (overlay || isToggleControl(event.target)) return;
+        if (overlay) return;
         const target = event.target instanceof HTMLElement ? event.target : null;
-        const control = target?.closest('button, a, [role="tab"]') ?? null;
-        // Кнопку выбрали с клавиатуры (Tab) — пробел её нажимает, как обычно.
+        const control = target?.closest(CONTROLS) ?? null;
+        // Элемент выбрали с клавиатуры (Tab) — пробел его нажимает, как обычно.
         if (control && control !== pointerFocus.current) return;
         // Кнопку просто кликнули мышью — не даём пробелу нажать её повторно (второе здание, демонтаж).
         event.preventDefault();
@@ -193,10 +212,10 @@ export default function App() {
 
           <main className="relative mx-auto grid max-w-[1680px] grid-cols-12 gap-4 px-4 py-4 sm:px-6 sm:py-6" inert={overlay}>
             <ResourceDashboard className="col-span-12" />
-            <ProductionSector className="col-span-12 xl:col-span-7 2xl:col-span-6" />
-            <ResearchLab className="col-span-12 lg:col-span-6 xl:col-span-5 2xl:col-span-3" />
-            <ThreatCenter className="col-span-12 lg:col-span-6 xl:col-span-4 2xl:col-span-3" onOpenDecision={openDecision} />
-            <TerminalLog className="col-span-12 xl:col-span-8 2xl:col-span-12" />
+            <ProductionSector className="col-span-12 xl:col-span-7 min-[1800px]:col-span-5" />
+            <ResearchLab className="col-span-12 lg:col-span-6 xl:col-span-5 min-[1800px]:col-span-4" />
+            <ThreatCenter className="col-span-12 lg:col-span-6 xl:col-span-4 min-[1800px]:col-span-3" onOpenDecision={openDecision} />
+            <TerminalLog className="col-span-12 xl:col-span-8 min-[1800px]:col-span-12" />
           </main>
 
           <footer className="relative mx-auto max-w-[1680px] px-4 pb-16 font-mono text-[10px] tracking-[0.2em] text-dim sm:px-6" inert={overlay}>
@@ -204,10 +223,10 @@ export default function App() {
           </footer>
 
           <TickerBar onOpenLog={openLog} inert={overlay} />
-          <Toasts />
+          <Toasts underOverlay={overlay} />
           <DecisionModal open={decisionOpen} onMinimize={minimizeDecision} inert={helpOpen} />
           <GameOverModal open={gameOverOpen} onNewGame={newGame} inert={helpOpen} />
-          <HelpModal open={helpOpen} onClose={closeHelp} />
+          <HelpModal open={helpOpen} onClose={closeHelp} inert={stale} />
           <BootScreen
             open={!booted}
             restored={restored}

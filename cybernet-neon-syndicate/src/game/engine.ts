@@ -258,7 +258,8 @@ function tick(state: GameState, now: number): GameState {
       s.status = 'gameover';
       pushLog(s, `БАНКРОТСТВО. Синдикат ликвидирован на ${s.day}-й день`, 'danger', 'system');
       updateRecords(s);
-      archiveRun(s, now, 'bankrupt');
+      // Как и при сбросе: забег короче MIN_RECORD_DAYS не попадает в Зал славы.
+      if (s.day >= MIN_RECORD_DAYS) archiveRun(s, now, 'bankrupt');
     } else {
       const left = BANKRUPTCY_DAYS - s.bankruptDays;
       pushLog(s, `Баланс отрицательный! До банкротства ${left} дн.`, 'danger', 'economy');

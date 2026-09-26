@@ -11,8 +11,9 @@ export default defineConfig(({ mode }) => {
   return {
     base: './',
     plugins: [react(), tailwindcss(), ...(standalone ? [viteSingleFile()] : [])],
+    // React + Framer Motion + иконки дают ~600 КБ (≈180 КБ gzip) — для игры это нормально.
     build: standalone
-      ? { outDir: 'standalone', emptyOutDir: true, cssCodeSplit: false, assetsInlineLimit: 100_000_000 }
-      : { outDir: 'dist', emptyOutDir: true },
+      ? { outDir: 'standalone', emptyOutDir: true, cssCodeSplit: false, assetsInlineLimit: 100_000_000, chunkSizeWarningLimit: 800 }
+      : { outDir: 'dist', emptyOutDir: true, chunkSizeWarningLimit: 800 },
   };
 });
