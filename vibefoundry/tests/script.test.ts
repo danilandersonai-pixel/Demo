@@ -449,3 +449,14 @@ describe('FactoryScript: world API', () => {
     }
   });
 });
+
+describe('FactoryScript: codex examples', () => {
+  it('class fields act as defaults for self attributes (hysteresis example)', () => {
+    const { sim } = deficitFactory();
+    withFiles(sim, { 'h.py': 'class Hysteresis(Agent):\n    saving = False\n    def run(self):\n        if self.power < 0.6:\n            self.saving = True\n        elif self.power > 0.9:\n            self.saving = False\n        if self.saving:\n            self.disable("labs")\n        self.seen = self.saving\n' });
+    sim.run(2);
+    const inst = sim.scripts.instances[0];
+    expect(inst.status).toBe('ok');
+    expect(typeof inst.fields.seen).toBe('boolean');
+  });
+});
