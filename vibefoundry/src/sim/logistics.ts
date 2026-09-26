@@ -269,13 +269,14 @@ function splitterPush(sim: Sim, e: Entity, item: number, overflow: number): bool
   const outs = e.outs;
   if (!outs) return false;
   const filters = sim.splitterFilters.get(e.id);
-  const f = filters?.get(item);
+  const balanced = sim.splitterBalance.has(item);
+  const f = balanced ? undefined : filters?.get(item);
   if (f !== undefined) {
     const id = outs[f * 2];
     return id ? pushTo(sim, id, outs[f * 2 + 1], item, overflow) : false;
   }
   let reserved = 0;
-  if (filters && !sim.splitterBalance.has(e.id)) for (const v of filters.values()) reserved |= 1 << v;
+  if (filters && !balanced) for (const v of filters.values()) reserved |= 1 << v;
   const start = e.rr ?? 0;
   for (let pass = 0; pass < 2; pass++) {
     for (let j = 0; j < 3; j++) {

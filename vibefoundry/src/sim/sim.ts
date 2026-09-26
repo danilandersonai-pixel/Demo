@@ -130,7 +130,10 @@ export class Sim {
   routeInfo: { item: string; group: string; splitters: number }[] = [];
   /** Per-splitter filters from scripts: entity id → item → output index. */
   splitterFilters = new Map<number, Map<number, number>>();
+  /** Item indices distributed round-robin by all splitters (balance()). */
   splitterBalance = new Set<number>();
+  /** Architect hook for build(blueprint, near) in scripts (installed by the vibe layer). */
+  architect?: (name: string, near: string, agent: string) => boolean;
   /** Crafts completed in the last second per tile-chunk (for data collectors). */
   craftEvents: { x: number; y: number }[] = [];
   lastProdScore = 0;
