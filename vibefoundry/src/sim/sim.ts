@@ -340,6 +340,7 @@ export class Sim {
   private initEntity(e: Entity): void {
     const def = BUILDINGS[e.type];
     delete e.ghost;
+    delete e.status;
     e.hp = def.hp;
     if (BELTLIKE.has(e.type)) e.bi = this.belts.alloc();
     if (def.storage && !e.store) {

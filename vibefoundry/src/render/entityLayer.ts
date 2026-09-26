@@ -317,18 +317,39 @@ export class EntityLayer {
       const h = e.type === 'hq' ? 120 : e.type === 'big_pole' ? 66 : 42;
       return [x, y - h];
     };
-    for (let i = 0; i < poles.length; i++) {
-      for (let j = i + 1; j < poles.length; j++) {
-        const a = poles[i];
-        const b = poles[j];
-        if (a.net !== b.net) continue;
-        const reach = Math.min(BUILDINGS[a.type].poleReach!, BUILDINGS[b.type].poleReach!) + (a.w + b.w) / 2 - 1;
-        const d = Math.hypot(a.x + a.w / 2 - b.x - b.w / 2, a.y + a.h / 2 - b.y - b.h / 2);
-        if (d > reach) continue;
+    const cx = (e: Entity) => e.x + e.w / 2;
+    const cy = (e: Entity) => e.y + e.h / 2;
+    const canLink = (a: Entity, b: Entity) => {
+      const reach = Math.min(BUILDINGS[a.type].poleReach!, BUILDINGS[b.type].poleReach!) + (a.w + b.w) / 2 - 1;
+      return Math.hypot(cx(a) - cx(b), cy(a) - cy(b)) <= reach;
+    };
+    // Prim's MST per connected component → tidy wiring like real power lines
+    const inTree = new Set<number>();
+    for (const start of poles) {
+      if (inTree.has(start.id)) continue;
+      inTree.add(start.id);
+      const comp = [start];
+      for (;;) {
+        let best: [Entity, Entity] | null = null;
+        let bd = Infinity;
+        for (const a of comp) {
+          for (const b of poles) {
+            if (inTree.has(b.id) || !canLink(a, b)) continue;
+            const d = Math.hypot(cx(a) - cx(b), cy(a) - cy(b));
+            if (d < bd) {
+              bd = d;
+              best = [a, b];
+            }
+          }
+        }
+        if (!best) break;
+        const [a, b] = best;
+        inTree.add(b.id);
+        comp.push(b);
         const [x0, y0] = top(a);
         const [x1, y1] = top(b);
         const mx = (x0 + x1) / 2;
-        const my = (y0 + y1) / 2 + Math.min(18, d * 1.5);
+        const my = (y0 + y1) / 2 + Math.min(18, bd * 1.5);
         g.moveTo(x0, y0).quadraticCurveTo(mx, my, x1, y1).stroke({ color: 0x2a2420, width: 1.2, alpha: 0.85 });
       }
     }

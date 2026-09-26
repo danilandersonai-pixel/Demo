@@ -1,4 +1,5 @@
 import type { Sim } from '../sim/sim';
+import { checkEra } from './eras';
 
 const HQ_COMPUTE = 2;
 const HQ_TOKENS = 0.6;
@@ -13,4 +14,6 @@ export function updateAI(sim: Sim, dt: number): void {
   }
 }
 
-export function aiEverySecond(_sim: Sim): void {}
+export function aiEverySecond(sim: Sim): void {
+  checkEra(sim);
+}

@@ -1,10 +1,12 @@
 import type { Application } from 'pixi.js';
 import { BUILDINGS, BELTLIKE, type BuildingType } from './data/buildings';
-import { Sim, DT, type NewGameOptions, type SimSnapshot } from './sim/sim';
+import { Sim, DT, SAVE_VERSION, type NewGameOptions, type SimSnapshot } from './sim/sim';
+import { saveSlot, loadSlot, listSlots, exportFile, importFile, type SlotId } from './ui/saves';
 import type { Entity, Toast } from './sim/types';
 import { WorldRenderer } from './render/renderer';
 import { rotCW, type Dir } from './core/iso';
 import { audio } from './ui/audio';
+import { sendToPoi, DRONE_NAMES } from './sim/drones';
 
 export type Tool =
   | { kind: 'none' }
@@ -63,6 +65,11 @@ export class Game {
     tutorialHighlight: null,
   };
   blueprints: Blueprint[] = [];
+  settings = loadSettings();
+  demoAvailable = false;
+  startDemo: () => void = () => {};
+  renderLlmSettings?: () => any;
+  private autosaveT = 0;
   private listeners = new Set<Listener>();
   private acc = 0;
   private uiTimer = 0;
@@ -194,6 +201,14 @@ export class Game {
       p.upsCount = 0;
       p.lastFpsT = t0;
     }
+    // autosave every 60 real seconds
+    if (!this.ui.mainMenu && !this.paused) {
+      this.autosaveT += dtReal;
+      if (this.autosaveT > 60) {
+        this.autosaveT = 0;
+        void this.saveTo('auto');
+      }
+    }
     // UI refresh at ~8 Hz, expire toasts
     this.uiTimer += dtReal;
     if (this.uiTimer > 0.125) {
@@ -203,6 +218,66 @@ export class Game {
       this.ui.toasts = this.ui.toasts.filter((t) => now - t.at < (t.action ? 14000 : 8000));
       if (before !== this.ui.toasts.length || true) this.emit();
     }
+  }
+
+  applySettings(): void {
+    audio.setEnabled(this.settings.sound);
+    audio.setVolume(this.settings.volume);
+    document.documentElement.style.setProperty('--ui-scale', String(this.settings.uiScale));
+    document.body.classList.toggle('hc', this.settings.highContrast);
+    try {
+      localStorage.setItem('vf-settings', JSON.stringify(this.settings));
+    } catch {
+      /* storage may be blocked */
+    }
+    this.emit();
+  }
+
+  snapshot() {
+    return { ...this.sim.serialize(), blueprints: this.blueprints };
+  }
+
+  async saveTo(slot: SlotId): Promise<void> {
+    const snap = this.snapshot();
+    await saveSlot(slot, snap, { day: this.sim.day, era: this.sim.ai.era, seed: this.sim.seed, playtime: this.sim.time, label: `День ${this.sim.day}, эра ${this.sim.ai.era}, сид ${this.sim.seed}` });
+    if (slot !== 'auto') this.pushToast({ kind: 'success', title: 'Игра сохранена', text: `Слот ${slot.slice(-1)}` });
+  }
+
+  async loadFrom(slot: SlotId): Promise<boolean> {
+    const rec = await loadSlot(slot);
+    if (!rec) return false;
+    this.applySnapshot(rec.data);
+    this.pushToast({ kind: 'info', title: 'Игра загружена', text: rec.meta.label });
+    return true;
+  }
+
+  async loadLatest(): Promise<boolean> {
+    const metas = await listSlots();
+    if (!metas.length) return false;
+    metas.sort((a, b) => b.savedAt - a.savedAt);
+    return this.loadFrom(metas[0].slot);
+  }
+
+  applySnapshot(data: SimSnapshot & { blueprints?: Blueprint[] }): void {
+    if (data.version !== SAVE_VERSION) {
+      this.pushToast({ kind: 'danger', title: 'Несовместимое сохранение', text: `Версия формата ${data.version}, нужна ${SAVE_VERSION}` });
+      return;
+    }
+    this.blueprints = data.blueprints ?? [];
+    this.load(Sim.deserialize(data));
+  }
+
+  exportSave(): void {
+    exportFile(this.snapshot(), `vibefoundry-day${this.sim.day}.json`);
+  }
+
+  async importSave(): Promise<void> {
+    const d = await importFile();
+    if (!d) {
+      this.pushToast({ kind: 'warning', title: 'Файл не распознан', text: 'Нужен экспорт сохранения VibeFoundry (.json)' });
+      return;
+    }
+    this.applySnapshot(d as any);
   }
 
   setSpeed(s: number): void {
@@ -597,6 +672,41 @@ export class Game {
     }
   }
 
+  /** UI command dispatcher (toasts, panels). */
+  command(cmd: string, arg?: any): void {
+    const sim = this.sim;
+    switch (cmd) {
+      case 'explorePoi': {
+        const d = sim.drones.find((x) => (x.kind === 'worker' || x.kind === 'construction') && x.state === 'idle');
+        if (!d) {
+          this.pushToast({ kind: 'warning', title: 'Нет свободных дронов', text: 'Все дроны заняты — попробуйте позже.' });
+          break;
+        }
+        sendToPoi(sim, d, arg);
+        this.pushToast({ kind: 'info', title: 'Экспедиция отправлена', text: `${DRONE_NAMES[d.kind]} летит к точке «?»` });
+        break;
+      }
+      case 'installModule': {
+        const e = sim.ents.get(arg);
+        if (e && sim.takeStock([{ item: 'memory_module', n: 1 }])) {
+          const slots = e.type === 'aicore' ? 20 : 4;
+          if ((e.modules ?? 0) < slots) {
+            e.modules = (e.modules ?? 0) + 1;
+            sim.stats.consume('memory_module', 1);
+          } else sim.addStock('memory_module', 1);
+        }
+        break;
+      }
+      case 'panel':
+        this.ui.panel = arg;
+        break;
+      default:
+        this.onCommand?.(cmd, arg);
+    }
+    this.emit();
+  }
+  onCommand?: (cmd: string, arg?: any) => void;
+
   togglePanel(p: Panel): void {
     this.ui.panel = this.ui.panel === p ? null : p;
     audio.play('click');
@@ -618,4 +728,22 @@ export class Game {
     this.setTool({ kind: 'paste', bp });
     this.pushToast({ kind: 'success', title: 'Чертёж скопирован', text: `${bp.name}: ${list.length} построек. Клик — вставить, Esc — отмена.` });
   }
+}
+
+export interface GameSettings {
+  sound: boolean;
+  volume: number;
+  uiScale: number;
+  highContrast: boolean;
+}
+
+function loadSettings(): GameSettings {
+  const def: GameSettings = { sound: true, volume: 0.5, uiScale: 1, highContrast: false };
+  try {
+    const raw = localStorage.getItem('vf-settings');
+    if (raw) return { ...def, ...JSON.parse(raw) };
+  } catch {
+    /* ignore */
+  }
+  return def;
 }
