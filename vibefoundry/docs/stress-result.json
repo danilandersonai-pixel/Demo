@@ -4,6 +4,6 @@
   "items": 10000,
   "entities": 8248,
   "itemsOnBelts": 10000,
-  "msPerTick": 3.905,
-  "upsPossible": 256
+  "msPerTick": 4.026,
+  "upsPossible": 248
 }
