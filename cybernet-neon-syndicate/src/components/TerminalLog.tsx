@@ -1,7 +1,6 @@
 import { motion, useReducedMotion } from 'framer-motion';
 import { SquareTerminal } from 'lucide-react';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { padDay } from '../game/format.ts';
 import type { LogCategory, LogEntry } from '../game/types.ts';
 import { useGameContext } from './GameContext.tsx';
 import { TONE_TEXT } from './ui/accent.ts';
@@ -58,7 +57,7 @@ function LogLine({ entry, latest }: { entry: LogEntry; latest: boolean }) {
       transition={{ duration: 0.2 }}
       className="flex gap-2 py-[3px] leading-snug"
     >
-      <span className="shrink-0 text-dim">[День {padDay(entry.day, 3)}]:</span>
+      <span className="tabular shrink-0 whitespace-nowrap text-dim">[День {entry.day}]:</span>
       <span className={cn('min-w-0 break-words', TONE_TEXT[entry.tone], entry.tone === 'danger' && 'glow-danger')}>
         {latest ? <Typewriter text={entry.text} /> : entry.text}
       </span>
@@ -66,7 +65,7 @@ function LogLine({ entry, latest }: { entry: LogEntry; latest: boolean }) {
   );
 }
 
-/** Нижний модуль — Синдикат-Лог: бегущая строка + журнал событий в стиле терминала. */
+/** Нижний модуль — Синдикат-Лог: журнал событий в стиле терминала (бегущая строка — у нижнего края экрана). */
 export function TerminalLog({ className }: { className?: string }) {
   const { state } = useGameContext();
   const [filter, setFilter] = useState<Filter>('all');
@@ -75,7 +74,6 @@ export function TerminalLog({ className }: { className?: string }) {
   const entries = filter === 'all' ? state.log : state.log.filter((e) => e.category === filter);
   const shown = entries.slice(-120);
   const lastId = state.log.length ? state.log[state.log.length - 1].id : -1;
-  const ticker = state.log.slice(-8).reverse();
 
   useLayoutEffect(() => {
     const node = scroller.current;
@@ -112,24 +110,6 @@ export function TerminalLog({ className }: { className?: string }) {
         </div>
       }
     >
-      {/* Бегущая строка с последними событиями. */}
-      <div className="marquee-host relative overflow-hidden border-b border-line bg-data/[0.04] py-1.5" aria-hidden>
-        <div className="animate-marquee flex w-max whitespace-nowrap font-mono text-[11px]">
-          {[0, 1].map((copy) => (
-            <span key={copy} className="flex">
-              {ticker.map((e) => (
-                <span key={`${copy}-${e.id}`} className="px-4">
-                  <span className="text-dim">[День {e.day}]:</span> <span className={TONE_TEXT[e.tone]}>{e.text}</span>
-                  <span className="pl-8 text-data/40">◆</span>
-                </span>
-              ))}
-            </span>
-          ))}
-        </div>
-        <div className="pointer-events-none absolute inset-y-0 left-0 w-10 bg-gradient-to-r from-deep to-transparent" />
-        <div className="pointer-events-none absolute inset-y-0 right-0 w-10 bg-gradient-to-l from-deep to-transparent" />
-      </div>
-
       <div className="relative min-h-64 flex-1 sm:min-h-72">
         <div className="scanlines pointer-events-none absolute inset-0 z-10" aria-hidden />
         <div

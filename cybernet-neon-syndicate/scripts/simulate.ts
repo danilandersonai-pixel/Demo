@@ -108,6 +108,11 @@ function greedyAct(state: GameState): GameState {
   if (!s.autoBrokerEnabled && s.data > econ.dataCap * 0.92) {
     s = gameReducer(s, { type: 'SELL_DATA', fraction: 0.4 });
   }
+  // Экстренно: минус на счёте — продаём данные, как сделал бы внимательный игрок.
+  if (s.credits < 0 && s.data > 0) {
+    const need = -s.credits / effectiveDataPrice(s);
+    s = gameReducer(s, { type: 'SELL_DATA', fraction: Math.min(1, (need + 1) / s.data) });
+  }
 
   if (!s.research.active) {
     for (const id of RESEARCH_ORDER) {

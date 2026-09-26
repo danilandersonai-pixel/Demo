@@ -17,7 +17,7 @@ const TONE: Record<OptionTone, { border: string; label: string; badge: string }>
 };
 
 /** Окно решения по событию. Время идёт: не ответите — сработает вариант по умолчанию. */
-export function DecisionModal({ open, onMinimize }: { open: boolean; onMinimize: () => void }) {
+export function DecisionModal({ open, onMinimize, inert }: { open: boolean; onMinimize: () => void; inert?: boolean }) {
   const { state, dispatch } = useGameContext();
   const pending = state.pending;
   const visible = open && pending !== null && state.status === 'playing';
@@ -26,7 +26,7 @@ export function DecisionModal({ open, onMinimize }: { open: boolean; onMinimize:
   const fallback = pending?.options.find((o) => o.id === pending.defaultOption);
 
   return (
-    <Modal open={visible} onClose={onMinimize} labelledBy="decision-title" tone="danger" className="max-w-2xl">
+    <Modal open={visible} onClose={onMinimize} labelledBy="decision-title" tone="danger" className="max-w-2xl" initialFocus="container" inert={inert}>
       {pending ? (
         <div className="p-5 sm:p-6">
           <div className="flex items-start justify-between gap-3">
@@ -68,7 +68,7 @@ export function DecisionModal({ open, onMinimize }: { open: boolean; onMinimize:
                 transition={{ duration: 0.4 }}
               />
             </div>
-            <p className="mt-1.5 font-mono text-[10px] text-dim">Игра не на паузе — время идёт, пока вы думаете.</p>
+            <p className="mt-1.5 font-mono text-[10px] text-dim">Игра не на паузе — время идёт, пока вы думаете. На ускорении скорость снижена до 1×.</p>
           </div>
 
           <div className="mt-5 grid gap-2">
@@ -83,7 +83,7 @@ export function DecisionModal({ open, onMinimize }: { open: boolean; onMinimize:
                   key={option.id}
                   type="button"
                   disabled={!allowed}
-                  data-autofocus={i === 0 ? true : undefined}
+                  data-option={option.id}
                   initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.05 + i * 0.06 }}

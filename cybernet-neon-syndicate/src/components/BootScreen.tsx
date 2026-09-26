@@ -1,5 +1,6 @@
 import { AnimatePresence, motion } from 'framer-motion';
 import { CircleHelp, Hexagon, Play, RotateCcw, Trophy } from 'lucide-react';
+import { useEffect, useRef } from 'react';
 import { fmt } from '../game/format.ts';
 import { useGameContext } from './GameContext.tsx';
 import { NeonButton } from './ui/NeonButton.tsx';
@@ -18,17 +19,28 @@ interface BootScreenProps {
   onContinue: () => void;
   onNewGame: () => void;
   onHelp: () => void;
+  inert?: boolean;
 }
 
 /** Загрузочный экран: продолжить сохранённый забег или начать новый. */
-export function BootScreen({ open, restored, onContinue, onNewGame, onHelp }: BootScreenProps) {
+export function BootScreen({ open, restored, onContinue, onNewGame, onHelp, inert }: BootScreenProps) {
   const { state } = useGameContext();
   const canContinue = restored && state.status === 'playing';
+  const root = useRef<HTMLDivElement>(null);
+
+  // Фокус сразу на главную кнопку — иначе Tab уходит в скрытые под заставкой элементы.
+  useEffect(() => {
+    if (!open) return undefined;
+    const id = window.setTimeout(() => root.current?.querySelector<HTMLElement>('[data-autofocus]')?.focus({ preventScroll: true }), 60);
+    return () => window.clearTimeout(id);
+  }, [open]);
 
   return (
     <AnimatePresence>
       {open ? (
         <motion.div
+          ref={root}
+          inert={inert}
           className="fixed inset-0 z-[60] overflow-y-auto bg-void/92 backdrop-blur-xl"
           initial={{ opacity: 1 }}
           exit={{ opacity: 0, transition: { duration: 0.45 } }}
@@ -93,7 +105,7 @@ export function BootScreen({ open, restored, onContinue, onNewGame, onHelp }: Bo
             >
               <p>
                 <span className="text-credit">Кредиты</span> добывают майнинг-фермы, <span className="text-data">данные</span> — серверы,{' '}
-                <span className="text-energy">энергию</span> — солнечные панели. Каждое здание ест энергию и требует содержания.
+                <span className="text-energy">энергию</span> — солнечные панели. Фермы и серверы потребляют энергию, а содержание платят все здания.
               </p>
               <p>
                 Каждые 30 дней — глобальное событие. Если кредиты уйдут в минус и продержатся так 5 дней —{' '}

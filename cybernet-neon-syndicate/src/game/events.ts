@@ -2,7 +2,7 @@
 // Часть событий мгновенна (временные модификаторы), часть требует решения игрока
 // в течение DECISION_WINDOW дней — иначе срабатывает вариант по умолчанию.
 
-import { BUILDINGS, DECISION_WINDOW, RESEARCH, cellLabel, severityAt, threatAt } from './config.ts';
+import { BUILDINGS, DECISION_WINDOW, RESEARCH, agree, cellLabel, severityAt, threatAt } from './config.ts';
 import { countBuildings, computeEconomy, effectiveDataPrice, hasResearch } from './economy.ts';
 import { fmt } from './format.ts';
 import { addModifier, pushEventRecord, pushLog, updateRecords } from './mutators.ts';
@@ -29,10 +29,18 @@ function pct(value: number): string {
 
 function setPending(
   s: GameState,
-  decision: Omit<PendingDecision, 'startDay' | 'expiresDay'>,
+  decision: Omit<PendingDecision, 'startDay' | 'expiresDay' | 'resumeSpeed'>,
 ): void {
-  s.pending = { ...decision, startDay: s.day, expiresDay: s.day + DECISION_WINDOW };
-  pushLog(s, `${decision.title}! Требуется решение — ${DECISION_WINDOW} дн. на ответ`, 'danger', 'event');
+  // На ускорении 10 дней — это пара секунд. Сбрасываем до 1×, чтобы игрок успел прочитать варианты.
+  const resumeSpeed = s.speed > 1 ? s.speed : 0;
+  if (resumeSpeed) s.speed = 1;
+  s.pending = { ...decision, startDay: s.day, expiresDay: s.day + DECISION_WINDOW, resumeSpeed };
+  pushLog(
+    s,
+    `${decision.title}! Требуется решение — ${DECISION_WINDOW} дн. на ответ${resumeSpeed ? ' (скорость снижена до 1×)' : ''}`,
+    'danger',
+    'event',
+  );
 }
 
 function instant(s: GameState, id: EventId, title: string, text: string, tone: LogTone): void {
@@ -82,7 +90,7 @@ export const EVENTS: Record<EventId, EventDef> = {
           option({
             id: 'ignore',
             label: 'Игнорировать',
-            detail: `Хакеры выведут ${fmt(loss)}₵ (${fw ? '10' : '20'}% кредитов) и сотрут ${fmt(dataLoss)} ед. данных.`,
+            detail: `Хакеры выведут ${fmt(loss)}₵ (${fw ? '10' : '20'}% кредитов)${dataLoss > 0 ? ` и сотрут ${fmt(dataLoss)} ед. данных` : ''}.`,
             tone: 'danger',
             cost: ZERO,
           }),
@@ -368,8 +376,10 @@ export const EVENTS: Record<EventId, EventDef> = {
     weight: () => 5,
     trigger(s) {
       const active = s.research.active;
-      if (active) {
-        const remaining = RESEARCH[active].duration - s.research.progress;
+      const remainingDays = active ? RESEARCH[active].duration - s.research.progress : 0;
+      // Если исследованию остался 1 день, ускорять нечего — выдаём данные.
+      if (active && remainingDays > 1) {
+        const remaining = remainingDays;
         const boost = Math.max(1, Math.ceil(remaining / 2));
         s.research.progress = Math.min(RESEARCH[active].duration, s.research.progress + boost);
         instant(
@@ -471,14 +481,15 @@ function raidDamage(s: GameState, rng: Rng): string {
   if (best >= 0) {
     const cell = s.grid[best];
     cell.level -= 1;
-    return `«${BUILDINGS[cell.type!].name}» [${cellLabel(best)}] понижена до ур. ${cell.level}`;
+    const def = BUILDINGS[cell.type!];
+    return `«${def.name}» [${cellLabel(best)}] ${agree(def, ['понижен', 'понижена', 'понижено'])} до ур. ${cell.level}`;
   }
   const built = s.grid.map((cell, index) => (cell.type ? index : -1)).filter((index) => index >= 0);
   if (built.length === 0) return 'разрушать было нечего';
   const target = rng.pick(built);
-  const name = BUILDINGS[s.grid[target].type!].name;
+  const def = BUILDINGS[s.grid[target].type!];
   s.grid[target] = { uid: 0, type: null, level: 0, enabled: true, invested: 0, builtDay: 0 };
-  return `«${name}» [${cellLabel(target)}] уничтожена`;
+  return `«${def.name}» [${cellLabel(target)}] ${agree(def, ['уничтожен', 'уничтожена', 'уничтожено'])}`;
 }
 
 /**
@@ -517,7 +528,7 @@ export function resolveDecision(s: GameState, optionId: string, rng: Rng, auto =
         const dataLoss = Math.min(s.data, ctx.dataLoss);
         s.credits -= ctx.loss;
         s.data -= dataLoss;
-        outcome = `Хакеры взломали сеть! Потеряно ${fmt(ctx.loss)} кредитов и ${fmt(dataLoss)} ед. данных`;
+        outcome = `Хакеры взломали сеть! Потеряно ${fmt(ctx.loss)} кредитов${dataLoss > 0 ? ` и ${fmt(dataLoss)} ед. данных` : ''}`;
         tone = 'danger';
       }
       break;
@@ -597,5 +608,7 @@ export function resolveDecision(s: GameState, optionId: string, rng: Rng, auto =
   pushLog(s, outcome, tone, 'event');
   pushEventRecord(s, pending.eventId, pending.title, outcome, tone);
   s.pending = null;
+  // Возвращаем скорость, если игрок сам её не менял (пауза или другая скорость — его выбор).
+  if (pending.resumeSpeed > 1 && s.speed === 1) s.speed = pending.resumeSpeed as GameState['speed'];
   updateRecords(s);
 }

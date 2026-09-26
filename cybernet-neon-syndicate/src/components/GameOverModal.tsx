@@ -8,13 +8,15 @@ import { Modal } from './ui/Modal.tsx';
 import { NeonButton } from './ui/NeonButton.tsx';
 
 /** Экран банкротства: итоги забега, побитые рекорды и Зал славы. */
-export function GameOverModal({ open, onNewGame }: { open: boolean; onNewGame: () => void }) {
+export function GameOverModal({ open, onNewGame, inert }: { open: boolean; onNewGame: () => void; inert?: boolean }) {
   const { state } = useGameContext();
+  // Рекорд капитала хранится в целых кредитах — показываем и сравниваем так же.
+  const peak = Math.floor(state.stats.peakCapital);
   const recordDays = state.day > state.baseline.days;
-  const recordCapital = state.stats.peakCapital > state.baseline.capital;
+  const recordCapital = peak > state.baseline.capital;
   const stats = [
     { label: 'Дней продержались', value: String(state.day), cls: 'text-ink' },
-    { label: 'Пиковый капитал', value: `${fmt(state.stats.peakCapital)}₵`, cls: 'text-credit' },
+    { label: 'Пиковый капитал', value: `${fmt(peak)}₵`, cls: 'text-credit' },
     { label: 'Построено объектов', value: String(state.stats.built), cls: 'text-energy' },
     { label: 'Улучшений', value: String(state.stats.upgrades), cls: 'text-energy' },
     { label: 'Исследований', value: `${state.stats.researchDone}/12`, cls: 'text-research' },
@@ -24,7 +26,7 @@ export function GameOverModal({ open, onNewGame }: { open: boolean; onNewGame: (
   ];
 
   return (
-    <Modal open={open} labelledBy="gameover-title" tone="danger" className="max-w-2xl">
+    <Modal open={open} labelledBy="gameover-title" tone="danger" className="max-w-2xl" inert={inert}>
       <div className="p-5 sm:p-7">
         <div className="flex items-center gap-3">
           <motion.div
@@ -60,7 +62,7 @@ export function GameOverModal({ open, onNewGame }: { open: boolean; onNewGame: (
             ) : null}
             {recordCapital ? (
               <span className="glow-data flex items-center gap-2 border border-data/60 bg-data/10 px-3 py-1.5 font-mono text-xs font-bold tracking-wider text-data shadow-[0_0_24px_-6px_var(--color-data)]">
-                <Trophy className="size-4" /> РЕКОРД КАПИТАЛА: {fmt(state.stats.peakCapital)}₵
+                <Trophy className="size-4" /> РЕКОРД КАПИТАЛА: {fmt(peak)}₵
               </span>
             ) : null}
           </motion.div>

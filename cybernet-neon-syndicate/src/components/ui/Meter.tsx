@@ -18,8 +18,9 @@ export function Meter({ value, max, color, className, label, segments = 20 }: Me
       role="meter"
       aria-label={label}
       aria-valuemin={0}
-      aria-valuemax={Math.round(max)}
-      aria-valuenow={Math.round(value)}
+      aria-valuemax={Number(max.toFixed(2))}
+      aria-valuenow={Number(Math.min(value, max).toFixed(2))}
+      aria-valuetext={`${Math.round(ratio * 100)}%`}
       className={cn('relative h-2 overflow-hidden bg-white/[0.05]', className)}
     >
       <motion.div

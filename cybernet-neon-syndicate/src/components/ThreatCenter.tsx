@@ -101,7 +101,7 @@ export function ThreatCenter({ className, onOpenDecision }: { className?: string
         </div>
         <div className="min-w-0 flex-1">
           <div className="font-mono text-[10px] tracking-[0.2em] text-dim">СЛЕДУЮЩЕЕ СОБЫТИЕ</div>
-          <div className="text-[13px] text-ink">на {state.day + left}-й день</div>
+          <div className="font-mono text-[13px] text-ink">на {state.day + left}-й день</div>
           <div className="mt-3 font-mono text-[10px] tracking-[0.2em] text-dim">УРОВЕНЬ УГРОЗЫ</div>
           <div className="mt-1 grid grid-cols-4 gap-1" aria-label={`Уровень угрозы: ${LEVELS[level]}`}>
             {LEVELS.map((name, i) => (
@@ -186,7 +186,7 @@ export function ThreatCenter({ className, onOpenDecision }: { className?: string
                     <div className="font-mono text-[10px] text-dim">
                       ДЕНЬ {record.day} · {record.title.toUpperCase()}
                     </div>
-                    <div className={cn('text-[12px] leading-snug', TONE_TEXT[record.tone])}>{record.outcome}</div>
+                    <div className={cn('font-mono text-[11.5px] leading-snug', TONE_TEXT[record.tone])}>{record.outcome}</div>
                   </div>
                 </li>
               );

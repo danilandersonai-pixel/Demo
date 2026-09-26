@@ -70,11 +70,7 @@ function ToastItem({ toast }: { toast: Toast }) {
 export function Toasts() {
   const { state } = useGameContext();
   return (
-    <ol
-      className="pointer-events-none fixed inset-x-4 z-[70] mx-auto flex max-w-md flex-col gap-2"
-      style={{ top: 'calc(env(safe-area-inset-top, 0px) + 12px)' }}
-      aria-live="assertive"
-    >
+    <ol className="toast-stack pointer-events-none fixed inset-x-4 z-[70] mx-auto flex max-w-md flex-col-reverse gap-2 sm:flex-col" aria-live="assertive">
       <AnimatePresence initial={false}>
         {state.toasts.map((toast) => (
           <ToastItem key={toast.id} toast={toast} />

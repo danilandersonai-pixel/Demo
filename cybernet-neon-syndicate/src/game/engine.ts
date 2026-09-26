@@ -14,12 +14,14 @@ import {
   MARKET_BASE_PRICE,
   MARKET_MAX_PRICE,
   MARKET_MIN_PRICE,
+  MIN_RECORD_DAYS,
   RESEARCH,
   SAVE_VERSION,
   START_CREDITS,
   START_DATA,
   START_ENERGY,
   START_ROWS,
+  agree,
   cellLabel,
 } from './config.ts';
 import {
@@ -51,7 +53,7 @@ export function emptyCell(): Cell {
 }
 
 export function emptyRecords(): Records {
-  return { bestDays: 0, bestCapital: 0, totalRuns: 0, runs: [] };
+  return { bestDays: 0, bestCapital: 0, totalRuns: 0, runs: [], epoch: 0 };
 }
 
 /** Стартовая база: две солнечные панели и две майнинг-фермы — доход идёт с первого дня. */
@@ -77,9 +79,11 @@ export function createInitialState(seed: number, now: number, records: Records =
     uid += 1;
   }
 
+  // Номер сессии занимается сразу при старте — так два забега никогда не получат один номер.
+  const runId = records.totalRuns + 1;
   const state: GameState = {
     version: SAVE_VERSION,
-    runId: records.totalRuns + 1,
+    runId,
     status: 'playing',
     day: 0,
     credits: START_CREDITS,
@@ -115,7 +119,7 @@ export function createInitialState(seed: number, now: number, records: Records =
       peakCapital: START_CREDITS,
       peakIncome: 0,
     },
-    records: { ...records, runs: [...records.runs] },
+    records: { ...records, runs: [...records.runs], totalRuns: runId },
     baseline: { days: records.bestDays, capital: records.bestCapital },
     recordFlags: { days: false, capital: false },
     rngSeed: seed >>> 0,
@@ -147,7 +151,10 @@ function archiveRun(s: GameState, now: number, cause: RunSummary['cause']): void
     cause,
   };
   s.records.totalRuns = Math.max(s.records.totalRuns, s.runId);
-  s.records.runs = [...s.records.runs, summary].sort((a, b) => b.days - a.days || b.peakCapital - a.peakCapital).slice(0, 8);
+  // Завершённый забег — официальный: его итоги учитываются в рекордах в любом случае.
+  s.records.bestDays = Math.max(s.records.bestDays, summary.days);
+  s.records.bestCapital = Math.max(s.records.bestCapital, summary.peakCapital);
+  s.records.runs = [...s.records.runs.filter((r) => r.runId !== s.runId), summary].sort((a, b) => b.days - a.days || b.peakCapital - a.peakCapital).slice(0, 8);
 }
 
 function updateMarket(s: GameState, rng: ReturnType<typeof createRng>): void {
@@ -229,7 +236,22 @@ function tick(state: GameState, now: number): GameState {
     triggerEvent(s, rollEvent(s, rng), rng);
   }
 
-  // 8. Банкротство: минус держится BANKRUPTCY_DAYS дней подряд.
+  // 8. Авто-Брокер гасит минус на счёте, продавая данные (после событий — они тоже могли увести в минус).
+  if (s.credits < 0 && s.autoBrokerEnabled && hasResearch(s, 'autoBroker') && s.data >= 1) {
+    const price = autoBrokerPrice(s);
+    const units = Math.min(Math.floor(s.data), Math.ceil(-s.credits / price));
+    if (units > 0) {
+      const income = units * price;
+      s.data -= units;
+      s.credits += income;
+      s.stats.dataSold += units;
+      brokerSold += units;
+      brokerIncome += income;
+      pushLog(s, `Авто-Брокер экстренно продал ${fmt(units)} ед. данных за ${fmt(income)}₵, чтобы закрыть минус`, 'warning', 'economy');
+    }
+  }
+
+  // 9. Банкротство: минус держится BANKRUPTCY_DAYS дней подряд.
   if (s.credits < 0) {
     s.bankruptDays += 1;
     if (s.bankruptDays >= BANKRUPTCY_DAYS) {
@@ -249,7 +271,7 @@ function tick(state: GameState, now: number): GameState {
     pushLog(s, 'Баланс восстановлен — угроза банкротства снята', 'success', 'economy');
   }
 
-  // 9. Рекорды, статистика, история для графиков.
+  // 10. Рекорды, статистика, история для графиков.
   const netIncome = p.creditsDelta + brokerIncome;
   if (netIncome > s.stats.peakIncome) s.stats.peakIncome = netIncome;
   if (s.status === 'playing') updateRecords(s);
@@ -265,6 +287,7 @@ function tick(state: GameState, now: number): GameState {
       broker: brokerIncome,
       upkeep: p.upkeep,
       overhead: p.overhead,
+      wealth: p.wealth,
       net: netIncome,
     },
     data: {
@@ -297,7 +320,7 @@ function build(state: GameState, type: BuildingId, cell: number): GameState {
   s.nextUid += 1;
   s.stats.built += 1;
   const price = cost.data > 0 ? `${fmt(cost.credits)}₵ + ${fmt(cost.data)} ед. данных` : `${fmt(cost.credits)}₵`;
-  pushLog(s, `${def.builtVerb} ${def.name} [${cellLabel(cell)}] за ${price}`, 'info', 'build');
+  pushLog(s, `${agree(def, ['Построен', 'Построена', 'Построено'])} ${def.name} [${cellLabel(cell)}] за ${price}`, 'info', 'build');
   return s;
 }
 
@@ -311,7 +334,8 @@ function upgrade(state: GameState, index: number): GameState {
   cell.level += 1;
   cell.invested += cost.credits;
   s.stats.upgrades += 1;
-  pushLog(s, `${BUILDINGS[cell.type!].name} [${cellLabel(index)}] улучшена до ур. ${cell.level}`, 'info', 'build');
+  const def = BUILDINGS[cell.type!];
+  pushLog(s, `${def.name} [${cellLabel(index)}] ${agree(def, ['улучшен', 'улучшена', 'улучшено'])} до ур. ${cell.level}`, 'info', 'build');
   return s;
 }
 
@@ -339,12 +363,12 @@ function toggle(state: GameState, index: number): GameState {
   const s = structuredClone(state);
   const cell = s.grid[index];
   cell.enabled = !cell.enabled;
-  const name = BUILDINGS[cell.type!].name;
+  const def = BUILDINGS[cell.type!];
   pushLog(
     s,
     cell.enabled
-      ? `«${name}» [${cellLabel(index)}] снова в сети`
-      : `«${name}» [${cellLabel(index)}] переведён в режим ожидания`,
+      ? `«${def.name}» [${cellLabel(index)}] снова в сети`
+      : `«${def.name}» [${cellLabel(index)}] ${agree(def, ['переведён', 'переведена', 'переведено'])} в режим ожидания`,
     'info',
     'build',
   );
@@ -445,9 +469,9 @@ export function gameReducer(state: GameState, action: Action): GameState {
     case 'SET_AUTOPAUSE':
       return { ...state, settings: { ...state.settings, autoPause: action.value } };
     case 'NEW_GAME': {
-      // Забег короче 10 дней в Зал славы не попадает; проигранный уже заархивирован при банкротстве.
+      // Забег короче MIN_RECORD_DAYS в Зал славы не попадает; проигранный уже заархивирован при банкротстве.
       const s = structuredClone(state);
-      if (s.status === 'playing' && s.day >= 10) archiveRun(s, action.now, 'reset');
+      if (s.status === 'playing' && s.day >= MIN_RECORD_DAYS) archiveRun(s, action.now, 'reset');
       const next = createInitialState(action.seed, action.now, s.records);
       next.speed = state.speed === 0 ? 1 : state.speed;
       next.settings = { ...state.settings };
@@ -455,12 +479,14 @@ export function gameReducer(state: GameState, action: Action): GameState {
     }
     case 'WIPE_RECORDS': {
       const s = structuredClone(state);
-      s.records = emptyRecords();
+      s.records = { ...emptyRecords(), totalRuns: s.runId, epoch: action.now };
       s.baseline = { days: 0, capital: 0 };
       s.recordFlags = { days: false, capital: false };
       pushLog(s, 'Зал славы очищен', 'warning', 'system');
       return s;
     }
+    case 'HYDRATE':
+      return action.state;
     default:
       return state;
   }

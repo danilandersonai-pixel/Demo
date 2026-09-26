@@ -45,219 +45,228 @@ body {
   color: #fff;
 }
 
-:focus-visible {
-  outline: 2px solid var(--color-data);
-  outline-offset: 2px;
-}
-
-/* Тонкая сетка на фоне всего командного центра. */
-.bg-grid {
-  background-image:
-    linear-gradient(rgb(90 140 200 / 0.055) 1px, transparent 1px),
-    linear-gradient(90deg, rgb(90 140 200 / 0.055) 1px, transparent 1px);
-  background-size: 44px 44px;
-  background-position: -1px -1px;
-}
-
-.bg-vignette {
-  background:
-    radial-gradient(ellipse 80% 55% at 12% -10%, rgb(43 217 245 / 0.09), transparent 60%),
-    radial-gradient(ellipse 70% 50% at 100% 0%, rgb(177 140 255 / 0.07), transparent 60%),
-    radial-gradient(ellipse 90% 60% at 50% 120%, rgb(53 242 161 / 0.06), transparent 60%);
-}
-
-.scanlines {
-  background: repeating-linear-gradient(to bottom, rgb(255 255 255 / 0.018) 0 1px, transparent 1px 3px);
-}
-
-/* Стеклянная панель модуля с угловыми скобами. */
-.panel {
-  background: linear-gradient(180deg, rgb(255 255 255 / 0.04), rgb(255 255 255 / 0.012));
-  border: 1px solid var(--color-line);
-  backdrop-filter: blur(18px) saturate(140%);
-  -webkit-backdrop-filter: blur(18px) saturate(140%);
-  box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.05),
-    0 30px 60px -40px rgb(0 0 0 / 0.9);
-}
-
-.corner {
-  position: absolute;
-  width: 10px;
-  height: 10px;
-  border-color: rgb(200 225 255 / 0.45);
-  pointer-events: none;
-}
-.corner-tl {
-  top: -1px;
-  left: -1px;
-  border-top: 1px solid;
-  border-left: 1px solid;
-}
-.corner-tr {
-  top: -1px;
-  right: -1px;
-  border-top: 1px solid;
-  border-right: 1px solid;
-}
-.corner-bl {
-  bottom: -1px;
-  left: -1px;
-  border-bottom: 1px solid;
-  border-left: 1px solid;
-}
-.corner-br {
-  bottom: -1px;
-  right: -1px;
-  border-bottom: 1px solid;
-  border-right: 1px solid;
-}
-
-/* Скошенные углы у кнопок — строгая геометрия. */
-.chamfer {
-  clip-path: polygon(7px 0, 100% 0, 100% calc(100% - 7px), calc(100% - 7px) 100%, 0 100%, 0 7px);
-}
-.chamfer-sm {
-  clip-path: polygon(4px 0, 100% 0, 100% calc(100% - 4px), calc(100% - 4px) 100%, 0 100%, 0 4px);
-}
-
-.hatch {
-  background-image: repeating-linear-gradient(135deg, rgb(148 180 220 / 0.07) 0 5px, transparent 5px 11px);
-}
-
-/* Неоновое свечение цифр. */
-.glow-credit {
-  text-shadow: 0 0 18px rgb(53 242 161 / 0.45), 0 0 2px rgb(53 242 161 / 0.6);
-}
-.glow-data {
-  text-shadow: 0 0 18px rgb(43 217 245 / 0.45), 0 0 2px rgb(43 217 245 / 0.6);
-}
-.glow-energy {
-  text-shadow: 0 0 18px rgb(255 178 63 / 0.45), 0 0 2px rgb(255 178 63 / 0.6);
-}
-.glow-research {
-  text-shadow: 0 0 18px rgb(177 140 255 / 0.5), 0 0 2px rgb(177 140 255 / 0.6);
-}
-.glow-danger {
-  text-shadow: 0 0 18px rgb(255 77 109 / 0.55), 0 0 2px rgb(255 77 109 / 0.7);
-}
-
-.tabular {
-  font-variant-numeric: tabular-nums;
-}
-
-/* Бегущая строка терминала. */
-@keyframes marquee {
-  from {
-    transform: translateX(0);
-  }
-  to {
-    transform: translateX(-50%);
+@layer base {
+  :focus-visible {
+    outline: 2px solid var(--color-data);
+    outline-offset: 2px;
   }
 }
-.animate-marquee {
-  animation: marquee 60s linear infinite;
-}
-.marquee-host:hover .animate-marquee {
-  animation-play-state: paused;
-}
 
-@keyframes caret-blink {
-  0%,
-  49% {
-    opacity: 1;
+@layer components {
+  /* Тонкая сетка на фоне всего командного центра. */
+  .bg-grid {
+    background-image:
+      linear-gradient(rgb(90 140 200 / 0.055) 1px, transparent 1px),
+      linear-gradient(90deg, rgb(90 140 200 / 0.055) 1px, transparent 1px);
+    background-size: 44px 44px;
+    background-position: -1px -1px;
   }
-  50%,
-  100% {
-    opacity: 0;
-  }
-}
-.caret {
-  animation: caret-blink 1.05s steps(1) infinite;
-}
 
-@keyframes led-pulse {
-  0%,
-  100% {
-    opacity: 1;
-    box-shadow: 0 0 6px currentColor;
+  .bg-vignette {
+    background:
+      radial-gradient(ellipse 80% 55% at 12% -10%, rgb(43 217 245 / 0.09), transparent 60%),
+      radial-gradient(ellipse 70% 50% at 100% 0%, rgb(177 140 255 / 0.07), transparent 60%),
+      radial-gradient(ellipse 90% 60% at 50% 120%, rgb(53 242 161 / 0.06), transparent 60%);
   }
-  50% {
-    opacity: 0.45;
-    box-shadow: 0 0 1px currentColor;
-  }
-}
-.led {
-  animation: led-pulse 1.6s ease-in-out infinite;
-}
 
-@keyframes flicker {
-  0%,
-  100% {
-    opacity: 1;
+  .scanlines {
+    background: repeating-linear-gradient(to bottom, rgb(255 255 255 / 0.018) 0 1px, transparent 1px 3px);
   }
-  8% {
-    opacity: 0.55;
-  }
-  12% {
-    opacity: 0.95;
-  }
-  46% {
-    opacity: 0.7;
-  }
-  50% {
-    opacity: 1;
-  }
-}
-.flicker {
-  animation: flicker 2.4s linear infinite;
-}
 
-@keyframes danger-pulse {
-  0%,
-  100% {
-    box-shadow: 0 0 0 0 rgb(255 77 109 / 0.45);
+  /* Стеклянная панель модуля с угловыми скобами. */
+  .panel {
+    background: linear-gradient(180deg, rgb(255 255 255 / 0.04), rgb(255 255 255 / 0.012));
+    border: 1px solid var(--color-line);
+    /* Префикс -webkit- lightningcss добавит сам; ручной префикс заставлял его выкинуть стандартное свойство. */
+    backdrop-filter: blur(18px) saturate(140%);
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.05),
+      0 30px 60px -40px rgb(0 0 0 / 0.9);
   }
-  50% {
-    box-shadow: 0 0 0 6px rgb(255 77 109 / 0);
-  }
-}
-.danger-pulse {
-  animation: danger-pulse 1.4s ease-out infinite;
-}
 
-@keyframes sheen {
-  from {
-    background-position: -200% 0;
+  .corner {
+    position: absolute;
+    width: 10px;
+    height: 10px;
+    border-color: rgb(200 225 255 / 0.45);
+    pointer-events: none;
   }
-  to {
-    background-position: 200% 0;
+  .corner-tl {
+    top: -1px;
+    left: -1px;
+    border-top: 1px solid;
+    border-left: 1px solid;
   }
-}
-.sheen {
-  background-image: linear-gradient(100deg, transparent 30%, rgb(255 255 255 / 0.14) 50%, transparent 70%);
-  background-size: 200% 100%;
-  animation: sheen 2.2s linear infinite;
-}
+  .corner-tr {
+    top: -1px;
+    right: -1px;
+    border-top: 1px solid;
+    border-right: 1px solid;
+  }
+  .corner-bl {
+    bottom: -1px;
+    left: -1px;
+    border-bottom: 1px solid;
+    border-left: 1px solid;
+  }
+  .corner-br {
+    bottom: -1px;
+    right: -1px;
+    border-bottom: 1px solid;
+    border-right: 1px solid;
+  }
 
-/* Тонкие полосы прокрутки в стиле терминала. */
-.scroll-thin {
-  scrollbar-width: thin;
-  scrollbar-color: rgb(148 180 220 / 0.25) transparent;
-}
-.scroll-thin::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-.scroll-thin::-webkit-scrollbar-thumb {
-  background: rgb(148 180 220 / 0.25);
-}
-.scroll-thin::-webkit-scrollbar-track {
-  background: transparent;
+  /* Скошенные углы у кнопок — строгая геометрия. */
+  .chamfer {
+    clip-path: polygon(7px 0, 100% 0, 100% calc(100% - 7px), calc(100% - 7px) 100%, 0 100%, 0 7px);
+  }
+  .chamfer-sm {
+    clip-path: polygon(4px 0, 100% 0, 100% calc(100% - 4px), calc(100% - 4px) 100%, 0 100%, 0 4px);
+  }
+  /* clip-path обрезает внешнюю обводку фокуса — рисуем её внутри кнопки. */
+  .chamfer:focus-visible,
+  .chamfer-sm:focus-visible {
+    outline-offset: -3px;
+  }
+
+  .hatch {
+    background-image: repeating-linear-gradient(135deg, rgb(148 180 220 / 0.07) 0 5px, transparent 5px 11px);
+  }
+
+  /* Неоновое свечение цифр. */
+  .glow-credit {
+    text-shadow: 0 0 18px rgb(53 242 161 / 0.45), 0 0 2px rgb(53 242 161 / 0.6);
+  }
+  .glow-data {
+    text-shadow: 0 0 18px rgb(43 217 245 / 0.45), 0 0 2px rgb(43 217 245 / 0.6);
+  }
+  .glow-energy {
+    text-shadow: 0 0 18px rgb(255 178 63 / 0.45), 0 0 2px rgb(255 178 63 / 0.6);
+  }
+  .glow-research {
+    text-shadow: 0 0 18px rgb(177 140 255 / 0.5), 0 0 2px rgb(177 140 255 / 0.6);
+  }
+  .glow-danger {
+    text-shadow: 0 0 18px rgb(255 77 109 / 0.55), 0 0 2px rgb(255 77 109 / 0.7);
+  }
+
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+
+
+  @keyframes caret-blink {
+    0%,
+    49% {
+      opacity: 1;
+    }
+    50%,
+    100% {
+      opacity: 0;
+    }
+  }
+  .caret {
+    animation: caret-blink 1.05s steps(1) infinite;
+  }
+
+  @keyframes led-pulse {
+    0%,
+    100% {
+      opacity: 1;
+      box-shadow: 0 0 6px currentColor;
+    }
+    50% {
+      opacity: 0.45;
+      box-shadow: 0 0 1px currentColor;
+    }
+  }
+  .led {
+    animation: led-pulse 1.6s ease-in-out infinite;
+  }
+
+  @keyframes flicker {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    8% {
+      opacity: 0.55;
+    }
+    12% {
+      opacity: 0.95;
+    }
+    46% {
+      opacity: 0.7;
+    }
+    50% {
+      opacity: 1;
+    }
+  }
+  .flicker {
+    animation: flicker 2.4s linear infinite;
+  }
+
+  @keyframes danger-pulse {
+    0%,
+    100% {
+      box-shadow: 0 0 0 0 rgb(255 77 109 / 0.45);
+    }
+    50% {
+      box-shadow: 0 0 0 6px rgb(255 77 109 / 0);
+    }
+  }
+  .danger-pulse {
+    animation: danger-pulse 1.4s ease-out infinite;
+  }
+
+  @keyframes sheen {
+    from {
+      background-position: -200% 0;
+    }
+    to {
+      background-position: 200% 0;
+    }
+  }
+  .sheen {
+    background-image: linear-gradient(100deg, transparent 30%, rgb(255 255 255 / 0.14) 50%, transparent 70%);
+    background-size: 200% 100%;
+    animation: sheen 2.2s linear infinite;
+  }
+
+  /* Тонкие полосы прокрутки в стиле терминала. */
+  .scroll-thin {
+    scrollbar-width: thin;
+    scrollbar-color: rgb(148 180 220 / 0.25) transparent;
+  }
+  .scroll-thin::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  .scroll-thin::-webkit-scrollbar-thumb {
+    background: rgb(148 180 220 / 0.25);
+  }
+  .scroll-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  /* Стек уведомлений: на телефоне — внизу над бегущей строкой, чтобы не закрывать кнопку паузы. */
+  .toast-stack {
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 48px);
+  }
+  @media (min-width: 640px) {
+    .toast-stack {
+      bottom: auto;
+      top: calc(env(safe-area-inset-top, 0px) + 12px);
+    }
+  }
+
+  /* Нижняя бегущая строка всегда у края экрана. */
+  .ticker-bar {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .animate-marquee,
   .caret,
   .led,
   .flicker,

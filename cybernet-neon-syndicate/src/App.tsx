@@ -10,8 +10,10 @@ import { HelpModal } from './components/HelpModal.tsx';
 import { ProductionSector } from './components/ProductionSector.tsx';
 import { ResearchLab } from './components/ResearchLab.tsx';
 import { ResourceDashboard } from './components/ResourceDashboard.tsx';
+import { TakeoverModal } from './components/TakeoverModal.tsx';
 import { TerminalLog } from './components/TerminalLog.tsx';
 import { ThreatCenter } from './components/ThreatCenter.tsx';
+import { TickerBar } from './components/TickerBar.tsx';
 import { Toasts } from './components/Toasts.tsx';
 import { BANKRUPTCY_DAYS } from './game/config.ts';
 import { freshSeed } from './game/rng.ts';
@@ -20,21 +22,32 @@ import { useGame } from './hooks/useGame.ts';
 import { useGameLoop } from './hooks/useGameLoop.ts';
 import { usePageVisible } from './hooks/usePageVisible.ts';
 
-function isInteractive(target: EventTarget | null): boolean {
+/** Поля ввода текста — там горячие клавиши не перехватываем вообще. */
+function isTextEntry(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
-  return Boolean(target.closest('input, textarea, select, button, a, [role="switch"], [contenteditable="true"]'));
+  if (target.isContentEditable || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement) return true;
+  return target instanceof HTMLInputElement && !['checkbox', 'radio', 'button', 'submit', 'range'].includes(target.type);
+}
+
+/** Переключатели, где пробел — их собственное действие. */
+function isToggleControl(target: EventTarget | null): boolean {
+  return target instanceof HTMLElement && Boolean(target.closest('input[type="checkbox"], input[type="radio"], [role="switch"]'));
 }
 
 export default function App() {
-  const { state, dispatch, econ, projection, restored } = useGame();
+  const { state, dispatch, econ, projection, restored, stale, takeOver } = useGame();
   const [booted, setBooted] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
   const [minimizedDecision, setMinimizedDecision] = useState<number | null>(null);
   const visible = usePageVisible();
   const lastSpeed = useRef<Speed>(state.speed > 0 ? state.speed : 1);
+  const spaceHandled = useRef(false);
 
   const autoPaused = state.settings.autoPause && !visible;
-  const running = booted && state.status === 'playing' && state.speed > 0 && !autoPaused && !helpOpen;
+  const running = booted && !stale && state.status === 'playing' && state.speed > 0 && !autoPaused && !helpOpen;
+  const decisionOpen = booted && !stale && state.status === 'playing' && state.pending !== null && minimizedDecision !== state.pending.startDay;
+  const gameOverOpen = booted && !stale && state.status === 'gameover';
+  const overlay = !booted || stale || helpOpen || decisionOpen || gameOverOpen;
 
   const tick = useCallback(() => dispatch({ type: 'TICK', now: Date.now() }), [dispatch]);
   useGameLoop(tick, running, state.speed);
@@ -43,9 +56,13 @@ export default function App() {
     if (state.speed > 0) lastSpeed.current = state.speed;
   }, [state.speed]);
 
+  /** 0 — переключить паузу: из паузы возвращаемся на прежнюю скорость. */
   const setSpeed = useCallback(
-    (speed: Speed) => dispatch({ type: 'SET_SPEED', speed: speed === 0 && state.speed === 0 ? lastSpeed.current : speed }),
-    [dispatch, state.speed],
+    (speed: Speed) => {
+      if (state.status !== 'playing') return;
+      dispatch({ type: 'SET_SPEED', speed: speed === 0 && state.speed === 0 ? lastSpeed.current : speed });
+    },
+    [dispatch, state.speed, state.status],
   );
 
   const newGame = useCallback(() => {
@@ -54,25 +71,84 @@ export default function App() {
     setBooted(true);
   }, [dispatch]);
 
+  const openHelp = useCallback(() => setHelpOpen(true), []);
+  const closeHelp = useCallback(() => setHelpOpen(false), []);
+  const pendingStart = state.pending?.startDay ?? null;
+  const minimizeDecision = useCallback(() => setMinimizedDecision(pendingStart), [pendingStart]);
+  const openDecision = useCallback(() => setMinimizedDecision(null), []);
+  const openLog = useCallback(() => {
+    document.getElementById('terminal-title')?.closest('section')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, []);
+
+  // Какую кнопку последней нажали мышью. :focus-visible тут не помогает: Chrome включает его
+  // в момент нажатия любой клавиши, поэтому источник фокуса запоминаем сами.
+  const pointerFocus = useRef<Element | null>(null);
+  useEffect(() => {
+    const onPointerDown = (event: PointerEvent) => {
+      pointerFocus.current = event.target instanceof Element ? event.target.closest('button, a, [role="tab"]') : null;
+    };
+    const onFocusIn = (event: FocusEvent) => {
+      if (event.target !== pointerFocus.current) pointerFocus.current = null;
+    };
+    window.addEventListener('pointerdown', onPointerDown, true);
+    window.addEventListener('focusin', onFocusIn, true);
+    return () => {
+      window.removeEventListener('pointerdown', onPointerDown, true);
+      window.removeEventListener('focusin', onFocusIn, true);
+    };
+  }, []);
+
   // Горячие клавиши: пробел — пауза, 1/2/3 — скорость, H — справка.
   useEffect(() => {
-    const onKey = (event: KeyboardEvent) => {
-      if (!booted || event.ctrlKey || event.metaKey || event.altKey || isInteractive(event.target)) return;
-      if (event.code === 'Space') {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.ctrlKey || event.metaKey || event.altKey || isTextEntry(event.target)) return;
+      if (['h', 'H', 'р', 'Р', '?'].includes(event.key)) {
         event.preventDefault();
-        if (state.status === 'playing') dispatch({ type: 'SET_SPEED', speed: state.speed === 0 ? lastSpeed.current : 0 });
-      } else if (event.key === '1' || event.key === '2' || event.key === '3') {
-        if (state.status === 'playing') dispatch({ type: 'SET_SPEED', speed: event.key === '1' ? 1 : event.key === '2' ? 2 : 4 });
-      } else if (event.key === 'h' || event.key === 'H' || event.key === 'р' || event.key === 'Р' || event.key === '?') {
         setHelpOpen((open) => !open);
+        return;
+      }
+      if (!booted || stale || state.status !== 'playing') return;
+      if (event.code === 'Space') {
+        // В окнах пробел нажимает выбранную кнопку — это нужно для выбора с клавиатуры.
+        if (overlay || isToggleControl(event.target)) return;
+        const target = event.target instanceof HTMLElement ? event.target : null;
+        const control = target?.closest('button, a, [role="tab"]') ?? null;
+        // Кнопку выбрали с клавиатуры (Tab) — пробел её нажимает, как обычно.
+        if (control && control !== pointerFocus.current) return;
+        // Кнопку просто кликнули мышью — не даём пробелу нажать её повторно (второе здание, демонтаж).
+        event.preventDefault();
+        spaceHandled.current = true;
+        if (control instanceof HTMLElement) control.blur();
+        dispatch({ type: 'SET_SPEED', speed: state.speed === 0 ? lastSpeed.current : 0 });
+      } else if (event.key === '1' || event.key === '2' || event.key === '3') {
+        dispatch({ type: 'SET_SPEED', speed: event.key === '1' ? 1 : event.key === '2' ? 2 : 4 });
       }
     };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [booted, dispatch, state.speed, state.status]);
+    const onKeyUp = (event: KeyboardEvent) => {
+      if (event.code === 'Space' && spaceHandled.current) {
+        event.preventDefault();
+        spaceHandled.current = false;
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('keyup', onKeyUp);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('keyup', onKeyUp);
+    };
+  }, [booted, stale, overlay, dispatch, state.speed, state.status]);
 
-  const pausedReason = !booted ? 'ЗАГРУЗКА' : helpOpen ? 'СПРАВКА' : autoPaused ? 'ВКЛАДКА СКРЫТА' : state.speed === 0 ? 'ПАУЗА' : null;
-  const decisionOpen = booted && state.pending !== null && minimizedDecision !== state.pending.startDay;
+  const pausedReason = !booted
+    ? 'ЗАГРУЗКА'
+    : stale
+      ? 'ДРУГАЯ ВКЛАДКА'
+      : helpOpen
+        ? 'СПРАВКА'
+        : autoPaused
+          ? 'ВКЛАДКА СКРЫТА'
+          : state.speed === 0
+            ? 'ПАУЗА'
+            : null;
 
   const context = useMemo<GameContextValue>(
     () => ({ state, dispatch, econ, projection, running }),
@@ -86,7 +162,7 @@ export default function App() {
           <div className="bg-grid pointer-events-none fixed inset-0" aria-hidden />
           <div className="bg-vignette pointer-events-none fixed inset-0" aria-hidden />
 
-          <Header pausedReason={pausedReason} onSpeed={setSpeed} onHelp={() => setHelpOpen(true)} onNewGame={newGame} />
+          <Header pausedReason={pausedReason} onSpeed={setSpeed} onHelp={openHelp} onNewGame={newGame} inert={overlay} />
 
           <AnimatePresence>
             {state.status === 'playing' && (state.blackout || state.bankruptDays > 0) ? (
@@ -96,6 +172,7 @@ export default function App() {
                 exit={{ height: 0, opacity: 0 }}
                 className="relative overflow-hidden border-b border-danger/50 bg-danger/[0.12]"
                 role="alert"
+                inert={overlay}
               >
                 <div className="mx-auto flex max-w-[1680px] flex-wrap items-center gap-x-6 gap-y-1 px-4 py-2 font-mono text-[11px] font-semibold tracking-wider text-danger sm:px-6">
                   {state.blackout ? (
@@ -114,29 +191,32 @@ export default function App() {
             ) : null}
           </AnimatePresence>
 
-          <main className="relative mx-auto grid max-w-[1680px] grid-cols-12 gap-4 px-4 py-4 sm:px-6 sm:py-6">
+          <main className="relative mx-auto grid max-w-[1680px] grid-cols-12 gap-4 px-4 py-4 sm:px-6 sm:py-6" inert={overlay}>
             <ResourceDashboard className="col-span-12" />
-            <ProductionSector className="col-span-12 xl:col-span-7" />
-            <ResearchLab className="col-span-12 lg:col-span-6 xl:col-span-5" />
-            <ThreatCenter className="col-span-12 lg:col-span-6 xl:col-span-4" onOpenDecision={() => setMinimizedDecision(null)} />
-            <TerminalLog className="col-span-12 lg:col-span-6 xl:col-span-8" />
+            <ProductionSector className="col-span-12 xl:col-span-7 2xl:col-span-6" />
+            <ResearchLab className="col-span-12 lg:col-span-6 xl:col-span-5 2xl:col-span-3" />
+            <ThreatCenter className="col-span-12 lg:col-span-6 xl:col-span-4 2xl:col-span-3" onOpenDecision={openDecision} />
+            <TerminalLog className="col-span-12 xl:col-span-8 2xl:col-span-12" />
           </main>
 
-          <footer className="relative mx-auto max-w-[1680px] px-4 pb-8 font-mono text-[10px] tracking-[0.2em] text-dim sm:px-6">
+          <footer className="relative mx-auto max-w-[1680px] px-4 pb-16 font-mono text-[10px] tracking-[0.2em] text-dim sm:px-6" inert={overlay}>
             CYBERNET: NEON SYNDICATE · АВТОСОХРАНЕНИЕ В ЭТОМ БРАУЗЕРЕ · ПРОБЕЛ — ПАУЗА · H — СПРАВКА
           </footer>
 
+          <TickerBar onOpenLog={openLog} inert={overlay} />
           <Toasts />
-          <DecisionModal open={decisionOpen} onMinimize={() => setMinimizedDecision(state.pending?.startDay ?? null)} />
-          <GameOverModal open={booted && state.status === 'gameover'} onNewGame={newGame} />
-          <HelpModal open={helpOpen} onClose={() => setHelpOpen(false)} />
+          <DecisionModal open={decisionOpen} onMinimize={minimizeDecision} inert={helpOpen} />
+          <GameOverModal open={gameOverOpen} onNewGame={newGame} inert={helpOpen} />
+          <HelpModal open={helpOpen} onClose={closeHelp} />
           <BootScreen
             open={!booted}
             restored={restored}
             onContinue={() => setBooted(true)}
             onNewGame={newGame}
-            onHelp={() => setHelpOpen(true)}
+            onHelp={openHelp}
+            inert={helpOpen || stale}
           />
+          <TakeoverModal open={stale} onTakeOver={takeOver} />
         </div>
       </MotionConfig>
     </GameContext.Provider>

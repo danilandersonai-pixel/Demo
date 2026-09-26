@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from 'framer-motion';
-import { useEffect, useRef, type ReactNode } from 'react';
+import { useEffect, useId, useLayoutEffect, useRef, type ReactNode } from 'react';
 import { cn } from './cn.ts';
 
 interface ModalProps {
@@ -10,6 +10,13 @@ interface ModalProps {
   tone?: 'default' | 'danger' | 'research';
   /** Слой поверх остальных окон (например, справка над загрузочным экраном). */
   layer?: string;
+  /**
+   * Куда поставить фокус при открытии. 'container' — на само окно: для окон, которые
+   * всплывают без запроса игрока, чтобы нажатый в этот момент пробел ничего не выбрал.
+   */
+  initialFocus?: 'auto' | 'container';
+  /** Окно перекрыто другим окном — убрать его из порядка фокуса. */
+  inert?: boolean;
   children: ReactNode;
 }
 
@@ -19,30 +26,47 @@ const TONE = {
   research: 'border-research/50 shadow-[0_0_60px_-20px_var(--color-research)]',
 };
 
-/** Модальное окно: затемнение с блюром, Esc закрывает, фокус переносится внутрь. */
-export function Modal({ open, onClose, labelledBy, className, tone = 'default', layer = 'z-50', children }: ModalProps) {
+/** Стек открытых окон: Esc закрывает только верхнее. */
+const stack: string[] = [];
+
+/** Модальное окно: затемнение с блюром, Esc закрывает верхнее окно, фокус переносится внутрь. */
+export function Modal({ open, onClose, labelledBy, className, tone = 'default', layer = 'z-50', initialFocus = 'auto', inert, children }: ModalProps) {
   const box = useRef<HTMLDivElement>(null);
+  const id = useId();
+  // Колбэк в ref: родитель передаёт новую функцию на каждом рендере (а игра рендерится каждый тик),
+  // и без ref эффект ниже перезапускался бы и дёргал фокус.
+  const closeRef = useRef(onClose);
+  useLayoutEffect(() => {
+    closeRef.current = onClose;
+  });
 
   useEffect(() => {
     if (!open) return undefined;
-    const previous = document.activeElement as HTMLElement | null;
-    const id = window.setTimeout(() => {
-      const target = box.current?.querySelector<HTMLElement>('[data-autofocus], button:not([disabled])');
-      target?.focus();
+    stack.push(id);
+    const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const timer = window.setTimeout(() => {
+      const node = box.current;
+      if (!node) return;
+      const target =
+        initialFocus === 'container'
+          ? node
+          : (node.querySelector<HTMLElement>('[data-autofocus]:not([disabled])') ?? node.querySelector<HTMLElement>('button:not([disabled])') ?? node);
+      target.focus({ preventScroll: true });
     }, 40);
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && onClose) {
-        event.stopPropagation();
-        onClose();
-      }
+      if (event.key !== 'Escape' || stack[stack.length - 1] !== id || !closeRef.current) return;
+      event.preventDefault();
+      closeRef.current();
     };
     window.addEventListener('keydown', onKey);
     return () => {
-      window.clearTimeout(id);
+      window.clearTimeout(timer);
       window.removeEventListener('keydown', onKey);
-      previous?.focus?.();
+      const index = stack.lastIndexOf(id);
+      if (index >= 0) stack.splice(index, 1);
+      if (previous && document.contains(previous)) previous.focus({ preventScroll: true });
     };
-  }, [open, onClose]);
+  }, [open, id, initialFocus]);
 
   return (
     <AnimatePresence>
@@ -53,8 +77,9 @@ export function Modal({ open, onClose, labelledBy, className, tone = 'default', 
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.2 }}
+          inert={inert}
           onMouseDown={(event) => {
-            if (event.target === event.currentTarget && onClose) onClose();
+            if (event.target === event.currentTarget) closeRef.current?.();
           }}
         >
           <motion.div
@@ -62,11 +87,12 @@ export function Modal({ open, onClose, labelledBy, className, tone = 'default', 
             role="dialog"
             aria-modal="true"
             aria-labelledby={labelledBy}
+            tabIndex={-1}
             initial={{ opacity: 0, y: 24, scale: 0.97 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 16, scale: 0.98 }}
             transition={{ type: 'spring', stiffness: 320, damping: 28 }}
-            className={cn('panel relative my-auto w-full max-w-xl border bg-deep/95', TONE[tone], className)}
+            className={cn('panel relative my-auto w-full max-w-xl border bg-deep/95 outline-none', TONE[tone], className)}
           >
             <span className="corner corner-tl" />
             <span className="corner corner-tr" />

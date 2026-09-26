@@ -1,6 +1,6 @@
 import { AnimatePresence, motion } from 'framer-motion';
 import { CircleHelp, Coins, Database, FastForward, Hexagon, Pause, Play, RotateCcw, Trophy, Zap } from 'lucide-react';
-import { useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { EVENT_INTERVAL } from '../game/config.ts';
 import { fmt, fmtRate, padDay } from '../game/format.ts';
 import type { Speed } from '../game/types.ts';
@@ -14,6 +14,8 @@ interface HeaderProps {
   onSpeed: (speed: Speed) => void;
   onHelp: () => void;
   onNewGame: () => void;
+  /** Шапка под открытым окном — убрать её из порядка фокуса. */
+  inert?: boolean;
 }
 
 const SPEEDS: Array<{ speed: Speed; label: string }> = [
@@ -22,9 +24,27 @@ const SPEEDS: Array<{ speed: Speed; label: string }> = [
   { speed: 4, label: '4×' },
 ];
 
-export function Header({ pausedReason, onSpeed, onHelp, onNewGame }: HeaderProps) {
+export function Header({ pausedReason, onSpeed, onHelp, onNewGame, inert }: HeaderProps) {
   const { state, projection, running } = useGameContext();
   const [confirming, setConfirming] = useState(false);
+  const popover = useRef<HTMLDivElement>(null);
+
+  // Подтверждение «Новой игры» закрывается по Esc и по клику мимо.
+  useEffect(() => {
+    if (!confirming) return undefined;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setConfirming(false);
+    };
+    const onPointer = (event: PointerEvent) => {
+      if (popover.current && !popover.current.contains(event.target as Node)) setConfirming(false);
+    };
+    window.addEventListener('keydown', onKey);
+    window.addEventListener('pointerdown', onPointer);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('pointerdown', onPointer);
+    };
+  }, [confirming]);
   const cycle = state.day % EVENT_INTERVAL;
   const status = state.status === 'gameover'
     ? { text: 'ЛИКВИДИРОВАН', cls: 'text-danger' }
@@ -38,6 +58,7 @@ export function Header({ pausedReason, onSpeed, onHelp, onNewGame }: HeaderProps
     <header
       className="sticky z-40 border-b border-line bg-void/80 backdrop-blur-xl"
       style={{ top: 'env(safe-area-inset-top, 0px)' }}
+      inert={inert}
     >
       <div className="mx-auto flex max-w-[1680px] flex-wrap items-center gap-x-5 gap-y-3 px-4 py-3 sm:px-6">
         {/* Логотип */}
@@ -81,7 +102,7 @@ export function Header({ pausedReason, onSpeed, onHelp, onNewGame }: HeaderProps
         <div className="flex items-center gap-1" role="group" aria-label="Скорость игры">
           <button
             type="button"
-            onClick={() => onSpeed(state.speed === 0 ? 1 : 0)}
+            onClick={() => onSpeed(0)}
             disabled={state.status !== 'playing'}
             aria-label={state.speed === 0 ? 'Продолжить' : 'Пауза'}
             title="Пауза — пробел"
@@ -134,7 +155,7 @@ export function Header({ pausedReason, onSpeed, onHelp, onNewGame }: HeaderProps
           >
             <CircleHelp className="size-4" />
           </button>
-          <div className="relative">
+          <div className="relative" ref={popover}>
             <button
               type="button"
               onClick={() => setConfirming((v) => !v)}
@@ -151,7 +172,9 @@ export function Header({ pausedReason, onSpeed, onHelp, onNewGame }: HeaderProps
                   initial={{ opacity: 0, y: -6 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -6 }}
-                  className="panel absolute right-0 top-11 z-50 w-64 border-danger/40 bg-deep/95 p-3"
+                  className="panel absolute right-0 top-11 z-50 w-64 border-danger/40 bg-deep p-3"
+                  role="dialog"
+                  aria-label="Подтверждение новой игры"
                 >
                   <p className="text-[13px] leading-snug text-ink">Начать новую игру?</p>
                   <p className="mt-1 text-xs leading-snug text-muted">
@@ -180,8 +203,8 @@ export function Header({ pausedReason, onSpeed, onHelp, onNewGame }: HeaderProps
         </div>
       </div>
 
-      {/* Компактные ресурсы — на узких экранах дашборд уезжает вверх при прокрутке. */}
-      <div className="border-t border-line xl:hidden">
+      {/* Компактные ресурсы — всегда на виду, даже когда дашборд уехал вверх при прокрутке. */}
+      <div className="border-t border-line">
         <div className="mx-auto grid max-w-[1680px] grid-cols-3 divide-x divide-line px-2 sm:px-4">
           <MiniResource icon={<Coins className="size-3.5" />} cls="text-credit" value={state.credits} rate={projection.creditsDelta} />
           <MiniResource icon={<Database className="size-3.5" />} cls="text-data" value={state.data} rate={projection.dataGain} />

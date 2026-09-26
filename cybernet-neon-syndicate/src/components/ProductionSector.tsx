@@ -169,7 +169,7 @@ function BuildCatalog({ target, onBuilt }: { target: number; onBuilt: (index: nu
                       <StatChips output={preview} type={type} />
                     </div>
                     <div className="mt-2 flex items-center justify-between gap-2">
-                      <span className={cn('min-w-0 truncate font-mono text-[10px]', check.ok ? 'text-dim' : 'text-danger/90')}>
+                      <span className={cn('min-w-0 font-mono text-[10px] leading-tight', check.ok ? 'text-dim' : 'text-danger/90')}>
                         {check.ok ? (econ.aura[target] > 0 && def.aura === 0 ? `ИИ-бонус ${fmtPct(econ.aura[target])}` : 'готово к стройке') : check.reason}
                       </span>
                       <NeonButton
@@ -376,7 +376,7 @@ function GridCell({ index, cell, selected, isTarget, inAura, aura, output, black
         !cell.enabled && 'opacity-40 grayscale',
         unpowered && 'flicker border-danger/60',
       )}
-      style={{ perspective: 600 }}
+      style={{ transformPerspective: 600 }}
     >
       {/* Анимация развёртывания: сканирующая полоса и надпись DEPLOY. */}
       <motion.span

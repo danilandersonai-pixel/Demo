@@ -17,6 +17,23 @@ const GAP_Y = 26;
 const ROWS = 4;
 const COLS = 3;
 
+// Мягкие переносы (\u00AD) для узких узлов дерева: браузер переносит по слогам, а не посреди буквы.
+const SH = '\u00AD';
+const NODE_LABEL: Record<ResearchId, string> = {
+  quantumAlgo: `Кван${SH}то${SH}вые ал${SH}го${SH}рит${SH}мы`,
+  dataCompression: `Фрак${SH}таль${SH}ное сжа${SH}тие`,
+  nitrogenCooling: `Ох${SH}лаж${SH}де${SH}ние жид${SH}ким азо${SH}том`,
+  neuroFirewall: `Ней${SH}ро-фай${SH}р${SH}вол`,
+  autoBroker: `Ав${SH}то-Бро${SH}кер`,
+  grapheneCells: `Гра${SH}фе${SH}но${SH}вые ак${SH}ку${SH}му${SH}ля${SH}то${SH}ры`,
+  shadowLedger: `Те${SH}не${SH}вая бух${SH}гал${SH}те${SH}рия`,
+  swarmMind: `Ро${SH}е${SH}вой ин${SH}тел${SH}лект`,
+  coldFusion: `Хо${SH}лод${SH}ный син${SH}тез`,
+  syndicateProtocol: `Про${SH}то${SH}кол «Син${SH}ди${SH}кат»`,
+  singularity: `Кван${SH}то${SH}вая син${SH}гу${SH}ляр${SH}ность`,
+  orbitalMirrors: `Ор${SH}би${SH}таль${SH}ные зер${SH}ка${SH}ла`,
+};
+
 const colX = (col: number) => `${((col * 2 + 1) / (COLS * 2)) * 100}%`;
 const rowTop = (row: number) => row * (NODE_H + GAP_Y);
 
@@ -137,7 +154,9 @@ function ResearchNode({ id, selected, onPick }: { id: ResearchId; selected: bool
         {status === 'locked' ? <Lock className="size-3 text-dim" aria-hidden /> : null}
         {status !== 'done' && status !== 'locked' ? <span className="font-mono text-[9px] text-dim">{def.tag}</span> : null}
       </div>
-      <div className="line-clamp-2 w-full text-[11px] font-semibold leading-tight text-ink sm:text-[12px]">{def.name}</div>
+      <div className="line-clamp-2 w-full hyphens-manual text-[10.5px] font-semibold leading-tight text-ink sm:text-[12px]" lang="ru">
+        {NODE_LABEL[id]}
+      </div>
       <div className="w-full font-mono text-[9px] text-dim">
         {status === 'done' ? (
           <span className="text-research">ИЗУЧЕНО</span>

@@ -1,6 +1,6 @@
 import { X } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
-import { BANKRUPTCY_DAYS, BUILDINGS, BUILDING_ORDER, EVENT_INTERVAL, MAX_LEVEL } from '../game/config.ts';
+import { BANKRUPTCY_DAYS, BUILDINGS, BUILDING_ORDER, EVENT_INTERVAL, MAX_LEVEL, WEALTH_FREE, WEALTH_RATE } from '../game/config.ts';
 import { fmt } from '../game/format.ts';
 import { useGameContext } from './GameContext.tsx';
 import { HallOfFame } from './HallOfFame.tsx';
@@ -58,7 +58,8 @@ export function HelpModal({ open, onClose }: { open: boolean; onClose: () => voi
         <Section title="РЕСУРСЫ">
           <p>
             <span className="text-credit">Кредиты</span> — валюта для построек, улучшений и исследований. Каждый день списывается содержание зданий и
-            накладные расходы, а инфляция медленно их увеличивает.
+            накладные расходы, а инфляция медленно их увеличивает. Кредиты сверх {fmt(WEALTH_FREE)}₵ ежедневно теряют {WEALTH_RATE * 100}% на «отмывание» —
+            бесконечно копить невыгодно, деньги должны работать.
           </p>
           <p>
             <span className="text-data">Данные</span> нужны для исследований и дорогих построек. Хранилище ограничено: излишек теряется. Данные можно продать
@@ -91,7 +92,7 @@ export function HelpModal({ open, onClose }: { open: boolean; onClose: () => voi
                     def.energyProd ? `+${def.energyProd}⚡` : '',
                     def.creditProd ? `+${def.creditProd}₵` : '',
                     def.dataProd ? `+${def.dataProd} DB` : '',
-                    def.aura ? '+15% соседям' : '',
+                    def.aura ? '+15% соседям (до +100%)' : '',
                   ]
                     .filter(Boolean)
                     .join(' ');
@@ -116,7 +117,7 @@ export function HelpModal({ open, onClose }: { open: boolean; onClose: () => voi
           </div>
           <p>
             Цена растёт с каждой копией здания. Улучшение до {MAX_LEVEL} уровня повышает выработку сильнее, чем потребление, и экономит место в сетке. ИИ-Оптимизатор
-            усиливает все 8 соседних ячеек — планируйте раскладку. Ненужное здание можно перевести в режим ожидания (половина содержания) или
+            усиливает все 8 соседних ячеек, бонусы складываются до +100% на ячейку — планируйте раскладку. Ненужное здание можно перевести в режим ожидания (половина содержания) или
             демонтировать с возвратом 50% вложений.
           </p>
         </Section>
@@ -127,7 +128,8 @@ export function HelpModal({ open, onClose }: { open: boolean; onClose: () => voi
           </p>
           <p>
             Каждые {EVENT_INTERVAL} дней случается глобальное событие. Одни действуют сразу (вспышки, бури, обвалы рынка), в других нужно выбрать ответ за 10 дней —
-            иначе сработает вариант по умолчанию. Со временем угроза растёт.
+            иначе сработает вариант по умолчанию. Если игра ускорена, на время решения скорость сбрасывается до 1×. Со временем угроза растёт. Авто-Брокер
+            (исследование) не только продаёт излишки данных, но и гасит минус на счёте.
           </p>
         </Section>
 
@@ -170,7 +172,7 @@ export function HelpModal({ open, onClose }: { open: boolean; onClose: () => voi
               variant={wipeArmed ? 'solid' : 'outline'}
               onClick={() => {
                 if (wipeArmed) {
-                  dispatch({ type: 'WIPE_RECORDS' });
+                  dispatch({ type: 'WIPE_RECORDS', now: Date.now() });
                   setWipeArmed(false);
                 } else {
                   setWipeArmed(true);

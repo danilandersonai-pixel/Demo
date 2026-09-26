@@ -22,6 +22,8 @@ export const ROW_UNLOCK_COSTS: Cost[] = [
 export const EVENT_INTERVAL = 30;
 export const DECISION_WINDOW = 10;
 export const BANKRUPTCY_DAYS = 5;
+/** Забег короче этого не ставит рекордов и не попадает в Зал славы. */
+export const MIN_RECORD_DAYS = 10;
 export const HISTORY_LENGTH = 60;
 export const LOG_LIMIT = 160;
 export const EVENT_HISTORY_LIMIT = 12;
@@ -50,6 +52,14 @@ export const BASE_OVERHEAD = 2;
 export const OVERHEAD_PER_ROW = 1.5;
 /** Линейная инфляция содержания: множитель = 1 + день × ставка. */
 export const INFLATION_RATE = 0.006;
+/**
+ * «Отмывание капитала»: кредиты сверх порога ежедневно теряют долю — это не даёт
+ * пересидеть поздние дни на горе денег вместо управления экономикой.
+ */
+export const WEALTH_FREE = 3000;
+export const WEALTH_RATE = 0.002;
+/** Максимальный суммарный бонус ИИ-Оптимизаторов в одной ячейке. */
+export const AURA_CAP = 1;
 /** Здание в режиме ожидания платит эту долю содержания. */
 export const STANDBY_UPKEEP = 0.5;
 export const DEMOLISH_REFUND = 0.5;
@@ -95,7 +105,7 @@ export const BUILDINGS: Record<BuildingId, BuildingDef> = {
   solar: {
     id: 'solar',
     name: 'Солнечная панель',
-    builtVerb: 'Построена',
+    gender: 'f',
     tag: 'SOL-7',
     description: 'Перовскитный массив на крыше мегаблока. Даёт энергию и немного расширяет хранилище.',
     accent: 'energy',
@@ -114,7 +124,7 @@ export const BUILDINGS: Record<BuildingId, BuildingDef> = {
   miner: {
     id: 'miner',
     name: 'Майнинг-ферма',
-    builtVerb: 'Построена',
+    gender: 'f',
     tag: 'MNR-4',
     description: 'Стойки ASIC на подпольном крипто-протоколе. Главный источник кредитов.',
     accent: 'credit',
@@ -133,7 +143,7 @@ export const BUILDINGS: Record<BuildingId, BuildingDef> = {
   server: {
     id: 'server',
     name: 'Серверная стойка',
-    builtVerb: 'Построена',
+    gender: 'f',
     tag: 'SRV-2',
     description: 'Перехватывает и индексирует трафик мегаполиса. Даёт данные и место для их хранения.',
     accent: 'data',
@@ -152,9 +162,9 @@ export const BUILDINGS: Record<BuildingId, BuildingDef> = {
   optimizer: {
     id: 'optimizer',
     name: 'ИИ-Оптимизатор',
-    builtVerb: 'Построен',
+    gender: 'm',
     tag: 'AI-OPT',
-    description: 'Нейросеть балансирует нагрузку соседей: +15% к выработке всех 8 соседних ячеек.',
+    description: 'Нейросеть балансирует нагрузку соседей: +15% к выработке всех 8 соседних ячеек. Бонусы складываются, но не выше +100% на ячейку.',
     accent: 'research',
     baseCost: { credits: 600, data: 60 },
     costGrowth: 1.6,
@@ -171,38 +181,38 @@ export const BUILDINGS: Record<BuildingId, BuildingDef> = {
   reactor: {
     id: 'reactor',
     name: 'Термоядерный реактор',
-    builtVerb: 'Построен',
+    gender: 'm',
     tag: 'FUS-X',
-    description: 'Компактный токамак холодного синтеза. Огромная выработка и большое хранилище энергии.',
+    description: 'Компактный токамак холодного синтеза: заменяет несколько панелей в одной ячейке, не боится геомагнитных бурь и даёт большое хранилище.',
     accent: 'energy',
-    baseCost: { credits: 4000, data: 300 },
+    baseCost: { credits: 3500, data: 300 },
     costGrowth: 1.35,
-    energyProd: 65,
+    energyProd: 90,
     energyUse: 0,
     creditProd: 0,
     dataProd: 0,
     dataCap: 0,
-    energyCap: 250,
-    upkeep: 12,
+    energyCap: 300,
+    upkeep: 6,
     aura: 0,
     requires: 'coldFusion',
   },
   qcore: {
     id: 'qcore',
     name: 'Квантовое ядро',
-    builtVerb: 'Построено',
+    gender: 'n',
     tag: 'Q-CORE',
     description: 'Кубитный кластер: одновременно добывает кредиты и генерирует данные. Очень прожорлив.',
     accent: 'credit',
     baseCost: { credits: 14000, data: 1200 },
     costGrowth: 1.45,
     energyProd: 0,
-    energyUse: 40,
-    creditProd: 80,
+    energyUse: 50,
+    creditProd: 90,
     dataProd: 10,
     dataCap: 300,
     energyCap: 0,
-    upkeep: 25,
+    upkeep: 12,
     aura: 0,
     requires: 'singularity',
   },
@@ -264,7 +274,7 @@ export const RESEARCH: Record<ResearchId, ResearchDef> = {
     name: 'Авто-Брокер',
     tag: 'AB-05',
     description: 'Торговый бот на тёмной бирже.',
-    effect: 'Продаёт избыток данных при заполнении хранилища на 90%',
+    effect: 'Продаёт избыток данных при заполнении хранилища на 90% и гасит минус на счёте, чтобы не допустить дефолта',
     cost: { credits: 800, data: 200 },
     duration: 15,
     requires: ['dataCompression'],
@@ -300,7 +310,7 @@ export const RESEARCH: Record<ResearchId, ResearchDef> = {
     name: 'Роевой интеллект',
     tag: 'SW-08',
     description: 'Оптимизаторы объединяются в рой.',
-    effect: 'Бонус ИИ-Оптимизаторов соседям: 15% → 25%',
+    effect: 'Бонус ИИ-Оптимизаторов соседям: 15% → 25% (потолок +100% на ячейку сохраняется)',
     cost: { credits: 2400, data: 480 },
     duration: 22,
     requires: ['autoBroker'],
@@ -373,6 +383,11 @@ export const RESEARCH_ORDER: ResearchId[] = [
 ];
 
 export const COLUMN_LABELS = 'ABCDEF';
+
+/** Согласование по роду: agree('ИИ-Оптимизатор', ['улучшен', 'улучшена', 'улучшено']). */
+export function agree(def: BuildingDef, forms: [string, string, string]): string {
+  return forms[def.gender === 'm' ? 0 : def.gender === 'f' ? 1 : 2];
+}
 
 export function cellLabel(index: number): string {
   const row = Math.floor(index / GRID_COLS);

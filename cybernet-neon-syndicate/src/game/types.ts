@@ -62,8 +62,8 @@ export interface Cost {
 export interface BuildingDef {
   id: BuildingId;
   name: string;
-  /** Глагол в нужном роде для лога: «Построена», «Построен», «Построено». */
-  builtVerb: string;
+  /** Грамматический род названия — для согласования в логе («построена», «улучшен», «переведено»). */
+  gender: 'm' | 'f' | 'n';
   tag: string;
   description: string;
   accent: Accent;
@@ -138,6 +138,8 @@ export interface PendingDecision {
   expiresDay: number;
   /** Суммы, зафиксированные в момент события, — чтобы цифры в окне не «плыли». */
   ctx: Record<string, number>;
+  /** Скорость до события: на время решения игра сбрасывается на 1×, потом скорость возвращается. 0 — не менялась. */
+  resumeSpeed: number;
 }
 
 export interface LogEntry {
@@ -190,8 +192,11 @@ export interface RunSummary {
 export interface Records {
   bestDays: number;
   bestCapital: number;
+  /** Сколько номеров сессий уже выдано (номер занимается при старте забега). */
   totalRuns: number;
   runs: RunSummary[];
+  /** Метка последней очистки Зала славы: при слиянии вкладок более свежая очистка побеждает. */
+  epoch: number;
 }
 
 export interface TickReport {
@@ -202,6 +207,7 @@ export interface TickReport {
     broker: number;
     upkeep: number;
     overhead: number;
+    wealth: number;
     net: number;
   };
   data: {
@@ -288,4 +294,6 @@ export type Action =
   | { type: 'DISMISS_TOAST'; id: number }
   | { type: 'SET_AUTOPAUSE'; value: boolean }
   | { type: 'NEW_GAME'; seed: number; now: number }
-  | { type: 'WIPE_RECORDS' };
+  | { type: 'WIPE_RECORDS'; now: number }
+  /** Подменить состояние целиком (перехват управления из другой вкладки). */
+  | { type: 'HYDRATE'; state: GameState };

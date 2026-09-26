@@ -12,7 +12,7 @@ import {
   Zap,
 } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
-import { BANKRUPTCY_DAYS, BUY_SPREAD, severityAt, threatAt } from '../game/config.ts';
+import { BANKRUPTCY_DAYS, BUY_SPREAD, WEALTH_FREE, severityAt, threatAt } from '../game/config.ts';
 import { effectiveDataPrice, hasResearch, netWorth, structuralEnergyNet } from '../game/economy.ts';
 import { fmt, fmtRate } from '../game/format.ts';
 import { useGameContext } from './GameContext.tsx';
@@ -148,6 +148,7 @@ function CreditsCard() {
               <Row label="Авто-Брокер (посл. день)" value={fmtRate(last?.credits.broker ?? 0)} cls="text-credit" />
               <Row label="Содержание объектов" value={fmtRate(-projection.upkeep)} cls="text-danger" />
               <Row label="Накладные расходы" value={fmtRate(-projection.overhead)} cls="text-danger" />
+              <Row label={`Отмывание капитала (сверх ${fmt(WEALTH_FREE)}₵)`} value={fmtRate(-projection.wealth)} cls="text-danger" />
               <Row label="Инфляция содержания" value={`×${projection.econ.inflation.toFixed(2)}`} cls="text-energy" />
             </div>
           </motion.div>
@@ -352,7 +353,7 @@ function SyndicateCard() {
       </div>
 
       <div className="mt-3 space-y-1 border-t border-line pt-3">
-        <Row label="Расходы в день" value={fmtRate(-(projection.upkeep + projection.overhead))} cls="text-danger" />
+        <Row label="Расходы в день" value={fmtRate(-(projection.upkeep + projection.overhead + projection.wealth))} cls="text-danger" />
         <Row label="Инфляция" value={`×${projection.econ.inflation.toFixed(2)}`} cls="text-energy" />
         <Row label="Угроза" value={`${threatLabel} ×${severityAt(state.day).toFixed(1)}`} cls={threat >= 0.5 ? 'text-danger' : 'text-muted'} />
       </div>

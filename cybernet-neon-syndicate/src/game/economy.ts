@@ -3,6 +3,7 @@
 // «+15.2/день» на экране совпадают с тем, что реально начислит следующий тик.
 
 import {
+  AURA_CAP,
   AUTOBROKER_FEE,
   BASE_DATA_CAP,
   BASE_ENERGY_CAP,
@@ -15,6 +16,8 @@ import {
   OVERHEAD_PER_ROW,
   START_ROWS,
   STANDBY_UPKEEP,
+  WEALTH_FREE,
+  WEALTH_RATE,
   auraLevelMult,
   inflationAt,
   neighborsOf,
@@ -117,6 +120,7 @@ export function optimizerAura(level: number, mults: Pick<Multipliers, 'aura'>): 
   return BUILDINGS.optimizer.aura * auraLevelMult(level) * mults.aura;
 }
 
+/** Суммарный бонус оптимизаторов по ячейкам; складывается, но не выше AURA_CAP. */
 export function computeAura(state: GameState, mults: Multipliers, powered: boolean): number[] {
   const aura = new Array<number>(GRID_CELLS).fill(0);
   if (!powered) return aura;
@@ -125,7 +129,12 @@ export function computeAura(state: GameState, mults: Multipliers, powered: boole
     const bonus = optimizerAura(cell.level, mults);
     for (const n of neighborsOf(index)) aura[n] += bonus;
   });
-  return aura;
+  return aura.map((value) => Math.min(value, AURA_CAP));
+}
+
+/** Плата за хранение капитала сверх порога, ₵/день. */
+export function wealthCost(credits: number): number {
+  return Math.max(0, credits - WEALTH_FREE) * WEALTH_RATE;
 }
 
 /** Выработка одной постройки с учётом уровня, ауры и глобальных множителей. */
@@ -247,6 +256,7 @@ export interface TickProjection {
   creditProduction: number;
   upkeep: number;
   overhead: number;
+  wealth: number;
   creditsDelta: number;
   dataGain: number;
   dataOverflow: number;
@@ -290,7 +300,8 @@ export function projectTick(state: GameState): TickProjection {
   energyAfter = Math.min(energyAfter, econ.energyCap);
   const exportIncome = energyExported * ENERGY_EXPORT_PRICE;
   const creditProduction = econ.creditProd * powerRatio;
-  const creditsDelta = creditProduction + exportIncome - econ.upkeep - econ.overhead;
+  const wealth = wealthCost(state.credits);
+  const creditsDelta = creditProduction + exportIncome - econ.upkeep - econ.overhead - wealth;
   const rawData = econ.dataProd * powerRatio;
   const room = Math.max(0, econ.dataCap - state.data);
   const dataGain = Math.min(rawData, room);
@@ -308,6 +319,7 @@ export function projectTick(state: GameState): TickProjection {
     creditProduction,
     upkeep: econ.upkeep,
     overhead: econ.overhead,
+    wealth,
     creditsDelta,
     dataGain,
     dataOverflow: Math.max(0, rawData - dataGain),
