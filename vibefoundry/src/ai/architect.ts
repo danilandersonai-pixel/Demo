@@ -130,3 +130,80 @@ export function architectBuild(sim: Sim, name: string, near: string): boolean {
 export function recipeName(id: string): string {
   return RECIPES[id]?.name ?? id;
 }
+
+/**
+ * Connect every unpowered consumer to the main grid by laying poles (used by the demo and by Architect lines).
+ * Greedy: for an isolated building walk from the nearest main-grid pole towards it, placing poles every 6 tiles.
+ */
+export function connectPower(sim: Sim, opts: { instant?: boolean; maxPoles?: number } = {}): number {
+  let placed = 0;
+  const max = opts.maxPoles ?? 80;
+  for (let iter = 0; iter < 60 && placed < max; iter++) {
+    sim.rebuildTopology();
+    const main = sim.mainNet;
+    const target = sim.list.find((e) => !e.ghost && (BUILDINGS[e.type].power > 0 || BUILDINGS[e.type].gen) && e.type !== 'hq' && (e.net ?? -1) !== main && !BUILDINGS[e.type].poleReach);
+    if (!target) break;
+    const poles = sim.list.filter((e) => BUILDINGS[e.type].poleReach && (e.net ?? -1) === main);
+    const tx = target.x + target.w / 2;
+    const ty = target.y + target.h / 2;
+    let best = poles[0];
+    let bd = Infinity;
+    for (const p of poles) {
+      const d = Math.hypot(p.x - tx, p.y - ty);
+      if (d < bd) {
+        bd = d;
+        best = p;
+      }
+    }
+    if (!best) break;
+    // step from the pole towards the target
+    let cx = best.x + best.w / 2;
+    let cy = best.y + best.h / 2;
+    let guard = 0;
+    let ok = false;
+    while (guard++ < 30) {
+      const dx = tx - cx;
+      const dy = ty - cy;
+      const d = Math.hypot(dx, dy);
+      const step = Math.min(6, Math.max(1, d - 2));
+      const nx = Math.round(cx + (dx / Math.max(d, 1e-6)) * step);
+      const ny = Math.round(cy + (dy / Math.max(d, 1e-6)) * step);
+      const spot = freeNear(sim, nx, ny);
+      if (!spot) break;
+      const e = sim.place('pole', spot.x, spot.y, 0, { force: true, instant: opts.instant ?? true, byScript: true });
+      if (!e) break;
+      placed++;
+      cx = spot.x + 0.5;
+      cy = spot.y + 0.5;
+      // close enough: the pole's supply area touches the target
+      if (spot.x >= target.x - 2 && spot.x <= target.x + target.w + 1 && spot.y >= target.y - 2 && spot.y <= target.y + target.h + 1) {
+        ok = true;
+        break;
+      }
+    }
+    if (!ok) {
+      // give up on this building (mark by setting a flag so we don't loop forever)
+      (target as any).__noPower = true;
+      if (sim.list.filter((e) => (e as any).__noPower).length > 20) break;
+    }
+  }
+  for (const e of sim.list) delete (e as any).__noPower;
+  sim.topoDirty = true;
+  return placed;
+}
+
+function freeNear(sim: Sim, x: number, y: number): { x: number; y: number } | null {
+  for (let r = 0; r <= 3; r++) {
+    for (let dy = -r; dy <= r; dy++) {
+      for (let dx = -r; dx <= r; dx++) {
+        if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+        const px = x + dx;
+        const py = y + dy;
+        if (!sim.world.inBounds(px, py)) continue;
+        const i = sim.world.idx(px, py);
+        if (!sim.world.occ[i] && !sim.world.isWaterAt(px, py)) return { x: px, y: py };
+      }
+    }
+  }
+  return null;
+}

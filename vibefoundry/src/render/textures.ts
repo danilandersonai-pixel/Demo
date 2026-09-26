@@ -1,4 +1,4 @@
-import { Container, Graphics, Rectangle, Texture, type Renderer } from 'pixi.js';
+import { Container, Graphics, Rectangle, RenderTexture, Sprite, Texture, type Renderer } from 'pixi.js';
 import { BIOMES, Biome, Deco } from '../data/biomes';
 import { BUILDING_LIST, type BuildingType } from '../data/buildings';
 import { ITEM_LIST } from '../data/items';
@@ -81,6 +81,50 @@ export class TextureBank {
     this.buildItems();
     this.buildUnits();
     this.buildFx();
+    // Textures swapped every frame (belt animation, pooled item sprites) must share one source,
+    // otherwise Pixi rebuilds batches for the whole layer on every swap.
+    const belts = this.belts.flat(2);
+    const items = this.items.slice(1);
+    const packed = this.pack([...belts, ...items]);
+    let k = 0;
+    for (const shape of this.belts) for (const dir of shape) for (let f = 0; f < dir.length; f++) dir[f] = packed[k++];
+    for (let i = 1; i < this.items.length; i++) this.items[i] = packed[k++];
+  }
+
+  /** Pack textures into one RenderTexture atlas and return sub-textures in the same order. */
+  private pack(list: Texture[]): Texture[] {
+    const pad = 2;
+    const maxW = 2048;
+    let x = 0;
+    let y = 0;
+    let rowH = 0;
+    const places: { x: number; y: number }[] = [];
+    for (const t of list) {
+      if (x + t.width + pad > maxW) {
+        x = 0;
+        y += rowH + pad;
+        rowH = 0;
+      }
+      places.push({ x, y });
+      x += t.width + pad;
+      rowH = Math.max(rowH, t.height);
+    }
+    const H = y + rowH + pad;
+    const rt = RenderTexture.create({ width: maxW, height: Math.ceil(H), resolution: 2, antialias: true });
+    const c = new Container();
+    list.forEach((t, i) => {
+      const sp = new Sprite(t);
+      sp.x = places[i].x;
+      sp.y = places[i].y;
+      c.addChild(sp);
+    });
+    this.renderer.render({ container: c, target: rt, clear: true });
+    c.destroy({ children: true });
+    return list.map((t, i) => {
+      const nt = new Texture({ source: rt.source, frame: new Rectangle(places[i].x, places[i].y, t.width, t.height) });
+      t.destroy(true);
+      return nt;
+    });
   }
 
   // ------------------------------------------------------------- terrain

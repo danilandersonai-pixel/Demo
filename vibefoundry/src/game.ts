@@ -12,6 +12,7 @@ import { findSpot, placeBlueprint, type BpEntity } from './ai/architect';
 import type { Proposal } from './ai/state';
 import { llmSettings, llmGenerate, llmErrorText } from './vibe/llm';
 import { analyze } from './vibe/intent';
+import { buildDemo } from './demo';
 import { sendRequest, rollbackTo, requestFix, acceptProposal } from './vibe/vibe';
 
 export type Tool =
@@ -72,7 +73,6 @@ export class Game {
   };
   blueprints: Blueprint[] = [];
   settings = loadSettings();
-  demoAvailable = false;
   sandbox: { pid: number; job: SandboxJob } | null = null;
   llm = {
     active: () => llmSettings.enabled && !!llmSettings.key,
@@ -98,7 +98,18 @@ export class Game {
       this.emit();
     },
   };
-  startDemo: () => void = () => {};
+  demoAvailable = true;
+  startDemo(): void {
+    const sim = buildDemo();
+    this.blueprints = [];
+    this.load(sim);
+    const { x, y } = sim.world.base;
+    this.renderer.flyTo(x + 4, y - 2, 0.85);
+    this.renderer.cam.x = this.renderer.cam.tx;
+    this.renderer.cam.y = this.renderer.cam.ty;
+    this.renderer.cam.zoom = this.renderer.cam.tzoom = 0.85;
+    this.pushToast({ kind: 'info', title: 'Демо-сценарий: эра «Дроны»', text: 'Откройте «Код» (Tab): там ждёт предложение Optimizer. Ночь наступит через минуту.' });
+  }
   private autosaveT = 0;
   private listeners = new Set<Listener>();
   private acc = 0;

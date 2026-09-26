@@ -2,6 +2,7 @@ import type { Game } from './game';
 import type { BuildingType } from './data/buildings';
 import type { Dir } from './core/iso';
 import { TECHS } from './data/research';
+import { buildStress } from './stress';
 
 /** Debug API for automated playtests (window.__vf). Not used by gameplay. */
 export function installDebugApi(game: Game): void {
@@ -10,6 +11,26 @@ export function installDebugApi(game: Game): void {
     ready: true,
     get sim() {
       return game.sim;
+    },
+    stress() {
+      const c = buildStress(game.sim);
+      game.sim.run(1);
+      return c;
+    },
+    /** Average ms per rendered frame (sim step + renderer update + GPU submit). */
+    measure(frames = 120) {
+      const t0 = performance.now();
+      for (let i = 0; i < frames; i++) {
+        game.sim.step();
+        game.renderer.render(0.5, 1 / 60);
+        game.app.renderer.render(game.app.stage);
+      }
+      const ms = (performance.now() - t0) / frames;
+      return { msPerFrame: Math.round(ms * 100) / 100, fps: Math.round(1000 / ms) };
+    },
+    demo() {
+      game.startDemo();
+      return true;
     },
     newGame(seed = 20260926, peaceful = false) {
       game.newGame({ seed, peaceful });

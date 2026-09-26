@@ -61,7 +61,9 @@ export function drawBuilding(type: BuildingType, w: number, h: number, g: Graphi
       g.rect(x - 9, y - 42, 18, 2.5).fill(0x5a4a36);
       g.circle(x - 8, y - 43, 1.8).fill(0x9fb4c4);
       g.circle(x + 8, y - 43, 1.8).fill(0x9fb4c4);
-      return 48;
+      L.circle(x, y - 46, 1.6).fill(PAL.amber);
+      glow(L, x, y - 46, 7, PAL.amber, 0.35);
+      return 50;
     }
     case 'big_pole': {
       const [x, y] = P(0.5, 0.5, 0);

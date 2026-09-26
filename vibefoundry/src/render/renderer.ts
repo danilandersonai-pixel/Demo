@@ -78,6 +78,9 @@ export class WorldRenderer {
     const overview = this.terrain.getOverview();
     this.lightsRoot.addChild(this.ents.lights, this.units.lights, this.units.fxAdd);
     this.overlay.addChild(this.coverageG, this.overlayG, this.previewC, this.altC);
+    // Independent render groups: a change inside one layer (belt animation, item pool, culling)
+    // rebuilds only that layer's instructions instead of the whole world.
+    for (const c of [this.terrain.ground, this.terrain.objects, this.ents.beltsC, this.ents.itemsC, this.ents.pipesC, this.lightsRoot, this.units.air, this.overlay]) c.isRenderGroup = true;
     this.world.addChild(
       overview,
       this.terrain.ground,
