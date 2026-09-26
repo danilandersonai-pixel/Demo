@@ -2,6 +2,7 @@ import { BUILDINGS, type BuildingType } from '../data/buildings';
 import { ITEMS, type ItemId } from '../data/items';
 import { RECIPES, recipeForItem, type RecipeDef } from '../data/recipes';
 import type { Sim } from '../sim/sim';
+import type { Entity } from '../sim/types';
 import type { Dir } from '../core/iso';
 
 export interface BpEntity {
@@ -132,62 +133,67 @@ export function recipeName(id: string): string {
 }
 
 /**
- * Connect every unpowered consumer to the main grid by laying poles (used by the demo and by Architect lines).
- * Greedy: for an isolated building walk from the nearest main-grid pole towards it, placing poles every 6 tiles.
+ * Connect every unpowered consumer (built or ghost) to the main grid by laying poles.
+ * Ghost poles already placed count as planned coverage, so repeated calls never duplicate chains.
  */
 export function connectPower(sim: Sim, opts: { instant?: boolean; maxPoles?: number } = {}): number {
+  sim.rebuildTopology();
+  const main = sim.mainNet;
+  const REACH = 7;
+  const planned: { x: number; y: number }[] = sim.list.filter((e) => e.type === 'pole' && e.ghost).map((e) => ({ x: e.x, y: e.y }));
+  const anchors: { x: number; y: number }[] = [
+    ...sim.list.filter((e) => !e.ghost && BUILDINGS[e.type].poleReach && (e.net ?? -1) === main).map((e) => ({ x: e.x + Math.floor(e.w / 2), y: e.y + Math.floor(e.h / 2) })),
+    ...planned,
+  ];
+  const coveredBy = (t: Entity, p: { x: number; y: number }) => p.x >= t.x - 2 && p.x <= t.x + t.w + 1 && p.y >= t.y - 2 && p.y <= t.y + t.h + 1;
+  const hq = sim.hq!;
+  const targets = sim.list
+    .filter((e) => (BUILDINGS[e.type].power > 0 || BUILDINGS[e.type].gen) && e.type !== 'hq' && !BUILDINGS[e.type].poleReach)
+    .filter((e) => (e.ghost ? true : (e.net ?? -1) !== main))
+    .sort((a, b) => Math.hypot(a.x - hq.x, a.y - hq.y) - Math.hypot(b.x - hq.x, b.y - hq.y));
   let placed = 0;
-  const max = opts.maxPoles ?? 80;
-  for (let iter = 0; iter < 60 && placed < max; iter++) {
-    sim.rebuildTopology();
-    const main = sim.mainNet;
-    const target = sim.list.find((e) => !e.ghost && (BUILDINGS[e.type].power > 0 || BUILDINGS[e.type].gen) && e.type !== 'hq' && (e.net ?? -1) !== main && !BUILDINGS[e.type].poleReach);
-    if (!target) break;
-    const poles = sim.list.filter((e) => BUILDINGS[e.type].poleReach && (e.net ?? -1) === main);
-    const tx = target.x + target.w / 2;
-    const ty = target.y + target.h / 2;
-    let best = poles[0];
+  const max = opts.maxPoles ?? 60;
+  for (const t of targets) {
+    if (placed >= max) break;
+    if (!t.ghost && (t.net ?? -1) === main) continue;
+    if (planned.some((p) => coveredBy(t, p))) continue;
+    // already inside the supply area of a built main-grid pole?
+    if (t.ghost) {
+      let powered = false;
+      for (let yy = t.y; yy < t.y + t.h && !powered; yy++) for (let xx = t.x; xx < t.x + t.w; xx++) if (sim.supply[yy * sim.world.w + xx] === main + 1) powered = true;
+      if (powered) continue;
+    }
+    const tx = t.x + t.w / 2;
+    const ty = t.y + t.h / 2;
+    let best = anchors[0];
     let bd = Infinity;
-    for (const p of poles) {
-      const d = Math.hypot(p.x - tx, p.y - ty);
+    for (const a of anchors) {
+      const d = Math.hypot(a.x - tx, a.y - ty);
       if (d < bd) {
         bd = d;
-        best = p;
+        best = a;
       }
     }
     if (!best) break;
-    // step from the pole towards the target
-    let cx = best.x + best.w / 2;
-    let cy = best.y + best.h / 2;
-    let guard = 0;
-    let ok = false;
-    while (guard++ < 30) {
+    let cx = best.x;
+    let cy = best.y;
+    for (let guard = 0; guard < 20 && placed < max; guard++) {
       const dx = tx - cx;
       const dy = ty - cy;
       const d = Math.hypot(dx, dy);
-      const step = Math.min(6, Math.max(1, d - 2));
-      const nx = Math.round(cx + (dx / Math.max(d, 1e-6)) * step);
-      const ny = Math.round(cy + (dy / Math.max(d, 1e-6)) * step);
-      const spot = freeNear(sim, nx, ny);
-      if (!spot) break;
+      const step = Math.min(REACH, Math.max(1, d - 1.5));
+      const spot = freeNear(sim, Math.round(cx + (dx / Math.max(d, 1e-6)) * step), Math.round(cy + (dy / Math.max(d, 1e-6)) * step));
+      if (!spot || Math.hypot(spot.x - cx, spot.y - cy) > 8) break;
       const e = sim.place('pole', spot.x, spot.y, 0, { force: true, instant: opts.instant ?? true, byScript: true });
       if (!e) break;
       placed++;
-      cx = spot.x + 0.5;
-      cy = spot.y + 0.5;
-      // close enough: the pole's supply area touches the target
-      if (spot.x >= target.x - 2 && spot.x <= target.x + target.w + 1 && spot.y >= target.y - 2 && spot.y <= target.y + target.h + 1) {
-        ok = true;
-        break;
-      }
-    }
-    if (!ok) {
-      // give up on this building (mark by setting a flag so we don't loop forever)
-      (target as any).__noPower = true;
-      if (sim.list.filter((e) => (e as any).__noPower).length > 20) break;
+      planned.push(spot);
+      anchors.push(spot);
+      cx = spot.x;
+      cy = spot.y;
+      if (coveredBy(t, spot)) break;
     }
   }
-  for (const e of sim.list) delete (e as any).__noPower;
   sim.topoDirty = true;
   return placed;
 }

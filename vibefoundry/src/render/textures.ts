@@ -9,6 +9,7 @@ import type { DroneKind } from '../sim/types';
 
 export const LAND_DEPTH = 12;
 export const WATER_DROP = 7;
+export const TILE_VARIANTS = 6;
 
 export interface BuildingTex {
   base: Texture;
@@ -132,9 +133,10 @@ export class TextureBank {
     const rng = new Rng(99);
     for (const b of BIOMES) {
       const arr: Texture[] = [];
-      for (let v = 0; v < 3; v++) {
+      for (let v = 0; v < TILE_VARIANTS; v++) {
         const g = new Graphics();
-        const top = b.top[v];
+        // variants differ only slightly; large-scale colour variation comes from a smooth tint field
+        const top = mix(b.top[0], b.top[v % 3], 0.35);
         if (b.water) {
           poly(g, [P(0, 0), P(1, 0), P(1, 1), P(0, 1)], top);
           for (let k = 0; k < 3; k++) {

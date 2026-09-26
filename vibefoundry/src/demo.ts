@@ -12,6 +12,7 @@ import { pushChat } from './vibe/vibe';
 import { sendToPoi, nearestPoi } from './sim/drones';
 import type { Proposal } from './ai/state';
 import { QUESTS } from './data/quests';
+import { updateQuests } from './sim/quests';
 
 export const DEMO_SEED = 424242;
 
@@ -184,6 +185,30 @@ export function buildDemo(): Sim {
   // pole mesh connecting districts to the HQ
   for (const [x, y] of [[bx - 3, by - 5], [bx - 8, by - 5], [bx + 4, by - 5], [bx - 11, by - 8], [bx - 16, by - 9], [bx - 16, by + 2], [bx - 11, by + 5], [bx - 16, by + 8], [bx - 10, by + 10], [bx + 8, by - 8], [bx + 8, by - 12], [bx + 4, by + 8], [bx + 7, by + 8], [bx + 3, by + 2], [bx - 3, by + 5], [bx - 22, by - 3], [bx - 20, by + 14], [bx + 26, by - 16], [bx + 30, by - 17]] as [number, number][]) P('pole', x, y, 0);
   connectPower(sim);
+  // bring nature back around the factory: groves at the edges, scattered trees and bushes inside
+  const X0 = bx - 32, X1 = bx + 46, Y0 = by - 26, Y1 = by + 30;
+  const nearBuilding = (x: number, y: number) => {
+    for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) {
+      if (w.inBounds(x + dx, y + dy) && w.occ[w.idx(x + dx, y + dy)]) return true;
+    }
+    return false;
+  };
+  for (let y = Y0; y <= Y1; y++) {
+    for (let x = X0; x <= X1; x++) {
+      if (!w.inBounds(x, y) || nearBuilding(x, y)) continue;
+      const i = w.idx(x, y);
+      if (w.res[i]) continue;
+      const edge = Math.min(x - X0, X1 - x, y - Y0, Y1 - y);
+      const r = ((x * 73856093) ^ (y * 19349663)) >>> 0;
+      const p = (r % 1000) / 1000;
+      const dense = edge < 7 ? 0.55 - edge * 0.06 : 0.05;
+      if (p < dense) {
+        w.deco[i] = edge < 7 ? (p < dense * 0.7 ? Deco.Pine : Deco.Pine2) : p < 0.02 ? Deco.Oak : p < 0.04 ? Deco.Bush : Deco.Rock;
+        if (edge < 5) w.biome[i] = Biome.Forest;
+      }
+    }
+  }
+  for (let cy = Math.floor(Y0 / 32); cy <= Math.floor(Y1 / 32); cy++) for (let cx = Math.floor(X0 / 32); cx <= Math.floor(X1 / 32); cx++) w.dirtyChunks.add(cy * w.chunksX + cx);
   // a few ghosts so construction drones are busy right away
   for (const [t, x, y] of [['solar', bx - 4, by + 12], ['accumulator', bx + 10, by - 3], ['turret', bx + 20, by + 22], ['radar', bx - 14, by - 16]] as [BuildingType, number, number][]) sim.place(t, x, y, 1);
   // storage with building materials for the ghosts
@@ -269,6 +294,7 @@ export function buildDemo(): Sim {
   const doneQuests = new Set(sim.quests.done);
   for (const q of QUESTS) if (q.era === 1 || ['q_aicore', 'q_agent_script', 'q_memory', 'q_sandbox', 'q_debug'].includes(q.id)) doneQuests.add(q.id);
   sim.quests.done = [...doneQuests];
+  updateQuests(sim);
   sim.events.muted = false;
   return sim;
 }

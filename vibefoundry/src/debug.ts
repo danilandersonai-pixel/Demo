@@ -3,6 +3,9 @@ import type { BuildingType } from './data/buildings';
 import type { Dir } from './core/iso';
 import { TECHS } from './data/research';
 import { buildStress } from './stress';
+import { PlaytestBot } from './bot';
+
+const botRef: { bot: PlaytestBot | null } = { bot: null };
 
 /** Debug API for automated playtests (window.__vf). Not used by gameplay. */
 export function installDebugApi(game: Game): void {
@@ -27,6 +30,12 @@ export function installDebugApi(game: Game): void {
       }
       const ms = (performance.now() - t0) / frames;
       return { msPerFrame: Math.round(ms * 100) / 100, fps: Math.round(1000 / ms) };
+    },
+    /** Run the playtest bot for N game seconds (bot acts every second). */
+    bot(seconds: number) {
+      if (!botRef.bot || botRef.bot.sim !== game.sim) botRef.bot = new PlaytestBot(game.sim);
+      botRef.bot.run(seconds);
+      return { time: game.sim.time, quests: game.sim.quests.done.slice(), research: game.sim.research.done.slice(), log: botRef.bot.log.slice(), commits: game.sim.git.commits.length };
     },
     demo() {
       game.startDemo();

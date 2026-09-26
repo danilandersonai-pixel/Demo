@@ -3,7 +3,8 @@ import { BIOMES, Deco, isWater } from '../data/biomes';
 import { CHUNK, type World } from '../world/world';
 import { hash2 } from '../core/rng';
 import { HALF_H, HALF_W, TILE_H } from '../core/iso';
-import { LAND_DEPTH, WATER_DROP, type TextureBank } from './textures';
+import { LAND_DEPTH, WATER_DROP, TILE_VARIANTS, type TextureBank } from './textures';
+import { Simplex2 } from '../core/noise';
 
 export interface ChunkView {
   cx: number;
@@ -29,11 +30,13 @@ export class TerrainLayer {
   world: World;
   tex: TextureBank;
   private overviewCanvas: HTMLCanvasElement | null = null;
+  private tintNoise: Simplex2;
   private overviewDirty = true;
 
   constructor(world: World, tex: TextureBank) {
     this.world = world;
     this.tex = tex;
+    this.tintNoise = new Simplex2(world.seed ^ 0x51ed);
     this.ground.label = 'ground';
     this.objects.label = 'objects';
     const cw = world.chunksX;
@@ -94,7 +97,7 @@ export class TerrainLayer {
         const b = w.biome[i];
         if (b === 0) continue; // deep sea is the background
         const revealed = w.fog[i] === 1;
-        const variant = Math.floor(hash2(x, y, 11) * 3);
+        const variant = Math.floor(hash2(x, y, 11) * TILE_VARIANTS);
         const sp = new Sprite(this.tex.tiles[b][variant]);
         sp.anchor.set(0.5, 0);
         sp.x = (x - y) * HALF_W;
@@ -102,12 +105,14 @@ export class TerrainLayer {
         let tint = 0xffffff;
         if (!revealed) tint = FOG;
         else if (this.nearFog(x, y)) tint = FOG_EDGE;
-        else {
-          // subtle height shading
-          const hgt = w.height[i];
-          const f = 0.9 + (hgt / 255) * 0.2;
-          const c = Math.min(255, Math.round(255 * Math.min(1, f)));
-          tint = (c << 16) | (c << 8) | c;
+        else if (!isWater(b)) {
+          // smooth large-scale patches (meadow light/dark) + gentle height shading
+          const n = this.tintNoise.fbm(x / 11, y / 11, 2) * 0.5 + this.tintNoise.noise(x / 3.5 + 50, y / 3.5) * 0.12;
+          const f = 0.95 + n * 0.16 + (w.height[i] / 255 - 0.5) * 0.08;
+          const r = Math.round(255 * Math.min(1, f));
+          const gg = Math.round(255 * Math.min(1, f + n * 0.03));
+          const bb = Math.round(255 * Math.min(1, f - 0.02));
+          tint = (r << 16) | (gg << 8) | Math.max(0, bb);
         }
         sp.tint = tint;
         v.ground.addChild(sp);

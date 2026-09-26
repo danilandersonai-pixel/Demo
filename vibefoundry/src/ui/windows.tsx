@@ -197,7 +197,20 @@ export function StatsWindow({ game }: { game: Game }) {
   const rows = keys
     .map((k) => ({ k, p: sim.stats.rate(k), c: sim.stats.consumeRate(k), total: sim.stats.totalProduced[k] ?? 0 }))
     .sort((a, b) => b.total - a.total);
-  const series = sim.stats.series(key, scale);
+  const raw = sim.stats.series(key, scale);
+  // show a per-minute rate, smoothed over a short window (per-second buckets are spiky)
+  const perMin = scale === 1 ? 60 : scale === 10 ? 6 : 1;
+  const smooth = (a: number[]) => a.map((_, i) => {
+    const k = scale === 1 ? 8 : 2;
+    let sum = 0;
+    let n = 0;
+    for (let j = Math.max(0, i - k + 1); j <= i; j++) {
+      sum += a[j];
+      n++;
+    }
+    return (sum / n) * perMin;
+  });
+  const series = { p: smooth(raw.p), c: smooth(raw.c) };
   const max = Math.max(1, ...series.p, ...series.c);
   const W = 560;
   const H = 200;
@@ -229,7 +242,7 @@ export function StatsWindow({ game }: { game: Game }) {
             {[0.25, 0.5, 0.75].map((f) => <line key={f} x1="0" x2={W} y1={H * f} y2={H * f} stroke="#0e2233" />)}
             <polyline points={pts(series.c)} fill="none" stroke="#ed5347" stroke-width="1.6" opacity="0.8" />
             <polyline points={pts(series.p)} fill="none" stroke="#33c0a7" stroke-width="2" />
-            <text x="6" y="14" fill="#8a99a6" font-size="11" font-family="IBM Plex Mono">{fmt(max)} / {scale === 1 ? 'с' : scale === 10 ? '10 с' : 'мин'}</text>
+            <text x="6" y="14" fill="#8a99a6" font-size="11" font-family="IBM Plex Mono">{fmt(max)} / мин</text>
           </svg>
           <div style={{ display: 'flex', gap: 14, fontSize: 12, marginTop: 6 }}>
             <span class="pos">■ произведено</span><span class="neg">■ потреблено</span>
