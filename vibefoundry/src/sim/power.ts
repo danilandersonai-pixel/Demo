@@ -1,6 +1,7 @@
 import { BUILDINGS } from '../data/buildings';
 import type { Sim } from './sim';
 import type { Entity, PowerNetStats } from './types';
+import { solarFactor } from './worldEvents';
 
 const ACC_CAPACITY = 5000; // kJ
 const ACC_RATE = 300; // kW
@@ -140,7 +141,7 @@ export function updatePower(sim: Sim, dt: number): void {
           break;
         }
         case 'solar':
-          cap = def.gen * daylight;
+          cap = def.gen * daylight * solarFactor(sim);
           e.status = cap > 10 ? 'working' : 'idle';
           break;
         case 'reactor':

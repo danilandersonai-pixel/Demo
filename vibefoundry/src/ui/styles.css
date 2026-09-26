@@ -333,3 +333,15 @@ select:focus {
     opacity: 0;
   }
 }
+/* accessibility: higher contrast */
+body.hc {
+  --muted: #c3ccd4;
+  --text-2: #e4ebf1;
+  --line: #2c587c;
+  --line-strong: #3f7aa8;
+  --surface-a: rgba(2, 12, 22, 0.97);
+  --disabled: #7a8896;
+}
+body.hc .panel {
+  backdrop-filter: none;
+}

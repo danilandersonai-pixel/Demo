@@ -123,13 +123,13 @@ describe('hallucinations, Debugger and fixes', () => {
   it('every mutation type produces parseable code with a recorded line', () => {
     const code = 'class A(Agent):\n    def run(self):\n        if self.power < 0.8:\n            self.disable("chip_production")\n        else:\n            self.enable("chip_production")\n        self.route("copper_ore", "smelter")\n';
     const seen = new Set<string>();
-    for (let s = 1; s < 200 && seen.size < 5; s++) {
+    for (let s = 1; s < 400 && seen.size < 6; s++) {
       const h = hallucinate(code, new Rng(s))!;
       expect(() => parse(h.code)).not.toThrow();
       expect(h.bug.line).toBeGreaterThan(0);
       seen.add(h.bug.type);
     }
-    expect([...seen].sort()).toEqual(['bad_group', 'flapping', 'inverted', 'missing_else', 'wrong_item']);
+    expect([...seen].sort()).toEqual(['bad_group', 'bad_threshold', 'flapping', 'inverted', 'missing_else', 'wrong_item']);
   });
 
   it('a hallucinated bug shows up in the factory, Debugger finds it, fix restores behaviour', () => {

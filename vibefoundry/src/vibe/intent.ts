@@ -301,6 +301,8 @@ function targetFor(c: Clause, mode: 'toggle' | 'priority'): string[] {
       if (b === 'smelter' && it) {
         const stem = it.replace(/_ore|_plate/, '');
         out.push(`${stem}_smelters`);
+      } else if (b === 'drill' && it) {
+        out.push(`${it.replace(/_ore|_plate/, '')}_mining`);
       } else if (it && (b === 'assembler' || b === 'chem') && mode === 'toggle') out.push(productionGroup(it));
       else out.push(BUILDING_GROUP[b] ?? b);
     }

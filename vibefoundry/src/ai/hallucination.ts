@@ -30,6 +30,7 @@ const TYPE_DESC: Record<BugRecord['type'], string> = {
   flapping: 'Дребезг — здания включаются и выключаются каждую секунду',
   bad_group: 'Маршрут/действие в несуществующую группу',
   missing_else: 'Забытая ветка else — часть логики не выполняется',
+  bad_threshold: 'Порог не в той шкале (доля стала процентами) — правило срабатывает всегда',
 };
 
 /**
@@ -54,6 +55,9 @@ export function hallucinate(code: string, rng: Rng): { code: string; bug: BugRec
     // flapping: condition also true every other second
     const mf = l.match(/^(\s*)if (.+):$/);
     if (mf && /disable|shutdown|enable/.test(lines[i + 1] ?? '')) options.push(() => at(i, `${mf[1]}if ${mf[2]} or int(self.time) % 2 == 0:`, 'flapping'));
+    // threshold in the wrong scale: 0.8 → 80
+    const mt = l.match(/^(\s*)if (self\.(?:power|energy)) (<|>) (0\.\d+):$/);
+    if (mt) options.push(() => at(i, `${mt[1]}if ${mt[2]} ${mt[3]} ${Math.round(Number(mt[4]) * 100)}:`, 'bad_threshold'));
     // hallucinated group name
     const mg = l.match(/self\.(disable|enable|shutdown|set_priority|set_recipe)\("([a-z_0-9]+)"/);
     if (mg && mg[2] !== 'all') options.push(() => at(i, l.replace(`"${mg[2]}"`, `"${mg[2]}_v2"`), 'bad_group'));

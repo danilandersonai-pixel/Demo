@@ -125,5 +125,25 @@ test('autoplay: first 20 minutes, milestones and screenshots', async ({ page }) 
   });
   const found = await page.evaluate(() => (window as any).__vf.sim.flags.bugs.some((b: any) => b.found));
   expect(found).toBe(true);
+  // save → reload page → load: the whole factory and its Git history come back
+  const before = await page.evaluate(async () => {
+    const v = (window as any).__vf;
+    await v.game.saveTo('slot1');
+    return { ents: v.sim.list.length, commits: v.sim.git.commits.length, chat: v.sim.ai.chat.length, tick: v.sim.tick };
+  });
+  const [download] = await Promise.all([page.waitForEvent('download'), page.evaluate(() => (window as any).__vf.game.exportSave())]);
+  expect(download.suggestedFilename()).toMatch(/vibefoundry-day\d+\.json/);
+  await page.reload();
+  await page.waitForFunction(() => (window as any).__vf?.ready);
+  const after = await page.evaluate(async () => {
+    const v = (window as any).__vf;
+    const ok = await v.game.loadFrom('slot1');
+    return { ok, ents: v.sim.list.length, commits: v.sim.git.commits.length, chat: v.sim.ai.chat.length, tick: v.sim.tick };
+  });
+  expect(after.ok).toBe(true);
+  expect(after.ents).toBe(before.ents);
+  expect(after.commits).toBe(before.commits);
+  expect(after.chat).toBe(before.chat);
+  await shot(page, '13-loaded-save');
   expect(errors.filter((e) => !/favicon|DevTools/.test(e))).toEqual([]);
 });

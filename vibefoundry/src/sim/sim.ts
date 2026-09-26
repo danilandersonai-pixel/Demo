@@ -23,6 +23,7 @@ import { GitState, newGitState } from '../vibe/git';
 import { ScriptRuntime } from '../script/runtime';
 import { QuestState, newQuestState, updateQuests } from './quests';
 import { architectBuild } from '../ai/architect';
+import { worldEvents } from './worldEvents';
 import { initGit } from '../vibe/vibe';
 
 export interface SimEvents extends Record<string, unknown> {
@@ -587,6 +588,7 @@ export class Sim {
     this.craftEvents.length = 0;
     updateQuests(this);
     aiEverySecond(this);
+    worldEvents(this);
   }
 
   /** Items produced per minute across all item types (for catastrophe detection). */

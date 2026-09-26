@@ -221,6 +221,14 @@ export class Game {
     if (this.keys.has('KeyA') || this.keys.has('ArrowLeft')) px -= panSpeed;
     if (this.keys.has('KeyD') || this.keys.has('ArrowRight')) px += panSpeed;
     if (px || py) this.renderer.pan(px, py);
+    // main menu: a slow cinematic drift over the island
+    if (this.ui.mainMenu) {
+      const c = this.renderer.cam;
+      c.x += 14 * dtReal;
+      c.y += 4 * Math.sin(performance.now() / 9000) * dtReal;
+      c.tx = c.x;
+      c.ty = c.y;
+    }
     let steps = 0;
     const ts = performance.now();
     if (!this.paused && !this.ui.mainMenu && !this.ui.victory) {
@@ -662,6 +670,12 @@ export class Game {
         break;
       case 'KeyQ':
         this.pipette();
+        break;
+      case 'KeyG':
+        this.setTool(this.tool.kind === 'group' ? { kind: 'none' } : { kind: 'group' });
+        break;
+      case 'KeyX':
+        this.setTool(this.tool.kind === 'decon' ? { kind: 'none' } : { kind: 'decon' });
         break;
       case 'KeyM':
         this.togglePanel('map');

@@ -42,7 +42,7 @@ export interface ChatMsg {
 }
 
 export interface BugRecord {
-  type: 'wrong_item' | 'inverted' | 'flapping' | 'bad_group' | 'missing_else';
+  type: 'wrong_item' | 'inverted' | 'flapping' | 'bad_group' | 'missing_else' | 'bad_threshold';
   line: number;
   desc: string;
   /** Source before corruption (used by Debugger to propose the fix). */

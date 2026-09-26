@@ -8,6 +8,7 @@ import { isEnabled } from './power';
 import { fluidNetOf } from './fluids';
 import type { Sim } from './sim';
 import type { Entity } from './types';
+import { computeFactor } from './worldEvents';
 
 const PUMP_RATE = 10; // oil / s
 const COMPUTE: Partial<Record<string, number>> = { aicore: 6, server: 12, datacenter: 150 };
@@ -351,7 +352,7 @@ function updateCompute(sim: Sim, e: Entity, dt: number): void {
     if (e.cooled === undefined) e.cooled = nearWater(sim, e, 4);
     if (!e.cooled) rate *= 0.4;
   }
-  const add = rate * sat * dt;
+  const add = rate * sat * dt * computeFactor(sim);
   sim.ai.compute += add;
   sim.stats.produce('compute', add);
   e.status = e.type === 'datacenter' && !e.cooled ? 'no_cooling' : sat < 0.6 ? 'low_power' : 'working';

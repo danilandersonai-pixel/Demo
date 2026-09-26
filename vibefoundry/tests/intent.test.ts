@@ -117,6 +117,7 @@ describe('intent engine: more templates', () => {
     ['Если враги атакуют — отправь боевых дронов', ['if "enemies" in self.alerts:', 'self.dispatch("combat", "enemies")']],
     ['Включи все плавильни', ['self.enable("smelter")']],
     ['Выключи химзавод и плавильни', ['self.disable("chem")', 'self.disable("smelter")']],
+    ['Отключи буры на железе, если железа больше 2000', ['if self.stock("iron_ore") > 2000:', 'self.disable("iron_mining")']],
     ['Логируй производство шестерён', ['self.log(', 'self.rate("gear")']],
     ['Если чипов мало — дай приоритет микросхемам', ['if self.stock("microchip") < 100:', 'self.set_priority("chips", 1)']],
     ['Keep 300 plastic in stock', ['self.limit("plastic", 300)']],

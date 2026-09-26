@@ -297,15 +297,22 @@ export function BuildMenu({ game }: { game: Game }) {
   const list = BUILDING_LIST.filter((b) => !b.hidden && b.category === cat);
   const cur = game.tool.kind === 'build' ? game.tool.type : null;
   const stock = sim.stockAll();
+  const q = sim.quests.active[0];
+  const hlCard = q === 'q_drill' ? 'drill' : q === 'q_belt' ? 'belt' : q === 'q_power' ? 'pole' : q === 'q_lab' ? 'lab' : null;
   return (
     <div class="panel glow buildmenu">
       <div class="tabs">
         {CATS.map((c) => (
           <button key={c} class={c === cat ? 'on' : ''} onClick={() => { game.ui.buildCategory = c; game.emit(); }}>{CATEGORY_NAMES[c]}</button>
         ))}
-        <span class="muted" style={{ marginLeft: 'auto', fontSize: 12, alignSelf: 'center' }}>
-          <span class="kbd">R</span> поворот · <span class="kbd">Q</span> пипетка · <span class="kbd">ПКМ</span> снос
+        <span style={{ marginLeft: 'auto', display: 'flex', gap: 4 }}>
+          <button class={game.tool.kind === 'decon' ? 'on' : ''} onClick={() => { game.setTool(game.tool.kind === 'decon' ? { kind: 'none' } : { kind: 'decon' }); game.ui.panel = null; game.emit(); }} data-tip="Снос рамкой: выделите область"><Icon name="trash" size={14} /> Снос</button>
+          <button class={game.tool.kind === 'group' ? 'on' : ''} onClick={() => { game.setTool(game.tool.kind === 'group' ? { kind: 'none' } : { kind: 'group' }); game.ui.panel = null; game.emit(); }} data-tip="Группа рамкой (G): выделите здания → имя группы для скриптов"><Icon name="group" size={14} /> Группа</button>
+          {sim.isUnlocked('blueprints') && <button class={game.tool.kind === 'copy' ? 'on' : ''} onClick={() => { game.setTool({ kind: 'copy' }); game.ui.panel = null; game.emit(); }} data-tip="Чертёж (Ctrl+C): скопировать область"><Icon name="copy" size={14} /> Чертёж</button>}
         </span>
+      </div>
+      <div class="muted" style={{ fontSize: 11.5, margin: '-4px 0 8px' }}>
+        <span class="kbd">R</span> поворот · <span class="kbd">Q</span> пипетка · <span class="kbd">ПКМ</span> снос · ленты и трубы тянутся мышью
       </div>
       <div class="bgrid scroll">
         {list.map((b) => {
@@ -314,7 +321,7 @@ export function BuildMenu({ game }: { game: Game }) {
           return (
             <button
               key={b.id}
-              class={'bcard' + (cur === b.id ? ' on' : '') + (!unlocked ? ' locked' : '')}
+              class={'bcard' + (cur === b.id ? ' on' : '') + (!unlocked ? ' locked' : '') + (hlCard === b.id && cur !== b.id ? ' pulse-target' : '')}
               onClick={() => { if (unlocked) { game.selectBuild(b.id); audio.play('click'); } }}
               aria-label={b.name}
               data-tip={`${b.name}. ${b.desc}${b.power ? ` Потребление: ${mw(b.power)}.` : ''}${b.gen ? ` Выработка: ${mw(b.gen)}.` : ''} Размер ${b.w}×${b.h}.${!unlocked ? ` Требуется: ${TECHS[b.unlock!]?.name}.` : ''}`}
