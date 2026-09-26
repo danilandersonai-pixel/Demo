@@ -1,0 +1,108 @@
+@import "tailwindcss";
+
+@theme {
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+html,
+body {
+  background: #0f141c;
+  color: #cbd5e1;
+  color-scheme: dark;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: var(--font-mono);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Сетка «редактора» на фоне */
+.ide-grid {
+  background-image:
+    linear-gradient(rgba(34, 211, 238, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(34, 211, 238, 0.035) 1px, transparent 1px);
+  background-size: 28px 28px;
+}
+
+/* Тонкие скроллбары в стиле IDE */
+.ide-scroll::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.ide-scroll::-webkit-scrollbar-thumb {
+  background: rgba(100, 116, 139, 0.35);
+  border-radius: 8px;
+}
+.ide-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.ide-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(100, 116, 139, 0.35) transparent;
+}
+
+/* Слайдеры */
+input[type="range"].ide-range {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(51, 65, 85, 0.8);
+  outline: none;
+}
+input[type="range"].ide-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  background: var(--thumb, #a855f7);
+  box-shadow: 0 0 12px var(--thumb, #a855f7);
+  cursor: pointer;
+  border: 2px solid #0f141c;
+}
+input[type="range"].ide-range::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  background: var(--thumb, #a855f7);
+  box-shadow: 0 0 12px var(--thumb, #a855f7);
+  cursor: pointer;
+  border: 2px solid #0f141c;
+}
+input[type="range"].ide-range:focus-visible {
+  box-shadow: 0 0 0 2px rgba(168, 85, 247, 0.6);
+}
+
+.neon-text-cyan {
+  text-shadow: 0 0 12px rgba(34, 211, 238, 0.65);
+}
+.neon-text-amber {
+  text-shadow: 0 0 12px rgba(245, 158, 11, 0.6);
+}
+.neon-text-fuchsia {
+  text-shadow: 0 0 14px rgba(217, 70, 239, 0.7);
+}
+
+@keyframes caret-blink {
+  0%, 49% { opacity: 1; }
+  50%, 100% { opacity: 0; }
+}
+.caret::after {
+  content: "▋";
+  margin-left: 2px;
+  color: #22d3ee;
+  animation: caret-blink 1s steps(1) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .caret::after { animation: none; }
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

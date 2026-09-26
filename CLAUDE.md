@@ -35,6 +35,7 @@ code in this repository.
 │       ├── reference/collect.md    — сбор данных (репозитории, ветки, PR)
 │       ├── reference/render.md     — отрисовка вывода
 │       └── assets/template.html    — HTML-шаблон карты
+├── vibetycoon/                     — игра VibeTycoon (React/Vite, к сайту не относится)
 └── yegor-diana-wedding/            — САМ САЙТ (публикуется в корень Pages)
     ├── index.html                  — вся разметка, одна страница (~670 строк)
     ├── favicon.svg                 — монограмма «Е&Д»
@@ -175,6 +176,18 @@ reduced-motion** (всегда в конце файла). Дизайн-сист�
 Подробности и альтернатива с Telegram, включая объяснение, почему она хуже для
 публичного сайта, — в `yegor-diana-wedding/README.md`. Honeypot-поле `website`
 сохранять как антиспам: если оно заполнено, отправка молча прерывается.
+
+## Игра `vibetycoon/`
+
+Отдельный проект, к сайту свадьбы и деплою Pages отношения не имеет:
+обучающая игра-песочница «VibeTycoon: AI Automation Simulator» на React +
+Tailwind 4 + Framer Motion + Lucide, сборка Vite в **один** файл
+`vibetycoon/dist/index.html` (он закоммичен, открывается двойным кликом).
+Здесь, в отличие от сайта, npm есть: `npm install`, `npm run dev`,
+`npm run build` (после правок пересобрать и закоммитить `dist/`),
+`npm run simulate` — прогон баланса экономики в node. Весь баланс — в
+`src/game/config.js`, формулы — в чистом движке `src/game/engine.js`, который
+использует и UI, и симуляция. Подробности — `vibetycoon/README.md`.
 
 ## Скилл `repo-map`
 
