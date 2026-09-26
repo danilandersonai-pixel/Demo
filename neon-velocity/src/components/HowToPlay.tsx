@@ -102,7 +102,8 @@ function Goal() {
     { label: 'Уклонение', value: `+${s.dodge}`, tone: 'text-ink' },
     { label: 'Near miss — пролёт вплотную', value: `+${s.nearMiss}`, tone: 'text-[#c9a8ff]' },
     { label: 'Энергосфера', value: `+${s.crystal}`, tone: 'text-neon-cyan' },
-    { label: 'Редкая золотая сфера', value: `+${s.rareCrystal}`, tone: 'text-neon-yellow' },
+    // Без «золотая»: цвет редкой сферы зависит от темы (в Retrowave Gold золотые как раз обычные).
+    { label: 'Редкая сфера', value: `+${s.rareCrystal}`, tone: 'text-neon-yellow' },
   ];
   return (
     <Card icon={Target} title="Цель" tone="pink">

@@ -61,6 +61,23 @@ type Throttled = keyof typeof MIN_GAP;
 /** События, по которым браузер разрешает запуск звука (активация пользователем). */
 const GESTURE_EVENTS = ['pointerdown', 'pointerup', 'keydown', 'touchend', 'click'] as const;
 
+/**
+ * Шаг подготовки микшера ждёт свободного времени главного потока не дольше, мс: на занятом
+ * потоке (первые кадры забега, слабый телефон) все шаги всё равно укладываются в доли секунды,
+ * и реверберация молчит лишь в самом начале первого забега.
+ */
+const WARM_UP_TIMEOUT = 50;
+
+/** Выполнить fn отдельной задачей в свободное время главного потока (но не позже WARM_UP_TIMEOUT). */
+function whenIdle(fn: () => void): void {
+  if (typeof window.requestIdleCallback === 'function') {
+    window.requestIdleCallback(fn, { timeout: WARM_UP_TIMEOUT });
+  } else {
+    // Safari без requestIdleCallback: сразу после ближайшего кадра.
+    window.requestAnimationFrame(() => window.setTimeout(fn, 0));
+  }
+}
+
 function audioContextCtor(): typeof AudioContext | null {
   if (typeof window === 'undefined') return null;
   const legacy = (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
@@ -103,7 +120,11 @@ export class AudioEngine {
     return this.ctx ? this.ctx.state : 'locked';
   }
 
-  /** Создать или возобновить AudioContext. Вызывать из обработчика жеста (клик, тап, клавиша). */
+  /**
+   * Создать или возобновить AudioContext. Вызывать из обработчика жеста (клик, тап, клавиша).
+   * В самом жесте — только то, что требует активации (контекст, узлы, resume); тяжёлая
+   * подготовка микшера уходит в фоновые задачи (warmUp), чтобы первый тап не подвисал.
+   */
   unlock(): void {
     if (!this.ctx) {
       const Ctor = audioContextCtor();
@@ -124,6 +145,7 @@ export class AudioEngine {
       mix.setGate(!this.paused, now);
       ctx.addEventListener('statechange', this.onStateChange);
       this.primeOutput(ctx);
+      this.warmUp(mix, ctx);
     }
     const ctx = this.ctx;
     if (ctx.state !== 'running' && ctx.state !== 'closed') {
@@ -133,8 +155,16 @@ export class AudioEngine {
   }
 
   setSettings(settings: AudioSettings): void {
+    const wasEnabled = this.settings.enabled;
     this.settings = sanitize(settings, this.settings);
-    if (this.mix && this.ctx) this.mix.setLevels(this.settings, this.ctx.currentTime);
+    const mix = this.mix;
+    const ctx = this.ctx;
+    if (!mix || !ctx) return;
+    const now = ctx.currentTime;
+    mix.setLevels(this.settings, now);
+    // Щелчок самой кнопки звучал бы при старой настройке (в заглушённый микшер),
+    // поэтому подтверждение включения играет здесь — когда мастер уже открывается.
+    if (!wasEnabled && this.settings.enabled && ctx.state === 'running') sfxUi(mix, now + 0.06, 'toggle');
   }
 
   /** Музыка звучит только во время забега; вне забега beat-события игнорируются. */
@@ -301,7 +331,10 @@ export class AudioEngine {
     if (w) {
       const voice = sfxLevelRiser(mix, w.start, w.impact);
       if (voice) {
-        this.dropRiser();
+        // Прежний райзер (его уровень так и не наступил) гасится напрямую: dropRiser() сбросил бы
+        // в часах отметку «райзер этого уровня уже запланирован», и на следующей же доле окна
+        // райзер перезапускался бы с нижней ноты, так и не доиграв до удара.
+        if (this.riser) mix.kill(this.riser.voice, now, 0.06);
         this.riser = { voice, level: w.level, impact: w.impact };
       }
     }
@@ -323,6 +356,7 @@ export class AudioEngine {
     mix.duckMusic(at, 0.6, 0.25, 0.6);
   }
 
+  /** Оборвать райзер и разрешить часам запланировать его заново (новый забег, смерть, выход из забега). */
   private dropRiser(): void {
     const r = this.riser;
     this.riser = null;
@@ -334,6 +368,19 @@ export class AudioEngine {
     if (now - this.lastPlayed[key] < MIN_GAP[key]) return false;
     this.lastPlayed[key] = now;
     return true;
+  }
+
+  /**
+   * Подготовить микшер (импульс реверберации, свёртки, буферы шума) по шагу за задачу в
+   * свободное время главного потока — вне обработчика жеста и не одним длинным куском.
+   */
+  private warmUp(mix: Mixer, ctx: AudioContext): void {
+    const step = (): void => {
+      // Движок закрыт (горячая перезагрузка модуля) — готовить уже нечего.
+      if (this.mix !== mix || ctx.state === 'closed') return;
+      if (mix.warmUp()) whenIdle(step);
+    };
+    whenIdle(step);
   }
 
   /** Пустой буфер в момент разблокировки — старые iOS иначе не «просыпаются». */

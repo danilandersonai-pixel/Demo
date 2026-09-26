@@ -1,8 +1,8 @@
 /**
- * Экран паузы: размытый замерший кадр и неоновая карточка. Сцена под ним не
+ * Экран паузы: затемнённый замерший кадр и стеклянная неоновая карточка. Сцена под ним не
  * обновляется (GameCanvas рисует без update), звук приглушён.
  */
-import { motion } from 'framer-motion';
+import { motion, useIsPresent } from 'framer-motion';
 import { Hand, House, Play, RotateCcw, Volume2, VolumeX } from 'lucide-react';
 import { useId, useState, type ReactNode } from 'react';
 import { useHudSnapshot } from '../game/hudStore';
@@ -38,9 +38,11 @@ export function PauseOverlay({ onResume, onRestart, onMenu, soundOn, onToggleSou
   const titleId = useId();
   const hud = useHudSnapshot();
   const [touch] = useState(isCoarsePointer);
+  // Пауза уже уходит (анимация выхода): «Заново» и «В меню» не ловят клики.
+  const isPresent = useIsPresent();
 
   return (
-    <Overlay blur="md" label="Пауза">
+    <Overlay blur="md" label="Пауза" className={isPresent ? '' : 'pointer-events-none'}>
       <NeonCard
         accent="cyan"
         labelledBy={titleId}
@@ -53,7 +55,9 @@ export function PauseOverlay({ onResume, onRestart, onMenu, soundOn, onToggleSou
             aria-pressed={soundOn}
             variant={soundOn ? 'cyan' : 'ghost'}
             size="sm"
-            sound="toggle"
+            // Свой щелчок здесь звучал бы при старой настройке: включение — в
+            // заглушённый микшер, выключение — обрезанный затуханием.
+            sound={null}
             onClick={onToggleSound}
           />
         </div>
@@ -74,7 +78,7 @@ export function PauseOverlay({ onResume, onRestart, onMenu, soundOn, onToggleSou
           </div>
           <h2
             id={titleId}
-            className="animate-flicker pl-[0.35em] font-display text-4xl font-black tracking-[0.35em] text-neon-cyan text-glow-cyan sm:text-5xl [@media(max-height:560px)_and_(orientation:landscape)]:text-3xl"
+            className="animate-flicker [animation-iteration-count:2] pl-[0.35em] font-display text-4xl font-black tracking-[0.35em] text-neon-cyan text-glow-cyan sm:text-5xl [@media(max-height:560px)_and_(orientation:landscape)]:text-3xl"
           >
             PAUSE
           </h2>

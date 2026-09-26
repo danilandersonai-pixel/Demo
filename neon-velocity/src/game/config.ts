@@ -435,7 +435,7 @@ export const UPGRADES: Record<UpgradeId, Upgrade> = {
   lucky: {
     id: 'lucky',
     title: 'Призма удачи',
-    description: '+4 % к шансу редкой золотой сферы (×5 очков и валюты).',
+    description: '+4 % к шансу редкой сферы (×5 очков и валюты).',
     maxTier: 3,
     prices: [150, 400, 900],
     perTier: 0.04,

@@ -1,4 +1,22 @@
 /** Общие константы оболочки (отдельный модуль — файлы компонентов экспортируют только компоненты). */
+import type { BannerKind } from '../../game/types';
+
+/** «Полка» баннеров HUD по высоте: вверху — рекорд, в центре — старт и уровни, ниже — щит и комбо. */
+export type BannerSlot = 'top' | 'mid' | 'low';
+
+/**
+ * На каждой полке одновременно живёт один баннер (новый вытесняет прежний —
+ * так делает GameCanvas), иначе надписи одной линии печатаются друг поверх друга.
+ */
+export const BANNER_SLOT: Record<BannerKind, BannerSlot> = {
+  newRecord: 'top',
+  ready: 'mid',
+  go: 'mid',
+  levelUp: 'mid',
+  shield: 'low',
+  comboBreak: 'low',
+  comboUp: 'low',
+};
 
 /**
  * Первые миллисекунды экрана Game Over хоткеи и фокус не работают: игрок ещё
@@ -10,5 +28,7 @@ export const GAME_OVER_ARM_MS = 650;
  * NeonButton прячет подсказку клавиши классом «hidden sm:inline-flex», но у Kbd
  * свой «inline-flex», и в сборке он побеждает — на телефоне подсказки вылезают.
  * Селектор потомка сильнее одиночного класса, поэтому контейнер кнопок прячет их сам.
+ * Телефон боком шире sm, поэтому клавиши прячем и по пальцу (pointer: coarse) —
+ * та же строка, что в menu/shared.ts.
  */
-export const HIDE_KBD_ON_PHONE = 'max-sm:[&_kbd]:hidden';
+export const HIDE_KBD_ON_PHONE = 'max-sm:[&_kbd]:hidden pointer-coarse:[&_kbd]:hidden';

@@ -11,6 +11,10 @@
  * Голос — все узлы одного звука. Mixer держит лимит одновременных голосов
  * (вытесняет самый старый из наименее важных) и отключает узлы, как только все
  * источники голоса отыграли, — граф не разрастается.
+ *
+ * Конструктор создаёт только узлы (дёшево — его зовут из обработчика жеста). Тяжёлое —
+ * синтез импульса реверберации, загрузка его в свёртки, буферы шума — делает warmUp()
+ * по шагу за вызов; до этого свёртки молчат, а шум создаётся по первому требованию.
  */
 import { clamp } from './math';
 
@@ -84,6 +88,8 @@ export interface Levels {
 
 interface Sends {
   verb: GainNode;
+  /** Свёртка реверберации; импульс загружается в warmUp(), до этого она молчит. */
+  conv: ConvolverNode;
   echo: GainNode;
   delay: DelayNode;
 }
@@ -186,7 +192,26 @@ export class Mixer {
   private whiteBuf: AudioBuffer | null = null;
   private brownBuf: AudioBuffer | null = null;
   private irBuf: AudioBuffer | null = null;
+  /** Сколько каналов irBuf уже синтезировано: импульс готов, когда заполнены все. */
+  private irChannels = 0;
   private curve: Float32Array<ArrayBuffer> | null = null;
+
+  /**
+   * Шаги warmUp() по порядку нужности: белый шум звучит с первой доли (хэты, «GO»), реверберация —
+   * хвосты, «коричневый» шум и перегруз — только на взрыве и новом уровне. Каждый шаг — до ~10 мс
+   * на телефоне; загрузка импульса в свёртку отдельным шагом, потому что браузер готовит ядро
+   * свёртки синхронно при присваивании buffer.
+   */
+  private readonly warmSteps: readonly (() => void)[] = [
+    () => this.white(),
+    () => this.synthImpulseChannel(),
+    () => this.synthImpulseChannel(),
+    () => this.loadReverb(this.sfxSends),
+    () => this.loadReverb(this.musicSends),
+    () => this.brown(),
+    () => this.driveCurve(),
+  ];
+  private warmed = 0;
 
   constructor(ctx: BaseAudioContext) {
     this.ctx = ctx;
@@ -241,6 +266,20 @@ export class Mixer {
     this.uiVol.connect(this.master);
 
     this.applyLevels(ctx.currentTime, true);
+  }
+
+  /**
+   * Выполнить следующий шаг отложенной подготовки графа (см. warmSteps). Вызывающий
+   * разносит шаги по отдельным задачам, чтобы ни одна не держала главный поток долго.
+   * Возвращает true, пока шаги остались.
+   */
+  warmUp(): boolean {
+    const step = this.warmSteps[this.warmed];
+    if (step) {
+      this.warmed++;
+      step();
+    }
+    return this.warmed < this.warmSteps.length;
   }
 
   // ── Состояние шин ──
@@ -554,12 +593,12 @@ export class Mixer {
   /**
    * Посылы шины: реверберация (свёртка с синтетическим импульсом) и эхо с
    * обратной связью через фильтр — каждый повтор темнее предыдущего.
+   * Импульс в свёртку здесь не загружается — это тяжело, это делает warmUp().
    */
   private createSends(ret: AudioNode, echoTime: number, feedback: number, verbLevel: number): Sends {
     const ctx = this.ctx;
     const verb = this.node(ctx.createGain());
     const conv = this.node(ctx.createConvolver());
-    conv.buffer = this.impulse();
     const verbOut = this.node(ctx.createGain());
     verbOut.gain.value = verbLevel;
     verb.connect(conv).connect(verbOut).connect(ret);
@@ -583,7 +622,12 @@ export class Mixer {
     delay.connect(tone).connect(low);
     low.connect(fb).connect(delay);
     low.connect(echoOut).connect(ret);
-    return { verb, echo, delay };
+    return { verb, conv, echo, delay };
+  }
+
+  /** Загрузить импульс в свёртку шины (однократно). */
+  private loadReverb(sends: Sends): void {
+    if (!sends.conv.buffer) sends.conv.buffer = this.impulse();
   }
 
   private white(): AudioBuffer {
@@ -613,26 +657,38 @@ export class Mixer {
     return buf;
   }
 
-  /** Стерео-импульс «неонового зала»: плотный шум, экспоненциальный хвост, темнеющий со временем. */
+  /** Готовый стерео-импульс реверберации: недостающие каналы досинтезируются сразу. */
   private impulse(): AudioBuffer {
-    if (this.irBuf) return this.irBuf;
+    let buf = this.synthImpulseChannel();
+    while (this.irChannels < buf.numberOfChannels) buf = this.synthImpulseChannel();
+    return buf;
+  }
+
+  /**
+   * Импульс «неонового зала»: плотный шум, экспоненциальный хвост, темнеющий со временем.
+   * Синтезирует за вызов один ещё не готовый канал — так warmUp() делит работу пополам.
+   */
+  private synthImpulseChannel(): AudioBuffer {
     const rate = this.ctx.sampleRate;
-    const len = Math.floor(rate * IR_SECONDS);
-    const buf = this.ctx.createBuffer(2, len, rate);
-    for (let ch = 0; ch < 2; ch++) {
-      const d = buf.getChannelData(ch);
-      const rnd = mulberry32(0x5eed + ch * 7919);
-      let lp = 0;
-      for (let i = 0; i < len; i++) {
-        const t = i / rate;
-        const env = Math.exp((-6.9 * t) / IR_SECONDS) * (t < 0.012 ? t / 0.012 : 1);
-        // Однополюсный фильтр закрывается к концу хвоста — высокие гаснут быстрее низких.
-        const k = 0.85 - 0.7 * (t / IR_SECONDS);
-        lp += ((rnd() * 2 - 1) - lp) * k;
-        d[i] = lp * env;
-      }
+    let buf = this.irBuf;
+    if (!buf) {
+      buf = this.ctx.createBuffer(2, Math.floor(rate * IR_SECONDS), rate);
+      this.irBuf = buf;
     }
-    this.irBuf = buf;
+    const ch = this.irChannels;
+    if (ch >= buf.numberOfChannels) return buf;
+    const d = buf.getChannelData(ch);
+    const rnd = mulberry32(0x5eed + ch * 7919);
+    let lp = 0;
+    for (let i = 0; i < d.length; i++) {
+      const t = i / rate;
+      const env = Math.exp((-6.9 * t) / IR_SECONDS) * (t < 0.012 ? t / 0.012 : 1);
+      // Однополюсный фильтр закрывается к концу хвоста — высокие гаснут быстрее низких.
+      const k = 0.85 - 0.7 * (t / IR_SECONDS);
+      lp += ((rnd() * 2 - 1) - lp) * k;
+      d[i] = lp * env;
+    }
+    this.irChannels = ch + 1;
     return buf;
   }
 

@@ -14,8 +14,9 @@ import { GameEngine } from '../game/engine';
 import { hudStore } from '../game/hudStore';
 import { InputController } from '../game/input';
 import { Renderer } from '../game/renderer';
-import type { GameEvent, GameState, Loadout, RunResult, Screen, Settings, Viewport } from '../game/types';
+import type { BannerKind, GameEvent, GameState, Loadout, RunResult, Screen, Settings, Viewport } from '../game/types';
 import { computeViewport, screenToWorldX, worldToScreen } from '../game/viewport';
+import { BANNER_SLOT, type BannerSlot } from './hud/constants';
 import { formatNumber, formatSpeed } from './ui/format';
 
 export interface ScreenPoint {
@@ -29,8 +30,14 @@ export interface GameCanvasProps {
   runId: number;
   loadout: Loadout;
   settings: Settings;
-  /** Итог забега — ровно один раз на каждый runId. */
+  /** Итог забега — ровно один раз на каждый runId: либо здесь, либо в onRunAbandoned. */
   onGameOver(result: RunResult): void;
+  /**
+   * Забег оборвался без гибели: «Заново» или «В меню» из паузы (unload = false)
+   * либо уход со страницы (unload = true). Итог — чтобы заработанное не пропало;
+   * пустой забег (ни очков, ни кристаллов) не сообщается.
+   */
+  onRunAbandoned(result: RunResult, unload: boolean): void;
   /** Корабль взорвался: точка взрыва в CSS-пикселях экрана. */
   onDeath(at: ScreenPoint): void;
   /** Вкладка скрыта или окно потеряло фокус посреди забега. */
@@ -45,8 +52,23 @@ const FPS_SAMPLE = 0.5;
 const FPS_MAX_DT = 0.25;
 /** Вес нового кадра в скользящем среднем длительности кадра. */
 const FPS_SMOOTHING = 0.08;
+/**
+ * Сколько секунд холст ещё живёт под экраном Game Over. Экран размывает фон
+ * (backdrop-filter), и размытие пересчитывается при каждой смене картинки под
+ * ним, поэтому после въезда карточки фон замирает стоп-кадром.
+ */
+const OVER_LIVE = 0.8;
 /** Баннер комбо — только для «весомых» множителей, иначе он мелькает каждые 3 сферы. */
 const COMBO_BANNER_FROM = 4;
+/** Сколько горит «NEW RECORD!»: салют отыгрывает за ~1 с, дольше надпись лишь закрывает верх поля. */
+const RECORD_BANNER_MS = 2200;
+
+/** Подпись SHIELD DOWN; сгоревший при ударе множитель дописывается сюда же. */
+function shieldNote(chargesLeft: number, lostMultiplier: number): string {
+  const lost = lostMultiplier >= 2;
+  const shield = chargesLeft > 0 ? `зарядов щита: ${chargesLeft}` : lost ? 'щит принял удар' : 'щит принял удар на себя';
+  return lost ? `${shield} · x${lostMultiplier} сгорел` : shield;
+}
 
 let fontsRequested = false;
 
@@ -67,6 +89,18 @@ interface Core {
   input: InputController;
 }
 
+/** Статистика идущего забега по его событиям — для итога забега, прерванного без гибели. */
+interface RunTally {
+  collected: number;
+  maxMultiplier: number;
+  maxChain: number;
+  nearMisses: number;
+}
+
+function emptyTally(): RunTally {
+  return { collected: 0, maxMultiplier: 1, maxChain: 0, nearMisses: 0 };
+}
+
 /**
  * Всё императивное хозяйство холста: цикл, размеры, события движка. Живёт в
  * useState, поэтому один на компонент; attach/detach идемпотентны.
@@ -85,10 +119,16 @@ class GameDriver {
   private runId = 0;
   private reportedRun = 0;
   private diedRun = 0;
-  private readyBanner = 0;
+  private tally: RunTally = emptyTally();
+
+  // Баннеры: последний на каждой полке и заряды щита для подписи SHIELD DOWN.
+  private readonly slotBanner: Record<BannerSlot, number> = { top: 0, mid: 0, low: 0 };
+  private shieldLeft = 0;
 
   // HUD и FPS.
   private hudClock = 0;
+  /** Сколько секунд уже открыт экран Game Over. */
+  private overTime = 0;
   private forceHud = false;
   private frameAvg = 1 / 60;
   private fpsClock = 0;
@@ -130,6 +170,7 @@ class GameDriver {
     this.watchDpr();
     document.addEventListener('visibilitychange', this.onVisibility);
     window.addEventListener('blur', this.onBlur);
+    window.addEventListener('pagehide', this.onPageHide);
 
     // Пока были отцеплены (StrictMode, HMR), размер окна мог измениться.
     this.onResize();
@@ -146,6 +187,7 @@ class GameDriver {
     this.unwatchDpr();
     document.removeEventListener('visibilitychange', this.onVisibility);
     window.removeEventListener('blur', this.onBlur);
+    window.removeEventListener('pagehide', this.onPageHide);
     if (this.core) {
       this.core.input.detach();
       this.core.renderer.dispose();
@@ -161,6 +203,8 @@ class GameDriver {
     if (screen !== 'playing') core.input.reset();
     audio.setPaused(screen === 'paused');
     if (screen === 'menu') {
+      // «В меню» из паузы: забег ещё идёт — сдать его итог до демо-сцены.
+      this.bankRun(false);
       if (core.engine.state) {
         core.engine.setLoadout(this.props.current.loadout);
         core.engine.enterAttract();
@@ -177,7 +221,10 @@ class GameDriver {
     if (runId <= 0 || runId === this.runId) return;
     const core = this.core;
     if (!core || !core.engine.state) return;
+    // «Заново» из паузы: прежний забег ещё в движке и в this.runId — сдать его итог.
+    this.bankRun(false);
     this.runId = runId;
+    this.tally = emptyTally();
     hudStore.clearBanners();
     core.engine.startRun(this.props.current.loadout);
     core.input.reset();
@@ -187,6 +234,43 @@ class GameDriver {
     this.hudClock = 0;
     // HUD сразу показывает новый забег — без кадра со счётом прошлого.
     this.publishHud(core.engine);
+  }
+
+  /**
+   * Забег обрывается без гибели: итог уходит наверх, чтобы кристаллы, рекорд и
+   * запись в таблице не пропали. Каждый забег сообщается ровно один раз — здесь
+   * или событием gameOver; закончившийся забег сюда уже не попадает.
+   */
+  private bankRun(unload: boolean): void {
+    const engine = this.core?.engine;
+    const state = engine?.state;
+    if (!engine || !state || this.runId === 0 || this.reportedRun === this.runId) return;
+    if (state.mode !== 'playing' && state.mode !== 'dying') return;
+    const result = this.abandonedResult(engine, state);
+    // Пустой забег (рестарт на READY) не засчитывается. Он и не помечается
+    // сданным: вернувшись из bfcache, такой забег доиграет и сообщит итог сам.
+    if (result.score <= 0 && result.crystals <= 0) return;
+    this.reportedRun = this.runId;
+    this.props.current.onRunAbandoned(result, unload);
+  }
+
+  /** Итог прерванного забега: счёт и прочее из снимка HUD, статистика — из событий. */
+  private abandonedResult(engine: GameEngine, state: GameState): RunResult {
+    const hud = engine.getHud();
+    const t = this.tally;
+    return {
+      score: hud.score,
+      level: hud.level,
+      speedMult: hud.speedMult,
+      crystals: hud.crystals,
+      crystalsCollected: t.collected,
+      maxMultiplier: t.maxMultiplier,
+      maxChain: t.maxChain,
+      nearMisses: t.nearMisses,
+      duration: hud.elapsed,
+      newRecord: hud.newRecord,
+      skinId: state.skin.id,
+    };
   }
 
   /** Живое превью покупок в меню: тема и корабль меняются без перезапуска сцены. */
@@ -216,13 +300,23 @@ class GameDriver {
       const events = core.engine.drainEvents();
       for (let i = 0; i < events.length; i++) this.handleEvent(events[i], state);
     }
-    core.renderer.render(state, { shake: p.settings.screenShake, paused });
+    if (this.shouldRender(p.screen, dt)) core.renderer.render(state, { shake: p.settings.screenShake, paused });
 
     if (p.screen === 'playing') {
       this.hudClock += dt;
       if (this.forceHud || this.hudClock >= HUD_INTERVAL) this.publishHud(core.engine);
     }
   };
+
+  /** Под экраном Game Over фон замирает после въезда карточки (см. OVER_LIVE). */
+  private shouldRender(screen: Screen, dt: number): boolean {
+    if (screen !== 'gameover') {
+      this.overTime = 0;
+      return true;
+    }
+    this.overTime += dt;
+    return this.overTime < OVER_LIVE;
+  }
 
   private measureFps(dt: number): void {
     if (dt <= 0 || dt > FPS_MAX_DT) return;
@@ -245,6 +339,13 @@ class GameDriver {
 
   // ─── События движка ───────────────────────────────────────────────────────
 
+  /** Баннер на свою полку: прежний баннер той же полки уходит (см. BANNER_SLOT). */
+  private showBanner(kind: BannerKind, text: string, sub: string | undefined, ms: number): void {
+    const slot = BANNER_SLOT[kind];
+    hudStore.dismissBanner(this.slotBanner[slot]);
+    this.slotBanner[slot] = hudStore.pushBanner(kind, text, sub, ms);
+  }
+
   private handleEvent(e: GameEvent, state: GameState): void {
     audio.handleEvent(e);
     const p = this.props.current;
@@ -252,43 +353,54 @@ class GameDriver {
       case 'beat':
         return;
       case 'runStart':
-        this.readyBanner = hudStore.pushBanner('ready', 'READY', 'ГОТОВЬСЯ', GAME.startGrace * 1000 + 400);
+        this.showBanner('ready', 'READY', 'ПРИГОТОВЬТЕСЬ', GAME.startGrace * 1000 + 400);
         break;
       case 'go':
-        hudStore.dismissBanner(this.readyBanner);
-        hudStore.pushBanner('go', 'GO!', undefined, 950);
+        // GO! встаёт на полку READY и вытесняет его.
+        this.showBanner('go', 'GO!', undefined, 950);
         break;
       case 'levelUp':
-        hudStore.pushBanner('levelUp', `LEVEL ${e.level}`, `SPEED ${formatSpeed(e.speedMult)}`, 2000);
+        this.showBanner('levelUp', `LEVEL ${e.level}`, `SPEED ${formatSpeed(e.speedMult)}`, 2000);
         break;
       case 'newRecord':
-        hudStore.pushBanner(
+        this.showBanner(
           'newRecord',
           'NEW RECORD!',
           state.highscore > 0 ? `прошлый рекорд ${formatNumber(state.highscore)}` : undefined,
-          2900,
+          RECORD_BANNER_MS,
         );
         break;
       case 'shieldBreak':
-        hudStore.pushBanner(
-          'shield',
-          'SHIELD DOWN',
-          e.chargesLeft > 0 ? `зарядов щита: ${e.chargesLeft}` : 'щит принял удар на себя',
-          1600,
-        );
+        this.shieldLeft = e.chargesLeft;
+        this.showBanner('shield', 'SHIELD DOWN', shieldNote(e.chargesLeft, 0), 1600);
         break;
       case 'comboBreak':
         // Потеря x1 — не событие: баннер только когда сгорел настоящий множитель.
-        if (e.lostMultiplier >= 2) hudStore.pushBanner('comboBreak', 'COMBO BREAK', `x${e.lostMultiplier} сгорел`, 1200);
+        if (e.lostMultiplier < 2) break;
+        if (e.reason === 'hit') {
+          // Удар в щит: движок шлёт comboBreak сразу за shieldBreak в том же кадре.
+          // Потеря множителя дописывается в SHIELD DOWN — до рендера React видит
+          // одну надпись, а не две на одной полке.
+          this.showBanner('shield', 'SHIELD DOWN', shieldNote(this.shieldLeft, e.lostMultiplier), 1600);
+        } else {
+          this.showBanner('comboBreak', 'COMBO BREAK', `x${e.lostMultiplier} сгорел`, 1200);
+        }
         break;
       case 'comboUp':
         if (e.multiplier >= COMBO_BANNER_FROM) {
           const max = e.multiplier >= GAME.combo.maxMultiplier;
-          hudStore.pushBanner('comboUp', `x${e.multiplier}`, max ? 'MAX COMBO' : 'COMBO', 950);
+          this.showBanner('comboUp', `x${e.multiplier}`, max ? 'MAX COMBO' : 'COMBO', 950);
         }
         break;
-      case 'collect':
+      case 'collect': {
+        const t = this.tally;
+        t.collected++;
+        if (e.chain > t.maxChain) t.maxChain = e.chain;
+        if (e.multiplier > t.maxMultiplier) t.maxMultiplier = e.multiplier;
+        break;
+      }
       case 'nearMiss':
+        this.tally.nearMisses++;
         break;
       case 'death':
         if (this.diedRun !== this.runId) {
@@ -363,6 +475,15 @@ class GameDriver {
 
   private readonly onBlur = (): void => {
     this.requestPause();
+  };
+
+  /**
+   * Закрытие или перезагрузка вкладки посреди забега: сдать итог, пока
+   * страница жива. После возврата из bfcache App уводит в меню — сданный
+   * забег не продолжается.
+   */
+  private readonly onPageHide = (): void => {
+    this.bankRun(true);
   };
 
   private requestPause(): void {

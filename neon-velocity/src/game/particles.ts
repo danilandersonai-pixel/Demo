@@ -105,12 +105,19 @@ export class ParticlePool {
     live.length = w;
   }
 
-  /** Растянуть мир по Y (смена высоты экрана), чтобы сцена не «прыгала». */
-  scaleY(k: number): void {
+  /**
+   * Смена высоты экрана: линия корабля переезжает с pOld на pNew, мир над ней
+   * растягивается в k раз (как объекты в GameEngine.resize), а всё, что на
+   * линии или ниже, сдвигается вместе с ней без растяжения. Скорости по Y
+   * масштабируются в k раз, как скорость падения через heightFactor.
+   */
+  remapY(k: number, pOld: number, pNew: number): void {
     const live = this.live;
+    const shift = pNew - pOld;
     for (let i = 0; i < live.length; i++) {
-      live[i].y *= k;
-      live[i].vy *= k;
+      const p = live[i];
+      p.y = p.y < pOld ? pNew - k * (pOld - p.y) : p.y + shift;
+      p.vy *= k;
     }
   }
 

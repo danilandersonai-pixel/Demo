@@ -3,11 +3,12 @@
  * панели, рекорд и кошелёк, текущее снаряжение, звук. Центр затемнён мягкой
  * радиальной подложкой, а не непрозрачной плашкой — сцена остаётся видна.
  */
-import { motion, type Variants } from 'framer-motion';
+import { motion, useIsPresent, type Variants } from 'framer-motion';
 import {
   ChevronRight,
   CircleHelp,
   Gem,
+  Hand,
   Settings2,
   Store,
   TriangleAlert,
@@ -131,13 +132,13 @@ function LoadoutCard({ skin, theme, onOpen }: { skin: Skin; theme: Theme; onOpen
       aria-label={`Снаряжение: корабль ${skin.name}, тема ${theme.name}. Открыть магазин`}
       className="group flex items-center gap-3 rounded-[3px] border border-white/10 bg-void/65 py-1.5 pl-1.5 pr-2.5 text-left backdrop-blur-sm transition-colors duration-150 hover:border-theme-a/60 hover:bg-void/80"
     >
-      <span className="relative flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-[2px] border border-white/5 bg-void/80">
+      <span className="relative flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-[2px] border border-white/5 bg-void/80 [@media(max-height:560px)]:h-10 [@media(max-height:560px)]:w-10">
         <span
           aria-hidden
           className="absolute inset-0 opacity-60"
           style={{ background: `radial-gradient(circle at 50% 60%, ${theme.colors.skyBottom}, transparent 70%)` }}
         />
-        <ShipPreview skin={skin} theme={theme} size={50} className="relative" />
+        <ShipPreview skin={skin} theme={theme} size={50} className="relative [@media(max-height:560px)]:scale-80" />
       </span>
       <span className="flex min-w-0 flex-col leading-tight">
         <span className="text-[9px] font-bold tracking-[0.3em] text-ink-faint">КОРАБЛЬ</span>
@@ -156,20 +157,31 @@ function LoadoutCard({ skin, theme, onOpen }: { skin: Skin; theme: Theme; onOpen
   );
 }
 
+/**
+ * Подсказка управления. На сенсорном экране (основной указатель — палец) клавиш
+ * нет, и ширина тут не помогает: телефон боком шире sm. Вариант выбирает media
+ * pointer: скрытый display:none уходит и из дерева доступности.
+ */
 function ControlsHint() {
   return (
-    <p className="flex flex-wrap items-center justify-center gap-1.5 text-[10px] tracking-widest text-ink-dim">
-      <span className="sr-only">Управление: стрелки влево и вправо или клавиши A и D, мышь, касание.</span>
-      <span aria-hidden className="flex items-center gap-1.5">
-        <Kbd>←</Kbd>
-        <Kbd>→</Kbd>
-        <span className="text-ink-faint">/</span>
-        <Kbd>A</Kbd>
-        <Kbd>D</Kbd>
-        <span className="text-ink-faint">·</span>
-        <span>мышь</span>
-        <span className="text-ink-faint">·</span>
-        <span>касание</span>
+    <p className="text-[10px] tracking-widest text-ink-dim">
+      <span className="flex flex-wrap items-center justify-center gap-1.5 pointer-coarse:hidden">
+        <span className="sr-only">Управление: стрелки влево и вправо или клавиши A и D, мышь, касание.</span>
+        <span aria-hidden className="flex items-center gap-1.5">
+          <Kbd>←</Kbd>
+          <Kbd>→</Kbd>
+          <span className="text-ink-faint">/</span>
+          <Kbd>A</Kbd>
+          <Kbd>D</Kbd>
+          <span className="text-ink-faint">·</span>
+          <span>мышь</span>
+          <span className="text-ink-faint">·</span>
+          <span>касание</span>
+        </span>
+      </span>
+      <span className="hidden items-center justify-center gap-1.5 pointer-coarse:flex">
+        <Hand size={13} className="shrink-0 text-neon-cyan" aria-hidden />
+        ведите пальцем по экрану
       </span>
     </p>
   );
@@ -182,6 +194,9 @@ export function MainMenu({ save, onPlay, onOpenPanel, onToggleSound, storageOk }
   const skin = SKINS[save.equippedSkin];
   const theme = THEMES[save.equippedTheme];
   const soundOn = save.settings.sound;
+  // Меню уже уходит (анимация выхода): кнопки не ловят клики. Второй слой к
+  // проверкам App — уходящее меню не открывает панели поверх начатого забега.
+  const isPresent = useIsPresent();
 
   return (
     <motion.div
@@ -189,14 +204,15 @@ export function MainMenu({ save, onPlay, onOpenPanel, onToggleSound, storageOk }
       initial="hidden"
       animate="show"
       exit="exit"
-      className="fixed inset-0 z-30 flex flex-col overflow-y-auto overflow-x-hidden"
+      className={`fixed inset-0 z-30 flex flex-col overflow-y-auto overflow-x-hidden ${isPresent ? '' : 'pointer-events-none'}`}
     >
       <div aria-hidden className="nvm-scrim pointer-events-none fixed inset-0" />
 
+      {/* Низкий экран (телефон боком): поля сверху и снизу тоньше, превью корабля
+          мельче — иначе на 640–740×360 снаряжение и подсказка уходят за нижний край. */}
       <motion.header
         variants={fromTop}
-        className="relative flex items-start justify-between gap-3 px-4 sm:px-8"
-        style={{ paddingTop: 'max(1rem, env(safe-area-inset-top, 0px))' }}
+        className="nvm-safe-x relative flex items-start justify-between gap-3 pt-[max(1rem,env(safe-area-inset-top,0px))] [@media(max-height:560px)]:pt-[max(0.5rem,env(safe-area-inset-top,0px))]"
       >
         <div className="flex min-w-0 flex-wrap items-stretch gap-2 sm:gap-3">
           <BestPlaque value={save.highscore} />
@@ -207,7 +223,8 @@ export function MainMenu({ save, onPlay, onOpenPanel, onToggleSound, storageOk }
           label={soundOn ? 'Выключить звук' : 'Включить звук'}
           aria-pressed={soundOn}
           variant={soundOn ? 'cyan' : 'ghost'}
-          sound="toggle"
+          // Свой щелчок звучал бы по старой настройке; включение подтверждает AudioEngine.setSettings.
+          sound={null}
           onClick={onToggleSound}
         />
       </motion.header>
@@ -218,13 +235,18 @@ export function MainMenu({ save, onPlay, onOpenPanel, onToggleSound, storageOk }
         <motion.nav
           aria-label="Главное меню"
           variants={navList}
-          className={`flex w-full max-w-md flex-col gap-2.5 [@media(max-height:560px)]:max-w-2xl ${HIDE_KBD_ON_PHONE}`}
+          className={`flex w-full max-w-md flex-col gap-2.5 [@media(max-height:560px)_and_(min-width:560px)]:max-w-2xl ${HIDE_KBD_ON_PHONE}`}
         >
-          <motion.div variants={navItem} className="w-full self-center [@media(max-height:560px)]:max-w-md">
+          <motion.div
+            variants={navItem}
+            className="w-full self-center [@media(max-height:560px)_and_(min-width:560px)]:max-w-md"
+          >
             <PlayButton onPlay={onPlay} />
           </motion.div>
 
-          <div className="grid grid-cols-2 gap-2.5 [@media(max-height:560px)]:grid-cols-4">
+          {/* Низкий экран — кнопки в один ряд, но только если хватает ширины: уже 560px
+              четвертушка меньше самой длинной подписи («Как играть»), и остаётся сетка 2×2. */}
+          <div className="grid grid-cols-2 gap-2.5 [@media(max-height:560px)_and_(min-width:560px)]:grid-cols-4">
             {ITEMS.map((item) => (
               <motion.div key={item.panel} variants={navItem}>
                 <NeonButton
@@ -249,8 +271,7 @@ export function MainMenu({ save, onPlay, onOpenPanel, onToggleSound, storageOk }
 
       <motion.footer
         variants={fromBottom}
-        className="relative flex flex-col items-center gap-3 px-4 sm:flex-row sm:items-end sm:justify-between sm:px-8"
-        style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom, 0px))' }}
+        className="nvm-safe-x relative flex flex-col items-center gap-3 pb-[max(1rem,env(safe-area-inset-bottom,0px))] sm:flex-row sm:items-end sm:justify-between [@media(max-height:560px)]:pb-[max(0.5rem,env(safe-area-inset-bottom,0px))]"
       >
         <div className="hidden sm:block">
           <LoadoutCard skin={skin} theme={theme} onOpen={() => onOpenPanel('shop')} />

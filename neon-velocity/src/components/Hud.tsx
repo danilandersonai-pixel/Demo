@@ -62,9 +62,12 @@ export function Hud({ runId, showFps, showHint, onHintDone, onPause, canPause }:
       }}
     >
       {/* Лёгкое затемнение сверху — цифры читаются на любом фоне. */}
-      <div aria-hidden className="absolute inset-x-0 top-0 h-28 bg-linear-to-b from-void/80 via-void/35 to-transparent sm:h-36" />
+      <div aria-hidden className="absolute inset-x-0 top-0 h-28 bg-linear-to-b from-void/80 via-void/35 to-transparent sm:h-36 [@media(max-height:560px)_and_(orientation:landscape)]:h-28" />
 
-      <header className="relative grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-start gap-2 px-3 pt-3 sm:gap-4 sm:px-6 sm:pt-5">
+      {/* При ширине меньше 360 px колонки ужимаются: иначе счёт и LV наезжают на COMBO.
+          Телефон боком (низкий экран) получает телефонные размеры HUD, а не sm:, —
+          иначе под HUD не остаётся места баннерам над кораблём. */}
+      <header className="relative grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-start gap-2 px-3 pt-3 sm:gap-4 sm:px-6 sm:pt-5 [@media(max-height:560px)_and_(orientation:landscape)]:pt-3 max-[359px]:gap-1 max-[359px]:px-2">
         <ScoreBlock score={hud.score} best={hud.highscore} beaten={hud.newRecord} />
         <ComboMeter key={runId} multiplier={hud.multiplier} chain={hud.chain} chainProgress={hud.chainProgress} />
         <StatusCluster

@@ -66,6 +66,8 @@ const MAGNET_ZIGZAG_FADE = 160;
 const EXHAUST_RATE = 70;
 const FLOATER_LIMIT = 24;
 const FLOATER_LIFE = 0.9;
+/** Надпись «xN COMBO» стартует не ниже, чем на столько над «+N» подобранной сферы. */
+const COMBO_FLOATER_GAP = 24;
 const WHITE = '#ffffff';
 
 export class GameEngine {
@@ -167,24 +169,48 @@ export class GameEngine {
 
   // ─── Публичный контракт ───────────────────────────────────────────────────
 
-  /** Новый размер экрана: пересчитать мир (игрок остаётся внизу, в пределах поля). */
+  /**
+   * Новый размер экрана: пересчитать мир (игрок остаётся внизу, в пределах поля).
+   *
+   * Линия корабля привязана к нижнему краю, поэтому сцена перестраивается
+   * относительно неё, а не растягивается от верхнего края:
+   *  - ничто не пересекает линию корабля — пройденное не возвращается сверху,
+   *    а подлетающее не проскакивает вниз мимо корабля;
+   *  - всё, что уже на линии или ниже, сохраняет точное расстояние до неё;
+   *  - у подлетающих объектов в k раз меняется только путь до касания.
+   *    Скорости падения масштабируются тем же k через heightFactor, так что
+   *    время до касания не меняется — а именно в нём генератор проверял
+   *    честность рядов (timeToTravel от playerY).
+   * Плата за это: при k > 1 объекты, заспавненные чуть выше экрана, сразу
+   * оказываются в верхней полосе высотой (k − 1)·(yFromBottom + e), где e —
+   * расстояние касания объекта с кораблём (десятки единиц). Возвращать
+   * их за край нельзя — это сжало бы запланированные ряды и сбило их тайминг.
+   */
   resize(viewport: Viewport): void {
     const s = this.state;
+    const p = s.player;
     const old = s.viewport.worldH;
     s.viewport = viewport;
     const k = viewport.worldH / old;
-    // Сцена растягивается по высоте целиком — время подлёта объектов почти не меняется.
+    const pOld = p.y;
+    const pNew = viewport.worldH - GAME.player.yFromBottom;
     if (Number.isFinite(k) && k > 0 && Math.abs(k - 1) > 1e-6) {
-      for (const o of this.obstacles) o.y *= k;
+      const pr = p.radius;
+      // d — расстояние над линией корабля, e — расстояние, с которого начинается касание.
+      const remap = (y: number, e: number): number => {
+        const d = pOld - y;
+        return d > e ? pNew - (e + k * (d - e)) : pNew - d;
+      };
+      for (const o of this.obstacles) o.y = remap(o.y, obstacleExtent(o) + pr);
       for (const c of this.crystals) {
-        c.y *= k;
-        c.mvy *= k;
+        // Скорость от магнита — только у подлетающих: их путь до корабля масштабирован.
+        if (c.y < pOld) c.mvy *= k;
+        c.y = remap(c.y, c.radius + pr);
       }
-      for (const f of this.floaters) f.y *= k;
-      this.pool.scaleY(k);
+      for (const f of this.floaters) f.y = remap(f.y, 0);
+      this.pool.remapY(k, pOld, pNew);
     }
-    const p = s.player;
-    p.y = viewport.worldH - GAME.player.yFromBottom;
+    p.y = pNew;
     p.x = clamp(p.x, GAME.player.edgePadding, WORLD_W - GAME.player.edgePadding);
   }
 
@@ -208,6 +234,12 @@ export class GameEngine {
   /** Начать новый забег с нуля. */
   startRun(loadout: Loadout): void {
     const s = this.state;
+    // Видимый корабль (демо-сцена за меню или рестарт из паузы) не прыгает в
+    // центр: первые startGrace секунд препятствий нет, позиция ничему не мешает.
+    // После гибели корабль появляется заново — уже по центру.
+    const keepShip = s.player.alive && (s.mode === 'attract' || s.mode === 'playing');
+    const x0 = s.player.x;
+    const tilt0 = s.player.tilt;
     this.applyLoadout(loadout, true);
 
     // Демо-объекты на экране рассыпаются искрами — забег начинается с чистого поля.
@@ -233,6 +265,11 @@ export class GameEngine {
     s.levelProgress = 0;
     s.levelUpPulse = 0;
     this.resetPlayer();
+    if (keepShip) {
+      s.player.x = clamp(x0, GAME.player.edgePadding, WORLD_W - GAME.player.edgePadding);
+      // vx после сброса 0 — крен плавно уходит через TILT_RATE, а не обрывается.
+      s.player.tilt = tilt0;
+    }
     this.resetScore();
     this.resetBeatClock();
     this.goSent = false;
@@ -689,7 +726,8 @@ export class GameEngine {
       c.x = clamp(c.baseX + zigzagOffset(c.zigzag, c.age), c.radius, WORLD_W - c.radius);
 
       let keep = true;
-      if ((playing || attract) && p.alive && circlesOverlap(p.x, p.y, p.radius, c.x, c.y, c.radius)) {
+      // Пропущенная сфера уже разорвала комбо — подобрать её задним числом нельзя.
+      if ((playing || attract) && p.alive && !c.missed && circlesOverlap(p.x, p.y, p.radius, c.x, c.y, c.radius)) {
         if (playing) this.collect(c);
         else this.fx.attractPop(c.x, c.y, c.rare ? s.theme.colors.crystalRare : s.theme.colors.crystal);
         keep = false;
@@ -721,7 +759,10 @@ export class GameEngine {
     if (s.multiplier > prev) {
       const p = s.player;
       this.fx.comboUp(p.x, p.y, colors.accent);
-      this.addFloater(p.x, p.y - 44, 'x' + s.multiplier + ' COMBO', colors.accent, 16);
+      // Надпись комбо — над «+N» (он стартует в c.y − 16): иначе обе всплывают
+      // вместе с одной скоростью и очки не читаются. Сфера, притянутая магнитом
+      // сбоку, оставляет «+N» ниже — тогда хватает обычной высоты p.y − 44.
+      this.addFloater(p.x, Math.min(p.y - 44, c.y - 16 - COMBO_FLOATER_GAP), 'x' + s.multiplier + ' COMBO', colors.accent, 16);
       this.push({ type: 'comboUp', multiplier: s.multiplier });
     }
   }

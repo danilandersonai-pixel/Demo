@@ -3,7 +3,15 @@
  * рекорда, место в топ-5, статистика забега и кошелёк. Фон под ним живёт:
  * движок в режиме over доигрывает частицы взрыва.
  */
-import { animate, motion, useMotionValue, useReducedMotionConfig, useTransform, type Variants } from 'framer-motion';
+import {
+  animate,
+  motion,
+  useIsPresent,
+  useMotionValue,
+  useReducedMotionConfig,
+  useTransform,
+  type Variants,
+} from 'framer-motion';
 import {
   Crown,
   Flame,
@@ -19,7 +27,7 @@ import {
   Wind,
   type LucideIcon,
 } from 'lucide-react';
-import { useEffect, useId, useRef, type ReactNode } from 'react';
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import type { RunResult } from '../game/types';
 import type { RecordOutcome } from '../state/progress';
 import { GAME_OVER_ARM_MS, HIDE_KBD_ON_PHONE } from './hud/constants';
@@ -64,7 +72,7 @@ function GlitchTitle({ id }: { id: string }) {
       initial={{ opacity: 0, scale: 1.5, filter: 'blur(12px)' }}
       animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
       transition={{ duration: 0.55, ease: EASE_OUT }}
-      className="relative whitespace-nowrap font-display text-[40px] font-black leading-none tracking-[0.12em] text-neon-pink text-glow-pink sm:text-6xl [@media(max-height:720px)_and_(orientation:landscape)]:text-[40px]"
+      className="relative whitespace-nowrap font-display text-[length:min(40px,9.5vw)] font-black leading-none tracking-[0.12em] text-neon-pink text-glow-pink sm:text-6xl [@media(max-height:720px)_and_(orientation:landscape)]:text-[40px]"
     >
       {text}
       <span aria-hidden className="nv-glitch-layer nv-glitch-a">
@@ -118,7 +126,7 @@ function RecordBadge({ first }: { first: boolean }) {
       initial={{ opacity: 0, scale: 0.3, rotate: -6 }}
       animate={{ opacity: 1, scale: 1, rotate: -2 }}
       transition={{ delay: 0.3, type: 'spring', stiffness: 420, damping: 14 }}
-      className="nv-record-flicker inline-flex items-center gap-2 rounded-[3px] bg-neon-yellow px-3 py-1 font-display text-xs font-black tracking-[0.25em] text-void shadow-[0_0_0_1px_#fff8b0,0_0_18px_rgba(255,233,74,0.8),0_0_42px_rgba(255,43,214,0.45)] sm:text-sm"
+      className="nv-record-flicker nv-settle inline-flex items-center gap-2 rounded-[3px] bg-neon-yellow px-3 py-1 font-display text-xs font-black tracking-[0.25em] text-void shadow-[0_0_0_1px_#fff8b0,0_0_18px_rgba(255,233,74,0.8),0_0_42px_rgba(255,43,214,0.45)] sm:text-sm"
     >
       <Crown size={15} strokeWidth={3} aria-hidden />
       {first ? 'ПЕРВЫЙ РЕКОРД' : 'NEW RECORD!'}
@@ -196,18 +204,36 @@ function Stat({ icon: Icon, label, short, tone, children, note }: StatProps) {
 export function GameOverOverlay({ result, outcome, wallet, onRetry, onShop, onLeaderboard, onMenu }: GameOverOverlayProps) {
   const titleId = useId();
   const retryRef = useRef<HTMLButtonElement>(null);
+  // Экран уже уходит (анимация выхода): кнопки не ловят клики.
+  const isPresent = useIsPresent();
+  /**
+   * Первые GAME_OVER_ARM_MS кнопки «спят» — не только для клавиш (их держит
+   * App), но и для касаний: на телефоне боком «Ещё раз» лежит ровно на полосе
+   * корабля, и рефлекторный тап сразу после взрыва перезапускал забег.
+   */
+  const [armed, setArmed] = useState(false);
 
-  // Фокус на «Ещё раз» — только когда экран «взвёлся» (см. GAME_OVER_ARM_MS).
   useEffect(() => {
-    const t = setTimeout(() => retryRef.current?.focus({ preventScroll: true }), GAME_OVER_ARM_MS);
+    const t = setTimeout(() => setArmed(true), GAME_OVER_ARM_MS);
     return () => clearTimeout(t);
   }, []);
+
+  // Фокус на «Ещё раз», когда экран взвёлся, — если его ещё никто не занял:
+  // открытая за это время панель («Рекорды») или Tab игрока важнее.
+  useEffect(() => {
+    const btn = retryRef.current;
+    if (!armed || !isPresent || !btn) return;
+    const active = document.activeElement;
+    const card = btn.closest('[role="dialog"]');
+    if (active && active !== document.body && !card?.contains(active)) return;
+    btn.focus({ preventScroll: true });
+  }, [armed, isPresent]);
 
   const first = outcome.isHighscore && outcome.previousHighscore === 0;
   const best = Math.max(outcome.previousHighscore, result.score);
 
   return (
-    <Overlay blur="lg" label="Итоги забега">
+    <Overlay blur="lg" label="Итоги забега" className={isPresent ? '' : 'pointer-events-none'}>
       <NeonCard
         accent="pink"
         labelledBy={titleId}
@@ -252,7 +278,8 @@ export function GameOverOverlay({ result, outcome, wallet, onRetry, onShop, onLe
               <Stat icon={Gauge} label="Уровень" tone="text-theme-a" note={`скорость ${formatSpeed(result.speedMult)}`}>
                 LV {result.level}
               </Stat>
-              <Stat icon={Flame} label="Лучший комбо" short="Комбо" tone="text-neon-pink" note={`цепочка ${result.maxChain}`}>
+              {/* «Комбо» — как в HUD и в колонке таблицы рекордов; «Лучший множитель» в ячейку не влезает. */}
+              <Stat icon={Flame} label="Лучшее комбо" short="Комбо" tone="text-neon-pink" note={`цепочка ${result.maxChain}`}>
                 x{result.maxMultiplier}
               </Stat>
               <Stat
@@ -284,11 +311,13 @@ export function GameOverOverlay({ result, outcome, wallet, onRetry, onShop, onLe
               <CrystalCount value={wallet} size="md" />
             </motion.div>
 
+            {/* До взвода — inert: ни тапа, ни Tab, ни нажатия; тап проходит на подложку без обработчика. */}
             <motion.div
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.5, duration: 0.4, ease: EASE_OUT }}
-              className={`mt-4 flex w-full flex-col gap-2 sm:mt-5 ${HIDE_KBD_ON_PHONE} [@media(max-height:720px)_and_(orientation:landscape)]:mt-3 [@media(max-height:720px)_and_(orientation:landscape)]:[&_kbd]:hidden`}
+              inert={!armed}
+              className={`mt-4 flex w-full flex-col gap-2 sm:mt-5 ${armed ? '' : 'pointer-events-none'} ${HIDE_KBD_ON_PHONE} [@media(max-height:720px)_and_(orientation:landscape)]:mt-3 [@media(max-height:720px)_and_(orientation:landscape)]:[&_kbd]:hidden`}
             >
               <NeonButton
                 ref={retryRef}

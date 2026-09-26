@@ -74,16 +74,18 @@ export function Shop({ save, actions, onClose, initialTab = 'skins' }: ShopProps
         accent="theme"
         width="xl"
         // Высота не зависит от вкладки — панель не «прыгает» при переключении.
-        className="h-full"
+        // Подвал здесь — справка, а не действия: на низком экране (телефон боком) его
+        // строки нужнее карточкам, иначе от панели остаётся узкая щель прокрутки.
+        className="h-full [@media(max-height:560px)]:[&>footer]:hidden"
         onClose={onClose}
         footer={
           <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-[10px] tracking-wide text-ink-dim">
             <span className="flex items-center gap-1.5">
               <Gem size={12} className="shrink-0 text-neon-cyan" aria-hidden />
-              Сфера — {GAME.crystal.currency} кристалл, редкая золотая — {GAME.crystal.rareCurrency}. Покупка сразу надевает
-              предмет.
+              Сфера — {GAME.crystal.currency} кристалл, редкая — {GAME.crystal.rareCurrency}. Покупка сразу надевает предмет.
             </span>
-            <span className="hidden items-center gap-1.5 sm:flex">
+            {/* Подсказка клавиши — только там, где есть клавиатура: планшет и телефон боком шире sm. */}
+            <span className="hidden items-center gap-1.5 sm:flex pointer-coarse:hidden">
               <Kbd>Esc</Kbd> закрыть
             </span>
           </div>
@@ -94,7 +96,7 @@ export function Shop({ save, actions, onClose, initialTab = 'skins' }: ShopProps
             отрицательный top компенсирует padding тела — липкая зона считается от него. */}
         <div
           ref={anchor}
-          className="sticky -top-4 z-20 -mx-4 -mt-4 mb-4 flex flex-wrap items-center gap-2.5 border-b border-white/5 bg-[#0d0b1f]/92 px-4 pb-3 pt-4 backdrop-blur-md sm:-top-5 sm:-mx-6 sm:-mt-5 sm:flex-nowrap sm:gap-4 sm:px-6 sm:pt-5"
+          className="sticky -top-4 z-20 -mx-4 -mt-4 mb-4 flex flex-wrap items-center gap-2.5 border-b border-white/5 bg-[#0d0b1f]/95 px-4 pb-3 pt-4 sm:-top-5 sm:-mx-6 sm:-mt-5 sm:flex-nowrap sm:gap-4 sm:px-6 sm:pt-5 [@media(max-height:560px)]:mb-3 [@media(max-height:560px)]:pb-2 [@media(max-height:560px)]:pt-2"
         >
           <TabBar
             tabs={tabs}

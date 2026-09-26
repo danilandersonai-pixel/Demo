@@ -8,8 +8,10 @@ export const EASE_OUT: [number, number, number, number] = [0.16, 1, 0.3, 1];
  * NeonButton прячет подсказку клавиши классом «hidden sm:inline-flex», но у Kbd
  * свой «inline-flex», и в сборке он побеждает — на телефоне подсказки вылезают.
  * Селектор потомка сильнее одиночного класса: контейнер прячет их сам.
+ * Узкий экран — ещё не весь «телефон»: боком он шире sm, поэтому клавиши прячем
+ * и по основному указателю-пальцу (pointer: coarse).
  */
-export const HIDE_KBD_ON_PHONE = 'max-sm:[&_kbd]:hidden';
+export const HIDE_KBD_ON_PHONE = 'max-sm:[&_kbd]:hidden pointer-coarse:[&_kbd]:hidden';
 
 /** Карточки магазина въезжают каскадом при смене вкладки (метки — как у панели вкладки). */
 export const cardVariants: Variants = {

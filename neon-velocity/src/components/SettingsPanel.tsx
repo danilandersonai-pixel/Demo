@@ -176,6 +176,7 @@ export function SettingsPanel({ save, actions, storageOk, onClose }: SettingsPan
               description="Синтвейв-саундтрек в ритме игры и звуки интерфейса"
               checked={settings.sound}
               onChange={(sound) => actions.updateSettings({ sound })}
+              silent
             />
             <div className="grid gap-2 sm:grid-cols-2">
               <VolumeSlider

@@ -57,6 +57,13 @@ function useCardFx() {
   };
 }
 
+/**
+ * Нижняя строка карточки: цена (и «не хватает N») слева, кнопка справа. В узкой
+ * карточке они не помещаются рядом — кнопка переносится на свою строку и
+ * прижимается вправо, а не наезжает на текст (он не сжимается: whitespace-nowrap).
+ */
+const ACTION_ROW = 'mt-auto flex flex-wrap items-end justify-between gap-2 [&>button]:ml-auto';
+
 function CardFlash({ flashKey, color }: { flashKey: number; color: string }) {
   if (flashKey === 0) return null;
   return (
@@ -154,13 +161,18 @@ function ItemCard(props: ItemCardProps) {
     );
   }
 
+  // Раскладка карточки. Телефон — корабль сбоку (узкая колонка), тема сверху.
+  // Низкий экран (телефон боком) — обе сбоку: вертикальная карточка там выше, чем
+  // видимая часть панели, и цена с кнопкой всегда оказываются за краем.
   return (
     <motion.article variants={cardVariants} className="group relative">
       <div
         ref={fx.scope}
         className={[
           'relative flex h-full overflow-hidden rounded-[4px] border bg-void/55 transition-colors duration-200',
-          stageKind === 'ship' ? 'flex-row sm:flex-col' : 'flex-col',
+          stageKind === 'ship'
+            ? 'flex-row sm:flex-col [@media(max-height:560px)]:flex-row'
+            : 'flex-col [@media(max-height:560px)]:flex-row',
           equipped
             ? 'box-glow-theme border-transparent'
             : owned
@@ -174,8 +186,8 @@ function ItemCard(props: ItemCardProps) {
           className={[
             'relative shrink-0 overflow-hidden',
             stageKind === 'ship'
-              ? 'w-[104px] border-r border-white/5 sm:h-36 sm:w-full sm:border-b sm:border-r-0'
-              : 'aspect-[16/7] w-full border-b border-white/5 sm:aspect-[16/8]',
+              ? 'w-[104px] border-r border-white/5 sm:h-36 sm:w-full sm:border-b sm:border-r-0 [@media(max-height:560px)]:h-auto [@media(max-height:560px)]:w-[88px] [@media(max-height:560px)]:border-b-0 [@media(max-height:560px)]:border-r'
+              : 'aspect-[16/7] w-full border-b border-white/5 sm:aspect-[16/8] [@media(max-height:560px)]:aspect-auto [@media(max-height:560px)]:w-[36%] [@media(max-height:560px)]:border-b-0 [@media(max-height:560px)]:border-r',
             locked ? 'opacity-60 saturate-[0.55]' : '',
           ].join(' ')}
         >
@@ -197,7 +209,7 @@ function ItemCard(props: ItemCardProps) {
           )}
         </div>
 
-        <div className="flex min-w-0 flex-1 flex-col p-3 sm:p-3.5">
+        <div className="flex min-w-0 flex-1 flex-col p-3 sm:p-3.5 [@media(max-height:560px)]:p-3">
           <h3 className="min-w-0">
             <span className="block truncate font-display text-[13px] font-bold tracking-wider text-ink sm:text-sm">{name}</span>
             <span className="mt-0.5 block text-[11px] font-semibold uppercase tracking-widest text-theme-a">{title}</span>
@@ -205,7 +217,7 @@ function ItemCard(props: ItemCardProps) {
           <p className="mt-1.5 text-[11px] leading-snug text-ink-dim">{description}</p>
           <div className="mt-2">{extra}</div>
 
-          <div className="mt-auto flex items-end justify-between gap-2 pt-3">
+          <div className={`${ACTION_ROW} pt-3`}>
             <div className="flex min-w-0 flex-col gap-0.5">
               {owned ? (
                 <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest text-ink-faint">
@@ -268,7 +280,12 @@ export function SkinCard({ skin, theme, owned, equipped, wallet, fire, onBuy, on
           style={{ ['--grid-color' as string]: rgba(theme.colors.grid[0], 0.5) }}
         />
       </span>
-      <ShipPreview skin={skin} theme={theme} size={92} className="relative sm:h-[104px] sm:w-[104px]" />
+      <ShipPreview
+        skin={skin}
+        theme={theme}
+        size={92}
+        className="relative sm:h-[104px] sm:w-[104px] [@media(max-height:560px)]:h-20 [@media(max-height:560px)]:w-20"
+      />
     </div>
   );
   return (
@@ -313,8 +330,9 @@ export function ThemeCard({ theme, owned, equipped, wallet, fire, onBuy, onEquip
     c.accent3,
     ...c.grid.filter((g) => g !== c.accent && g !== c.accent2 && g !== c.accent3),
   ].slice(0, 7);
+  // В узкой карточке (превью сбоку) образцы переносятся под подпись, а не вылезают за край.
   const extra = (
-    <div className="flex items-center gap-2">
+    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
       <span className="text-[9px] font-bold uppercase tracking-[0.25em] text-ink-faint">Палитра</span>
       <span className="flex gap-1" aria-hidden>
         {swatches.map((s) => (
@@ -366,8 +384,14 @@ function upgradeEffect(id: UpgradeId, tier: number, upgrades: UpgradeLevels): st
   }
 }
 
-/** Корабли с магнитом — для подсказки к «Усилителю поля». */
+/**
+ * Корабли с магнитом — для подсказки к «Усилителю поля»: «на кораблях «Магнит» и
+ * «Сингулярность»». Названия в кавычках не склоняются — падеж несёт слово «корабль».
+ */
 const MAGNET_SKINS = SKIN_ORDER.filter((id) => SKINS[id].perks.magnet).map((id) => `«${SKINS[id].title}»`);
+const MAGNET_SKINS_NOTE = `на ${plural(MAGNET_SKINS.length, ['корабле', 'кораблях', 'кораблях'])} ${
+  MAGNET_SKINS.length > 1 ? `${MAGNET_SKINS.slice(0, -1).join(', ')} и ${MAGNET_SKINS[MAGNET_SKINS.length - 1]}` : MAGNET_SKINS.join('')
+}`;
 
 export interface UpgradeCardProps {
   id: UpgradeId;
@@ -409,7 +433,8 @@ export function UpgradeCard({ id, upgrades, wallet, magnetless, burstColors, fir
       <div
         ref={fx.scope}
         className={[
-          'relative flex h-full flex-col gap-3 rounded-[4px] border bg-void/55 p-3.5 sm:p-4',
+          // Низкий экран: плотнее, чтобы карточка целиком помещалась в видимую часть панели.
+          'relative flex h-full flex-col gap-3 rounded-[4px] border bg-void/55 p-3.5 sm:p-4 [@media(max-height:560px)]:gap-2 [@media(max-height:560px)]:p-3',
           maxed ? 'border-neon-yellow/45 shadow-[0_0_18px_rgba(255,233,74,0.12)]' : 'border-white/12',
         ].join(' ')}
       >
@@ -493,11 +518,11 @@ export function UpgradeCard({ id, upgrades, wallet, magnetless, burstColors, fir
         {id === 'fieldAmp' && magnetless && (
           <p className="flex items-start gap-1.5 rounded-[3px] border border-neon-yellow/25 bg-neon-yellow/[0.05] px-2 py-1.5 text-[10px] leading-snug text-neon-yellow/90">
             <Info size={13} strokeWidth={2.4} className="mt-px shrink-0" aria-hidden />
-            <span>На надетом корабле нет магнита — усилитель заработает на {MAGNET_SKINS.join(' и ')}.</span>
+            <span>На надетом корабле нет магнита — усилитель заработает {MAGNET_SKINS_NOTE}.</span>
           </p>
         )}
 
-        <div className="mt-auto flex items-end justify-between gap-2 pt-1">
+        <div className={`${ACTION_ROW} pt-1`}>
           <div className="flex min-w-0 flex-col gap-0.5">
             {maxed ? (
               <span className="inline-flex items-center gap-1.5 font-display text-sm font-black tracking-[0.25em] text-neon-yellow text-glow-yellow">

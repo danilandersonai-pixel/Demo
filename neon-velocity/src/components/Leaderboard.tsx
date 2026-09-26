@@ -1,6 +1,6 @@
 /**
  * Топ-5 забегов за всё время: место (1 — корона), счёт, уровень скорости,
- * дата и время, лучший комбо, корабль. Последний забег подсвечен и пульсирует.
+ * дата и время, лучшее комбо, корабль. Последний забег подсвечен и пульсирует.
  * Свободные места показаны пустыми строками, как на аркадном автомате.
  * Внизу — общая статистика игрока.
  */
@@ -151,9 +151,11 @@ function EntryRow({
         <span className="sr-only">
           Место {rank}: {formatNumber(entry.score)} очков
         </span>
+        {/* Без overflow:hidden (truncate): он резал неоновое свечение цифр по рамке строки
+            в жёсткий прямоугольник. Семизначный счёт с запасом влезает в колонку. */}
         <span
           aria-hidden
-          className="nvm-digits block truncate font-mono text-[26px] font-extrabold leading-none tracking-wider sm:text-[28px] lg:text-[30px]"
+          className="nvm-digits block whitespace-nowrap font-mono text-[26px] font-extrabold leading-none tracking-wider sm:text-[28px] lg:text-[30px]"
         >
           <span className={top ? 'text-neon-yellow/25' : 'text-ink-faint/40'}>{lead}</span>
           <span

@@ -152,11 +152,19 @@ export function sanitizeSave(raw: unknown): SaveData {
   const equippedTheme =
     isThemeId(raw.equippedTheme) && ownedThemes.includes(raw.equippedTheme) ? raw.equippedTheme : 'cyberpunk';
 
-  const leaderboard = sortLeaderboard(
-    (Array.isArray(raw.leaderboard) ? raw.leaderboard : [])
-      .map(sanitizeEntry)
-      .filter((e): e is LeaderboardEntry => e !== null),
-  ).slice(0, LEADERBOARD_SIZE);
+  // id записей уникальны: по ним таблица различает строки и подсвечивает
+  // последний забег. Повтор (битое или правленое руками сохранение) получает новый id.
+  const seenIds = new Set<string>();
+  const entries = (Array.isArray(raw.leaderboard) ? raw.leaderboard : [])
+    .map(sanitizeEntry)
+    .filter((e): e is LeaderboardEntry => e !== null)
+    .map((e) => {
+      let id = e.id;
+      while (seenIds.has(id)) id = makeEntryId();
+      seenIds.add(id);
+      return id === e.id ? e : { ...e, id };
+    });
+  const leaderboard = sortLeaderboard(entries).slice(0, LEADERBOARD_SIZE);
 
   // Рекорд не может быть меньше лучшей записи таблицы.
   const highscore = Math.max(int(raw.highscore, 0), leaderboard[0]?.score ?? 0);

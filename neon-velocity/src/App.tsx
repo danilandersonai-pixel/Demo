@@ -68,6 +68,23 @@ export default function App() {
   /** Корабль взорвался, до экрана Game Over — пауза недоступна. */
   const [dying, setDying] = useState(false);
   const gameOverAt = useRef(0);
+  /**
+   * Экран «на самом деле» — меняется синхронно с переходом, до рендера. Уходящие
+   * экраны ещё 0.3–0.4 с доигрывают анимацию выхода и ловят клики: переходы
+   * сверяются с ним, а не с отрисованным экраном, и двойной клик по «Играть» не
+   * запускает второй забег, а «Рекорды» уходящего меню не открываются поверх забега.
+   */
+  const screenRef = useRef<Screen>('menu');
+  /** Фокус пришёл с клавиатуры (виден фокус-ринг), а не от клика мышью. */
+  const keyboardFocus = useRef(false);
+
+  const switchScreen = useCallback((next: Screen) => {
+    screenRef.current = next;
+    setScreen(next);
+  }, []);
+
+  /** Экран Game Over «взвёлся» (см. GAME_OVER_ARM_MS): кнопки и клавиши работают. */
+  const gameOverArmed = useCallback(() => performance.now() - gameOverAt.current >= GAME_OVER_ARM_MS, []);
 
   const { equippedSkin, equippedTheme, upgrades, highscore, settings } = save;
   // getLoadout читает только снаряжение, улучшения и рекорд — мемо ровно по ним:
@@ -104,6 +121,8 @@ export default function App() {
   // ─── Переходы ─────────────────────────────────────────────────────────────
 
   const play = useCallback(() => {
+    const current = screenRef.current;
+    if (current === 'playing' || (current === 'gameover' && !gameOverArmed())) return;
     audio.unlock();
     // Снимок прошлого забега не должен мелькнуть в HUD нового.
     hudStore.resetSnapshot();
@@ -111,32 +130,46 @@ export default function App() {
     setBurst(null);
     setDying(false);
     setRunId((n) => n + 1);
-    setScreen('playing');
-  }, []);
+    switchScreen('playing');
+  }, [switchScreen, gameOverArmed]);
 
   const pause = useCallback(() => {
-    if (dying) return;
-    setScreen((s) => (s === 'playing' ? 'paused' : s));
-  }, [dying]);
+    if (dying || screenRef.current !== 'playing') return;
+    switchScreen('paused');
+  }, [dying, switchScreen]);
 
   const resume = useCallback(() => {
-    setScreen((s) => (s === 'paused' ? 'playing' : s));
-  }, []);
+    if (screenRef.current === 'paused') switchScreen('playing');
+  }, [switchScreen]);
 
-  const toMenu = useCallback(() => {
+  /** Переход в меню без проверок — общий для кнопок и ухода со страницы. */
+  const enterMenu = useCallback(() => {
     setPanel(null);
     setBurst(null);
     setDying(false);
-    setScreen('menu');
-  }, []);
+    switchScreen('menu');
+  }, [switchScreen]);
+
+  const toMenu = useCallback(() => {
+    const current = screenRef.current;
+    // «Меню» уходящей паузы или Game Over не обрывает только что начатый забег.
+    if (current === 'paused' || (current === 'gameover' && gameOverArmed())) enterMenu();
+  }, [enterMenu, gameOverArmed]);
 
   const openShopFromGameOver = useCallback(() => {
-    setScreen('menu');
+    if (screenRef.current !== 'gameover' || !gameOverArmed()) return;
+    switchScreen('menu');
     setPanel('shop');
+  }, [switchScreen, gameOverArmed]);
+
+  const openLeaderboard = useCallback(() => {
+    if (screenRef.current === 'gameover' && gameOverArmed()) setPanel('leaderboard');
+  }, [gameOverArmed]);
+
+  const openPanel = useCallback((next: MenuPanel) => {
+    if (screenRef.current === 'menu') setPanel(next);
   }, []);
 
-  const openLeaderboard = useCallback(() => setPanel('leaderboard'), []);
-  const openPanel = useCallback((next: MenuPanel) => setPanel(next), []);
   const closePanel = useCallback(() => setPanel(null), []);
   const clearBurst = useCallback(() => setBurst(null), []);
 
@@ -157,12 +190,34 @@ export default function App() {
       setLastRun({ result, outcome });
       setDying(false);
       setPanel(null);
-      setScreen('gameover');
+      switchScreen('gameover');
     },
-    [actions],
+    [actions, switchScreen],
+  );
+
+  // Забег оборван без гибели: кристаллы, рекорд и запись в топ-5 всё равно
+  // засчитываются. При уходе со страницы — сразу в меню: вернувшись из bfcache,
+  // сданный забег не должен продолжиться (его gameOver уже не придёт).
+  const handleRunAbandoned = useCallback(
+    (result: RunResult, unload: boolean) => {
+      const outcome = actions.recordRun(result);
+      setLastRun({ result, outcome });
+      if (unload) enterMenu();
+    },
+    [actions, enterMenu],
   );
 
   // ─── Горячие клавиши ──────────────────────────────────────────────────────
+
+  // Как контрол получил фокус, запоминаем в момент фокуса: при нажатии клавиши
+  // браузер уже считает фокус «клавиатурным» и :focus-visible совпадает всегда.
+  useEffect(() => {
+    const onFocusIn = (e: FocusEvent) => {
+      keyboardFocus.current = e.target instanceof Element && e.target.matches(':focus-visible');
+    };
+    window.addEventListener('focusin', onFocusIn, true);
+    return () => window.removeEventListener('focusin', onFocusIn, true);
+  }, []);
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -170,7 +225,13 @@ export default function App() {
       if (e.repeat || e.defaultPrevented || e.altKey || e.ctrlKey || e.metaKey) return;
       const typing = isTypingTarget(e.target);
       const esc = e.key === 'Escape';
-      const confirm = (e.key === 'Enter' || e.key === ' ' || e.code === 'Space') && !typing && !isActivatable(e.target);
+      // Enter/Space на контроле с видимым фокусом нажимают сам контрол. Фокус после
+      // клика мышью не виден (например, кнопка звука в меню) — тогда это хоткей
+      // экрана, а preventDefault ниже гасит повторное нажатие кнопки браузером.
+      const confirm =
+        (e.key === 'Enter' || e.key === ' ' || e.code === 'Space') &&
+        !typing &&
+        !(isActivatable(e.target) && keyboardFocus.current);
       // e.code не зависит от раскладки: P/R/M/S/L работают и на русской.
       const letter = typing ? '' : e.code;
 
@@ -183,7 +244,7 @@ export default function App() {
         return;
       }
 
-      switch (screen) {
+      switch (screenRef.current) {
         case 'menu':
           if (confirm) {
             e.preventDefault();
@@ -212,7 +273,7 @@ export default function App() {
           }
           return;
         case 'gameover':
-          if (performance.now() - gameOverAt.current < GAME_OVER_ARM_MS) return;
+          if (!gameOverArmed()) return;
           if (confirm || letter === 'KeyR') {
             e.preventDefault();
             playUiSound('click');
@@ -235,7 +296,7 @@ export default function App() {
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [screen, panel, play, pause, resume, toMenu, openShopFromGameOver, openLeaderboard]);
+  }, [panel, play, pause, resume, toMenu, openShopFromGameOver, openLeaderboard, gameOverArmed]);
 
   // ─── Слои ─────────────────────────────────────────────────────────────────
 
@@ -250,6 +311,7 @@ export default function App() {
           loadout={loadout}
           settings={settings}
           onGameOver={handleGameOver}
+          onRunAbandoned={handleRunAbandoned}
           onDeath={handleDeath}
           onRequestPause={pause}
         />
@@ -309,7 +371,7 @@ export default function App() {
           {panel === 'howto' && <HowToPlay key="howto" onClose={closePanel} />}
         </AnimatePresence>
 
-        <ScreenFx />
+        <ScreenFx calm={screen === 'paused' || screen === 'gameover' || panel !== null} />
       </main>
     </MotionConfig>
   );

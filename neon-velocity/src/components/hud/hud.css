@@ -38,6 +38,17 @@
     nv-neon-hum 2.4s linear 0.9s infinite;
 }
 
+/*
+ * Экран Game Over размывает фон (backdrop-filter), а размытие пересчитывается,
+ * пока хоть что-то на экране анимируется. Поэтому там анимации конечны: вывеска
+ * гудит три раза и затихает, глитч заголовка (ниже) тоже отыгрывает три цикла.
+ */
+.nv-record-flicker.nv-settle {
+  animation:
+    nv-record-ignite 0.9s linear 1 both,
+    nv-neon-hum 2.4s linear 0.9s 3;
+}
+
 /* Хроматические «двойники» надписи: розовый и бирюзовый сдвиги. */
 @keyframes nv-chroma-a {
   0%, 100% { transform: translate(-3px, 0); }
@@ -93,12 +104,12 @@
 .nv-glitch-a {
   color: #22f0ff;
   text-shadow: 0 0 12px rgba(34, 240, 255, 0.7);
-  animation: nv-glitch-slice-a 2.6s steps(1, end) infinite;
+  animation: nv-glitch-slice-a 2.6s steps(1, end) 3;
 }
 .nv-glitch-b {
   color: #ffe94a;
   text-shadow: 0 0 12px rgba(255, 233, 74, 0.7);
-  animation: nv-glitch-slice-b 3.1s steps(1, end) infinite;
+  animation: nv-glitch-slice-b 3.1s steps(1, end) 3;
 }
 
 /* ─── Мигающий курсор / индикатор ───────────────────────────────────────── */

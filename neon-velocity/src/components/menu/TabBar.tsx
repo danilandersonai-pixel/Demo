@@ -78,8 +78,10 @@ export function TabBar<T extends string>({ tabs, active, onChange, idPrefix, lab
               onMouseEnter={() => {
                 if (!selected) playUiSound('hover');
               }}
+              // flex-auto, а не flex-1: вкладка растёт от ширины своей подписи. Равные трети
+              // на 360px уже длинного слова — «Улучшения» резалась в «УЛУЧШЕН…» даже активной.
               className={[
-                'relative flex h-10 min-w-0 flex-1 items-center justify-center gap-1 rounded-[2px] px-1.5 sm:gap-2 sm:px-4',
+                'relative flex h-10 min-w-0 flex-auto items-center justify-center gap-1 rounded-[2px] px-1.5 sm:gap-2 sm:px-4',
                 'font-mono text-[11px] font-bold uppercase tracking-wider transition-colors duration-150 sm:text-xs sm:tracking-widest',
                 selected ? 'text-theme-a text-glow-theme' : 'text-ink-dim hover:text-ink',
               ].join(' ')}

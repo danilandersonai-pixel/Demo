@@ -1,52 +1,58 @@
-import { AnimatePresence, motion } from 'framer-motion';
+import { AnimatePresence, motion, type TargetAndTransition, type Variants } from 'framer-motion';
 import { Crown, ShieldOff, Zap } from 'lucide-react';
 import { useState } from 'react';
 import { useBanners } from '../../game/hudStore';
-import type { Banner, BannerKind } from '../../game/types';
+import type { Banner } from '../../game/types';
+import { BANNER_SLOT, type BannerSlot } from './constants';
 
 /**
  * Баннеры HUD (READY/GO, LEVEL N, NEW RECORD!, SHIELD DOWN, COMBO BREAK…).
- * Три «полки» по высоте, чтобы одновременные баннеры не наезжали друг на
- * друга: вверху — рекорд, в центре — старт и уровни, ниже — щит и комбо.
+ * Три «полки» по высоте: вверху — рекорд, в центре — старт и уровни, ниже —
+ * щит и комбо. На полке живёт один баннер (новый вытесняет прежний, см.
+ * BANNER_SLOT), поэтому надписи не печатаются друг поверх друга.
  * Корабль внизу экрана баннеры не закрывают.
+ *
+ * На низком экране (телефон боком) проценты не работают: HUD и корабль
+ * занимают фиксированные пиксели, и между ними остаётся всего 150–190 px. Там верхняя
+ * полка стоит сразу под HUD, нижняя — сразу над кораблём, средняя — посередине,
+ * а надписи берут компактные размеры вместо sm: — иначе «NEW RECORD!» ложится
+ * на HUD, а соседние полки наезжают друг на друга.
  */
-type Slot = 'top' | 'mid' | 'low';
-
-const SLOT_OF: Record<BannerKind, Slot> = {
-  newRecord: 'top',
-  ready: 'mid',
-  go: 'mid',
-  levelUp: 'mid',
-  shield: 'low',
-  comboBreak: 'low',
-  comboUp: 'low',
-};
-
-const SLOTS: readonly { slot: Slot; className: string }[] = [
-  { slot: 'top', className: 'top-[25%]' },
-  { slot: 'mid', className: 'top-[41%]' },
-  { slot: 'low', className: 'top-[56%]' },
+const SLOTS: readonly { slot: BannerSlot; className: string }[] = [
+  { slot: 'top', className: 'top-[25%] [@media(max-height:560px)_and_(orientation:landscape)]:top-[116px]' },
+  { slot: 'mid', className: 'top-[41%] [@media(max-height:560px)_and_(orientation:landscape)]:top-[calc(50%-12px)]' },
+  { slot: 'low', className: 'top-[56%] [@media(max-height:560px)_and_(orientation:landscape)]:top-[calc(100%-140px)]' },
 ];
 
 /** Каждый баннер центрирован по линии своей полки. */
 const PLACE = 'absolute inset-x-0 flex -translate-y-1/2 flex-col items-center px-3 text-center';
 const EASE_OUT: [number, number, number, number] = [0.16, 1, 0.3, 1];
 
+/** Вытесненный баннер нижней полки гаснет быстро — новый ждёт его ухода. */
+const QUICK_EXIT: TargetAndTransition = { opacity: 0, transition: { duration: 0.12 } };
+
+/** Уход баннера нижней полки; custom из AnimatePresence — «на полке уже новый баннер». */
+function lowExit(normal: TargetAndTransition): Variants {
+  return { exit: (replaced: boolean) => (replaced ? QUICK_EXIT : normal) };
+}
+
 export function Banners() {
   const banners = useBanners();
   return (
     <div role="status" aria-live="polite" className="pointer-events-none absolute inset-0 overflow-hidden">
-      {SLOTS.map(({ slot, className }) => (
-        <div key={slot} className={`absolute inset-x-0 h-0 ${className}`}>
-          <AnimatePresence>
-            {banners
-              .filter((b) => SLOT_OF[b.kind] === slot)
-              .map((b) => (
+      {SLOTS.map(({ slot, className }) => {
+        const list = banners.filter((b) => BANNER_SLOT[b.kind] === slot);
+        return (
+          <div key={slot} className={`absolute inset-x-0 h-0 ${className}`}>
+            {/* READY → GO! на средней полке — задуманный переход «одно в другое»; внизу — строго по очереди. */}
+            <AnimatePresence mode={slot === 'low' ? 'wait' : 'sync'} custom={list.length > 0}>
+              {list.map((b) => (
                 <BannerView key={b.id} banner={b} />
               ))}
-          </AnimatePresence>
-        </div>
-      ))}
+            </AnimatePresence>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -81,20 +87,22 @@ function ReadyBanner({ banner }: { banner: Banner }) {
       exit={{ opacity: 0, scale: 1.08, filter: 'blur(6px)', transition: { duration: 0.25 } }}
       transition={{ duration: 0.35, ease: EASE_OUT }}
     >
-      <div className="flex items-center gap-3 sm:gap-5">
+      <div className="flex items-center gap-3 sm:gap-5 [@media(max-height:560px)_and_(orientation:landscape)]:gap-3">
         <span className="nv-blink h-2 w-2 rounded-full bg-neon-cyan shadow-[0_0_10px_#22f0ff]" />
         <motion.span
           initial={{ letterSpacing: '0.9em' }}
           animate={{ letterSpacing: '0.32em' }}
           transition={{ duration: 0.7, ease: EASE_OUT }}
-          className="whitespace-nowrap pl-[0.32em] font-display text-4xl font-black text-neon-cyan text-glow-cyan sm:text-6xl"
+          className="whitespace-nowrap pl-[0.32em] font-display text-4xl font-black text-neon-cyan text-glow-cyan sm:text-6xl [@media(max-height:560px)_and_(orientation:landscape)]:text-4xl"
         >
           {banner.text}
         </motion.span>
         <span className="nv-blink h-2 w-2 rounded-full bg-neon-cyan shadow-[0_0_10px_#22f0ff]" />
       </div>
       {banner.sub && (
-        <span className="mt-2 pl-[0.6em] text-[10px] font-bold tracking-[0.6em] text-ink-dim sm:text-xs">{banner.sub}</span>
+        <span className="mt-2 pl-[0.6em] text-[10px] font-bold tracking-[0.6em] text-ink-dim sm:text-xs [@media(max-height:560px)_and_(orientation:landscape)]:text-[10px]">
+          {banner.sub}
+        </span>
       )}
     </motion.div>
   );
@@ -109,7 +117,7 @@ function GoBanner({ banner }: { banner: Banner }) {
       exit={{ opacity: 0, scale: 2.6, filter: 'blur(10px)', transition: { duration: 0.35, ease: 'easeIn' } }}
       transition={{ type: 'spring', stiffness: 460, damping: 14 }}
     >
-      <span className="font-display text-6xl font-black italic tracking-wider text-neon-yellow text-glow-yellow sm:text-8xl">
+      <span className="font-display text-6xl font-black italic tracking-wider text-neon-yellow text-glow-yellow sm:text-8xl [@media(max-height:560px)_and_(orientation:landscape)]:text-6xl">
         {banner.text}
       </span>
     </motion.div>
@@ -127,10 +135,10 @@ function LevelBanner({ banner }: { banner: Banner }) {
       exit={{ opacity: 0, y: -18, filter: 'blur(6px)', transition: { duration: 0.35 } }}
       transition={{ duration: 0.2 }}
     >
-      <div className="flex items-center gap-3 sm:gap-5">
+      <div className="flex items-center gap-3 sm:gap-5 [@media(max-height:560px)_and_(orientation:landscape)]:gap-3">
         <motion.span
           aria-hidden
-          className="h-[2px] w-8 origin-right bg-linear-to-l from-neon-pink to-transparent shadow-[0_0_8px_#ff2bd6] sm:w-28"
+          className="h-[2px] w-8 origin-right bg-linear-to-l from-neon-pink to-transparent shadow-[0_0_8px_#ff2bd6] sm:w-28 [@media(max-height:560px)_and_(orientation:landscape)]:w-8"
           initial={{ scaleX: 0 }}
           animate={{ scaleX: 1 }}
           transition={{ duration: 0.55, ease: EASE_OUT }}
@@ -139,13 +147,13 @@ function LevelBanner({ banner }: { banner: Banner }) {
           initial={{ x: -70, skewX: -24, opacity: 0 }}
           animate={{ x: 0, skewX: -8, opacity: 1 }}
           transition={{ type: 'spring', stiffness: 380, damping: 22 }}
-          className="whitespace-nowrap font-display text-3xl font-black italic tracking-widest text-neon-pink text-glow-pink sm:text-6xl"
+          className="whitespace-nowrap font-display text-3xl font-black italic tracking-widest text-neon-pink text-glow-pink sm:text-6xl [@media(max-height:560px)_and_(orientation:landscape)]:text-2xl"
         >
           {banner.text}
         </motion.span>
         <motion.span
           aria-hidden
-          className="h-[2px] w-8 origin-left bg-linear-to-r from-neon-pink to-transparent shadow-[0_0_8px_#ff2bd6] sm:w-28"
+          className="h-[2px] w-8 origin-left bg-linear-to-r from-neon-pink to-transparent shadow-[0_0_8px_#ff2bd6] sm:w-28 [@media(max-height:560px)_and_(orientation:landscape)]:w-8"
           initial={{ scaleX: 0 }}
           animate={{ scaleX: 1 }}
           transition={{ duration: 0.55, ease: EASE_OUT }}
@@ -156,7 +164,7 @@ function LevelBanner({ banner }: { banner: Banner }) {
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.15, duration: 0.35, ease: EASE_OUT }}
-          className="nv-digits mt-2 flex items-center gap-2 pl-[0.35em] font-mono text-sm font-bold tracking-[0.35em] text-neon-cyan text-glow-cyan sm:text-lg"
+          className="nv-digits mt-2 flex items-center gap-2 pl-[0.35em] font-mono text-sm font-bold tracking-[0.35em] text-neon-cyan text-glow-cyan sm:text-lg [@media(max-height:560px)_and_(orientation:landscape)]:mt-1 [@media(max-height:560px)_and_(orientation:landscape)]:text-xs"
         >
           <Zap size={16} strokeWidth={2.5} aria-hidden />
           {banner.sub}
@@ -205,14 +213,6 @@ function RecordBanner({ banner }: { banner: Banner }) {
       exit={{ opacity: 0, scale: 1.12, filter: 'blur(8px)', transition: { duration: 0.45 } }}
       transition={{ duration: 0.15 }}
     >
-      {/* Тёмная «вывеска» во всю ширину: жёлтый текст читается даже поверх солнца. */}
-      <motion.span
-        aria-hidden
-        className="absolute -inset-y-3 inset-x-0 bg-[linear-gradient(90deg,transparent,rgba(5,5,10,0.88)_22%,rgba(5,5,10,0.88)_78%,transparent)] sm:-inset-y-4"
-        initial={{ scaleY: 0, opacity: 0 }}
-        animate={{ scaleY: 1, opacity: 1 }}
-        transition={{ duration: 0.3, ease: EASE_OUT }}
-      />
       {[
         '-top-3 sm:-top-4 via-neon-yellow shadow-[0_0_12px_#ffe94a]',
         '-bottom-3 sm:-bottom-4 via-neon-pink shadow-[0_0_12px_#ff2bd6]',
@@ -269,7 +269,7 @@ function RecordBanner({ banner }: { banner: Banner }) {
         />
       ))}
 
-      <div className="nv-record-flicker relative whitespace-nowrap font-display text-[29px] font-black italic tracking-wider sm:text-7xl">
+      <div className="nv-record-flicker relative whitespace-nowrap font-display text-[29px] font-black italic tracking-wider sm:text-7xl [@media(max-height:560px)_and_(orientation:landscape)]:text-[29px]">
         {/* Хроматические двойники проявляются, когда буквы встали на место. */}
         <motion.span
           aria-hidden
@@ -290,7 +290,12 @@ function RecordBanner({ banner }: { banner: Banner }) {
           {banner.text}
         </motion.span>
         <span className="sr-only">{banner.text}</span>
-        <span aria-hidden className="relative text-neon-yellow text-glow-yellow">
+        {/* Тёмный контур букв вместо тёмной полосы во всю ширину: надпись читается
+            даже поверх жёлтого солнца, а подлетающие препятствия вокруг видны. */}
+        <span
+          aria-hidden
+          className="relative text-neon-yellow text-glow-yellow [paint-order:stroke_fill] [-webkit-text-stroke:5px_rgba(5,5,10,0.85)] sm:[-webkit-text-stroke:8px_rgba(5,5,10,0.85)] [@media(max-height:560px)_and_(orientation:landscape)]:[-webkit-text-stroke:5px_rgba(5,5,10,0.85)]"
+        >
           {letters.map((ch, i) => (
             <motion.span
               key={i}
@@ -308,7 +313,7 @@ function RecordBanner({ banner }: { banner: Banner }) {
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.45, duration: 0.4, ease: EASE_OUT }}
-        className="relative mt-2 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.35em] text-neon-pink text-glow-pink sm:text-sm"
+        className="relative mt-2 flex items-center gap-2 rounded-[2px] bg-void/60 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.35em] text-neon-pink text-glow-pink sm:text-sm [@media(max-height:560px)_and_(orientation:landscape)]:mt-1 [@media(max-height:560px)_and_(orientation:landscape)]:py-0 [@media(max-height:560px)_and_(orientation:landscape)]:text-[10px]"
       >
         <Crown size={14} strokeWidth={2.5} aria-hidden />
         {banner.sub ?? 'рекорд побит'}
@@ -321,22 +326,35 @@ function RecordBanner({ banner }: { banner: Banner }) {
 
 const VIOLET_GLOW = '[text-shadow:0_0_2px_#fff,0_0_10px_#9d4dff,0_0_24px_#9d4dff]';
 
+const SHIELD_EXIT = lowExit({ opacity: 0, y: 14, transition: { duration: 0.3 } });
+const COMBO_BREAK_EXIT = lowExit({ opacity: 0, y: 10, transition: { duration: 0.25 } });
+const COMBO_UP_EXIT = lowExit({ opacity: 0, y: -26, transition: { duration: 0.35 } });
+
 function ShieldBanner({ banner }: { banner: Banner }) {
   return (
     <motion.div
       className={PLACE}
+      variants={SHIELD_EXIT}
       initial={{ opacity: 0, scale: 1.35 }}
       animate={{ opacity: 1, scale: 1, x: [0, -7, 6, -4, 2, 0] }}
-      exit={{ opacity: 0, y: 14, transition: { duration: 0.3 } }}
+      exit="exit"
       transition={{ duration: 0.45, ease: 'easeOut' }}
     >
       <span
-        className={`flex items-center gap-2 whitespace-nowrap font-display text-2xl font-black tracking-widest text-neon-violet sm:text-4xl ${VIOLET_GLOW}`}
+        className={`flex items-center gap-2 whitespace-nowrap font-display text-2xl font-black tracking-widest text-neon-violet sm:text-4xl [@media(max-height:560px)_and_(orientation:landscape)]:text-xl ${VIOLET_GLOW}`}
       >
-        <ShieldOff className="h-6 w-6 drop-shadow-[0_0_8px_#9d4dff] sm:h-8 sm:w-8" strokeWidth={2.5} aria-hidden />
+        <ShieldOff
+          className="h-6 w-6 drop-shadow-[0_0_8px_#9d4dff] sm:h-8 sm:w-8 [@media(max-height:560px)_and_(orientation:landscape)]:h-5 [@media(max-height:560px)_and_(orientation:landscape)]:w-5"
+          strokeWidth={2.5}
+          aria-hidden
+        />
         {banner.text}
       </span>
-      {banner.sub && <span className="mt-1.5 text-[10px] font-bold tracking-[0.3em] text-neon-cyan sm:text-xs">{banner.sub}</span>}
+      {banner.sub && (
+        <span className="mt-1.5 text-[10px] font-bold tracking-[0.3em] text-neon-cyan sm:text-xs [@media(max-height:560px)_and_(orientation:landscape)]:mt-1 [@media(max-height:560px)_and_(orientation:landscape)]:text-[10px]">
+          {banner.sub}
+        </span>
+      )}
     </motion.div>
   );
 }
@@ -345,16 +363,17 @@ function ComboBreakBanner({ banner }: { banner: Banner }) {
   return (
     <motion.div
       className={PLACE}
+      variants={COMBO_BREAK_EXIT}
       initial={{ opacity: 0, scale: 1.25 }}
       animate={{ opacity: 1, scale: 1, x: [0, -10, 9, -6, 4, 0] }}
-      exit={{ opacity: 0, y: 10, transition: { duration: 0.25 } }}
+      exit="exit"
       transition={{ duration: 0.4, ease: 'easeOut' }}
     >
-      <span className="whitespace-nowrap font-display text-xl font-black italic tracking-widest text-neon-red text-glow-red sm:text-3xl">
+      <span className="whitespace-nowrap font-display text-xl font-black italic tracking-widest text-neon-red text-glow-red sm:text-3xl [@media(max-height:560px)_and_(orientation:landscape)]:text-xl">
         {banner.text}
       </span>
       {banner.sub && (
-        <span className="mt-1 text-[10px] font-bold tracking-[0.3em] text-neon-red/80 line-through decoration-2 sm:text-xs">
+        <span className="mt-1 text-[10px] font-bold tracking-[0.3em] text-neon-red/80 line-through decoration-2 sm:text-xs [@media(max-height:560px)_and_(orientation:landscape)]:text-[10px]">
           {banner.sub}
         </span>
       )}
@@ -366,14 +385,21 @@ function ComboUpBanner({ banner }: { banner: Banner }) {
   return (
     <motion.div
       className={PLACE}
+      variants={COMBO_UP_EXIT}
       initial={{ opacity: 0, y: 14, scale: 0.6 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
-      exit={{ opacity: 0, y: -26, transition: { duration: 0.35 } }}
+      exit="exit"
       transition={{ type: 'spring', stiffness: 520, damping: 18 }}
     >
       <span className="flex items-baseline gap-2 rounded-[3px] border border-neon-yellow/70 bg-void/50 px-3 py-1 shadow-[0_0_14px_rgba(255,233,74,0.45)]">
-        <span className="font-display text-2xl font-black text-neon-yellow text-glow-yellow sm:text-3xl">{banner.text}</span>
-        {banner.sub && <span className="text-[10px] font-bold tracking-[0.35em] text-neon-pink sm:text-xs">{banner.sub}</span>}
+        <span className="font-display text-2xl font-black text-neon-yellow text-glow-yellow sm:text-3xl [@media(max-height:560px)_and_(orientation:landscape)]:text-2xl">
+          {banner.text}
+        </span>
+        {banner.sub && (
+          <span className="text-[10px] font-bold tracking-[0.35em] text-neon-pink sm:text-xs [@media(max-height:560px)_and_(orientation:landscape)]:text-[10px]">
+            {banner.sub}
+          </span>
+        )}
       </span>
     </motion.div>
   );

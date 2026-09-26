@@ -16,6 +16,21 @@
     linear-gradient(180deg, rgba(5, 5, 10, 0.7) 0%, rgba(5, 5, 10, 0) 16%, rgba(5, 5, 10, 0) 78%, rgba(5, 5, 10, 0.72) 100%);
 }
 
+/*
+ * Шапка и подвал меню у краёв экрана: при viewport-fit=cover телефон боком
+ * заводит раскладку под вырез и скругления — отступ не меньше безопасной зоны.
+ */
+.nvm-safe-x {
+  padding-left: max(1rem, env(safe-area-inset-left, 0px));
+  padding-right: max(1rem, env(safe-area-inset-right, 0px));
+}
+@media (min-width: 40rem) {
+  .nvm-safe-x {
+    padding-left: max(2rem, env(safe-area-inset-left, 0px));
+    padding-right: max(2rem, env(safe-area-inset-right, 0px));
+  }
+}
+
 /* ─── Логотип ──────────────────────────────────────────────────────────── */
 
 .nvm-logo-main {

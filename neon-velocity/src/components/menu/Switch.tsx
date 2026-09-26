@@ -9,13 +9,19 @@ export interface SwitchRowProps {
   description?: string;
   checked: boolean;
   onChange(next: boolean): void;
+  /**
+   * Без своего щелчка — для выключателя звука: щелчок прозвучал бы по старой
+   * настройке (в заглушённый микшер или обрезанный затуханием), а включение
+   * подтверждает сам AudioEngine.setSettings.
+   */
+  silent?: boolean;
 }
 
 /**
  * Строка настройки с неоновым переключателем (role="switch"). Кликабельна вся
  * строка; ползунок «переезжает» пружиной.
  */
-export function SwitchRow({ icon: Icon, label, description, checked, onChange }: SwitchRowProps) {
+export function SwitchRow({ icon: Icon, label, description, checked, onChange, silent = false }: SwitchRowProps) {
   const labelId = useId();
   const descId = useId();
   return (
@@ -26,7 +32,7 @@ export function SwitchRow({ icon: Icon, label, description, checked, onChange }:
       aria-labelledby={labelId}
       aria-describedby={description ? descId : undefined}
       onClick={() => {
-        playUiSound('toggle');
+        if (!silent) playUiSound('toggle');
         onChange(!checked);
       }}
       onMouseEnter={() => playUiSound('hover')}

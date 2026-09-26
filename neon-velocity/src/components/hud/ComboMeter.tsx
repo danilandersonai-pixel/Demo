@@ -62,7 +62,12 @@ export function ComboMeter({ multiplier, chain, chainProgress }: ComboMeterProps
 
   return (
     <div className="relative flex flex-col items-center">
-      <span className={['text-[9px] font-bold tracking-[0.4em] sm:text-[11px]', broken ? 'text-neon-red' : 'text-neon-pink/80'].join(' ')}>
+      <span
+        className={[
+          'text-[9px] font-bold tracking-[0.4em] sm:text-[11px] [@media(max-height:560px)_and_(orientation:landscape)]:text-[9px]',
+          broken ? 'text-neon-red' : 'text-neon-pink/80',
+        ].join(' ')}
+      >
         COMBO
       </span>
       <div className="relative flex items-center justify-center">
@@ -76,14 +81,16 @@ export function ComboMeter({ multiplier, chain, chainProgress }: ComboMeterProps
               animate={{ opacity: 0, scale: 2.4 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.55, ease: 'easeOut' }}
-              className="pointer-events-none absolute h-10 w-10 rounded-full border-2 border-neon-pink shadow-[0_0_14px_#ff2bd6] sm:h-14 sm:w-14"
+              className="pointer-events-none absolute h-10 w-10 rounded-full border-2 border-neon-pink shadow-[0_0_14px_#ff2bd6] sm:h-14 sm:w-14 [@media(max-height:560px)_and_(orientation:landscape)]:h-10 [@media(max-height:560px)_and_(orientation:landscape)]:w-10"
             />
           )}
         </AnimatePresence>
+        {/* Тёмный контур: жёлтый x7+ не сливается с жёлтым солнцем темы, которое стоит ровно под счётчиком. */}
         <div
           ref={scope}
           className={[
-            'nv-digits font-display text-[30px] font-black leading-[1.05] tracking-wider sm:text-5xl',
+            'nv-digits font-display text-[30px] font-black leading-[1.05] tracking-wider sm:text-5xl [@media(max-height:560px)_and_(orientation:landscape)]:text-[30px]',
+            '[paint-order:stroke_fill] [-webkit-text-stroke:4px_rgba(5,5,10,0.85)] sm:[-webkit-text-stroke:6px_rgba(5,5,10,0.85)] [@media(max-height:560px)_and_(orientation:landscape)]:[-webkit-text-stroke:4px_rgba(5,5,10,0.85)]',
             broken ? 'text-neon-red text-glow-red' : tone(multiplier),
           ].join(' ')}
         >
@@ -95,7 +102,7 @@ export function ComboMeter({ multiplier, chain, chainProgress }: ComboMeterProps
           <span
             key={i}
             className={[
-              'h-1 w-3.5 rounded-[1px] transition-colors duration-150 sm:h-1.5 sm:w-5',
+              'h-1 w-3.5 rounded-[1px] transition-colors duration-150 sm:h-1.5 sm:w-5 [@media(max-height:560px)_and_(orientation:landscape)]:h-1 [@media(max-height:560px)_and_(orientation:landscape)]:w-3.5',
               broken ? 'bg-neon-red/40' : i < filled ? segmentTone(multiplier) : 'bg-white/12',
             ].join(' ')}
           />
@@ -105,7 +112,7 @@ export function ComboMeter({ multiplier, chain, chainProgress }: ComboMeterProps
         Множитель комбо x{multiplier}, цепочка {chain}
       </span>
       {max && (
-        <span className="nv-record-flicker mt-1 text-[8px] font-black tracking-[0.3em] text-neon-yellow text-glow-yellow sm:text-[10px]">
+        <span className="nv-record-flicker mt-1 text-[8px] font-black tracking-[0.3em] text-neon-yellow text-glow-yellow sm:text-[10px] [@media(max-height:560px)_and_(orientation:landscape)]:text-[8px]">
           MAX
         </span>
       )}

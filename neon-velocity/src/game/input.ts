@@ -5,8 +5,10 @@
  * русской раскладке). Зажатые клавиши хранятся стеком в порядке нажатия:
  * при двух зажатых побеждает последняя, отпускание возвращает предыдущую.
  * Мышь ведёт корабль простым движением, палец и перо — касанием и ведением
- * (с захватом указателя). После отпускания пальца или ухода мыши с холста
- * pointerX сохраняет последнее значение — корабль доезжает и останавливается.
+ * (с захватом указателя). Из нескольких пальцев ведёт последний коснувшийся;
+ * когда он уходит, управление возвращается тому, что ещё на стекле. После
+ * отпускания пальца или ухода мыши с холста pointerX сохраняет последнее
+ * значение — корабль доезжает и останавливается.
  * lastSource — устройство, которым игрок пользовался последним.
  */
 import type { InputState } from './types';
@@ -72,7 +74,9 @@ export class InputController {
   private held: string[] = [];
   private pointerX: number | null = null;
   private lastSource: Source = 'none';
-  /** Палец или перо, захваченные холстом. */
+  /** Пальцы и перья в касании холста: pointerId → последний clientX, в порядке касания. */
+  private readonly touches = new Map<number, number>();
+  /** Ведущий палец — последний коснувшийся из touches (null — ни одного касания). */
   private touchId: number | null = null;
   /** Последний clientX мыши над холстом. */
   private mouseClientX: number | null = null;
@@ -119,7 +123,7 @@ export class InputController {
     if (this.enabled === enabled) return;
     this.enabled = enabled;
     // Указатель забывается в обе стороны: за время паузы мышь могла уйти к кнопкам.
-    this.releaseTouch();
+    this.releaseTouches();
     this.pointerX = null;
     // Клавиши отслеживаются и в выключенном состоянии — зажатая стрелка сразу работает после паузы.
     this.lastSource = enabled && this.held.length > 0 ? 'keyboard' : 'none';
@@ -134,7 +138,7 @@ export class InputController {
   /** Сбросить зажатые клавиши и указатель (старт забега, потеря фокуса). */
   reset(): void {
     this.held.length = 0;
-    this.releaseTouch();
+    this.releaseTouches();
     this.pointerX = null;
     this.lastSource = 'none';
     this.mouseAnchor = null;
@@ -147,16 +151,29 @@ export class InputController {
     return last === undefined ? 0 : KEY_DIRS[last];
   }
 
-  private releaseTouch(): void {
-    const id = this.touchId;
+  /** Забыть все касания и отпустить их захват. */
+  private releaseTouches(): void {
+    const ids = [...this.touches.keys()];
+    this.touches.clear();
     this.touchId = null;
     const target = this.target;
-    if (id === null || !target) return;
-    try {
-      if (target.hasPointerCapture(id)) target.releasePointerCapture(id);
-    } catch {
-      // Указатель уже исчез (палец убран) — захвата нет, отпускать нечего.
+    if (!target) return;
+    for (const id of ids) {
+      try {
+        if (target.hasPointerCapture(id)) target.releasePointerCapture(id);
+      } catch {
+        // Указатель уже исчез (палец убран) — захвата нет, отпускать нечего.
+      }
     }
+  }
+
+  /** Палец ушёл со стекла (или потерян): если он вёл корабль, управление переходит к последнему из оставшихся. */
+  private endTouch(pointerId: number): void {
+    if (!this.touches.delete(pointerId) || pointerId !== this.touchId) return;
+    let next: [number, number] | undefined;
+    for (const entry of this.touches) next = entry;
+    this.touchId = next ? next[0] : null;
+    if (next) this.setPointer(next[1]);
   }
 
   private setPointer(clientX: number): void {
@@ -208,7 +225,10 @@ export class InputController {
       }
       return;
     }
-    // Палец и перо ведут корабль только в касании.
+    // Палец и перо ведут корабль только в касании; положение запасных пальцев тоже запоминается —
+    // им вернётся управление, когда ведущий уйдёт.
+    if (!this.touches.has(e.pointerId)) return;
+    this.touches.set(e.pointerId, e.clientX);
     if (e.pointerId !== this.touchId) return;
     this.setPointer(e.clientX);
     this.lastSource = 'pointer';
@@ -224,9 +244,11 @@ export class InputController {
       this.lastSource = 'pointer';
       return;
     }
-    // Новый палец перехватывает управление у предыдущего.
-    this.releaseTouch();
-    this.touchId = e.pointerId;
+    // Новый палец перехватывает управление; прежние остаются в касании (и в захвате) про запас.
+    const id = e.pointerId;
+    this.touches.delete(id);
+    this.touches.set(id, e.clientX);
+    this.touchId = id;
     const target = this.target;
     if (target) {
       try {
@@ -240,11 +262,16 @@ export class InputController {
   };
 
   private readonly onPointerEnd = (e: PointerEvent): void => {
-    if (e.pointerId === this.touchId) this.releaseTouch();
+    this.endTouch(e.pointerId);
   };
 
+  /**
+   * Захват потерян без pointerup/pointercancel: конец касания может уже не дойти до холста,
+   * поэтому палец забывается — иначе он остался бы «призраком» и получил бы управление назад.
+   * После обычного отпускания палец уже забыт, и это ничего не делает.
+   */
   private readonly onLostCapture = (e: PointerEvent): void => {
-    if (e.pointerId === this.touchId) this.touchId = null;
+    this.endTouch(e.pointerId);
   };
 
   private readonly onTouchMove = (e: TouchEvent): void => {
