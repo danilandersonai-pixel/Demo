@@ -483,3 +483,325 @@
   place-items: center;
   color: var(--muted);
 }
+/* ---- research tree ---- */
+.tree {
+  padding: 4px;
+}
+.tnode {
+  position: absolute;
+  text-align: left;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--text-2);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+.tnode .tn {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text);
+  line-height: 1.25;
+}
+.tnode .tp {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+}
+.tnode .pk {
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+  display: inline-block;
+}
+.tnode.locked {
+  opacity: 0.55;
+}
+.tnode.av:hover,
+.tnode.locked:hover {
+  border-color: var(--line-strong);
+  background: var(--hover);
+}
+.tnode.done {
+  border-color: var(--success-border);
+  background: var(--success-bg);
+}
+.tnode.cur {
+  border-color: var(--cyan);
+  box-shadow: var(--glow-cyan);
+}
+.tnode.q {
+  border-style: dashed;
+  border-color: var(--cyan);
+}
+/* ---- drones ---- */
+.drone-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: 10px;
+}
+.dcard {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px;
+  background: var(--surface-2);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+/* ---- stats ---- */
+.srow {
+  display: grid;
+  grid-template-columns: 1fr 80px 80px;
+  gap: 6px;
+  width: 100%;
+  padding: 5px 6px;
+  font-size: 12.5px;
+  border: none;
+  border-bottom: 1px solid rgba(22, 48, 73, 0.6);
+  background: transparent;
+  text-align: left;
+  color: var(--text-2);
+}
+.srow > span:nth-child(2),
+.srow > span:nth-child(3) {
+  text-align: right;
+}
+.srow.head {
+  font-size: 11px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+.srow.on {
+  background: var(--selected);
+  border-radius: 6px;
+}
+button.srow:hover {
+  background: var(--hover);
+}
+/* ---- codex ---- */
+.codex-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 10px;
+}
+.ccard {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px;
+  background: var(--surface-2);
+}
+.rrow {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 12.5px;
+}
+/* ---- strategic map ---- */
+.stratmap {
+  position: absolute;
+  top: 84px;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: #021a2a;
+  animation: fadein 0.2s ease-out;
+}
+.smwrap {
+  position: absolute;
+  inset: 0;
+  cursor: crosshair;
+}
+.smwrap canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.markers {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.markers .mk {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  pointer-events: auto;
+}
+.mk .mi {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 2px solid #33c0a7;
+  background: rgba(3, 17, 29, 0.85);
+  display: grid;
+  place-items: center;
+  color: var(--text);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
+}
+.mk.small .mi {
+  width: 20px;
+  height: 20px;
+  border-width: 1.5px;
+}
+.mk .mi.dim {
+  opacity: 0.6;
+  border-color: #8a99a6;
+}
+.mk.base .mi {
+  width: 34px;
+  height: 34px;
+}
+.mk .ml {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  background: rgba(3, 17, 29, 0.78);
+  padding: 1px 6px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+.smlegend {
+  position: absolute;
+  right: 16px;
+  top: 220px;
+  width: 210px;
+  padding: 14px;
+}
+.lg {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  padding: 4px 0;
+}
+.lgb {
+  width: 100%;
+  border: none;
+  background: transparent;
+  text-align: left;
+  color: var(--text-2);
+}
+.lgb.off {
+  opacity: 0.4;
+}
+.lg .sw {
+  width: 18px;
+  height: 14px;
+  border-radius: 3px;
+  display: inline-block;
+}
+/* ---- era cutscene & victory ---- */
+.cutscene,
+.victory {
+  position: absolute;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  background: radial-gradient(ellipse at 50% 45%, rgba(10, 74, 122, 0.35), rgba(0, 6, 14, 0.92) 70%);
+  animation: fadein 0.5s ease-out;
+  cursor: pointer;
+}
+.cs-inner,
+.v-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  text-align: center;
+}
+.cs-icon {
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: var(--teal-soft);
+  border: 2px solid var(--teal);
+  box-shadow: 0 0 60px rgba(51, 192, 167, 0.45), inset 0 0 30px rgba(51, 192, 167, 0.2);
+  animation: pulseglow 2.4s ease-in-out infinite;
+  margin-bottom: 10px;
+}
+@keyframes pulseglow {
+  50% {
+    box-shadow: 0 0 90px rgba(51, 192, 167, 0.7), inset 0 0 40px rgba(51, 192, 167, 0.35);
+  }
+}
+.cs-title,
+.v-title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 52px;
+  color: var(--text);
+  letter-spacing: -1px;
+  text-shadow: 0 0 30px rgba(50, 198, 244, 0.4);
+}
+.cs-list {
+  margin-top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 15px;
+  color: var(--text-2);
+  text-align: left;
+}
+.cs-list > div {
+  opacity: 0;
+  animation: fadein 0.4s ease-out forwards;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.cs-list svg {
+  color: var(--teal);
+}
+.victory {
+  cursor: default;
+  background: linear-gradient(180deg, rgba(0, 6, 14, 0.2), rgba(0, 6, 14, 0.85) 75%);
+}
+.v-title {
+  font-size: 60px;
+  background: linear-gradient(90deg, #66d8ff, #9096db, #f4ce80);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.v-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 170px);
+  gap: 10px;
+  margin: 20px 0;
+}
+.v-stats > div {
+  border: 1px solid var(--line-strong);
+  border-radius: 12px;
+  padding: 12px;
+  background: rgba(3, 17, 29, 0.8);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.v-stats b {
+  font-family: var(--font-mono);
+  font-size: 24px;
+  color: var(--text);
+}
+.v-stats span {
+  font-size: 12px;
+  color: var(--muted);
+}
+/* era 4: colony accent */
+.vibe.colony {
+  --cyan: #9096db;
+  --cyan-soft: #c0c4ff;
+  --selected: #2a2a5a;
+}

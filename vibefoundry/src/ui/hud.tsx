@@ -14,6 +14,7 @@ import { Icon, ResIcon } from './icons';
 import { thumb } from './thumbs';
 import { fmt, mw, pct, signed } from './format';
 import { audio } from './audio';
+import { CiPanel } from './overlays';
 
 export function ItemImg({ id, size = 18 }: { id: string; size?: number }) {
   const t = thumb('i', id);
@@ -498,6 +499,7 @@ function BuildingInfo({ game, e }: { game: Game; e: Entity }) {
             </select>
           </div>
         )}
+        {e.type === 'ci' && !e.ghost && <CiPanel game={game} />}
         {groups.length > 0 && <div class="row"><span class="muted">Группы</span><span class="inv">{groups.map((g) => <span class="chip mono" key={g}>{g}</span>)}</span></div>}
         {scripts.length > 0 && (
           <div class="row">

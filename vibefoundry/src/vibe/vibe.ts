@@ -26,6 +26,7 @@ export interface VibePayload {
   job: 'code' | 'blueprint' | 'scan' | 'refactor' | 'optimize' | 'status' | 'test' | 'clarify' | 'fix';
   llmCode?: string;
   llmNote?: string;
+  llmPending?: boolean;
   steps?: { role: AgentRole; text: string; done: boolean }[];
   bugId?: number;
   autopilot?: boolean;
@@ -84,7 +85,7 @@ function jobFor(ir: IntentResult): VibePayload['job'] {
 const DURATION: Record<VibePayload['job'], number> = { code: 4, blueprint: 6, scan: 5, refactor: 7, optimize: 6, status: 2, test: 2, clarify: 1.5, fix: 4 };
 
 /** Player sends a natural-language request. Charges tokens and queues a task on the best agent. */
-export function sendRequest(sim: Sim, text: string, targetAgentId?: number, extra: Partial<VibePayload> = {}): { ok: boolean; msg?: string } {
+export function sendRequest(sim: Sim, text: string, targetAgentId?: number, extra: Partial<VibePayload> = {}): { ok: boolean; msg?: string; payload?: VibePayload } {
   const t = text.trim();
   if (!t) return { ok: false, msg: 'Пустой запрос' };
   const cost = requestCost(sim, t);
@@ -111,7 +112,7 @@ export function sendRequest(sim: Sim, text: string, targetAgentId?: number, extr
     if (helpers.some((h) => h.role === 'debugger')) payload.steps.push({ role: 'debugger', text: 'проверка рисков', done: false });
   }
   assign(sim, agent, payload, cost);
-  return { ok: true };
+  return { ok: true, payload: (agent.task?.payload as VibePayload) ?? payload };
 }
 
 function describeRule(r: IntentResult['rules'][number]): string {
@@ -176,6 +177,7 @@ export function processAgents(sim: Sim, dt: number): void {
     }
     a.task.progress += (dt * slow) / Math.max(0.3, a.task.duration);
     const p = a.task.payload as VibePayload;
+    if (p.llmPending && !p.llmCode) a.task.progress = Math.min(a.task.progress, 0.95);
     if (p.steps) {
       const k = Math.floor(a.task.progress * p.steps.length);
       p.steps.forEach((s, i) => (s.done = i < k));

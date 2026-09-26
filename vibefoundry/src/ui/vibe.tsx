@@ -75,7 +75,7 @@ export function VibeWindow({ game }: { game: Game }) {
   };
 
   return (
-    <div class={'panel glow window vibe' + (terminal ? ' terminal' : '')} style={{ width: 'min(1340px, calc(100vw - 32px))', height: 'min(760px, calc(100vh - 190px))' }}>
+    <div class={'panel glow window vibe' + (terminal ? ' terminal' : '') + (ai.era >= 4 ? ' colony' : '')} style={{ width: 'min(1340px, calc(100vw - 32px))', height: 'min(760px, calc(100vh - 190px))' }}>
       <div class="whdr">
         <span style={{ color: terminal ? '#6fdc5a' : 'var(--cyan)' }}><Icon name={terminal ? 'terminal' : 'code'} size={20} /></span>
         <div class="h1" style={{ fontSize: 19 }}>{terminal ? 'ИИ в терминале' : 'Вайб-кодинг'}</div>

@@ -1,16 +1,18 @@
 import type { Application } from 'pixi.js';
 import { BUILDINGS, BELTLIKE, type BuildingType } from './data/buildings';
-import { Sim, DT, SAVE_VERSION, type NewGameOptions, type SimSnapshot } from './sim/sim';
+import { Sim, DT, DAY_LENGTH, SAVE_VERSION, type NewGameOptions, type SimSnapshot } from './sim/sim';
 import { saveSlot, loadSlot, listSlots, exportFile, importFile, type SlotId } from './ui/saves';
 import type { Entity, Toast } from './sim/types';
 import { WorldRenderer } from './render/renderer';
 import { rotCW, type Dir } from './core/iso';
 import { audio } from './ui/audio';
 import { sendToPoi, DRONE_NAMES } from './sim/drones';
-import { rollbackTo, requestFix, acceptProposal } from './vibe/vibe';
 import { startSandbox, type SandboxJob } from './vibe/sandbox';
 import { findSpot, placeBlueprint, type BpEntity } from './ai/architect';
 import type { Proposal } from './ai/state';
+import { llmSettings, llmGenerate, llmErrorText } from './vibe/llm';
+import { analyze } from './vibe/intent';
+import { sendRequest, rollbackTo, requestFix, acceptProposal } from './vibe/vibe';
 
 export type Tool =
   | { kind: 'none' }
@@ -72,9 +74,31 @@ export class Game {
   settings = loadSettings();
   demoAvailable = false;
   sandbox: { pid: number; job: SandboxJob } | null = null;
-  llm: { active: () => boolean; request: (text: string, target?: number) => Promise<void> } = { active: () => false, request: async () => {} };
+  llm = {
+    active: () => llmSettings.enabled && !!llmSettings.key,
+    request: async (text: string, target?: number) => {
+      const ir = analyze(text, Object.keys(this.sim.groups));
+      // game mechanics (blueprints, scans, tests…) stay on the offline engine
+      if (ir.special) {
+        sendRequest(this.sim, text, target);
+        return;
+      }
+      const sim = this.sim;
+      const r = sendRequest(sim, text, target, { job: 'code', llmPending: true });
+      if (!r.ok || !r.payload) return;
+      const payload = r.payload;
+      try {
+        const res = await llmGenerate(sim, text, llmSettings.key, llmSettings.model);
+        payload.llmCode = res.code;
+        payload.llmNote = `Код написан моделью ${res.model}${res.fixed ? ' (с одной попыткой самоисправления)' : ''}.`;
+      } catch (e) {
+        payload.llmNote = `Настоящий ИИ недоступен (${llmErrorText(e)}) — использован офлайн-движок.`;
+      }
+      payload.llmPending = false;
+      this.emit();
+    },
+  };
   startDemo: () => void = () => {};
-  renderLlmSettings?: () => any;
   private autosaveT = 0;
   private listeners = new Set<Listener>();
   private acc = 0;
@@ -113,6 +137,12 @@ export class Game {
     }));
     this.unsubs.push(sim.events.on('victory', () => {
       this.ui.victory = true;
+      // "From factory to civilisation": the night colony view
+      sim.dayTime = 0.8 * DAY_LENGTH;
+      const spire = sim.list.find((e) => e.type === 'spire');
+      const b = spire ?? sim.hq!;
+      this.renderer.flyTo(b.x + b.w / 2, b.y + b.h / 2, 0.6);
+      audio.play('era');
       this.emit();
     }));
     this.tool = { kind: 'none' };

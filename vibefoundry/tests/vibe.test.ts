@@ -194,3 +194,27 @@ describe('sandbox', () => {
     expect(f.powerAfter).toBeGreaterThan(f.powerBefore);
   });
 });
+
+describe('real-AI mode plumbing (no network)', () => {
+  it('holds the agent at 95% until LLM code arrives, then proposes that code', () => {
+    const sim = testSim();
+    sim.ai.tokens = 5000;
+    const r = sendRequest(sim, 'Держи запас аккумуляторов на уровне 300', undefined, { job: 'code', llmPending: true });
+    expect(r.ok).toBe(true);
+    sim.run(15);
+    expect(sim.ai.proposals.length).toBe(0);
+    expect(sim.ai.agents[0].task!.progress).toBeLessThanOrEqual(0.95);
+    r.payload!.llmCode = 'class Stock(Agent):\n    def run(self):\n        self.limit("battery", 300)\n';
+    r.payload!.llmNote = 'Код написан моделью claude-haiku-4-5.';
+    r.payload!.llmPending = false;
+    const p = untilProposal(sim);
+    expect(p.code).toContain('class Stock(Agent)');
+    expect(sim.ai.chat.some((m) => m.text.includes('claude-haiku-4-5'))).toBe(true);
+  });
+
+  it('never serializes an API key', () => {
+    const sim = testSim();
+    const json = JSON.stringify(sim.serialize());
+    expect(json).not.toMatch(/sk-ant-/);
+  });
+});

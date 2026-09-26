@@ -8,6 +8,9 @@ import './hud.css';
 import './vibe.css';
 import { VibeWindow } from './vibe';
 import { AgentsWindow } from './agents';
+import { ResearchWindow, DronesWindow, StatsWindow, CodexWindow } from './windows';
+import { StrategicMap } from './strategic';
+import { EraCutscene, Victory } from './overlays';
 
 export function useGame(game: Game): number {
   const [, setV] = useState(0);
@@ -43,6 +46,7 @@ export function App({ game }: { game: Game }) {
   if (ui.mainMenu) return <div class="hud-root"><MainMenu game={game} /><Tooltip /></div>;
   return (
     <div class="hud-root" style={{ transform: scale !== 1 ? `scale(${scale})` : undefined, width: `${100 / scale}%`, height: `${100 / scale}%` }}>
+      {ui.panel === 'map' && <StrategicMap game={game} />}
       <TopBar game={game} />
       <Quests game={game} />
       <Minimap game={game} />
@@ -56,8 +60,14 @@ export function App({ game }: { game: Game }) {
       <GroupPrompt game={game} />
       {(ui.panel === 'vibe' || ui.panel === 'git') && <VibeWindow game={game} />}
       {ui.panel === 'agents' && <AgentsWindow game={game} />}
+      {ui.panel === 'research' && <ResearchWindow game={game} />}
+      {ui.panel === 'drones' && <DronesWindow game={game} />}
+      {ui.panel === 'stats' && <StatsWindow game={game} />}
+      {ui.panel === 'codex' && <CodexWindow game={game} />}
       {ui.panel === 'settings' && <Window title="Настройки" icon="settings" width={460} onClose={close}><SettingsBody game={game} /></Window>}
       {ui.panel === 'menu' && <EscMenu game={game} />}
+      <EraCutscene game={game} />
+      <Victory game={game} />
       <Tooltip />
     </div>
   );

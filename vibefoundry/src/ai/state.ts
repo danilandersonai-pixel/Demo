@@ -150,7 +150,7 @@ export function newAIState(): AIState {
     eraTimes: [0],
     orchestratorGoalAt: 0,
     lastDebuggerScan: 0,
-    llm: { enabled: false, model: 'claude-haiku-4-5-20251001' },
+    llm: { enabled: false, model: 'claude-haiku-4-5' },
     bugHistory: [],
   };
 }

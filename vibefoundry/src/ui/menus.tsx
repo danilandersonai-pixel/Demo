@@ -4,6 +4,7 @@ import { Icon } from './icons';
 import { listSlots, type SaveMeta, type SlotId } from './saves';
 import { audio } from './audio';
 import { ERA_NAMES } from '../ai/eras';
+import { LLM_MODELS, llmSettings, llmPing, llmErrorText } from '../vibe/llm';
 
 function MenuLogo() {
   return (
@@ -164,7 +165,7 @@ export function SettingsBody({ game }: { game: Game }) {
           </label>
         </>
       )}
-      {game.renderLlmSettings?.()}
+      <LlmSettings game={game} />
     </div>
   );
 }
@@ -224,4 +225,48 @@ export function Tooltip() {
   const left = Math.max(8, Math.min(window.innerWidth - 290, tip.x - 140));
   const top = tip.y + 120 > window.innerHeight ? tip.y - 90 : tip.y;
   return <div class="tooltip" style={{ left, top }}>{tip.text}</div>;
+}
+
+function LlmSettings({ game }: { game: Game }) {
+  const [key, setKey] = useState(llmSettings.key);
+  const [model, setModel] = useState(llmSettings.model);
+  const [enabled, setEnabled] = useState(llmSettings.enabled);
+  const [status, setStatus] = useState<string | null>(null);
+  const save = (k: string, m: string, en: boolean) => {
+    llmSettings.key = k.trim();
+    llmSettings.model = m;
+    llmSettings.enabled = en;
+    game.emit();
+  };
+  return (
+    <div>
+      <div class="divider" />
+      <div class="h2" style={{ marginBottom: 6 }}>Режим «Настоящий ИИ»</div>
+      <div class="muted" style={{ fontSize: 12.5, marginBottom: 8 }}>
+        Запросы к агентам уходят в Claude (Anthropic Messages API) прямо из браузера. Ответ проходит парсер FactoryScript; при ошибке — одна попытка самоисправления, затем офлайн-движок. Игра полностью играбельна без этого режима.
+      </div>
+      <label style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <input type="checkbox" checked={enabled} onChange={(e) => { const v = (e.target as HTMLInputElement).checked; setEnabled(v); save(key, model, v); }} /> Включить
+      </label>
+      <input type="password" autocomplete="off" spellcheck={false} value={key} placeholder="sk-ant-…" onInput={(e) => setKey((e.target as HTMLInputElement).value)} onBlur={() => save(key, model, enabled)} style={{ width: '100%', padding: '8px 10px', marginTop: 8 }} class="mono" />
+      <select value={model} onChange={(e) => { const v = (e.target as HTMLSelectElement).value; setModel(v); save(key, v, enabled); }} style={{ width: '100%', padding: '6px 8px', marginTop: 8 }}>
+        {LLM_MODELS.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+      </select>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 8 }}>
+        <button class="btn small" disabled={!key.trim()} onClick={async () => {
+          save(key, model, enabled);
+          setStatus('проверяю…');
+          try {
+            await llmPing(key.trim(), model);
+            setStatus('✓ ключ работает');
+          } catch (e) {
+            setStatus('✗ ' + llmErrorText(e));
+          }
+        }}>Проверить</button>
+        {key && <button class="btn small ghost" onClick={() => { setKey(''); save('', model, false); setEnabled(false); }}>Удалить ключ</button>}
+        {status && <span class={status.startsWith('✓') ? 'pos' : status.startsWith('✗') ? 'neg' : 'muted'} style={{ fontSize: 12.5 }}>{status}</span>}
+      </div>
+      <div class="muted" style={{ fontSize: 11.5, marginTop: 6 }}>Ключ хранится только в localStorage этого браузера: не попадает в сохранения, логи и чат.</div>
+    </div>
+  );
 }
