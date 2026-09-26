@@ -254,6 +254,14 @@ export class WorldRenderer {
       return sx > vx0 - margin * 64 && sx < vx1 + margin * 64 && sy > vy0 - margin * 32 && sy < vy1 + margin * 64;
     };
     this.units.update(sim, this.time, alpha, dt, inView);
+    // water shimmer: a few glints on random visible water tiles
+    if (!this.lod) {
+      for (let k = 0; k < 3; k++) {
+        const t = this.screenToTile(Math.random() * this.screenW, Math.random() * this.screenH);
+        const w = sim.world;
+        if (w.inBounds(t.x, t.y) && w.biome[w.idx(t.x, t.y)] <= 2 && w.fog[w.idx(t.x, t.y)]) this.units.spawn('glint', t.fx, t.fy, -7);
+      }
+    }
     this.ents.icons.visible = !this.lod;
     this.drawOverlay();
     if (this.altMode) this.drawAlt(chunkVisible);

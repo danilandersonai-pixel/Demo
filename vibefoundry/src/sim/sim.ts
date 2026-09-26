@@ -165,6 +165,7 @@ export class Sim {
     hq.storeTotal = 660;
     for (let i = 0; i < 2; i++) sim.addDrone('construction', hq.id);
     initGit(sim);
+    updateQuests(sim);
     return sim;
   }
 

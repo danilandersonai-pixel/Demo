@@ -164,7 +164,7 @@ export class UnitLayer {
     return s;
   }
 
-  spawn(kind: 'smoke' | 'steam' | 'spark' | 'dust' | 'explode' | 'build' | 'shot', x: number, y: number, z = 0, x2?: number, y2?: number): void {
+  spawn(kind: 'smoke' | 'steam' | 'spark' | 'dust' | 'explode' | 'build' | 'shot' | 'glint', x: number, y: number, z = 0, x2?: number, y2?: number): void {
     if (this.particles.length > 900) return;
     const [sx, sy] = iso(x, y);
     const py = sy - z;
@@ -201,6 +201,11 @@ export class UnitLayer {
         P(this.tex.glowTex, true, 0, 0, 0.6, 0.4, 2.2, 0x66d8ff, 0.9);
         for (let i = 0; i < 6; i++) P(this.tex.spark, true, (Math.random() - 0.5) * 70, -20 - Math.random() * 40, 0.6, 0.3, -0.2, 0x9ae8ff, 1);
         break;
+      case 'glint': {
+        const s = P(this.tex.spark, true, (Math.random() - 0.5) * 6, 0, 1.6, 0.18, 0, 0xbfe8ff, 0.55);
+        s.scale.set(0.35, 0.12);
+        break;
+      }
       case 'shot': {
         if (x2 === undefined || y2 === undefined) break;
         const [ex, ey] = iso(x2, y2);
