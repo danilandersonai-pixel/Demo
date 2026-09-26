@@ -218,3 +218,22 @@ describe('real-AI mode plumbing (no network)', () => {
     expect(json).not.toMatch(/sk-ant-/);
   });
 });
+
+describe('Architect', () => {
+  it('plans a microchip line, places it and wires it to the grid', async () => {
+    const { planLine, placeBlueprint } = await import('../src/ai/architect');
+    const sim = testSim(4);
+    give(sim, { steel: 500, microchip: 200, magnet: 50, gear: 500, iron_plate: 1000, copper_plate: 500, stone_brick: 200 });
+    sim.completeResearch('electronics');
+    const plan = planLine(sim, 'microchip', 30)!;
+    expect(plan.machines).toBeGreaterThanOrEqual(2);
+    const { x, y } = sim.world.base;
+    const n = placeBlueprint(sim, plan.entities, x + 12, y - 4);
+    expect(n).toBe(plan.entities.length);
+    sim.run(2);
+    const machines = sim.list.filter((e) => e.type === plan.machine);
+    expect(machines.length).toBe(plan.machines);
+    for (const m of machines) expect(m.net).toBe(sim.mainNet);
+    expect(sim.flags.blueprintsPlaced).toBe(1);
+  });
+});

@@ -95,14 +95,21 @@ export function findSpot(sim: Sim, w: number, h: number, cx: number, cy: number,
   return null;
 }
 
-/** Place blueprint entities as ghosts. Returns number placed. */
-export function placeBlueprint(sim: Sim, entities: BpEntity[], x: number, y: number): number {
+/** Place blueprint entities as ghosts and lay power poles to them. Returns number placed. */
+export function placeBlueprint(sim: Sim, entities: BpEntity[], x: number, y: number, connect = true): number {
   let n = 0;
+  const ids = new Set<number>();
   for (const e of entities) {
     const r = sim.place(e.type, x + e.dx, y + e.dy, e.dir, { recipe: e.recipe, byScript: true });
-    if (r) n++;
+    if (r) {
+      n++;
+      ids.add(r.id);
+    }
   }
-  if (n) sim.flags.blueprintsPlaced = (sim.flags.blueprintsPlaced ?? 0) + 1;
+  if (n && connect) {
+    sim.flags.blueprintsPlaced = (sim.flags.blueprintsPlaced ?? 0) + 1;
+    connectPower(sim, { instant: false, onlyIds: ids, maxPoles: 20 });
+  }
   return n;
 }
 
@@ -136,7 +143,7 @@ export function recipeName(id: string): string {
  * Connect every unpowered consumer (built or ghost) to the main grid by laying poles.
  * Ghost poles already placed count as planned coverage, so repeated calls never duplicate chains.
  */
-export function connectPower(sim: Sim, opts: { instant?: boolean; maxPoles?: number } = {}): number {
+export function connectPower(sim: Sim, opts: { instant?: boolean; maxPoles?: number; onlyIds?: Set<number> } = {}): number {
   sim.rebuildTopology();
   const main = sim.mainNet;
   const REACH = 7;
@@ -150,6 +157,7 @@ export function connectPower(sim: Sim, opts: { instant?: boolean; maxPoles?: num
   const targets = sim.list
     .filter((e) => (BUILDINGS[e.type].power > 0 || BUILDINGS[e.type].gen) && e.type !== 'hq' && !BUILDINGS[e.type].poleReach)
     .filter((e) => (e.ghost ? true : (e.net ?? -1) !== main))
+    .filter((e) => !opts.onlyIds || opts.onlyIds.has(e.id))
     .sort((a, b) => Math.hypot(a.x - hq.x, a.y - hq.y) - Math.hypot(b.x - hq.x, b.y - hq.y));
   let placed = 0;
   const max = opts.maxPoles ?? 60;

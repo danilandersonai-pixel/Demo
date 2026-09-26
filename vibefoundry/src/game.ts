@@ -468,11 +468,8 @@ export class Game {
   commitPlacement(tx: number, ty: number): void {
     if (this.tool.kind === 'paste') {
       const bp = this.tool.bp;
-      let n = 0;
-      for (const e of bp.entities) {
-        const r = this.sim.place(e.type, tx + e.dx, ty + e.dy, e.dir, { recipe: e.recipe });
-        if (r) n++;
-      }
+      const n = placeBlueprint(this.sim, bp.entities as BpEntity[], tx, ty, bp.name.startsWith('Линия'));
+      this.sim.noteManual();
       if (n) audio.play('place');
       this.pushToast({ kind: 'info', title: 'Чертёж вставлен', text: `${n} из ${bp.entities.length} призраков поставлено` });
       return;
@@ -811,7 +808,6 @@ export class Game {
     const bp: Blueprint = { name: `Линия: ${p.blueprint.item}`, w: 0, h: 0, entities: p.blueprint.entities.map((e) => ({ type: e.type as BuildingType, dx: e.dx, dy: e.dy, dir: e.dir as Dir, recipe: e.recipe })) };
     this.blueprints.push(bp);
     acceptProposal(this.sim, p.id);
-    this.sim.flags.blueprintsPlaced = (this.sim.flags.blueprintsPlaced ?? 0) + 1;
     this.ui.panel = null;
     this.setTool({ kind: 'paste', bp });
     this.pushToast({ kind: 'info', title: 'Укажите место для чертежа', text: 'ЛКМ — поставить призраки, Esc — отмена' });
