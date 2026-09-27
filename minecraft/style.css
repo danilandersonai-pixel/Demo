@@ -17,6 +17,8 @@
   --danger: #e2694c;
   --danger-deep: #7a2716;
   --slot: min(52px, calc((100vw - 48px) / 9));
+  --islot: min(44px, calc((100vw - 90px) / 9));
+  --icon: min(18px, calc((100vw - 48px) / 22));
   --pixel: "Press Start 2P", "Courier New", monospace;
   --body: "Golos Text", "Segoe UI", system-ui, -apple-system, sans-serif;
   --bevel: inset 0 2px 0 rgba(255, 255, 255, 0.07), inset 0 -3px 0 rgba(0, 0, 0, 0.38);
@@ -77,7 +79,7 @@ kbd {
 }
 .btn:hover { border-color: var(--ink-3); background: #2b332e; }
 .btn:active { transform: translateY(1px); box-shadow: inset 0 3px 0 rgba(0, 0, 0, 0.4); }
-.btn:focus-visible, .slot:focus-visible, .inv-item:focus-visible, .t-btn:focus-visible,
+.btn:focus-visible, .slot:focus-visible, .book-item:focus-visible, .t-btn:focus-visible,
 input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .btn kbd { font-size: 11px; }
 
@@ -217,34 +219,114 @@ body:not(.is-touch) #controls-touch { display: none; }
 .save-note { margin: 0; font-size: 13px; color: var(--ink-3); }
 .save-note.is-error { color: var(--danger); }
 
-/* Инвентарь */
-.sheet--inv { width: min(640px, 100%); }
-.inv-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.inv-hint { margin: 0; font-size: 13px; color: var(--ink-2); }
-.inv-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(76px, 1fr));
-  gap: 8px;
-  max-height: min(56vh, 460px);
-  overflow-y: auto;
-  padding: 2px;
+/* ---- Инвентарь и контейнеры ------------------------------------------------ */
+.sheet--inv { width: min(760px, 100%); gap: 12px; padding: 16px; }
+.inv-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.inv-head-actions { display: flex; gap: 8px; }
+.btn--small { min-height: 36px; padding: 6px 12px; font-size: 14px; }
+.btn--small.is-on { border-color: var(--accent); background: rgba(240, 181, 69, 0.18); }
+.cont-layout { display: flex; gap: 14px; align-items: flex-start; }
+.cont-body { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.cont-top { display: flex; flex-wrap: wrap; gap: 16px 22px; align-items: flex-start; }
+.cont-sec { display: flex; flex-direction: column; gap: 6px; }
+.cont-sec h3 {
+  margin: 0;
+  font: 600 11px/1.3 var(--body);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-3);
 }
-.inv-item {
-  display: flex;
-  flex-direction: column;
+.cont-hint { margin: 0; max-width: 34em; font-size: 12px; color: var(--ink-3); }
+.cont-palette { width: 100%; }
+.slot-grid { --cols: 9; display: grid; grid-template-columns: repeat(var(--cols), var(--islot)); gap: 3px; }
+.slot-grid.palette { max-height: min(34vh, 250px); overflow-y: auto; padding-right: 4px; }
+.inv-main { padding-top: 8px; border-top: 2px solid var(--edge); }
+.inv-hot { padding-top: 6px; }
+.cont-foot { display: flex; flex-wrap: wrap; gap: 8px; }
+.craft { display: flex; align-items: center; gap: 10px; }
+.craft-arrow { font: 400 18px/1 var(--pixel); color: var(--ink-3); }
+.result.is-ready { border-color: var(--accent); }
+.furnace { display: flex; align-items: center; gap: 14px; }
+.f-col { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.f-flame { position: relative; width: 14px; height: 18px; background: rgba(0, 0, 0, 0.35); }
+.f-flame i { position: absolute; left: 0; right: 0; bottom: 0; height: 0; background: linear-gradient(0deg, #e0502a, #ffcf55); }
+.f-arrow { position: relative; width: 44px; height: 12px; background: rgba(0, 0, 0, 0.35); }
+.f-arrow i { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: var(--ink); }
+.armor-grid { grid-template-columns: var(--islot); }
+.book { display: flex; flex-direction: column; gap: 8px; width: 250px; flex-shrink: 0; }
+.book-list { display: flex; flex-direction: column; gap: 4px; max-height: min(58vh, 480px); overflow-y: auto; padding-right: 4px; }
+.book-item {
+  display: grid;
+  grid-template-columns: 34px 1fr;
+  grid-template-rows: auto auto;
+  column-gap: 8px;
   align-items: center;
-  gap: 4px;
-  padding: 8px 4px 6px;
-  font: 500 11px/1.25 var(--body);
-  color: var(--ink-2);
-  text-align: center;
+  padding: 5px 8px;
+  text-align: left;
+  color: var(--ink);
   background: rgba(0, 0, 0, 0.28);
   border: 2px solid var(--edge);
   cursor: pointer;
 }
-.inv-item img { width: 40px; height: 40px; image-rendering: pixelated; }
-.inv-item:hover { border-color: var(--ink-3); color: var(--ink); }
-.inv-item.is-current { border-color: var(--accent); color: var(--ink); }
+.book-item:hover { border-color: var(--accent); }
+.book-item img { grid-row: 1 / 3; width: 32px; height: 32px; image-rendering: pixelated; }
+.bi-name { font: 600 13px/1.25 var(--body); }
+.bi-need { font: 400 11px/1.3 var(--body); color: var(--ink-3); }
+.book-item.is-missing { opacity: 0.5; }
+.cursor-stack {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 40;
+  width: 44px;
+  height: 44px;
+  pointer-events: none;
+  background: transparent;
+  border: 0;
+}
+
+/* Новый мир и смерть */
+.panel { padding: 14px 16px; background: var(--panel); border: 2px solid var(--accent-deep); box-shadow: var(--bevel); }
+.newworld { display: flex; flex-direction: column; gap: 12px; }
+.nw-warn { margin: 0; font-size: 13px; color: var(--danger); }
+.seg { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; padding: 0; border: 0; }
+.seg legend { width: 100%; margin-bottom: 6px; padding: 0; font-size: 14px; }
+.seg label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px;
+  font-size: 14px;
+  background: rgba(0, 0, 0, 0.3);
+  border: 2px solid var(--edge);
+  cursor: pointer;
+}
+.seg label:has(input:checked) { border-color: var(--accent); background: rgba(240, 181, 69, 0.14); }
+.seg input { accent-color: var(--accent); margin: 0; }
+select, input[type="text"] {
+  grid-column: 1 / -1;
+  width: 100%;
+  min-height: 38px;
+  padding: 6px 10px;
+  font: 500 14px/1.3 var(--body);
+  color: var(--ink);
+  background: rgba(0, 0, 0, 0.35);
+  border: 2px solid var(--edge-hi);
+}
+.screen--death {
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(ellipse at center, rgba(120, 10, 10, 0.55), rgba(40, 0, 0, 0.85));
+}
+.death-box { display: flex; flex-direction: column; align-items: center; gap: 16px; text-align: center; }
+.death-h { margin: 0; font: 400 clamp(22px, 5vw, 40px)/1.2 var(--pixel); color: #ffdad0; text-shadow: 0 4px 0 #5a0f0a; }
+.death-cause { margin: 0; font-size: 17px; color: var(--ink); }
+
+@media (max-width: 720px) {
+  .cont-layout { flex-direction: column; }
+  .book { width: 100%; }
+  .book-list { max-height: 34vh; }
+}
 
 /* ---- HUD ---------------------------------------------------------------------- */
 /* HUD выше сенсорного слоя, но пропускает касания — кроме хотбара */
@@ -297,7 +379,7 @@ body:not(.is-touch) #controls-touch { display: none; }
 #toast {
   position: absolute;
   left: 50%;
-  bottom: calc(var(--slot) + 34px + env(safe-area-inset-bottom, 0px));
+  bottom: calc(var(--slot) + 70px + env(safe-area-inset-bottom, 0px));
   transform: translateX(-50%);
   margin: 0;
   max-width: calc(100vw - 32px);
@@ -332,15 +414,59 @@ body:not(.is-touch) #controls-touch { display: none; }
   cursor: pointer;
   touch-action: manipulation;
 }
-.slot img { width: 78%; height: 78%; margin: 11%; display: block; image-rendering: pixelated; }
-.slot span {
+.slot-grid .slot { width: var(--islot); height: var(--islot); background: rgba(0, 0, 0, 0.32); border-color: #454f48; }
+.slot-grid .slot:hover { border-color: var(--ink-3); }
+.slot--big { width: calc(var(--islot) * 1.25) !important; height: calc(var(--islot) * 1.25) !important; }
+.slot img { position: absolute; inset: 11%; width: 78%; height: 78%; display: block; image-rendering: pixelated; }
+.slot .cnt {
+  position: absolute;
+  right: 3px;
+  bottom: 1px;
+  font: 700 12px/1 var(--body);
+  color: #fff;
+  text-shadow: 1px 1px 0 #1b1b1b, -1px 0 0 #1b1b1b;
+  font-variant-numeric: tabular-nums;
+}
+.slot .num {
   position: absolute;
   top: 1px;
   left: 3px;
   font: 600 10px/1 var(--body);
   color: rgba(255, 255, 255, 0.55);
 }
+.slot .dur { position: absolute; left: 12%; right: 12%; bottom: 10%; height: 3px; background: #1a1a1a; }
+.slot .dur i { display: block; height: 100%; }
 .slot.is-active { border-color: var(--accent); background: rgba(240, 181, 69, 0.16); box-shadow: 0 0 0 1px var(--accent-deep); }
+
+/* Сердца, сытость, броня, воздух */
+#bars {
+  position: absolute;
+  left: 50%;
+  bottom: calc(var(--slot) + 26px + env(safe-area-inset-bottom, 0px));
+  transform: translateX(-50%);
+  width: calc(var(--slot) * 9 + 36px);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.bars-row { display: flex; justify-content: space-between; gap: 6px; }
+.icons { display: flex; gap: 1px; }
+.icons--rtl { flex-direction: row-reverse; align-self: flex-end; }
+.icons img { width: var(--icon); height: var(--icon); image-rendering: pixelated; }
+#hearts.is-poison img { filter: hue-rotate(95deg) saturate(0.8); }
+#food.is-hunger img { filter: hue-rotate(60deg) saturate(0.7); }
+#vignette {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0) 45%, rgba(170, 0, 0, 0.55) 100%);
+}
+#fire-tint { position: absolute; inset: 0; background: linear-gradient(0deg, rgba(255, 110, 20, 0.45), rgba(255, 110, 20, 0) 45%); }
+#sleep { position: absolute; inset: 0; background: #05070a; opacity: 0; transition: opacity 1.4s; }
+#sleep.is-on { opacity: 0.94; }
+body:not([data-state="playing"]) .crosshair,
+body[data-state="container"] #bars,
+body[data-state="dead"] #bars { display: none; }
 
 /* ---- Сенсорные кнопки ------------------------------------------------------ */
 #touch {
@@ -402,7 +528,7 @@ body:not(.is-touch) #controls-touch { display: none; }
 .t-actions {
   position: absolute;
   right: max(16px, env(safe-area-inset-right, 0px));
-  bottom: calc(var(--slot) + 32px + env(safe-area-inset-bottom, 0px));
+  bottom: calc(var(--slot) + 64px + env(safe-area-inset-bottom, 0px));
   display: grid;
   grid-template-columns: 68px 68px;
   gap: 10px;
@@ -425,5 +551,5 @@ body:not(.is-touch) #controls-touch { display: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .btn, #toast { transition: none; }
+  .btn, #toast, #sleep { transition: none; }
 }

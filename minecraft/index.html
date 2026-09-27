@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 <title>Кубокрафт</title>
-<meta name="description" content="Бесконечный мир из кубиков в браузере: копай, строй, летай. Воксельная песочница на чистом WebGL.">
+<meta name="description" content="Бесконечный мир из кубиков в браузере: выживание и творчество, крафт, мобы, механизмы. Воксельная песочница на чистом WebGL.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600;700&family=Press+Start+2P&display=swap">
@@ -18,20 +18,37 @@
 <div id="hud" hidden>
   <div class="crosshair" aria-hidden="true"></div>
   <div id="water-tint" hidden></div>
+  <div id="fire-tint" hidden></div>
+  <div id="vignette" aria-hidden="true"></div>
+  <div id="sleep" aria-hidden="true"></div>
   <pre id="debug" hidden></pre>
   <p id="hint" hidden></p>
   <p id="toast" aria-live="polite"></p>
-  <div id="hotbar" role="toolbar" aria-label="Выбор блока"></div>
+  <div id="bars" aria-label="Здоровье и сытость">
+    <div id="armor-row" class="icons" hidden></div>
+    <div class="bars-row">
+      <div id="hearts" class="icons"></div>
+      <div id="food" class="icons icons--rtl"></div>
+    </div>
+    <div id="air-row" class="icons icons--rtl" hidden></div>
+  </div>
+  <div id="hotbar" role="toolbar" aria-label="Выбор предмета"></div>
 </div>
 
 <!-- Сенсорное управление -->
 <div id="touch" hidden>
   <div id="joy" hidden><div id="joy-knob"></div></div>
   <div class="t-top">
+    <button type="button" class="t-btn t-small" id="t-drop" aria-label="Выбросить предмет">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>
+    </button>
+    <button type="button" class="t-btn t-small" id="t-view" aria-label="Сменить вид камеры">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12zM12 9a3 3 0 100 6 3 3 0 000-6z"/></svg>
+    </button>
     <button type="button" class="t-btn t-small" id="t-fly" aria-label="Полёт">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 14l8-8 8 8M4 20l8-8 8 8"/></svg>
     </button>
-    <button type="button" class="t-btn t-small" id="t-inv" aria-label="Все блоки">
+    <button type="button" class="t-btn t-small" id="t-inv" aria-label="Инвентарь">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z"/></svg>
     </button>
     <button type="button" class="t-btn t-small" id="t-pause" aria-label="Пауза">
@@ -39,15 +56,15 @@
     </button>
   </div>
   <div class="t-actions">
-    <button type="button" class="t-btn" id="t-break" aria-label="Сломать блок">
+    <button type="button" class="t-btn" id="t-break" aria-label="Бить и ломать">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5l14 14M19 5L5 19"/></svg>
-      <span>Сломать</span>
+      <span>Бить</span>
     </button>
-    <button type="button" class="t-btn" id="t-place" aria-label="Поставить блок">
+    <button type="button" class="t-btn" id="t-place" aria-label="Использовать или поставить">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9zM12 12l8-4.5M12 12v9M12 12L4 7.5"/></svg>
-      <span>Поставить</span>
+      <span>Действие</span>
     </button>
-    <button type="button" class="t-btn t-down" id="t-down" aria-label="Спуститься" hidden>
+    <button type="button" class="t-btn t-down" id="t-down" aria-label="Присесть или спуститься">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 9l7 7 7-7"/></svg>
     </button>
     <button type="button" class="t-btn t-jump" id="t-jump" aria-label="Прыжок">
@@ -60,7 +77,7 @@
 <section id="title" class="screen screen--title" aria-labelledby="title-h">
   <div class="title-col">
     <h1 id="title-h" class="logo">Кубокрафт</h1>
-    <p class="tagline">Бесконечный мир из&nbsp;кубиков прямо в&nbsp;браузере. Копайте пещеры, стройте дома, летайте над горами.</p>
+    <p class="tagline">Бесконечный мир из&nbsp;кубиков прямо в&nbsp;браузере. Выживайте ночью, добывайте руду, стройте механизмы&nbsp;— или творите без ограничений.</p>
 
     <div class="title-actions">
       <button type="button" class="btn btn--primary" id="btn-play">Играть</button>
@@ -72,28 +89,56 @@
     </p>
     <p class="rotate-hint">Удобнее играть, повернув телефон горизонтально.</p>
 
+    <div class="panel newworld" id="newworld" hidden>
+      <h2 class="controls-h">Новый мир</h2>
+      <fieldset class="seg">
+        <legend class="set-name">Режим</legend>
+        <label><input type="radio" name="nw-mode" value="survival" checked> <span>Выживание</span></label>
+        <label><input type="radio" name="nw-mode" value="creative"> <span>Творчество</span></label>
+      </fieldset>
+      <label class="set-row" for="nw-diff">
+        <span class="set-name">Сложность</span>
+        <select id="nw-diff">
+          <option value="0">Мирная — без чудовищ</option>
+          <option value="1">Лёгкая</option>
+          <option value="2" selected>Обычная</option>
+          <option value="3">Сложная</option>
+        </select>
+      </label>
+      <label class="set-row" for="nw-seed">
+        <span class="set-name">Сид (необязательно)</span>
+        <input type="text" id="nw-seed" inputmode="text" autocomplete="off" placeholder="например, 482913 или «Сосновый бор»">
+      </label>
+      <p class="nw-warn" id="nw-warn">Текущий мир будет удалён.</p>
+      <div class="title-actions">
+        <button type="button" class="btn btn--primary" id="nw-create">Создать мир</button>
+        <button type="button" class="btn" id="nw-cancel">Отмена</button>
+      </div>
+    </div>
+
     <div class="controls" id="controls-desktop">
       <h2 class="controls-h">Клавиатура и мышь</h2>
       <dl class="keys">
-        <dt><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></dt><dd>ходьба</dd>
-        <dt><kbd>Пробел</kbd></dt><dd>прыжок, двойное нажатие — полёт</dd>
-        <dt><kbd>Shift</kbd></dt><dd>бег, в полёте — вниз</dd>
-        <dt><kbd>ЛКМ</kbd></dt><dd>сломать блок</dd>
-        <dt><kbd>ПКМ</kbd></dt><dd>поставить блок</dd>
-        <dt><kbd>СКМ</kbd></dt><dd>взять блок в руку</dd>
-        <dt><kbd>1–9</kbd><kbd>колесо</kbd></dt><dd>выбор блока</dd>
-        <dt><kbd>E</kbd></dt><dd>все блоки</dd>
-        <dt><kbd>F</kbd><kbd>F3</kbd></dt><dd>полёт, координаты</dd>
+        <dt><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></dt><dd>ходьба, двойное <kbd>W</kbd> или <kbd>R</kbd> — бег</dd>
+        <dt><kbd>Пробел</kbd></dt><dd>прыжок, плавание</dd>
+        <dt><kbd>Shift</kbd></dt><dd>красться (не упадёте с края)</dd>
+        <dt><kbd>ЛКМ</kbd></dt><dd>бить, удерживать — добывать</dd>
+        <dt><kbd>ПКМ</kbd></dt><dd>поставить, есть, открыть, стрелять</dd>
+        <dt><kbd>E</kbd></dt><dd>инвентарь, крафт и рецепты</dd>
+        <dt><kbd>1–9</kbd><kbd>колесо</kbd></dt><dd>выбор предмета, <kbd>Q</kbd> — выбросить</dd>
+        <dt><kbd>F5</kbd><kbd>F3</kbd></dt><dd>вид камеры, координаты</dd>
+        <dt><kbd>F</kbd></dt><dd>полёт (в творчестве)</dd>
         <dt><kbd>Esc</kbd></dt><dd>пауза и настройки</dd>
       </dl>
     </div>
     <div class="controls" id="controls-touch">
       <h2 class="controls-h">Сенсорный экран</h2>
       <dl class="keys">
-        <dt>Левая половина</dt><dd>джойстик ходьбы</dd>
+        <dt>Левая половина</dt><dd>джойстик, до упора вперёд — бег</dd>
         <dt>Правая половина</dt><dd>свайп — осмотреться</dd>
-        <dt>Кнопки справа</dt><dd>прыжок, сломать, поставить</dd>
-        <dt>Сверху</dt><dd>полёт, все блоки, пауза</dd>
+        <dt>«Бить»</dt><dd>удар, удерживать — добывать</dd>
+        <dt>«Действие»</dt><dd>поставить, есть, открыть</dd>
+        <dt>В инвентаре</dt><dd>долгое нажатие — взять половину</dd>
       </dl>
     </div>
   </div>
@@ -106,10 +151,29 @@
     <button type="button" class="btn btn--primary btn--wide" id="btn-resume">Вернуться в игру</button>
 
     <div class="settings">
+      <fieldset class="seg">
+        <legend class="set-name">Режим игры</legend>
+        <label><input type="radio" name="set-mode" value="survival"> <span>Выживание</span></label>
+        <label><input type="radio" name="set-mode" value="creative"> <span>Творчество</span></label>
+      </fieldset>
+      <label class="set-row" for="set-diff">
+        <span class="set-name">Сложность</span>
+        <select id="set-diff">
+          <option value="0">Мирная</option>
+          <option value="1">Лёгкая</option>
+          <option value="2">Обычная</option>
+          <option value="3">Сложная</option>
+        </select>
+      </label>
       <label class="set-row" for="set-dist">
         <span class="set-name">Дальность прорисовки</span>
         <output id="out-dist" for="set-dist">6 чанков</output>
         <input type="range" id="set-dist" min="2" max="10" step="1" value="6">
+      </label>
+      <label class="set-row" for="set-bright">
+        <span class="set-name">Яркость</span>
+        <output id="out-bright" for="set-bright">25%</output>
+        <input type="range" id="set-bright" min="0" max="1" step="0.05" value="0.25">
       </label>
       <label class="set-row" for="set-sens">
         <span class="set-name">Чувствительность обзора</span>
@@ -123,22 +187,50 @@
     </div>
 
     <div class="sheet-foot">
-      <button type="button" class="btn btn--danger btn--wide" id="btn-new">Новый мир</button>
-      <button type="button" class="btn btn--wide" id="btn-title">В главное меню</button>
+      <button type="button" class="btn btn--wide" id="btn-title">Сохранить и выйти в меню</button>
       <p class="save-note" id="save-note">Мир сохраняется автоматически в этом браузере.</p>
     </div>
   </div>
 </section>
 
-<!-- Инвентарь -->
-<section id="inventory" class="screen screen--center" aria-labelledby="inv-h" hidden>
+<!-- Инвентарь, верстак, печь, сундук -->
+<section id="container" class="screen screen--center" aria-labelledby="cont-title" hidden>
   <div class="sheet sheet--inv">
     <div class="inv-head">
-      <h2 id="inv-h" class="sheet-h">Блоки</h2>
-      <button type="button" class="btn" id="btn-inv-close">Готово <kbd>E</kbd></button>
+      <h2 id="cont-title" class="sheet-h">Инвентарь</h2>
+      <div class="inv-head-actions">
+        <button type="button" class="btn btn--small" id="btn-book">Рецепты</button>
+        <button type="button" class="btn btn--small" id="btn-cont-close">Готово <kbd>E</kbd></button>
+      </div>
     </div>
-    <p class="inv-hint">Выберите ячейку в панели внизу, затем блок — он встанет в эту ячейку.</p>
-    <div id="inv-grid" class="inv-grid"></div>
+    <div class="cont-layout">
+      <div class="cont-body">
+        <div id="cont-top" class="cont-top"></div>
+        <div id="inv-main" class="inv-main"></div>
+        <div id="inv-hot" class="inv-hot"></div>
+        <div class="cont-foot">
+          <button type="button" class="btn btn--small" id="btn-quick" title="Переносить предметы одним нажатием (как Shift+клик)">Быстрый перенос</button>
+          <button type="button" class="btn btn--small" id="btn-drop">Выбросить взятое</button>
+        </div>
+      </div>
+      <aside id="book" class="book" hidden aria-label="Книга рецептов">
+        <label class="set-check" for="book-all"><input type="checkbox" id="book-all"> <span>Показать все рецепты</span></label>
+        <div id="book-list" class="book-list"></div>
+      </aside>
+    </div>
+  </div>
+  <div id="cursor-stack" class="slot cursor-stack" hidden><img alt="" hidden><span class="cnt"></span><span class="dur" hidden><i></i></span></div>
+</section>
+
+<!-- Смерть -->
+<section id="death" class="screen screen--death" aria-labelledby="death-h" hidden>
+  <div class="death-box">
+    <h2 id="death-h" class="death-h">Вы погибли</h2>
+    <p id="death-cause" class="death-cause"></p>
+    <div class="title-actions">
+      <button type="button" class="btn btn--primary" id="btn-respawn">Возродиться</button>
+      <button type="button" class="btn" id="btn-death-title">В главное меню</button>
+    </div>
   </div>
 </section>
 
@@ -150,9 +242,16 @@
 </div>
 
 <script src="js/noise.js"></script>
-<script src="js/blocks.js"></script>
+<script src="js/textures.js"></script>
+<script src="js/registry.js"></script>
 <script src="js/world.js"></script>
 <script src="js/renderer.js"></script>
+<script src="js/models.js"></script>
+<script src="js/entities.js"></script>
+<script src="js/sim.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/player.js"></script>
+<script src="js/ui.js"></script>
 <script src="js/game.js"></script>
 </body>
 </html>

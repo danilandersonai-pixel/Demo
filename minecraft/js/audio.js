@@ -1,0 +1,145 @@
+/* Кубокрафт — синтезированные звуки (Web Audio): удары по материалам, голоса мобов,
+   взрывы, щелчки механизмов. Громкость и панорама зависят от положения источника. */
+(function (KC) {
+  'use strict';
+
+  var ctx = null, master = null, noise = null, enabled = true;
+  var listener = { x: 0, y: 0, z: 0, yaw: 0 };
+
+  function ensure() {
+    if (!enabled) return;
+    try {
+      if (!ctx) {
+        var AC = window.AudioContext || window.webkitAudioContext;
+        if (!AC) return;
+        ctx = new AC();
+        var len = Math.floor(ctx.sampleRate * 1.2);
+        noise = ctx.createBuffer(1, len, ctx.sampleRate);
+        var ch = noise.getChannelData(0);
+        for (var i = 0; i < len; i++) ch[i] = Math.random() * 2 - 1;
+        master = ctx.createGain();
+        master.gain.value = 0.5;
+        master.connect(ctx.destination);
+      }
+      if (ctx.state === 'suspended') ctx.resume();
+    } catch (e) { /* звук необязателен */ }
+  }
+
+  // Выход с громкостью и панорамой по положению источника
+  function out(x, y, z, vol) {
+    var g = ctx.createGain();
+    var v = vol === undefined ? 1 : vol;
+    var pan = 0;
+    if (x !== undefined) {
+      var dx = x - listener.x, dy = y - listener.y, dz = z - listener.z, d = Math.sqrt(dx * dx + dy * dy + dz * dz);
+      v *= Math.max(0, 1 - d / 28);
+      if (d > 0.5) {
+        var rx = Math.cos(listener.yaw), rz = -Math.sin(listener.yaw);
+        pan = Math.max(-0.8, Math.min(0.8, (dx * rx + dz * rz) / d));
+      }
+    }
+    g.gain.value = v;
+    if (ctx.createStereoPanner) {
+      var p = ctx.createStereoPanner();
+      p.pan.value = pan;
+      g.connect(p); p.connect(master);
+    } else g.connect(master);
+    return v > 0.01 ? g : null;
+  }
+
+  function env(g, t, a, peak, dur) {
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(peak, t + a);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  }
+  function noiseHit(dest, t, freq, q, dur, peak, type) {
+    var src = ctx.createBufferSource();
+    src.buffer = noise;
+    var f = ctx.createBiquadFilter();
+    f.type = type || 'bandpass'; f.frequency.value = freq; f.Q.value = q;
+    var g = ctx.createGain();
+    env(g, t, 0.006, peak, dur);
+    src.connect(f); f.connect(g); g.connect(dest);
+    src.start(t, Math.random() * 0.5); src.stop(t + dur + 0.05);
+  }
+  function tone(dest, t, type, f0, f1, dur, peak, lp) {
+    var o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = type;
+    o.frequency.setValueAtTime(f0, t);
+    o.frequency.exponentialRampToValueAtTime(Math.max(20, f1), t + dur);
+    env(g, t, 0.01, peak, dur);
+    if (lp) {
+      var f = ctx.createBiquadFilter();
+      f.type = 'lowpass'; f.frequency.value = lp;
+      o.connect(f); f.connect(g);
+    } else o.connect(g);
+    g.connect(dest);
+    o.start(t); o.stop(t + dur + 0.05);
+    return o;
+  }
+
+  var MAT = {
+    stone: [1700, 1.0, 0.11, 1.4], grass: [950, 0.8, 0.12, 1.3], dirt: [650, 0.9, 0.12, 1.4],
+    sand: [2600, 0.6, 0.15, 1.0], wood: [520, 2.0, 0.12, 1.6], plant: [3000, 0.7, 0.08, 0.8],
+    glass: [3800, 3.5, 0.16, 1.2], cloth: [800, 0.5, 0.1, 1.0], snow: [1400, 0.5, 0.14, 1.0],
+    water: [420, 1.2, 0.2, 1.1], metal: [2300, 8.0, 0.24, 1.0]
+  };
+
+  function play(name, x, y, z, vol) {
+    if (!enabled || !ctx || ctx.state !== 'running') return;
+    try {
+      var d = out(x, y, z, vol);
+      if (!d) return;
+      var t = ctx.currentTime, i;
+      if (name.indexOf('break:') === 0 || name.indexOf('place:') === 0 || name.indexOf('dig:') === 0) {
+        var kind = name.split(':'), p = MAT[kind[1]] || MAT.stone;
+        var place = kind[0] === 'place', dig = kind[0] === 'dig';
+        var k = dig ? 0.35 : place ? 0.7 : 1;
+        noiseHit(d, t, p[0] * (0.88 + Math.random() * 0.24) * (place ? 0.8 : 1), p[1], p[2] * (dig ? 0.6 : 1), p[3] * k);
+        if (!dig && (place || kind[1] === 'wood' || kind[1] === 'stone')) tone(d, t, 'triangle', place ? 180 : 130, 60, 0.1, 0.3 * k);
+        if (kind[1] === 'glass' && kind[0] === 'break') for (i = 0; i < 3; i++) tone(d, t + i * 0.03, 'sine', 2400 + Math.random() * 2400, 2000, 0.12, 0.12);
+        return;
+      }
+      switch (name) {
+        case 'say-pig': tone(d, t, 'square', 190, 140, 0.16, 0.25, 900); tone(d, t + 0.2, 'square', 170, 120, 0.14, 0.2, 900); break;
+        case 'say-cow': var o = tone(d, t, 'sawtooth', 125, 92, 0.8, 0.3, 650); o.detune.setValueAtTime(0, t); o.detune.linearRampToValueAtTime(-80, t + 0.8); break;
+        case 'say-sheep':
+          var s = tone(d, t, 'sawtooth', 390, 330, 0.55, 0.22, 1600);
+          var lfo = ctx.createOscillator(), lg = ctx.createGain(); lfo.frequency.value = 24; lg.gain.value = 30;
+          lfo.connect(lg); lg.connect(s.frequency); lfo.start(t); lfo.stop(t + 0.6);
+          break;
+        case 'say-chicken': for (i = 0; i < 3; i++) tone(d, t + i * 0.09, 'triangle', 950, 700, 0.06, 0.2); break;
+        case 'say-upyr': tone(d, t, 'sawtooth', 92, 68, 1.0, 0.32, 380); noiseHit(d, t, 300, 0.8, 0.9, 0.3, 'lowpass'); break;
+        case 'say-archer': for (i = 0; i < 5; i++) noiseHit(d, t + i * 0.05, 2600, 4, 0.03, 0.6, 'highpass'); break;
+        case 'say-spider': noiseHit(d, t, 3200, 0.8, 0.45, 0.5, 'highpass'); break;
+        case 'hurt-player': tone(d, t, 'square', 320, 150, 0.16, 0.3, 1400); break;
+        case 'hurt-pig': case 'hurt-cow': case 'hurt-sheep': case 'hurt-chicken':
+          tone(d, t, 'square', 420, 220, 0.14, 0.25, 1600); break;
+        case 'hurt-upyr': case 'hurt-archer': case 'hurt-spider':
+          tone(d, t, 'sawtooth', 160, 90, 0.2, 0.3, 700); break;
+        case 'eat': for (i = 0; i < 3; i++) noiseHit(d, t + i * 0.12, 900, 1.5, 0.07, 1.2); break;
+        case 'burp': tone(d, t, 'sawtooth', 110, 70, 0.3, 0.3, 400); break;
+        case 'pickup': tone(d, t, 'sine', 700 + Math.random() * 200, 1300, 0.08, 0.2); break;
+        case 'bow': tone(d, t, 'triangle', 260, 110, 0.18, 0.35); noiseHit(d, t, 1200, 1, 0.12, 0.5); break;
+        case 'arrow-hit': noiseHit(d, t, 1200, 1, 0.06, 0.9, 'lowpass'); break;
+        case 'boom': noiseHit(d, t, 380, 0.7, 1.3, 2.4, 'lowpass'); tone(d, t, 'sine', 70, 32, 1.0, 0.8); break;
+        case 'fuse': noiseHit(d, t, 5200, 0.6, 0.9, 0.5, 'highpass'); break;
+        case 'fizz': noiseHit(d, t, 3000, 1.2, 0.5, 0.8); break;
+        case 'click': tone(d, t, 'square', 1500, 1200, 0.025, 0.2); break;
+        case 'door-open': tone(d, t, 'sawtooth', 220, 150, 0.25, 0.2, 700); break;
+        case 'door-close': tone(d, t, 'sawtooth', 160, 110, 0.18, 0.25, 600); noiseHit(d, t + 0.15, 400, 1, 0.08, 0.8); break;
+        case 'piston': noiseHit(d, t, 900, 1, 0.15, 1.0, 'lowpass'); tone(d, t, 'triangle', 90, 60, 0.12, 0.3); break;
+        case 'splash': noiseHit(d, t, 700, 0.6, 0.4, 1.2, 'lowpass'); break;
+        case 'tool-break': tone(d, t, 'square', 900, 300, 0.2, 0.25); noiseHit(d, t, 2400, 2, 0.15, 0.8); break;
+        case 'step': noiseHit(d, t, 700, 1, 0.05, 0.25); break;
+      }
+    } catch (e) { /* звук необязателен */ }
+  }
+
+  KC.Audio = {
+    ensure: ensure,
+    play: play,
+    setListener: function (x, y, z, yaw) { listener.x = x; listener.y = y; listener.z = z; listener.yaw = yaw; },
+    setEnabled: function (on) { enabled = on; if (on) ensure(); }
+  };
+})(window.KC = window.KC || {});
