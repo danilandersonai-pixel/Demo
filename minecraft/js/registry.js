@@ -48,7 +48,11 @@
     FILE_CABINET: 169, BATHTUB: 170, TOILET: 171, MED_CABINET: 172, POT_PLANT: 173, CARPET: 174, COOLER: 175,
     DINING_TABLE: 176, CHAIR: 177,
     // Следы войны
-    SCORCHED: 178, EMBERS: 179, SOOTED_BRICK: 180, SOOTED_CONCRETE: 181, CAR_BURNT: 182, HEDGEHOG: 183, BARBED_WIRE: 184, MARBLE: 185, CLOCK: 186
+    SCORCHED: 178, EMBERS: 179, SOOTED_BRICK: 180, SOOTED_CONCRETE: 181, CAR_BURNT: 182, HEDGEHOG: 183, BARBED_WIRE: 184, MARBLE: 185, CLOCK: 186,
+    // Порт, старый город, правительственный квартал, электростанция
+    CONTAINER: 187, BOLLARD: 188, CRANE_BEAM: 189, SHIP_HULL: 190, SHIP_CABIN: 191, ROOF_TILE: 192, ROOF_SLOPE: 193, PLASTER: 194,
+    PAVING: 195, CHIMNEY_BRICK: 196, COOLING_CONCRETE: 197, TRANSFORMER: 198, QUAY_EDGE: 199, STAINED_GLASS: 200, COPPER_ROOF: 201,
+    COPPER_SLOPE: 202, FLAG: 203
   };
 
   // ---- Идентификаторы предметов -----------------------------------------------
@@ -390,6 +394,34 @@
     replaceable: false, drop: [[I.IRON_INGOT, 1]] });
   blk(B.MARBLE, 'Мрамор', 'marble', ext(rockPick, { hardness: 2 }));
   blk(B.CLOCK, 'Башенные часы', { side: 'marble', front: 'clockFace' }, ext(rockPick, { hardness: 2 }));
+  // ---- Порт, старый город, правительственный квартал, электростанция ---------------------------
+  // морской контейнер: цвет — по meta (0–3)
+  blk(B.CONTAINER, 'Морской контейнер', 'container0', ext(metal, { siege: 24, drop: [[I.IRON_INGOT, 2]] }));
+  blk(B.BOLLARD, 'Причальная тумба', 'metalDark', ext(prop, { hardness: 4, siege: 20, model: {
+    boxes: [[5, 0, 5, 11, 7, 11, 'metalDark'], [4, 7, 4, 12, 9, 12, 'metalDark']], coll: [4, 0, 4, 12, 9, 12] } }));
+  blk(B.CRANE_BEAM, 'Ферма крана', 'craneLattice', ext(metal, { opaque: false, glass: true, hardness: 3, drop: [[I.IRON_INGOT, 1]] }));
+  blk(B.SHIP_HULL, 'Корпус судна', 'shipHull', ext(metal, { drop: [[I.IRON_INGOT, 1]] }));
+  blk(B.SHIP_CABIN, 'Надстройка судна', 'shipCabin', ext(metal, { hardness: 3 }));
+  blk(B.ROOF_TILE, 'Черепица', 'roofTile', ext(rockPick, { hardness: 1.2 }));
+  // скат крыши — как ступени, но из черепицы
+  blk(B.ROOF_SLOPE, 'Скат черепичной крыши', 'roofTile', ext(prop, { hardness: 1.2, mat: 'stone', model: {
+    boxes: [[0, 0, 0, 16, 8, 16, 'roofTile'], [0, 8, 0, 16, 16, 8, 'roofTile']], coll: [0, 0, 0, 16, 8, 16], coll2: [0, 8, 0, 16, 16, 8], sel: [0, 0, 0, 16, 16, 16] } }));
+  blk(B.PLASTER, 'Штукатурка', 'plaster0', ext(rockPick, { hardness: 1.5, siege: 14 }));
+  blk(B.PAVING, 'Брусчатка', 'paving', ext(rockPick, { hardness: 1.5 }));
+  // кирпич заводской трубы: meta 0 — красный, 1 — белый (полосы)
+  blk(B.CHIMNEY_BRICK, 'Кирпич трубы', 'chimneyRed', ext(rockPick, { hardness: 2 }));
+  blk(B.COOLING_CONCRETE, 'Бетон градирни', 'coolingConcrete', ext(rockPick, { hardness: 2 }));
+  blk(B.TRANSFORMER, 'Трансформатор', 'transformerSide', ext(prop, { hardness: 3, siege: 20, model: {
+    boxes: [[1, 0, 2, 15, 12, 14, 'transformerSide'], [3, 12, 5, 5, 16, 7, 'porcelain'], [7, 12, 5, 9, 16, 7, 'porcelain'], [11, 12, 5, 13, 16, 7, 'porcelain']],
+    coll: [1, 0, 2, 15, 12, 14], sel: [1, 0, 2, 15, 16, 14] } }));
+  blk(B.QUAY_EDGE, 'Край причала', { top: 'quayEdge', side: 'concrete' }, ext(rockPick, { hardness: 2 }));
+  blk(B.STAINED_GLASS, 'Витраж', 'stainedGlass', { opaque: false, glass: true, hardness: 0.3, mat: 'glass', drop: [] });
+  // флаг: тонкое полотнище в клетке рядом с флагштоком, вдоль X (meta 0) или Z (meta 1)
+  blk(B.FLAG, 'Флаг', 'flagCity', ext(prop, { tool: null, hardness: 0.3, mat: 'cloth', siege: 1, fuel: 60, model: {
+    boxes: [[0, 3, 7.5, 16, 15, 8.5, 'flagCity']], coll: [0, 3, 7, 16, 15, 9] } }));
+  blk(B.COPPER_ROOF, 'Медная кровля', 'copperRoof', ext(metal, { hardness: 2 }));
+  blk(B.COPPER_SLOPE, 'Скат медной кровли', 'copperRoof', ext(prop, { hardness: 2, model: {
+    boxes: [[0, 0, 0, 16, 8, 16, 'copperRoof'], [0, 8, 0, 16, 16, 8, 'copperRoof']], coll: [0, 0, 0, 16, 8, 16], coll2: [0, 8, 0, 16, 16, 8], sel: [0, 0, 0, 16, 16, 16] } }));
   // плитки коробок и вариантов «наклеек» — в индексы атласа
   BLOCKS.forEach(function (b) {
     if (!b) return;

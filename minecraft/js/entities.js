@@ -1301,7 +1301,11 @@
     downtown: [['infected', 0.45], ['runner', 0.8], ['brute', 1]],
     residential: [['infected', 0.62], ['runner', 0.86], ['brute', 1]],
     industrial: [['infected', 0.5], ['runner', 0.68], ['brute', 1]],
-    suburb: [['infected', 0.8], ['runner', 0.96], ['brute', 1]]
+    suburb: [['infected', 0.8], ['runner', 0.96], ['brute', 1]],
+    port: [['infected', 0.55], ['runner', 0.75], ['brute', 1]],
+    old: [['infected', 0.66], ['runner', 0.9], ['brute', 1]],
+    gov: [['infected', 0.45], ['runner', 0.72], ['brute', 1]],
+    sea: [['infected', 1]]
   };
   var BUILDING_KINDS = { hospital: 'patient', police: 'cop', military: 'soldier' };
   function spawnRules(p) {
@@ -1393,7 +1397,8 @@
   // полицейские в участке. Зачищенное здание пустует до следующего дня.
   var POPULATION = {
     market: [['infected', 9], ['runner', 2]], hospital: [['patient', 7]], police: [['cop', 5]],
-    gas: [['infected', 3]], helipad: [['infected', 5], ['runner', 2], ['brute', 1]], military: [['soldier', 6]]
+    gas: [['infected', 3]], helipad: [['infected', 5], ['runner', 2], ['brute', 1]], military: [['soldier', 6]],
+    church: [['infected', 6], ['runner', 1]], power: [['infected', 3], ['brute', 1]]
   };
   var popT = 0;
   function populateSpecials(dt) {
@@ -1482,7 +1487,10 @@
     downtown: [['sedan', 0.45], ['police', 0.55], ['bus', 0.75], ['pickup', 1]],
     residential: [['sedan', 0.55], ['pickup', 0.85], ['bus', 0.95], ['police', 1]],
     industrial: [['truck', 0.45], ['pickup', 0.8], ['sedan', 1]],
-    suburb: [['pickup', 0.5], ['sedan', 1]]
+    suburb: [['pickup', 0.5], ['sedan', 1]],
+    port: [['truck', 0.5], ['pickup', 0.8], ['sedan', 1]],
+    old: [['sedan', 0.6], ['pickup', 1]],
+    gov: [['sedan', 0.4], ['police', 0.7], ['bus', 0.85], ['pickup', 1]]
   };
   function tryVehicle(kind, x, y, z, yaw) {
     if (!KC.SOLID[world.getBlock(x, y - 1, z)]) return null;
@@ -1508,6 +1516,7 @@
     }
     // машины на дорогах
     var dist = G.districtOf(seed, Math.floor((ox + 8) / cell), Math.floor((oz + 8) / cell));
+    if (!ROAD_KINDS[dist]) return;                                   // в море машин нет
     for (var i = 0; i < 2; i++) {
       if (KC.hash2(c.cx * 5 + i, c.cz, seed + 300) > (i ? 0.2 : 0.45)) continue;
       var lx = Math.floor(KC.hash2(c.cx, c.cz * 5 + i, seed + 301) * 16), lz = Math.floor(KC.hash2(c.cx + i, c.cz - i, seed + 302) * 16);

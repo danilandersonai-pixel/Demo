@@ -644,6 +644,11 @@
       case B.FARMLAND: if (f === 2) return meta & 1 ? T.farmlandWet : T.farmland; break;
       // обои: расцветка по meta (0–3), сверху и снизу — побелка
       case B.WALLPAPER: if (f !== 2 && f !== 3) return T['wallpaper' + (meta & 3)]; break;
+      // контейнеры и штукатурка старого города — четыре цвета по meta, полосы заводской трубы
+      case B.CONTAINER: return T['container' + (meta & 3)];
+      case B.PLASTER: if (f !== 3) return T['plaster' + (meta & 3)]; break;
+      case B.CHIMNEY_BRICK: return meta & 1 ? T.chimneyWhite : T.chimneyRed;
+      case B.SHIP_HULL: return meta & 1 ? T.shipHullRed : T.shipHull;
       // лежачее бревно: meta 1 — вдоль X, 2 — вдоль Z
       case B.LOG: case B.BIRCH_LOG: case B.SPRUCE_LOG:
         if ((meta & 3) === 1) return f === 0 || f === 1 ? tl.top : tl.side;

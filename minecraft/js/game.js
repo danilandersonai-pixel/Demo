@@ -824,7 +824,8 @@
   // ---- Названия мест: район, особое здание, метро ---------------------------------------------
   var SPECIAL_NOTES = { police: 'оружейная за решёткой на первом этаже', hospital: 'аптечки и бинты, но и пациенты', market: 'много еды и толпа внутри',
     gas: 'канистры с топливом, бочки взрываются', helipad: 'лестница на крышу — в северо-западном углу', military: 'оружие, боеприпасы и танк',
-    cityhall: 'восточное крыло рухнуло; сейф мэра — на третьем этаже' };
+    cityhall: 'восточное крыло рухнуло; сейф мэра — на третьем этаже', power: 'градирня, машинный зал, в пультовой — топливо и инструменты',
+    church: 'толстые стены и колокольня; у алтаря — припасы' };
   var placeT = 0, lastPlace = '';
   function updatePlace(dt) {
     placeT -= dt;
@@ -842,8 +843,9 @@
   }
 
   // ---- Карта района ---------------------------------------------------------------------------
-  var MAP_COL = { downtown: '#4a5160', residential: '#6b5a48', industrial: '#6a6243', suburb: '#8a8a66' };
-  var MAP_ICON = { police: ['П', '#3f6fd8'], hospital: ['Б', '#2fae63'], market: ['С', '#e08a2a'], gas: ['З', '#d0453a'], helipad: ['★', '#f0b545'], military: ['В', '#6b7d3a'], cityhall: ['Р', '#a8864a'] };
+  var MAP_COL = { downtown: '#4a5160', residential: '#6b5a48', industrial: '#6a6243', suburb: '#8a8a66', port: '#56606b', old: '#8a6048', gov: '#7d7566', sea: '#1d4560' };
+  var MAP_ICON = { police: ['П', '#3f6fd8'], hospital: ['Б', '#2fae63'], market: ['С', '#e08a2a'], gas: ['З', '#d0453a'], helipad: ['★', '#f0b545'], military: ['В', '#6b7d3a'],
+    cityhall: ['Р', '#a8864a'], power: ['Э', '#d8b43a'], church: ['Х', '#9b7fc8'] };
   function openMap() {
     if (state !== 'playing') return;
     if (!world || world.type !== 'city' || world.dim !== 'over') { toast('Эта карта — только для города'); return; }
@@ -867,6 +869,7 @@
     g.font = 'bold ' + Math.round(S * 0.5) + 'px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
     for (j = 0; j < N; j++) for (i = 0; i < N; i++) {
       var pl = G.plotInfo(world.seed, pcx - 7 + i, pcz - 7 + j), x0 = i * S, y0 = j * S;
+      if (pl.district === 'sea') { g.fillStyle = MAP_COL.sea; g.fillRect(x0, y0, S, S); continue; }
       g.fillStyle = MAP_COL[pl.district]; g.fillRect(x0 + 10 * k, y0 + 10 * k, 28 * k, 28 * k);
       if (pl.bx0 !== undefined) { g.fillStyle = 'rgba(0,0,0,0.35)'; g.fillRect(x0 + (pl.bx0 - pl.x0 + 10) * k, y0 + (pl.bz0 - pl.z0 + 10) * k, (pl.bx1 - pl.bx0 + 1) * k, (pl.bz1 - pl.bz0 + 1) * k); }
       if (pl.kind === 'park' || pl.kind === 'wild') { g.fillStyle = pl.kind === 'park' ? '#3f8a3a' : '#2c6a30'; g.fillRect(x0 + 12 * k, y0 + 12 * k, 24 * k, 24 * k); }

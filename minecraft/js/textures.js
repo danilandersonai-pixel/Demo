@@ -1806,6 +1806,114 @@
     for (var cr = 0; cr < 5; cr++) px(9 + cr, 9 + (cr >> 1), [90, 86, 80]);        // трещина по стеклу
   });
 
+  // ---- Порт, старый город, правительственный квартал, электростанция ---------------------------
+  function corrugated(base) {                     // гофрированный металл контейнера: рёбра, рамы, ржавчина
+    for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) {
+      var rib = x % 4 < 2 ? 1 : 0.8, frame = y === 0 || y === 15 || x === 0 || x === 15;
+      var c = frame ? mul(base, 0.62) : mul(base, rib);
+      if (!frame && rnd() < 0.05) c = [120, 70, 40];
+      px(x, y, jit(c, 0.05));
+    }
+  }
+  tile('container0', function () { corrugated([176, 58, 44]); });
+  tile('container1', function () { corrugated([46, 92, 150]); });
+  tile('container2', function () { corrugated([60, 128, 76]); });
+  tile('container3', function () { corrugated([214, 132, 40]); });
+  tile('craneLattice', function () {              // решётчатая ферма крана: жёлтые пояса и раскосы
+    clear();
+    for (var i = 0; i < 16; i++) {
+      px(i, 0, [226, 180, 40]); px(i, 15, [226, 180, 40]); px(0, i, [226, 180, 40]); px(15, i, [226, 180, 40]);
+      px(i, i, [210, 166, 36]); px(15 - i, i, [210, 166, 36]);
+      px(i, 1, [180, 140, 30]); px(1, i, [180, 140, 30]);
+    }
+  });
+  tile('shipHull', function () {                  // надводный борт: тёмно-синяя сталь, заклёпки, потёки ржавчины
+    for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) {
+      var c = [38, 44, 58];
+      if ((x % 8 === 3) && (y === 3 || y === 11)) c = [120, 124, 132];
+      if (y === 7 || y === 15) c = [30, 34, 46];                                // швы листов
+      if ((x * 7 + 5) % 13 === 0 && y > 4 && rnd() < 0.7) c = [104, 62, 40];      // потёки
+      px(x, y, jit(c, 0.07));
+    }
+  });
+  tile('shipHullRed', function () {               // подводная часть: красная краска с налётом
+    for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) {
+      var r = rnd(), c = r < 0.06 ? [70, 92, 60] : r < 0.1 ? [96, 50, 36] : [138, 40, 34];
+      if (y === 7 || y === 15) c = [110, 32, 28];
+      px(x, y, jit(c, 0.07));
+    }
+  });
+  tile('shipCabin', function () {
+    fill([226, 226, 222], 0.03);
+    [[4, 6], [11, 6]].forEach(function (p2) {
+      for (var y = -2; y <= 2; y++) for (var x = -2; x <= 2; x++) if (x * x + y * y <= 5) px(p2[0] + x, p2[1] + y, x * x + y * y > 3 ? [120, 124, 130] : [60, 84, 110]);
+    });
+  });
+  tile('roofTile', function () {                  // черепица: ряды полукруглых плиток
+    for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) {
+      var row = Math.floor(y / 4), off = row % 2 ? 2 : 0, u = (x + off) % 4, v = y % 4;
+      var edge = v === 3 || u === 0;
+      px(x, y, jit(edge ? [132, 58, 38] : v === 0 ? [206, 108, 72] : [182, 86, 54], 0.06));
+    }
+  });
+  function plaster(base) {
+    for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) px(x, y, jit(y === 0 ? mul(base, 0.86) : base, 0.04));
+    for (var k = 0; k < 3; k++) { var sx = Math.floor(rnd() * 15), sy = Math.floor(rnd() * 15); px(sx, sy, mul(base, 0.8)); px(sx + 1, sy, mul(base, 0.86)); }
+  }
+  tile('plaster0', function () { plaster([226, 196, 120]); });
+  tile('plaster1', function () { plaster([222, 162, 150]); });
+  tile('plaster2', function () { plaster([160, 190, 214]); });
+  tile('plaster3', function () { plaster([170, 206, 176]); });
+  tile('paving', function () {                    // брусчатка: прямоугольные камни вразбежку
+    for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) {
+      var row = Math.floor(y / 4), off = row % 2 ? 3 : 0, gap = y % 4 === 3 || (x + off) % 6 === 5;
+      px(x, y, gap ? [70, 68, 64] : jit([128, 124, 118], 0.12));
+    }
+  });
+  function chimney(base, mortar) {
+    for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) {
+      var row = Math.floor(y / 4), off = row % 2 ? 4 : 0, m = y % 4 === 3 || (x + off) % 8 === 7;
+      px(x, y, m ? mortar : jit(base, 0.08));
+    }
+  }
+  tile('chimneyRed', function () { chimney([178, 52, 44], [120, 110, 104]); });
+  tile('chimneyWhite', function () { chimney([222, 220, 214], [150, 146, 140]); });
+  tile('coolingConcrete', function () {
+    for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) px(x, y, jit(x % 5 === 2 && rnd() < 0.6 ? [150, 150, 146] : [186, 186, 180], 0.05));
+  });
+  tile('transformerSide', function () {
+    for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) px(x, y, jit(x % 3 === 0 ? [92, 104, 96] : [118, 132, 122], 0.05));
+    for (var x2 = 5; x2 < 11; x2++) { px(x2, 4, [236, 196, 40]); px(x2, 5, [236, 196, 40]); }     // жёлтая табличка
+    px(7, 4, [30, 30, 30]); px(8, 5, [30, 30, 30]);
+  });
+  tile('quayEdge', function () {                  // край причала: бетон с жёлто-чёрной полосой
+    for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) {
+      var stripe = y >= 12 ? (((x + y) >> 2) % 2 ? [230, 190, 40] : [40, 40, 40]) : jit([158, 158, 154], 0.06);
+      px(x, y, stripe);
+    }
+  });
+  tile('flagCity', function () {                  // флаг города: белое и зелёное полотнище со складками
+    for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) {
+      var fold = 0.88 + 0.12 * Math.sin(x * 0.9), c = y < 8 ? [236, 236, 230] : [58, 150, 76];
+      px(x, y, jit(mul(c, fold), 0.03));
+    }
+  });
+  tile('stainedGlass', function () {             // витраж: ромбы цветного стекла в свинцовом переплёте
+    var pal = [[182, 44, 52], [48, 76, 168], [222, 176, 56], [56, 138, 84], [126, 64, 156]];
+    for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) {
+      var a = x + y, b = x - y + 18, lead = x === 0 || y === 0 || x === 15 || y === 15 || a % 6 === 0 || b % 6 === 0;
+      var col = pal[(Math.floor(a / 6) * 3 + Math.floor(b / 6) * 2) % pal.length];
+      px(x, y, lead ? [46, 44, 48] : jit(mix(col, [255, 250, 230], (a % 6 === 1 || b % 6 === 1) ? 0.3 : 0), 0.1));
+    }
+  });
+  tile('copperRoof', function () {               // медная кровля с патиной: фальцевые швы, потёки
+    for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) {
+      var r = rnd(), seam = x % 4 === 0;
+      var c = seam ? [58, 116, 96] : r < 0.05 ? [150, 104, 64] : r < 0.2 ? [104, 176, 148] : [84, 156, 128];
+      px(x, y, jit(c, 0.08));
+    }
+  });
+
   // ---- Сборка атласа ---------------------------------------------------------------
   function makeAtlas() {
     var cv = document.createElement('canvas');

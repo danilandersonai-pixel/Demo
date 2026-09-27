@@ -278,7 +278,7 @@
   // ---- Природа захватывает город --------------------------------------------------------
   // Сила зарастания 0..1: окраины и спальные районы зеленеют сильнее центра, причём пятнами —
   // рядом с почти чистой улицей бывает квартал, где плитки уже не видно под травой
-  var OVER_BASE = { downtown: 0.2, residential: 0.5, industrial: 0.34, suburb: 0.7 };
+  var OVER_BASE = { downtown: 0.2, residential: 0.5, industrial: 0.34, suburb: 0.7, port: 0.3, old: 0.55, gov: 0.25, sea: 0 };
   function overAt(seed, wx, wz, dist) {
     return clamp(OVER_BASE[dist] + (cellNoise(seed, wx, wz, 26, 300) - 0.5) * 1.2 + (cellNoise(seed, wx, wz, 6, 301) - 0.5) * 0.35, 0, 1);
   }
@@ -313,18 +313,98 @@
     return { x: Math.round(Math.cos(ang) * dist), z: Math.round(Math.sin(ang) * dist) };
   }
 
+  // ---- Остров: дальше ISLAND_R кварталов от центра (берег неровный) — море -----------------------
+  var ISLAND_R = 15.5, SEA_Y = GROUND - 2;
+  var landCache = new Map();
+  function landness(seed, cxI, czI) {
+    var k = seed + ':' + cxI + ',' + czI, v = landCache.get(k);
+    if (v !== undefined) return v;
+    if (landCache.size > 20000) landCache.clear();
+    var C = cityCenter(seed), d = Math.hypot(cxI - C.x, czI - C.z);
+    v = ISLAND_R - d + (cellNoise(seed, cxI, czI, 4, 470) - 0.5) * 5 + (cellNoise(seed, cxI, czI, 2, 471) - 0.5) * 2;
+    if (Math.abs(cxI) <= 4 && Math.abs(czI) <= 4) v = Math.max(v, 3);              // старт и особые здания — на суше
+    if (Math.abs(cxI - C.x - 1) <= 2 && Math.abs(czI - C.z) <= 2) v = Math.max(v, 3); // центр и правительственный квартал
+    landCache.set(k, v);
+    return v;
+  }
+  function seaCell(seed, cxI, czI) { return landness(seed, cxI, czI) <= 0; }
+  // «сушность», сглаженная между кварталами: глубина моря плавно растёт от берега
+  function landLerp(seed, wx, wz) {
+    var fx = wx / CELL_C - 0.5, fz = wz / CELL_C - 0.5, x0 = Math.floor(fx), z0 = Math.floor(fz), tx = fx - x0, tz = fz - z0;
+    return (landness(seed, x0, z0) * (1 - tx) + landness(seed, x0 + 1, z0) * tx) * (1 - tz) +
+      (landness(seed, x0, z0 + 1) * (1 - tx) + landness(seed, x0 + 1, z0 + 1) * tx) * tz;
+  }
+  // Порт смотрит на море в сторону portAngle, старый город — ближе к центру рядом с ним,
+  // электростанция — на берегу по другую сторону от порта
+  function portAngle(seed) { return hash2(5, 9, seed + 472) * Math.PI * 2; }
+  function angDiff(a, b) { var d = Math.abs(a - b) % (Math.PI * 2); return d > Math.PI ? Math.PI * 2 - d : d; }
+  function govCell(seed, cxI, czI) { var C = cityCenter(seed); return Math.abs(cxI - C.x - 2) <= 1 && Math.abs(czI - C.z) <= 1; }
+  // квартал свободен под особую постройку: не старт, не центр, не обязательное здание
+  function freeSite(seed, cxI, czI) {
+    var C = cityCenter(seed);
+    return Math.abs(cxI) + Math.abs(czI) > 1 && !forcedKind(seed, cxI, czI) && !govCell(seed, cxI, czI) && !(cxI === C.x && czI === C.z) &&
+      !seaCell(seed, cxI, czI);
+  }
+  var siteCache = new Map();
+  // Электростанция — два квартала: градирня у воды, машинный зал с трубами — ближе к городу
+  function powerSite(seed) {
+    var k = 'p' + seed, s = siteCache.get(k);
+    if (s !== undefined) return s;
+    var C = cityCenter(seed), a = portAngle(seed) + 0.85;
+    s = null;
+    for (var r = ISLAND_R + 2; r > 5 && !s; r -= 0.5) {
+      var cx = Math.round(C.x + Math.cos(a) * r), cz = Math.round(C.z + Math.sin(a) * r);
+      if (landness(seed, cx, cz) < 1.2) continue;
+      var ax = Math.abs(C.x - cx) >= Math.abs(C.z - cz);
+      var cx2 = cx + (ax ? Math.sign(C.x - cx) : 0), cz2 = cz + (ax ? 0 : Math.sign(C.z - cz));
+      if (freeSite(seed, cx, cz) && freeSite(seed, cx2, cz2)) s = { x: cx, z: cz, x2: cx2, z2: cz2 };
+    }
+    siteCache.set(k, s);
+    return s;
+  }
+  // Собор — в квартале старого города, ближайшем к его середине
+  function churchSite(seed) {
+    var k = 'c' + seed, s = siteCache.get(k);
+    if (s !== undefined) return s;
+    var C = cityCenter(seed), a = portAngle(seed) - 0.75, ox = C.x + Math.cos(a) * 6.8, oz = C.z + Math.sin(a) * 6.8, bd = 1e9;
+    s = null;
+    for (var dz = -3; dz <= 3; dz++) for (var dx = -3; dx <= 3; dx++) {
+      var cx = Math.round(ox) + dx, cz = Math.round(oz) + dz, d = Math.hypot(cx - ox, cz - oz);
+      if (d < bd && districtOf(seed, cx, cz) === 'old' && freeSite(seed, cx, cz)) { bd = d; s = { x: cx, z: cz }; }
+    }
+    siteCache.set(k, s);
+    return s;
+  }
+  // сторона, где за кварталом начинается море (0 — +X, 1 — −X, 2 — +Z, 3 — −Z), или −1
+  function seaSide(seed, cxI, czI) {
+    if (seaCell(seed, cxI + 1, czI)) return 0;
+    if (seaCell(seed, cxI - 1, czI)) return 1;
+    if (seaCell(seed, cxI, czI + 1)) return 2;
+    if (seaCell(seed, cxI, czI - 1)) return 3;
+    return -1;
+  }
+
   var DISTRICTS = {
     downtown: { name: 'Центр', note: 'много добычи и заражённых', danger: 1.6 },
     residential: { name: 'Спальный район', note: 'квартиры и магазины', danger: 1 },
     industrial: { name: 'Промзона', note: 'склады, стройки, громилы', danger: 1.25 },
-    suburb: { name: 'Окраина', note: 'частные дома, тихо', danger: 0.5 }
+    suburb: { name: 'Окраина', note: 'частные дома, тихо', danger: 0.5 },
+    port: { name: 'Порт', note: 'контейнеры, краны и судно у причала', danger: 1.2 },
+    old: { name: 'Старый город', note: 'брусчатка, черепичные крыши, собор', danger: 1 },
+    gov: { name: 'Правительственный квартал', note: 'министерства и площадь с обелиском', danger: 1.4 },
+    sea: { name: 'Море', note: 'открытая вода, до берега далеко', danger: 0.3 }
   };
   function districtOf(seed, cxI, czI) {
     if (Math.abs(cxI) + Math.abs(czI) <= 1) return 'residential';      // тихое место старта
-    var C = cityCenter(seed);
+    var land = landness(seed, cxI, czI);
+    if (land <= 0) return 'sea';
+    if (govCell(seed, cxI, czI)) return 'gov';                          // министерства вокруг ратуши
+    var C = cityCenter(seed), a = Math.atan2(czI - C.z, cxI - C.x), pa = portAngle(seed);
+    if (land < 3.4 && angDiff(a, pa) < 0.42) return 'port';
     var d = Math.hypot(cxI - C.x, czI - C.z) + (cellNoise(seed, cxI, czI, 3, 203) - 0.5) * 2.4;
+    if (d > 4.2 && d < 9.4 && angDiff(a, pa - 0.75) < 0.46 + (cellNoise(seed, cxI, czI, 2, 206) - 0.5) * 0.3) return 'old';
     if (d < 3.3) return 'downtown';
-    if (d > 12.5 + (cellNoise(seed, cxI, czI, 5, 204) - 0.5) * 6) return 'suburb';
+    if (d > 11 + (cellNoise(seed, cxI, czI, 5, 204) - 0.5) * 5) return 'suburb';
     if (cellNoise(seed, cxI, czI, 4, 205) > 0.6) return 'industrial';
     return 'residential';
   }
@@ -344,9 +424,13 @@
     downtown: [['police', 0.05], ['hospital', 0.1], ['market', 0.14], ['military', 0.17]],
     residential: [['police', 0.03], ['hospital', 0.06], ['market', 0.12], ['gas', 0.15]],
     industrial: [['gas', 0.07], ['military', 0.1]],
-    suburb: [['gas', 0.02], ['market', 0.035]]
+    suburb: [['gas', 0.02], ['market', 0.035]],
+    port: [['gas', 0.05]],
+    old: [['market', 0.05], ['hospital', 0.08]],
+    gov: [['police', 0.14]]
   };
-  var SPECIAL_NAMES = { police: 'Полицейский участок', hospital: 'Больница', market: 'Супермаркет', gas: 'Заправка', helipad: 'Площадка эвакуации', military: 'Военный блокпост', cityhall: 'Ратуша' };
+  var SPECIAL_NAMES = { police: 'Полицейский участок', hospital: 'Больница', market: 'Супермаркет', gas: 'Заправка', helipad: 'Площадка эвакуации',
+    military: 'Военный блокпост', cityhall: 'Ратуша', power: 'Электростанция', church: 'Собор' };
 
   var plotCache = new Map();
   function plotInfo(seed, cxI, czI) {
@@ -358,7 +442,10 @@
     var C = cityCenter(seed);
     var r = hash2(cxI, czI, seed + 71), r2 = hash2(cxI, czI, seed + 212);
     var special = cxI === C.x && czI === C.z ? 'helipad' : cxI === C.x + 1 && czI === C.z ? 'cityhall' : forcedKind(seed, cxI, czI);
-    if (!special && Math.abs(cxI) + Math.abs(czI) > 1) {
+    var pw = powerSite(seed), chs = churchSite(seed);
+    if (!special && pw && ((cxI === pw.x && czI === pw.z) || (cxI === pw.x2 && czI === pw.z2))) special = 'power';
+    if (!special && chs && cxI === chs.x && czI === chs.z) special = 'church';
+    if (!special && dist !== 'sea' && Math.abs(cxI) + Math.abs(czI) > 1) {
       var odds = SPECIAL_ODDS[dist] || [];
       for (var i = 0; i < odds.length; i++) if (r2 < odds[i][1]) { special = odds[i][0]; break; }
     }
@@ -375,7 +462,7 @@
     }
     var f = hash2(cxI, czI, seed + 74);
     // одичавшие участки: чем сильнее зарастание вокруг, тем чаще на месте квартала — молодой лес
-    var wildP = clamp((overAt(seed, info.x0 + 14, info.z0 + 14, dist) - 0.42) * (dist === 'downtown' ? 0.45 : 0.9), 0, 0.32);
+    var wildP = dist === 'sea' || dist === 'port' || dist === 'gov' ? 0 : clamp((overAt(seed, info.x0 + 14, info.z0 + 14, dist) - 0.42) * (dist === 'downtown' ? 0.45 : 0.9), 0, 0.32);
     var wild = !special && Math.abs(cxI) + Math.abs(czI) > 1 && hash2(cxI, czI, seed + 214) < wildP;
     if (special === 'helipad') building('helipad', 10);
     else if (special === 'hospital') building('hospital', 4 + Math.floor(f * 2));
@@ -384,7 +471,30 @@
     else if (special === 'military') { info.kind = 'military'; info.bx0 = info.x0; info.bx1 = info.x0 + 27; info.bz0 = info.z0; info.bz1 = info.z0 + 27; info.top = GROUND + 6; info.floors = 1; }
     else if (special === 'cityhall') { info.kind = 'cityhall'; info.bx0 = info.x0 + CH.fx0; info.bx1 = info.x0 + CH.fx1; info.bz0 = info.z0 + CH.fz0; info.bz1 = info.z0 + CH.fz1; info.top = GROUND + 12; info.floors = 3; }
     else if (special === 'gas') { info.kind = 'gas'; info.bx0 = info.x0 + 20; info.bx1 = info.x0 + 26; info.bz0 = info.z0 + 3; info.bz1 = info.z0 + 12; info.top = GROUND + 4; info.floors = 1; }
+    else if (special === 'power') {
+      // градирня у воды; машинный зал с трубами — в соседнем квартале ближе к центру
+      var cool = cxI === pw.x && czI === pw.z;
+      info.kind = cool ? 'cooling' : 'turbine'; info.floors = 1;
+      info.pipe = cool ? (pw.x2 > pw.x ? 0 : pw.x2 < pw.x ? 1 : pw.z2 > pw.z ? 2 : 3) : (pw.x > pw.x2 ? 0 : pw.x < pw.x2 ? 1 : pw.z > pw.z2 ? 2 : 3);
+      if (cool) { info.bx0 = info.x0 + 1; info.bx1 = info.x0 + 26; info.bz0 = info.z0 + 1; info.bz1 = info.z0 + 26; info.top = GROUND + 34; }
+      else { info.bx0 = info.x0 + 2; info.bx1 = info.x0 + 25; info.bz0 = info.z0 + 3; info.bz1 = info.z0 + 17; info.top = GROUND + 14; }
+    }
+    else if (special === 'church') { info.kind = 'church'; info.bx0 = info.x0 + 7; info.bx1 = info.x0 + 20; info.bz0 = info.z0 + 1; info.bz1 = info.z0 + 26; info.top = GROUND + 13; info.floors = 1; }
+    else if (dist === 'sea') info.kind = 'sea';
     else if (wild) { info.kind = 'wild'; info.ruinWalls = hash2(cxI, czI, seed + 215) < 0.6; }
+    else if (dist === 'port') {
+      // у воды — причал с краном и судном, дальше — контейнерный двор и склады
+      info.sea = seaSide(seed, cxI, czI);
+      if (info.sea >= 0 && r < 0.88) info.kind = 'docks';
+      else if (r < 0.5) info.kind = 'containers';
+      else if (r < 0.86) { info.kind = 'warehouse'; info.bx0 = info.x0 + 2; info.bx1 = info.x0 + 25; info.bz0 = info.z0 + 3; info.bz1 = info.z0 + 24; info.top = GROUND + 8; info.floors = 1; }
+      else info.kind = 'parking';
+    }
+    else if (dist === 'old') info.kind = r < 0.1 ? 'square' : r < 0.15 ? 'park' : 'oldtown';
+    else if (dist === 'gov') {
+      if (r < 0.28) info.kind = 'plaza';
+      else { inset = 4; building('ministry', 5 + Math.floor(f * 2)); }
+    }
     else if (dist === 'suburb') info.kind = r < 0.1 ? 'park' : r < 0.14 ? 'ruin' : 'houses';
     else if (dist === 'industrial') {
       if (r < 0.1) info.kind = 'parking';
@@ -441,6 +551,8 @@
   function metroColumn(c, x, z, wx, wz, seed) {
     var cxI = Math.floor(wx / CELL_C), czI = Math.floor(wz / CELL_C), lx = mod(wx, CELL_C), lz = mod(wz, CELL_C), y;
     var sCx = metroCell(cxI, lx), sCz = metroCell(czI, lz);
+    // у моря станций нет: зал не должен выходить под воду
+    if (sCx !== null && sCz !== null && (seaCell(seed, sCx - 1, sCz - 1) || seaCell(seed, sCx, sCz - 1) || seaCell(seed, sCx - 1, sCz) || seaCell(seed, sCx, sCz))) sCx = null;
     if (sCx !== null && sCz !== null) {
       var rx = wx - sCx * CELL_C, rz = wz - sCz * CELL_C;
       // лестница вниз вдоль тротуара: с поверхности до зала
@@ -479,7 +591,11 @@
     var alongZ = mod(cxI, 4) === 2 && lx <= 7, alongX = mod(czI, 4) === 2 && lz <= 7;
     if (!alongZ && !alongX) return;
     var a = alongZ ? lx : lz, run = alongZ ? wz : wx;
-    var wallT = a === 0 || a === 7;
+    var wallT = alongZ && alongX ? (lx === 0 || lx === 7) && (lz === 0 || lz === 7) : a === 0 || a === 7;
+    // туннель, упёршийся в берег, заканчивается глухой стеной
+    var endT = alongZ ? (lz === CELL_C - 1 && seaCell(seed, cxI, czI + 1)) || (lz === 0 && seaCell(seed, cxI, czI - 1)) :
+      (lx === CELL_C - 1 && seaCell(seed, cxI + 1, czI)) || (lx === 0 && seaCell(seed, cxI - 1, czI));
+    if (endT && !(alongZ && alongX)) wallT = true;
     put(c, x, M_FLOOR, z, (a === 3 || a === 4) ? B.RAIL_FLOOR : B.CONCRETE_DARK, alongZ ? 1 : 0);
     for (y = M_FLOOR + 1; y <= M_FLOOR + 5; y++) put(c, x, y, z, wallT ? B.CONCRETE_DARK : 0);
     var tl = a === 3 && mod(run, 12) === 0 && hash2(wx, wz, seed + 232) < 0.5;
@@ -497,15 +613,25 @@
       var wx = ox + x, wz = oz + z;
       var lx = mod(wx, CELL_C), lz = mod(wz, CELL_C);
       var p = plotAt(wx, wz), dist = p.district;
+      if (dist === 'sea') { seaColumn(c, x, z, wx, wz, seed); continue; }
       put(c, x, 0, z, B.BEDROCK);
       for (y = 1; y < GROUND - 3; y++) put(c, x, y, z, B.STONE);
       for (y = GROUND - 3; y < GROUND; y++) put(c, x, y, z, B.DIRT);
-      var road = lx < 8 || lz < 8;
-      var walk = !road && (lx < 10 || lx >= 38 || lz < 10 || lz >= 38);
+      // берег: к воде квартал обрывается каменной подпорной стенкой
+      if (coastEdge(seed, p.cx, p.cz, lx, lz)) for (y = SEA_Y - 4; y < GROUND; y++) put(c, x, y, z, B.STONE_BRICK);
       var ov = overAt(seed, wx, wz, dist);
       OV = ov;
+      // причал захватывает тротуар и улицу со стороны моря
+      if (p.kind === 'docks' && dockApron(p.sea, lx, lz)) {
+        docksColumn(c, x, z, wx, wz, wx - p.x0, wz - p.z0, p, seed);
+        metroColumn(c, x, z, wx, wz, seed);
+        continue;
+      }
+      var road = lx < 8 || lz < 8;
+      var walk = !road && (lx < 10 || lx >= 38 || lz < 10 || lz >= 38);
       if (road) {
-        var id = B.ASPHALT, meta = 0, marks = dist !== 'suburb', cross = lx < 8 && lz < 8;
+        // в старом городе улицы вымощены брусчаткой, без разметки
+        var oldT = dist === 'old', id = oldT ? B.PAVING : B.ASPHALT, meta = 0, marks = dist !== 'suburb' && !oldT, cross = lx < 8 && lz < 8;
         if (cross) {
           if (marks && (lz === 0 || lz === 7 || lx === 0 || lx === 7)) { id = B.ROAD_LINE; meta = 2; }
         } else if (marks && lx < 8 && (lx === 3 || lx === 4) && mod(wz, 6) < 3) { id = B.ROAD_LINE; meta = 1; }
@@ -513,7 +639,7 @@
         // трещины и воронки на брошенных дорогах; в центре их больше
         if (id === B.ASPHALT && hash2(wx, wz, seed + 75) < (dist === 'downtown' ? 0.03 : 0.012)) id = B.RUBBLE;
         // трава наползает с тротуаров на крайние полосы
-        if (!cross && id === B.ASPHALT && ov > 0.35) {
+        if (!cross && (id === B.ASPHALT || id === B.PAVING) && ov > 0.35) {
           var lane = lx < 8 ? lx : lz, edgeD = Math.min(lane, 7 - lane);
           if (edgeD <= 1 && cellNoise(seed, wx, wz, 5, 306) + ov * 0.6 - edgeD * 0.3 > 1.0) id = B.GRASS;
         }
@@ -524,6 +650,10 @@
           if (rr < crackP) put(c, x, GROUND + 1, z, hash2(wx, wz, seed + 307) < ov * 0.7 ? B.WEEDS : B.CRACKS, hash2(wx, wz, seed + 307) < ov * 0.7 ? 0 : 3);
           else if (rr < crackP + ov * 0.05) put(c, x, GROUND + 1, z, rr < crackP + ov * 0.02 ? B.WEEDS : B.MOSS, rr < crackP + ov * 0.02 ? 0 : 3);
           else if (rr > 0.9975 && !cross) put(c, x, GROUND + 1, z, B.ROAD_BARRIER, lx < 8 ? 0 : 1);
+        } else if (id === B.PAVING) {
+          // между камнями мостовой — мох и сорняки
+          var rq = hash2(wx, wz, seed + 90);
+          if (rq < 0.02 + ov * 0.1) put(c, x, GROUND + 1, z, rq < 0.01 + ov * 0.04 ? B.WEEDS : B.MOSS, rq < 0.01 + ov * 0.04 ? 0 : 3);
         } else if (id === B.GRASS) greenery(c, x, GROUND + 1, z, wx, wz, id, ov, seed, false);
         defenseCell(c, x, z, wx, wz, lx, lz, seed);
       } else if (walk) {
@@ -544,6 +674,9 @@
       }
       metroColumn(c, x, z, wx, wz, seed);
     }
+    // краны и суда у причалов, трубопровод электростанции — поверх соседних кварталов
+    portFeatures(c, seed, ox, oz);
+    powerFeatures(c, seed, ox, oz);
     // воронки от бомб; потом деревья (в воронках не растут) и брошенные машины
     cityCraters(c, seed, ox, oz);
     // деревья: сквозь асфальт у бордюров, вдоль тротуаров, во дворах, парках, на крышах и в одичавших кварталах
@@ -553,7 +686,8 @@
     for (z = oz - 8; z <= oz + CS + 8; z += 8) for (x = ox - 8; x <= ox + CS + 8; x += 8) cells[Math.floor(x / CELL_C) + ',' + Math.floor(z / CELL_C)] = 1;
     Object.keys(cells).forEach(function (k) {
       var pp = k.split(',').map(Number), bx = pp[0] * CELL_C, bz = pp[1] * CELL_C, dname = districtOf(seed, pp[0], pp[1]);
-      var dens = { downtown: 0.6, residential: 0.4, industrial: 0.3, suburb: 0.2 }[dname];
+      var dens = { downtown: 0.6, residential: 0.4, industrial: 0.3, suburb: 0.2, port: 0.35, old: 0.25, gov: 0.45, sea: 0 }[dname];
+      if (dens > 0 && plotInfo(seed, pp[0], pp[1]).kind === 'docks') dens *= 0.5;
       for (var s = 0; s < 6; s++) {
         var r = hash2(pp[0] * 13 + s, pp[1] * 7 - s, seed + 77);
         if (r > dens) continue;
@@ -614,6 +748,7 @@
         if (p.bx0 - p.x0 < 3) return false;
         var ring = (px === 1 || px === 26) && pz >= 1 && pz <= 26 ? pz : (pz === 1 || pz === 26) && px >= 1 && px <= 26 ? px : -1;
         if (ring < 0 || mod(ring - 4, 6) !== 0) return false;
+        if (p.style === 'ministry' && pz < 4) return false;                  // перед портиком — не растут
         if (pz === 1 && Math.abs(wx - Math.floor((p.bx0 + p.bx1) / 2)) <= 3) return false;
         if (r > overAt(seed, wx, wz, p.district) * 0.75) return false;
         if (kind === 2) kind = 0;
@@ -646,6 +781,22 @@
         } else if (ux !== 12 || uz !== (qz === 0 ? 11 : 2) || r > 0.35 + overAt(seed, wx, wz, p.district) * 0.5) return false;
         if (kind === 3) kind = 0;
         break;
+      case 'oldtown':                                                         // во дворе старого города
+        if (!((px === 9 && pz === 10) || (px === 18 && pz === 17) || (px === 10 && pz === 18)) || r > 0.7) return false;
+        if (kind === 3) kind = 0;
+        break;
+      case 'square':
+        if ((px !== 2 && px !== 25) || (pz !== 2 && pz !== 25) || r > 0.85) return false;
+        if (kind === 3) kind = 0;
+        break;
+      case 'plaza':                                                           // аллеи вдоль боков площади
+        if ((px !== 1 && px !== 26) || pz % 6 !== 3 || r > 0.8) return false;
+        if (kind === 3 || kind === 2) kind = 0;
+        break;
+      case 'church':
+        if (!((px === 2 || px === 25) && (pz === 11 || pz === 20)) || r > 0.8) return false;
+        if (kind === 3) kind = 0;
+        break;
       default: return false;
     }
     T.kind = kind; T.h = treeHeight(kind, h);
@@ -655,6 +806,7 @@
     var lx = mod(wx, CELL_C), lz = mod(wz, CELL_C);
     if (lx < 8 && lz < 8) return false;                                   // перекрёсток
     var cxI = Math.floor(wx / CELL_C), czI = Math.floor(wz / CELL_C), r = hash2(wx, wz, seed + 310), p, along;
+    if (seaCell(seed, cxI, czI)) return false;
     T.base = GROUND; T.pit = 0;
     if (lx < 8 || lz < 8) {
       // сквозь асфальт у бордюра: полосы 0 и 7 свободны от брошенных машин, фонари далеко
@@ -662,6 +814,7 @@
       along = lx < 8 ? lz : lx;
       if ((lane !== 0 && lane !== 7) || (along !== 16 && along !== 32)) return false;
       p = plotInfo(seed, cxI, czI);
+      if (p.kind === 'docks' && dockApron(p.sea, lx, lz)) return false;
       if (r > (overAt(seed, wx, wz, p.district) - 0.25) * 0.8) return false;
       T.pit = 2;
     } else if (lx < 10 || lx >= 38 || lz < 10 || lz >= 38) {
@@ -671,6 +824,7 @@
       along = nsOuter ? lz : lx;
       if (along !== 13 && along !== 28) return false;
       p = plotInfo(seed, cxI, czI);
+      if (p.kind === 'docks' && dockApron(p.sea, lx, lz)) return false;
       if (r > 0.1 + overAt(seed, wx, wz, p.district) * 0.65) return false;
       T.pit = 1;
     } else {
@@ -821,6 +975,14 @@
       case 'gas': gasColumn(c, x, z, wx, wz, px, pz, p, seed); return;
       case 'military': militaryColumn(c, x, z, wx, wz, px, pz, p, seed); return;
       case 'cityhall': cityhallColumn(c, x, z, wx, wz, px, pz, p, seed); return;
+      case 'containers': containersColumn(c, x, z, wx, wz, px, pz, p, seed); return;
+      case 'docks': docksColumn(c, x, z, wx, wz, px, pz, p, seed); return;
+      case 'oldtown': oldtownColumn(c, x, z, wx, wz, px, pz, p, seed); return;
+      case 'square': squareColumn(c, x, z, wx, wz, px, pz, p, seed); return;
+      case 'church': churchColumn(c, x, z, wx, wz, px, pz, p, seed); return;
+      case 'plaza': plazaColumn(c, x, z, wx, wz, px, pz, p, seed); return;
+      case 'cooling': coolingColumn(c, x, z, wx, wz, px, pz, p, seed); return;
+      case 'turbine': turbineColumn(c, x, z, wx, wz, px, pz, p, seed); return;
     }
     buildingColumn(c, x, z, wx, wz, p, seed);
   }
@@ -1055,7 +1217,7 @@
   // Следы войны: воронки, пожарища, обрушенные высотки, линии обороны, сгоревшие машины
   // =================================================================================
   // Сила разрушений 0..1: центр пострадал сильнее окраин, у места старта тихо
-  var WAR_BASE = { downtown: 0.62, industrial: 0.38, residential: 0.22, suburb: 0.08 };
+  var WAR_BASE = { downtown: 0.62, industrial: 0.38, residential: 0.22, suburb: 0.08, port: 0.4, old: 0.3, gov: 0.6, sea: 0 };
   function warAt(seed, wx, wz, dist) {
     var cxI = Math.floor(wx / CELL_C), czI = Math.floor(wz / CELL_C);
     if (Math.abs(cxI) + Math.abs(czI) <= 1) return 0;
@@ -1082,9 +1244,10 @@
     if (h > 0.62) return false;
     var wx = gx * CRATER_CELL + 4 + Math.floor(hash2(gx, gz, seed + 421) * 16), wz = gz * CRATER_CELL + 4 + Math.floor(hash2(gz, gx, seed + 422) * 16);
     var p = plotInfo(seed, Math.floor(wx / CELL_C), Math.floor(wz / CELL_C));
-    if (h > warAt(seed, wx, wz, p.district) * 0.62) return false;
+    if (h > warAt(seed, wx, wz, p.district) * 0.62 || landness(seed, p.cx, p.cz) < 1.5) return false;
     var lx = mod(wx, CELL_C), lz = mod(wz, CELL_C), open = lx < 10 || lz < 10 || lx >= 38 || lz >= 38;
-    if (!open && p.kind !== 'park' && p.kind !== 'parking' && p.kind !== 'ruin' && p.kind !== 'wild') return false;
+    if (p.kind === 'docks' && dockApron(p.sea, lx, lz)) return false;
+    if (!open && p.kind !== 'park' && p.kind !== 'parking' && p.kind !== 'ruin' && p.kind !== 'wild' && p.kind !== 'plaza' && p.kind !== 'square') return false;
     out.x = wx + 0.5; out.z = wz + 0.5;
     out.r = 2.5 + hash2(gx * 3, gz * 5, seed + 423) * 2.6;
     out.d = Math.min(3, Math.floor(out.r * 0.65));
@@ -1187,11 +1350,8 @@
         put(c, x, GROUND + 9, z, B.MARBLE);
         for (var k = 1; k <= 4; k++) if (pz >= 6 && px >= 9 + k && px <= 18 - k) put(c, x, GROUND + 9 + k, z, B.MARBLE);
       }
-      if (px === 3 && pz === 4) for (y = GROUND + 1; y <= GROUND + 7; y++) put(c, x, y, z, B.STREET_POLE);
-      if (pz === 4 && px >= 4 && px <= 6) for (y = GROUND + 5; y <= GROUND + 7; y++) {
-        if (px === 6 && y === GROUND + 5) continue;                       // оборванный угол
-        put(c, x, y, z, (y - GROUND) % 2 ? B.WOOL_GREEN : B.WOOL_WHITE);
-      }
+      if (px === 3 && pz === 4) for (y = GROUND + 1; y <= GROUND + 8; y++) put(c, x, y, z, B.STREET_POLE);
+      if (pz === 4 && px === 4) put(c, x, GROUND + 7, z, B.FLAG, 0);                                  // рваный флаг города
       return;
     }
     if (pz > CH.fz1 || px < CH.fx0 || px > CH.fx1) {                     // задний двор
@@ -1253,6 +1413,7 @@
   function buildingColumn(c, x, z, wx, wz, p, seed) {
     var y;
     if (wx < p.bx0 || wx > p.bx1 || wz < p.bz0 || wz > p.bz1) {
+      if (p.style === 'ministry' && porticoColumn(c, x, z, wx, wz, p, seed)) return;
       if (p.burnt) {
         // двор пожарища: гарь, обломки; у рухнувшей высотки — груда упавших этажей
         var hb = hash2(wx, wz, seed + 457);
@@ -1270,7 +1431,8 @@
     }
     put(c, x, GROUND, z, B.SIDEWALK);
     var st = p.style;
-    var wallMat = st === 'tower' || st === 'helipad' || st === 'police' ? B.CONCRETE_DARK : st === 'office' || st === 'hospital' ? B.CONCRETE : B.BRICK;
+    var wallMat = st === 'tower' || st === 'helipad' || st === 'police' ? B.CONCRETE_DARK : st === 'office' || st === 'hospital' ? B.CONCRETE :
+      st === 'ministry' ? B.MARBLE : B.BRICK;
     var onX = wx === p.bx0 || wx === p.bx1, onZ = wz === p.bz0 || wz === p.bz1;
     var corner = onX && onZ;
     var ix = wx - p.bx0, iz = wz - p.bz0, stairs = inStairwell(ix, iz);
@@ -1293,7 +1455,11 @@
       else if (onX || onZ) {
         id = wallMat;
         var along = onX ? wz : wx;
-        if (!corner && (r4 === 2 || r4 === 3) && mod(along, 3) !== 0) id = hash3(wx, y, wz, seed + 84) < (p.district === 'downtown' ? 0.22 : 0.14) ? 0 : B.WINDOW;
+        if (st === 'ministry') {
+          // министерство: рустованный первый этаж, каменные пояса, высокие окна между пилястрами
+          if (L === 0 || r4 === 0) id = B.STONE_BRICK;
+          if (!corner && mod(along, 3) !== 0 && (L > 0 ? r4 >= 1 : r4 >= 2)) id = hash3(wx, y, wz, seed + 84) < 0.18 ? 0 : B.WINDOW;
+        } else if (!corner && (r4 === 2 || r4 === 3) && mod(along, 3) !== 0) id = hash3(wx, y, wz, seed + 84) < (p.district === 'downtown' ? 0.22 : 0.14) ? 0 : B.WINDOW;
         // вход с улицы (северная стена)
         if (wz === p.bz0 && !onX && rel >= 1 && rel <= 3 && Math.abs(wx - midX) <= 1) id = 0;
         // вывески
@@ -1674,6 +1840,554 @@
     if (px >= 24 && px <= 26 && pz >= 12 && pz <= 13) put(c, x, GROUND + 1, z, B.FUEL_BARREL);
   }
 
+  // =================================================================================
+  // Остров и новые районы: море, порт, старый город, правительственный квартал, электростанция
+  // =================================================================================
+  // Колонка квартала на границе с морской клеткой — там подпорная стенка берега
+  function coastEdge(seed, cxI, czI, lx, lz) {
+    return (lx === 0 && seaCell(seed, cxI - 1, czI)) || (lx === CELL_C - 1 && seaCell(seed, cxI + 1, czI)) ||
+      (lz === 0 && seaCell(seed, cxI, czI - 1)) || (lz === CELL_C - 1 && seaCell(seed, cxI, czI + 1));
+  }
+  // Полоса причала между участком и морем: тротуар и улица со стороны воды (s — сторона моря)
+  function dockApron(s, lx, lz) {
+    return s === 0 ? lx >= 38 && lz >= 8 : s === 1 ? lx < 10 && lz >= 8 : s === 2 ? lz >= 38 && lx >= 8 : lz < 10 && lx >= 8;
+  }
+
+  // ---- Море: песчаное дно, от берега глубже -----------------------------------------------------
+  function seaColumn(c, x, z, wx, wz, seed) {
+    var y, depth = clamp(Math.round(2.5 - landLerp(seed, wx, wz) * 2.6 + (cellNoise(seed, wx, wz, 7, 490) - 0.5) * 3), 2, 16);
+    var bottom = SEA_Y - depth, r = hash2(wx, wz, seed + 491);
+    put(c, x, 0, z, B.BEDROCK);
+    for (y = 1; y < bottom; y++) put(c, x, y, z, B.STONE);
+    put(c, x, bottom, z, r < 0.12 ? B.GRAVEL : r < 0.16 ? B.CLAY : B.SAND);
+    for (y = bottom + 1; y <= SEA_Y; y++) put(c, x, y, z, B.WATER);
+  }
+
+  // ---- Порт: контейнерный двор — штабеля в ряд, проезды между рядами, мачты освещения ------------
+  function containersColumn(c, x, z, wx, wz, px, pz, p, seed) {
+    var y, h0 = hash2(wx, wz, seed + 499);
+    put(c, x, GROUND, z, h0 < 0.08 ? B.CONCRETE_DARK : B.ASPHALT);
+    var row = Math.floor(pz / 5), inRow = pz % 5, bay = Math.floor(px / 7), inBay = px % 7;
+    if (inRow >= 2 || inBay === 6 || px < 1 || px > 26 || pz > 26) {
+      if (inBay === 6 && inRow === 3 && hash2(bay, row + p.cz * 9, seed + 500) < 0.3) {
+        for (y = GROUND + 1; y <= GROUND + 9; y++) put(c, x, y, z, B.STREET_POLE);                 // мачта освещения
+        put(c, x, GROUND + 10, z, hash2(bay, row, seed + 509) < 0.5 ? B.STREET_LAMP : B.CONCRETE_DARK);
+      } else if (h0 > 0.985) put(c, x, GROUND + 1, z, h0 > 0.993 ? B.FUEL_BARREL : B.CRATE);
+      else greenery(c, x, GROUND + 1, z, wx, wz, B.ASPHALT, OV * 0.7, seed, false);
+      return;
+    }
+    // штабель: 1–4 контейнера длиной 6 и шириной 2, цвет — у каждого свой
+    var h = hash2(bay + p.cx * 13, row + p.cz * 7, seed + 501), stack = 1 + Math.floor(h * h * 4);
+    for (y = 1; y <= stack; y++) put(c, x, GROUND + y, z, B.CONTAINER, Math.floor(hash2(bay * 3 + y + p.cx * 5, row + p.cz * 3, seed + 502) * 4));
+    // приоткрытый контейнер: у торца внизу — ящик с грузом
+    if (inBay === 0 && inRow === 0 && h < 0.3) { put(c, x, GROUND + 1, z, B.CHEST, 1); lootAt(c, wx, GROUND + 1, wz, 'cargo'); }
+  }
+
+  // ---- Порт: причал — бетон, рельсы крана, кромка с кнехтами (px, pz могут выходить за участок) ---
+  function docksColumn(c, x, z, wx, wz, px, pz, p, seed) {
+    var s = p.sea, lx = px + 10, lz = pz + 10, y;
+    var v = s === 0 ? 39 - lx : s === 1 ? lx : s === 2 ? 39 - lz : lz, along = s < 2 ? lz : lx;    // v — от кромки вглубь
+    var r = hash2(wx, wz, seed + 504);
+    put(c, x, GROUND, z, r < 0.1 ? B.CONCRETE_DARK : B.CONCRETE);
+    if (v === 0) {
+      for (y = SEA_Y - 4; y < GROUND; y++) put(c, x, y, z, B.CONCRETE);                     // стенка причала
+      put(c, x, GROUND, z, B.QUAY_EDGE);
+      if (along % 6 === 2) put(c, x, GROUND + 1, z, B.BOLLARD);
+      return;
+    }
+    if (v === 2 || v === 6) { put(c, x, GROUND, z, B.RAIL_FLOOR, s < 2 ? 1 : 0); return; }      // рельсы портального крана
+    if (v < 9) return;                                                                       // у кромки — проезд
+    if (r < 0.03) put(c, x, GROUND + 1, z, B.CRATE);
+    else if (r < 0.045) put(c, x, GROUND + 1, z, B.FUEL_BARREL);
+    else if (r < 0.05) { put(c, x, GROUND + 1, z, B.CHEST, 0); lootAt(c, wx, GROUND + 1, wz, 'cargo'); }
+    else greenery(c, x, GROUND + 1, z, wx, wz, B.CONCRETE, OV * 0.6, seed, false);
+  }
+  // Портовый кран на рельсах и пришвартованное судно — над соседней морской клеткой
+  function portFeatures(c, seed, ox, oz) {
+    var cx0 = Math.floor((ox - 60) / CELL_C), cx1 = Math.floor((ox + CS + 60) / CELL_C);
+    var cz0 = Math.floor((oz - 60) / CELL_C), cz1 = Math.floor((oz + CS + 60) / CELL_C);
+    for (var cz = cz0; cz <= cz1; cz++) for (var cx = cx0; cx <= cx1; cx++) {
+      var p = plotInfo(seed, cx, cz);
+      if (p.kind === 'docks') dockFeatures(c, seed, ox, oz, p);
+    }
+  }
+  function dockFeatures(c, seed, ox, oz, p) {
+    var s = p.sea, bx = p.cx * CELL_C, bz = p.cz * CELL_C, y, u, v;
+    var dx = s === 0 ? 1 : s === 1 ? -1 : 0, dz = s === 2 ? 1 : s === 3 ? -1 : 0;
+    var ex = s === 0 ? bx + 39 : bx, ez = s === 2 ? bz + 39 : bz, a0 = (s < 2 ? bz : bx) + 11;
+    // u — вдоль причала от a0, v — от кромки в сторону моря; сначала — не задевает ли чанк
+    var vA = s < 2 ? ex - 10 * dx : ez - 10 * dz, vB = s < 2 ? ex + 18 * dx : ez + 18 * dz;
+    var x0 = s < 2 ? Math.min(vA, vB) : a0 - 2, x1 = s < 2 ? Math.max(vA, vB) : a0 + 28;
+    var z0 = s < 2 ? a0 - 2 : Math.min(vA, vB), z1 = s < 2 ? a0 + 28 : Math.max(vA, vB);
+    if (x1 < ox || x0 > ox + CS - 1 || z1 < oz || z0 > oz + CS - 1) return;
+    function at(uu, vv, wy, id, meta, loot) {
+      var wx = s < 2 ? ex + dx * vv : a0 + uu, wz = s < 2 ? a0 + uu : ez + dz * vv;
+      if (put(c, wx - ox, wy, wz - oz, id, meta) && loot) lootAt(c, wx, wy, wz, loot);
+    }
+    var hs = hash2(p.cx, p.cz, seed + 505);
+    // ---- кран: четыре ноги на рельсах, портал, машинное отделение, стрела над водой с тросом
+    var cu = 2 + Math.floor(hs * 14), yb = GROUND + 22;
+    for (y = GROUND + 1; y < yb; y++) { at(cu, -2, y, B.CRANE_BEAM); at(cu + 5, -2, y, B.CRANE_BEAM); at(cu, -6, y, B.CRANE_BEAM); at(cu + 5, -6, y, B.CRANE_BEAM); }
+    for (u = cu; u <= cu + 5; u++) { at(u, -2, yb, B.CRANE_BEAM); at(u, -6, yb, B.CRANE_BEAM); at(u, -2, GROUND + 7, B.CRANE_BEAM); at(u, -6, GROUND + 7, B.CRANE_BEAM); }
+    for (v = -5; v <= -3; v++) { at(cu, v, yb, B.CRANE_BEAM); at(cu + 5, v, yb, B.CRANE_BEAM); }
+    for (u = cu + 1; u <= cu + 4; u++) for (v = -7; v <= -3; v++) for (y = yb + 1; y <= yb + 3; y++)
+      at(u, v, y, y === yb + 2 && (v === -7 || v === -3) && (u & 1) ? B.WINDOW : B.SHIP_CABIN);
+    for (v = -10; v <= 18; v++) { at(cu + 2, v, yb + 4, B.CRANE_BEAM); at(cu + 3, v, yb + 4, B.CRANE_BEAM); }
+    for (v = -10; v <= -8; v++) for (u = cu + 2; u <= cu + 3; u++) for (y = yb + 2; y <= yb + 3; y++) at(u, v, y, B.CONCRETE_DARK);   // противовес
+    for (u = cu + 2; u <= cu + 3; u++) { at(u, 0, yb + 3, B.SHIP_CABIN); at(u, 1, yb + 3, B.WINDOW); at(u, 0, yb + 2, B.WINDOW); at(u, 1, yb + 2, B.WINDOW); }  // кабина крановщика
+    for (y = GROUND + 9; y <= yb + 3; y++) at(cu + 2, 5, y, B.STREET_POLE);                           // трос
+    for (u = cu + 1; u <= cu + 3; u++) at(u, 5, GROUND + 8, B.CONTAINER, 3);                           // контейнер на весу
+    // ---- судно у причала: корпус с трюмом, палуба, рубка на корме, контейнеры на палубе
+    if (hash2(p.cx, p.cz, seed + 506) > 0.85) return;
+    var L = 28, Wd = 7, v0 = 2, u0 = -1, deck = GROUND + 1;
+    var ladderMeta = [1, 0, 5, 4][s], stairMeta = [1, 3, 2, 0][s];
+    for (var uu = 0; uu < L; uu++) {
+      var bow = uu > L - 6 ? uu - (L - 6) : 0, half = bow / 2;       // нос сужается
+      for (var vv = 0; vv < Wd; vv++) {
+        if (vv < half - 0.01 || vv > Wd - 1 - half + 0.01) continue;
+        var side = uu === 0 || uu === L - 1 || vv === 0 || vv === Wd - 1 || vv < half + 1 || vv > Wd - 2 - half;
+        var U = u0 + uu, V = v0 + vv, hh = hash2(uu + p.cx * 31, vv + p.cz * 17, seed + 507);
+        for (y = SEA_Y - 3; y <= deck + 1; y++) {
+          var id = 0;
+          if (side) id = B.SHIP_HULL;
+          else if (y === SEA_Y - 3) id = B.SHIP_HULL;
+          else if (y === deck) id = B.PLANKS;
+          else if (y === SEA_Y - 2 && hh < 0.12) id = B.CRATE;                                        // груз в трюме
+          at(U, V, y, id, id === B.SHIP_HULL && y <= SEA_Y ? 1 : 0);                                  // днище — красное
+        }
+        if (!side && uu === 6 && vv === 4 && hh < 0.9) at(U, V, SEA_Y - 2, B.CHEST, stairMeta, 'cargo');
+        // рубка на корме: стены с иллюминаторами, мостик с пультом, труба
+        if (uu >= 1 && uu <= 5 && vv >= 1 && vv <= Wd - 2) {
+          var wallS = uu === 1 || uu === 5 || vv === 1 || vv === Wd - 2;
+          for (y = deck + 1; y <= deck + 6; y++) {
+            var rel = y - deck, id2 = 0;
+            if (rel === 6) id2 = B.SHIP_CABIN;
+            else if (wallS) {
+              id2 = B.SHIP_CABIN;
+              if (rel === 4 && (uu === 3 || vv === 3)) id2 = B.WINDOW;
+              if (uu === 5 && vv === 3 && rel <= 2) id2 = 0;                                              // дверь на палубу
+            } else if (rel === 1 && uu === 2) id2 = vv === 4 ? B.CHEST : B.CONSOLE;
+            at(U, V, y, id2, id2 === B.CHEST ? stairMeta : 0, id2 === B.CHEST ? 'cargo' : null);
+          }
+          if (uu === 3 && vv === 3) { at(U, V, deck + 7, B.HULL_DARK); at(U, V, deck + 8, B.HULL_DARK); at(U, V, deck + 9, B.SOOTED_CONCRETE); }
+        } else if (uu >= 8 && uu < L - 7 && vv >= 1 && vv <= Wd - 2) {
+          var st = Math.floor(hash2(p.cx * 5 + (uu >> 2), p.cz + vv, seed + 508) * 3);
+          for (y = 1; y <= st; y++) at(U, V, deck + y, B.CONTAINER, Math.floor(hash2((uu >> 2) + p.cx, vv + y * 7, seed + 509) * 4));
+        }
+      }
+    }
+    // люк в трюм с лестницей и сходни с причала
+    for (y = SEA_Y - 2; y <= deck; y++) at(u0 + 7, v0 + 1, y, B.LADDER, ladderMeta);
+    at(u0 + 12, 1, GROUND, B.PLANKS); at(u0 + 12, 1, GROUND + 1, B.STAIRS, stairMeta);
+    at(u0 + 12, v0, deck, B.PLANKS); at(u0 + 12, v0, deck + 1, 0);
+  }
+
+  // ---- Старый город: двенадцать узких домов 7×7 вокруг двора, черепичные крыши --------------------
+  // Угловые дома — с вальмовой крышей-«шатром», рядовые — двускатные, конёк вдоль улицы.
+  // Через южный ряд во двор ведёт арка; во дворе — колодец, скамейки, деревья
+  var OT_UP = [2, 0, 1, 3], OT_DOOR = [2, 0, 1, 3], OT_LADDER = [4, 5, 0, 1];
+  function otEdge(px, pz) { return Math.min(px, pz, 27 - px, 27 - pz); }
+  function oldtownColumn(c, x, z, wx, wz, px, pz, p, seed) {
+    var y, e = otEdge(px, pz);
+    if (e > 6) { oldCourtyard(c, x, z, wx, wz, px, pz, p, seed, e); return; }
+    var qx = px <= 6 ? 0 : px >= 21 ? 2 : 1, qz = pz <= 6 ? 0 : pz >= 21 ? 2 : 1;
+    var ux, uz, unit, front, corner = qx !== 1 && qz !== 1;
+    if (corner) { ux = px - (qx ? 21 : 0); uz = pz - (qz ? 21 : 0); unit = qx * 3 + qz; front = qz ? 1 : 0; }
+    else if (qx === 1) { var ix = Math.floor((px - 7) / 7); ux = px - 7 - ix * 7; uz = pz - (qz ? 21 : 0); unit = 10 + ix * 2 + (qz ? 1 : 0); front = qz ? 1 : 0; }
+    else { var iz = Math.floor((pz - 7) / 7); ux = px - (qx ? 21 : 0); uz = pz - 7 - iz * 7; unit = 20 + iz * 2 + (qx ? 1 : 0); front = qx ? 3 : 2; }
+    // глубина от улицы (0 — фасад, 6 — стена во двор) и положение вдоль улицы
+    var dd = front === 0 ? uz : front === 1 ? 6 - uz : front === 2 ? ux : 6 - ux, aa = front < 2 ? ux : uz;
+    var hs = hash2(p.cx * 40 + unit, p.cz * 40 - unit, seed + 510), color = Math.floor(hs * 4) & 3;
+    var floors = 2 + Math.floor(hash2(p.cz * 40 + unit, p.cx * 40 + unit, seed + 511) * 2.6), top = GROUND + floors * 4;
+    // стены дома: у соседнего дома — глухая, на улицу и во двор — с окнами
+    var wN = uz === 0, wS = uz === 6, wW = ux === 0, wE = ux === 6, wall = wN || wS || wW || wE;
+    function party(npx, npz) { return npx >= 0 && npz >= 0 && npx <= 27 && npz <= 27 && otEdge(npx, npz) <= 6; }
+    var blind = (wN && party(px, pz - 1)) || (wS && party(px, pz + 1)) || (wW && party(px - 1, pz)) || (wE && party(px + 1, pz));
+    var wAlong = wN || wS ? ux : uz;
+    var arch = qz === 2 && qx === 1 && px >= 11 && px <= 14;                   // арка во двор
+    var ladder = aa === 1 && dd === 5;
+    put(c, x, GROUND, z, arch ? B.PAVING : B.PARQUET);
+    for (y = GROUND + 1; y <= top; y++) {
+      var rel = y - GROUND, r4 = rel % 4, id = 0, meta = 0, lt = null;
+      if (arch && rel <= 3) { if (rel === 3 && (px === 11 || px === 14)) id = B.STONE_BRICK; }
+      else if (wall) {
+        id = B.PLASTER; meta = color;
+        if (r4 === 0) id = rel === floors * 4 ? B.STONE_BRICK : B.PLASTER;                      // карниз
+        else if (!blind && (r4 === 2 || r4 === 3) && (wAlong === 1 || wAlong === 5 || (wAlong === 3 && rel > 4)))
+          id = hash3(wx, y, wz, seed + 512) < 0.18 ? 0 : B.GLASS;
+        if (dd === 0 && aa === 3 && rel <= 2) { id = B.DOOR; meta = OT_DOOR[front] | (rel === 2 ? 8 : 0); }
+        if (dd === 6 && aa === 3 && rel <= 2 && !blind && hash2(unit, p.cx + p.cz * 7, seed + 513) < 0.5) id = 0;   // чёрный ход во двор
+        if (rel === 1 && id === B.PLASTER) id = B.STONE_BRICK;                                   // цоколь
+      } else if (ladder && rel < floors * 4) { id = B.LADDER; meta = OT_LADDER[front]; }
+      else if (r4 === 0) id = B.PARQUET;
+      else if (r4 === 1 && dd >= 1 && dd <= 5 && !(aa === 3 && (dd === 1 || dd === 5))) {
+        // обстановка: шкафы, кровати, столы, полки; кое-где — сундук
+        var fr = hash3(wx, y, wz, seed + 515);
+        if (fr < 0.015) { id = B.CHEST; meta = front; lt = 'house'; }
+        else if (fr < 0.04) { id = B.WARDROBE; meta = front; lt = hash3(wz, y, wx, seed + 516) < 0.5 ? 'wardrobe' : null; }
+        else if (fr < 0.07) id = B.BOOKSHELF;
+        else if (fr < 0.09) id = B.BED;
+        else if (fr < 0.12) id = B.DINING_TABLE;
+        else if (fr < 0.15) { id = B.CHAIR; meta = Math.floor(fr * 400) & 3; }
+        else if (fr < 0.17) { id = B.SOFA; meta = front; }
+        else if (fr < 0.19) id = B.POT_PLANT;
+        else if (fr < 0.21) { id = B.KITCHEN_CABINET; meta = front; lt = hash3(wz, y, wx, seed + 517) < 0.4 ? 'kitchen' : null; }
+      }
+      if (id) { put(c, x, y, z, id, meta); if (lt) lootAt(c, wx, y, wz, lt); }
+    }
+    // крыша: у рядовых — двускатная с коньком вдоль улицы и щипцами по бокам, у угловых — шатёр
+    var k, sm;
+    if (corner) {
+      k = Math.min(ux, uz, 6 - ux, 6 - uz);
+      sm = k === uz ? 2 : k === 6 - uz ? 0 : k === ux ? 1 : 3;
+      put(c, x, top + 1 + k, z, k === 3 ? B.ROOF_TILE : B.ROOF_SLOPE, k === 3 ? 0 : sm);
+    } else {
+      k = Math.min(dd, 6 - dd);
+      put(c, x, top + 1 + k, z, k === 3 ? B.ROOF_TILE : B.ROOF_SLOPE, k === 3 ? 0 : dd < 3 ? OT_UP[front] : OT_UP[front] ^ 2);
+      if (aa === 0 || aa === 6) for (y = top + 1; y < top + 1 + k; y++) put(c, x, y, z, B.PLASTER, color);   // щипец
+      if (dd === 3 && aa === 5) { put(c, x, top + 5, z, B.CHIMNEY_BRICK, 0); put(c, x, top + 6, z, B.CHIMNEY_BRICK, 0); }
+    }
+    // мох и трава на черепице старых крыш
+    if (OV > 0.35 && k < 3 && hash2(wx, wz, seed + 518) < (OV - 0.35) * 0.5) put(c, x, top + 2 + k, z, B.MOSS, 3);
+  }
+  function oldCourtyard(c, x, z, wx, wz, px, pz, p, seed, e) {
+    var y, path = (px >= 13 && px <= 14) || (pz >= 13 && pz <= 14) || (pz >= 19 && px >= 11 && px <= 14);
+    var cx = px - 13.5, cz = pz - 13.5, ring = Math.max(Math.abs(cx), Math.abs(cz));
+    if (ring < 1) { put(c, x, GROUND - 1, z, B.STONE_BRICK); put(c, x, GROUND, z, B.WATER); return; }            // колодец
+    if (ring < 2) { put(c, x, GROUND, z, B.PAVING); put(c, x, GROUND + 1, z, OV > 0.4 && hash2(wx, wz, seed + 519) < OV ? B.MOSSY_COBBLE : B.COBBLE); return; }
+    var g = path ? B.PAVING : B.GRASS;
+    put(c, x, GROUND, z, g);
+    // плющ по стенам двора
+    if (e === 7 && !path && hash2(wx, wz, seed + 520) < 0.2 + OV * 0.5) {
+      var d = px === 7 ? 1 : px === 20 ? 0 : pz === 7 ? 5 : 4, hI = 2 + Math.floor(hash2(wz, wx, seed + 521) * 6);
+      for (y = GROUND + 1; y <= GROUND + hI; y++) put(c, x, y, z, B.IVY, d);
+      return;
+    }
+    if (!path && (px === 10 || px === 17) && (pz === 12 || pz === 15)) { put(c, x, GROUND + 1, z, B.BENCH, px === 10 ? 3 : 1); return; }
+    if (!path && px === 16 && pz === 9) { put(c, x, GROUND + 1, z, B.TRASH_BIN, 0); return; }
+    greenery(c, x, GROUND + 1, z, wx, wz, g, Math.max(OV, 0.4), seed, !path && e > 8);
+  }
+
+  // ---- Собор старого города: колокольня со шпилем, неф с витражами, апсида с алтарём ------------
+  function churchColumn(c, x, z, wx, wz, px, pz, p, seed) {
+    var y, h = hash2(wx, wz, seed + 540), ov = OV;
+    var fx = px + 0.5, fz = pz + 0.5;
+    var tower = px >= 10 && px <= 17 && pz <= 7, nave = px >= 7 && px <= 20 && pz >= 8 && pz <= 22;
+    var dA = Math.hypot(fx - 14, fz - 22.5), apse = pz >= 23 && dA < 6.5;
+    var hole = hash2(p.cx, p.cz, seed + 541) < 0.6 && px >= 15 && px <= 18 && pz >= 15 && pz <= 18;     // пробоина в кровле
+    if (!tower && !nave && !apse) {
+      // церковный двор: трава, дорожки, старые надгробия, ограда
+      var fence = (px === 0 || px === 27 || pz === 27) && !(pz === 27 && px >= 12 && px <= 15);
+      put(c, x, GROUND, z, (px >= 3 && px <= 4) || (px >= 23 && px <= 24) ? B.PAVING : B.GRASS);
+      if (fence) { put(c, x, GROUND + 1, z, B.BARS); return; }
+      if ((px === 1 || px === 5 || px === 22 || px === 26) && pz % 3 === 1 && pz > 9 && pz < 25 && h < 0.7) {
+        put(c, x, GROUND + 1, z, h < ov * 0.8 ? B.MOSSY_COBBLE : B.STONE_BRICK);                       // надгробие
+        return;
+      }
+      greenery(c, x, GROUND + 1, z, wx, wz, getc(c, x, GROUND, z), Math.max(ov, 0.45), seed, px < 2 || px > 25);
+      return;
+    }
+    // пол: шахматка из мрамора и камня
+    put(c, x, GROUND, z, (px + pz) & 1 ? B.MARBLE : B.STONE_BRICK);
+    if (tower) {
+      var tw = px === 10 || px === 17 || pz === 0 || pz === 7, mid = px >= 13 && px <= 14;
+      var S0 = GROUND + 25;
+      for (y = GROUND + 1; y <= GROUND + 38; y++) {
+        var rel = y - GROUND, id = 0;
+        if (y < S0) {
+          if (tw) {
+            id = rel <= 2 ? B.STONE_BRICK : (px === 10 || px === 17) && (pz === 0 || pz === 7) ? B.MARBLE : B.PLASTER;
+            if (rel === 12 || rel === 24) id = B.MARBLE;                                                   // пояса
+            if (pz === 0 && mid && rel <= 4) id = 0;                                                        // портал
+            if (pz === 7 && mid && rel <= 5) id = 0;                                                        // проход в неф
+            var alongT = pz === 0 || pz === 7 ? px : pz;
+            if (rel >= 19 && rel <= 22 && alongT >= 12 && alongT <= 15) id = 0;                             // звонница
+            if (rel >= 8 && rel <= 10 && alongT >= 13 && alongT <= 14 && id) id = B.STAINED_GLASS;
+          } else if (px === 11 && pz === 5 && rel <= 18) id = B.LADDER;                                   // лестница на звонницу
+          else if (rel === 18) id = B.PLANKS;                                                               // пол звонницы
+          else if (rel >= 21 && rel <= 22 && mid && pz >= 3 && pz <= 4) id = B.GOLD_BLOCK;                   // колокол
+          else if (rel === 23 && pz >= 3 && pz <= 4) id = B.PLANKS;                                         // балка
+        } else {
+          // шпиль: ступенчатая пирамида из меди, наверху — золотой шар и игла
+          var hw = 4 - (y - S0) * 0.42, ex2 = Math.max(Math.abs(fx - 14), Math.abs(fz - 4));
+          if (ex2 <= hw) id = y === S0 ? B.MARBLE : B.COPPER_ROOF;
+          if (px === 13 && pz === 3 && y > S0 + 8) id = y <= S0 + 10 ? B.GOLD_BLOCK : y <= S0 + 13 ? B.STREET_POLE : 0;
+        }
+        if (id) put(c, x, y, z, id, id === B.LADDER ? 1 : 0);
+      }
+      return;
+    }
+    if (apse) {
+      // апсида: полукруглая стена, внутри — алтарь; сверху — медный полукупол
+      var wallA = dA >= 5.3, domeTop = GROUND + 10 + Math.floor(Math.sqrt(Math.max(0, 42.25 - dA * dA)) * 0.7);
+      for (y = GROUND + 1; y <= domeTop; y++) {
+        var ra = y - GROUND, idA = 0;
+        if (ra >= 10) idA = B.COPPER_ROOF;
+        else if (wallA) idA = ra <= 2 ? B.STONE_BRICK : ra >= 4 && ra <= 7 && (Math.floor(Math.atan2(fz - 22.5, fx - 14) * 3) & 1) ? B.STAINED_GLASS : B.PLASTER;
+        else if (ra === 1 && pz === 25 && px >= 12 && px <= 15) idA = B.MARBLE;                             // алтарь
+        else if (ra === 2 && pz === 25 && (px === 12 || px === 15)) idA = B.TORCH;
+        else if (ra === 1 && pz === 27 && px === 13) idA = B.CHEST;
+        else if (ra === 9) idA = B.MARBLE;
+        if (idA) { put(c, x, y, z, idA, idA === B.CHEST ? 2 : idA === B.TORCH ? 3 : 0); if (idA === B.CHEST) lootAt(c, wx, y, wz, 'church'); }
+      }
+      return;
+    }
+    // неф: стены с пилястрами и высокими витражами, скамьи рядами, люстры, двускатная медная кровля
+    var side = px === 7 || px === 20, back = pz === 22, front = pz === 8, k = Math.min(px - 7, 20 - px), roofY = GROUND + 13 + k;
+    for (y = GROUND + 1; y <= roofY; y++) {
+      var rn = y - GROUND, idn = 0, mn = 0;
+      if (y === roofY) { if (!hole) { idn = B.COPPER_SLOPE; mn = px <= 13 ? 1 : 3; } }
+      else if (side) {
+        idn = rn <= 2 ? B.STONE_BRICK : pz % 4 === 0 ? B.MARBLE : B.PLASTER;
+        if (rn === 12) idn = B.MARBLE;
+        if (rn >= 4 && rn <= 9 && (pz % 4 === 1 || pz % 4 === 2)) idn = hash3(wx, y, wz, seed + 542) < 0.12 ? 0 : B.STAINED_GLASS;
+      } else if (back) {
+        idn = rn <= 2 ? B.STONE_BRICK : B.PLASTER;
+        if (px >= 10 && px <= 17 && rn <= 8) idn = 0;                                                        // арка в апсиду
+        if (rn >= 15 && rn <= 17 && px >= 12 && px <= 15) idn = B.STAINED_GLASS;                              // круглое окно
+      } else if (front) {
+        idn = rn <= 2 ? B.STONE_BRICK : B.PLASTER;                                                              // стена за колокольней
+        if (px >= 13 && px <= 14 && rn <= 5) idn = 0;
+      }
+      else if (rn === 1 && ((px >= 8 && px <= 11) || (px >= 16 && px <= 19)) && pz >= 11 && pz <= 20 && (pz & 1)) {
+        idn = hole && h < 0.6 ? B.RUBBLE : B.BENCH;                                                           // скамьи лицом к алтарю
+      } else if (hole && rn === 1 && h < 0.5) idn = B.RUBBLE;
+      else if ((pz === 12 || pz === 18) && px === 13) {
+        if (rn === 9) idn = B.LAMP; else if (rn > 9 && rn < 19) idn = B.STREET_POLE;                            // люстры
+      }
+      if (idn) put(c, x, y, z, idn, idn === B.PLASTER ? 0 : mn);
+    }
+  }
+
+  // ---- Рыночная площадь старого города: фонтан со стелой, торговые ряды, кафе -------------------
+  function squareColumn(c, x, z, wx, wz, px, pz, p, seed) {
+    var y, d = Math.hypot(px - 13.5, pz - 13.5), h = hash2(wx, wz, seed + 550);
+    put(c, x, GROUND, z, Math.abs(d - 7.5) < 0.55 || Math.abs(d - 10.5) < 0.55 ? B.STONE_BRICK : B.PAVING);
+    if (d < 4.6) {
+      if (d >= 3.6) { put(c, x, GROUND + 1, z, OV > 0.35 && h < OV * 0.6 ? B.MOSSY_COBBLE : B.STONE_BRICK); return; }
+      if (d < 1) {
+        for (y = GROUND + 1; y <= GROUND + 2; y++) put(c, x, y, z, B.STONE_BRICK);
+        for (y = GROUND + 3; y <= GROUND + 6; y++) put(c, x, y, z, B.MARBLE);
+        put(c, x, GROUND + 7, z, B.GOLD_BLOCK);
+        return;
+      }
+      put(c, x, GROUND - 1, z, B.STONE_BRICK); put(c, x, GROUND, z, B.WATER);
+      if (h < 0.1 + OV * 0.2) put(c, x, GROUND + 1, z, B.LILY_PAD, 3);
+      return;
+    }
+    // торговые ряды на четырёх сторонах: стойки, прилавок и полосатый навес
+    var sx = px >= 3 && px <= 6 ? 0 : px >= 21 && px <= 24 ? 1 : -1, sz = pz >= 3 && pz <= 6 ? 0 : pz >= 21 && pz <= 24 ? 1 : -1;
+    var stall = (sx >= 0 && pz >= 11 && pz <= 16) || (sz >= 0 && px >= 11 && px <= 16);
+    if (stall) {
+      var ns = sx >= 0, a = ns ? pz : px, dpt = ns ? (sx ? 24 - px : px - 3) : (sz ? 24 - pz : pz - 3);
+      var ruined = hash2(p.cx * 4 + (ns ? sx : 2 + sz), p.cz, seed + 551) < 0.3;
+      if ((a === 11 || a === 16) && (dpt === 0 || dpt === 3)) for (y = GROUND + 1; y <= GROUND + 3; y++) put(c, x, y, z, B.STREET_POLE);
+      else if (dpt === 3 && a > 11 && a < 16) {
+        put(c, x, GROUND + 1, z, h < 0.3 ? B.BOXES : B.CRATE);
+        if (a === 13 && hash2(p.cx, p.cz + a, seed + 552) < 0.5) { put(c, x, GROUND + 1, z, B.CHEST, 0); lootAt(c, wx, GROUND + 1, wz, 'market'); }
+      }
+      if (!ruined || h < 0.4) put(c, x, GROUND + 4, z, a % 2 ? B.WOOL_RED : B.WOOL_WHITE);
+      return;
+    }
+    // кафе на углу: столики со стульями
+    if (px >= 20 && pz >= 20 && px <= 25 && pz <= 25) {
+      if ((px === 21 || px === 24) && (pz === 21 || pz === 24)) { put(c, x, GROUND + 1, z, B.DINING_TABLE); return; }
+      if ((px === 21 || px === 24) && (pz === 20 || pz === 22 || pz === 23 || pz === 25) && h < 0.7) { put(c, x, GROUND + 1, z, B.CHAIR, pz === 20 || pz === 23 ? 0 : 2); return; }
+    }
+    // скамейки у фонтана и фонари
+    if ((px === 8 || px === 19) && (pz === 8 || pz === 19)) { put(c, x, GROUND + 1, z, B.BENCH, px === 8 ? (pz === 8 ? 0 : 2) : (pz === 8 ? 0 : 2)); return; }
+    if ((px === 6 || px === 21) && (pz === 6 || pz === 21)) {
+      for (y = GROUND + 1; y <= GROUND + 4; y++) put(c, x, y, z, B.STREET_POLE);
+      put(c, x, GROUND + 5, z, h < 0.45 ? B.CONCRETE_DARK : B.STREET_LAMP);
+      return;
+    }
+    if (h > 0.985) put(c, x, GROUND + 1, z, B.LITTER, 3);
+    else greenery(c, x, GROUND + 1, z, wx, wz, B.PAVING, OV * 0.8, seed, false);
+  }
+
+  // ---- Площадь у министерств: мраморные плиты, обелиск, вечный огонь, флагштоки --------------------
+  function plazaColumn(c, x, z, wx, wz, px, pz, p, seed) {
+    var y, h = hash2(wx, wz, seed + 560), ring = Math.max(Math.abs(px - 13.5), Math.abs(pz - 13.5));
+    put(c, x, GROUND, z, ((px >> 1) + (pz >> 1)) & 1 ? B.MARBLE : B.STONE_BRICK);
+    if (ring < 3) {
+      put(c, x, GROUND + 1, z, B.STONE_BRICK);
+      if (ring < 2) put(c, x, GROUND + 2, z, B.MARBLE);
+      if (ring < 1) {
+        for (y = GROUND + 3; y <= GROUND + 17; y++) put(c, x, y, z, B.MARBLE);
+        put(c, x, GROUND + 18, z, B.GOLD_BLOCK);
+      }
+      return;
+    }
+    // вечный огонь перед обелиском: угли в мраморной чаше — едва тлеют
+    if (px >= 12 && px <= 15 && pz >= 6 && pz <= 8) {
+      if (px >= 13 && px <= 14 && pz === 7) put(c, x, GROUND, z, B.EMBERS);
+      else put(c, x, GROUND + 1, z, B.MARBLE);
+      return;
+    }
+    // флагштоки вдоль северного края, на каждом — флаг города
+    if (pz === 1 && (px === 4 || px === 9 || px === 18 || px === 23)) { for (y = GROUND + 1; y <= GROUND + 10; y++) put(c, x, y, z, B.STREET_POLE); return; }
+    if (pz === 1 && (px === 5 || px === 6 || px === 10 || px === 11 || px === 19 || px === 20 || px === 24 || px === 25)) {
+      if (hash2(wx, wz, seed + 561) < 0.85) put(c, x, GROUND + 9, z, B.FLAG, 0);
+      return;
+    }
+    // скамейки вдоль боков, фонари, клумбы на южных углах
+    if ((px === 5 || px === 22) && pz >= 9 && pz <= 18 && pz % 3 === 0) { put(c, x, GROUND + 1, z, B.BENCH, px === 5 ? 3 : 1); return; }
+    if ((px === 7 || px === 20) && (pz === 7 || pz === 20)) {
+      for (y = GROUND + 1; y <= GROUND + 5; y++) put(c, x, y, z, B.STREET_POLE);
+      put(c, x, GROUND + 6, z, h < 0.5 ? B.CONCRETE_DARK : B.STREET_LAMP);
+      return;
+    }
+    if ((px <= 5 || px >= 22) && pz >= 22) {
+      put(c, x, GROUND, z, B.GRASS);
+      if (px === 0 || px === 27 || pz === 27 || px === 5 || px === 22 || pz === 22) put(c, x, GROUND + 1, z, B.STONE_BRICK);    // бортик клумбы
+      else greenery(c, x, GROUND + 1, z, wx, wz, B.GRASS, Math.max(OV, 0.7), seed, true);
+      return;
+    }
+    greenery(c, x, GROUND + 1, z, wx, wz, B.MARBLE, OV * 0.7, seed, false);
+  }
+
+  // ---- Министерство: портик с колоннами и фронтоном перед входом, флаги на фронтоне ------------------
+  function porticoColumn(c, x, z, wx, wz, p, seed) {
+    var midX = Math.floor((p.bx0 + p.bx1) / 2), off = wx - midX, dz = p.bz0 - wz, ao = Math.abs(off), y;
+    if (dz < 1 || dz > 3 || ao > 12) return false;
+    if (ao >= 11) {                                                                         // флаг у края фронтона
+      if (dz !== 3) return false;
+      if (hash2(wx, wz, seed + 562) < 0.85) put(c, x, GROUND + 13, z, B.FLAG, 0);
+      put(c, x, GROUND, z, walkCover(seed, wx, wz, OV));
+      return true;
+    }
+    put(c, x, GROUND, z, B.MARBLE);
+    var col = dz === 3 && (ao === 3 || ao === 6 || ao === 9);
+    for (y = GROUND + 1; y <= GROUND + 13; y++) {
+      var rel = y - GROUND, id = 0;
+      if (rel <= 8) { if (col) id = rel === 1 || rel === 8 ? B.STONE_BRICK : B.MARBLE; }
+      else if (rel === 9) id = B.MARBLE;
+      else if (ao <= 10 - (rel - 9) * 3) id = B.MARBLE;                                          // фронтон
+      if (ao === 10 && dz === 3 && rel >= 10) id = B.STREET_POLE;                                // флагшток
+      if (id) put(c, x, y, z, id);
+    }
+    if (ao === 10 && dz === 3) for (y = GROUND + 10; y <= GROUND + 14; y++) put(c, x, y, z, B.STREET_POLE);
+    return true;
+  }
+
+  // ---- Электростанция: градирня у моря и машинный зал с трубами, между ними — трубопровод ----------
+  function coolingColumn(c, x, z, wx, wz, px, pz, p, seed) {
+    var y, fx = px + 0.5 - 14, fz = pz + 0.5 - 14, d = Math.hypot(fx, fz), a = Math.atan2(fz, fx);
+    var hg = hash2(wx, wz, seed + 570);
+    put(c, x, GROUND, z, hg < 0.12 ? B.CONCRETE_DARK : B.CONCRETE);
+    if (d > 12.4) {
+      if (hg > 0.985) put(c, x, GROUND + 1, z, hg > 0.993 ? B.FUEL_BARREL : B.CRATE);
+      else greenery(c, x, GROUND + 1, z, wx, wz, B.CONCRETE, OV * 0.8, seed, false);
+      return;
+    }
+    var leg = ((a / (Math.PI * 2) * 16) % 1 + 1) % 1 < 0.42;                 // 16 опор по кругу
+    var gap = hash2(p.cx, p.cz, seed + 571) * Math.PI * 2, gd = angDiff(a, gap);
+    for (y = GROUND + 1; y <= GROUND + 34; y++) {
+      var hh = y - GROUND, t = (hh - 26) / 20.8, r = 7.5 * Math.sqrt(1 + t * t);
+      if (Math.abs(d - r) < 0.72) {
+        if (hh <= 3 && !leg) continue;                                          // проходы между опорами
+        if (gd < 0.55 && hh > 25 + gd * 14) continue;                           // обвалившийся край
+        if (hash3(wx, y, wz, seed + 572) < 0.015) continue;                     // выбоины
+        put(c, x, y, z, B.COOLING_CONCRETE);
+      }
+    }
+    // внутри: бассейн, столбы и решётчатый настил оросителя, лестница наверх
+    if (d < 10.6) {
+      put(c, x, GROUND - 1, z, B.CONCRETE); put(c, x, GROUND, z, B.WATER);
+      var pil = px % 4 === 1 && pz % 4 === 1;
+      if (pil) for (y = GROUND + 1; y <= GROUND + 4; y++) put(c, x, y, z, B.CONCRETE);
+      if (d < 9.8) {
+        put(c, x, GROUND + 5, z, hash3(wx, 5, wz, seed + 573) < 0.06 ? 0 : B.GRATE);
+        if (gd < 0.8 && hg < 0.3) put(c, x, GROUND + 6, z, B.RUBBLE);           // обломки обвала
+      }
+      if (px === 13 && pz === 4) for (y = GROUND + 1; y <= GROUND + 5; y++) put(c, x, y, z, B.LADDER, 4);
+      if (px === 13 && pz === 4) put(c, x, GROUND, z, B.CONCRETE);
+    } else if (d < 11.3) put(c, x, GROUND + 1, z, B.CONCRETE);                   // бортик бассейна
+  }
+  function turbineColumn(c, x, z, wx, wz, px, pz, p, seed) {
+    var y, hg = hash2(wx, wz, seed + 580);
+    var bx0 = p.bx0 - p.x0, bx1 = p.bx1 - p.x0, bz0 = p.bz0 - p.z0, bz1 = p.bz1 - p.z0;
+    put(c, x, GROUND, z, hg < 0.1 ? B.CONCRETE_DARK : B.ASPHALT);
+    // две трубы в красно-белую полосу позади зала
+    for (var k = 0; k < 2; k++) {
+      var dd = Math.hypot(px + 0.5 - (k ? 20.5 : 7.5), pz + 0.5 - 22.5);
+      if (dd < 2.4) {
+        for (y = GROUND + 1; y <= Math.min(H - 4, GROUND + 50); y++) {
+          var hh = y - GROUND;
+          if (dd < 1.2 && hh > 1) continue;
+          put(c, x, y, z, hh >= 48 ? B.SOOTED_CONCRETE : hh <= 2 ? B.BRICK : B.CHIMNEY_BRICK, Math.floor(hh / 6) & 1);
+        }
+        return;
+      }
+    }
+    // двор трансформаторов за оградой
+    if (px >= 11 && px <= 16 && pz >= 19 && pz <= 26) {
+      put(c, x, GROUND, z, B.GRAVEL);
+      if (px === 11 || px === 16 || pz === 19 || pz === 26) { if (!(pz === 19 && px >= 13 && px <= 14)) { put(c, x, GROUND + 1, z, B.BARS); put(c, x, GROUND + 2, z, B.BARS); } }
+      else if ((px === 12 || px === 15) && (pz === 21 || pz === 24)) put(c, x, GROUND + 1, z, B.TRANSFORMER, px === 12 ? 1 : 3);
+      return;
+    }
+    if (px < bx0 || px > bx1 || pz < bz0 || pz > bz1) {
+      if (hg > 0.985) put(c, x, GROUND + 1, z, B.FUEL_BARREL);
+      else greenery(c, x, GROUND + 1, z, wx, wz, B.ASPHALT, OV * 0.7, seed, false);
+      return;
+    }
+    // машинный зал: кирпичный цоколь, ленты окон, ворота; внутри — турбоагрегаты, мостовой кран, пультовая
+    var onX = px === bx0 || px === bx1, onZ = pz === bz0 || pz === bz1, top = GROUND + 14;
+    var ctl = px >= 20 && pz >= 12, ctlWall = ctl && (px === 20 || pz === 12);
+    put(c, x, GROUND, z, B.CONCRETE);
+    for (y = GROUND + 1; y <= top + 1; y++) {
+      var rel = y - GROUND, id = 0, meta = 0, lt = null;
+      if (y === top + 1) { if (onX || onZ) id = B.CONCRETE_DARK; }
+      else if (y === top) id = px % 6 === 3 && !onX && !onZ ? B.GLASS : B.CONCRETE_DARK;
+      else if (onX || onZ) {
+        var along = onX ? pz : px;
+        id = rel <= 4 ? B.BRICK : B.CONCRETE;
+        if (rel >= 6 && rel <= 12 && along % 4 !== 0 && !(onX && onZ)) id = hash3(wx, y, wz, seed + 581) < 0.3 ? 0 : B.WINDOW;
+        if (pz === bz0 && px >= 12 && px <= 15 && rel <= 6) id = 0;                                   // ворота
+      } else if (ctl && rel <= 5) {
+        if (rel === 5) id = B.CONCRETE;
+        else if (ctlWall) { id = B.CONCRETE; if (rel >= 2 && rel <= 3 && (px + pz) % 2) id = B.WINDOW; if (px === 22 && pz === 12 && rel <= 2) id = 0; }
+        else if (rel === 1) {
+          if (pz === 16 && px <= 23) { id = B.CONSOLE; meta = 2; }
+          else if (px === 24 && pz === 14) { id = B.DESK_PC; meta = 1; lt = 'desk'; }
+          else if (px === 21 && pz === 13) { id = B.FILE_CABINET; meta = 0; lt = 'files'; }
+          else if (px === 24 && pz === 16) { id = B.CHEST; meta = 1; lt = 'power'; }
+        }
+      } else {
+        var tz = pz >= 6 && pz <= 8 ? 7 : pz >= 11 && pz <= 13 ? 12 : -1;
+        if (tz > 0 && px >= 5 && px <= 18) {
+          var dz2 = pz - tz, dy = rel - 2;
+          if (dz2 * dz2 + dy * dy <= 1.5) id = px >= 16 ? B.HULL_DARK : B.HULL;
+          if (px === 8 && dz2 === 0 && rel >= 4 && rel <= 13) id = B.HULL;                          // паропровод к кровле
+        }
+        if (rel === 11 && (pz === bz0 + 1 || pz === bz1 - 1)) id = B.CRANE_BEAM;                    // подкрановые пути
+        if (rel === 11 && px === 11) id = B.CRANE_BEAM;                                               // мост крана
+        if (px === 11 && pz === 9 && rel >= 7 && rel <= 10) id = B.STREET_POLE;                        // крюк
+        if (rel === 1 && !id && hg > 0.97) id = hg > 0.985 ? B.FUEL_BARREL : B.CRATE;
+      }
+      if (id) { put(c, x, y, z, id, meta); if (lt) lootAt(c, wx, y, wz, lt); }
+    }
+  }
+  // Трубопровод от градирни к машинному залу: над улицей, на бетонных опорах
+  function powerFeatures(c, seed, ox, oz) {
+    var pw = powerSite(seed);
+    if (!pw) return;
+    var ax = pw.x2 !== pw.x, dir = ax ? pw.x2 - pw.x : pw.z2 - pw.z;
+    var tx = pw.x * CELL_C + 24, tz = pw.z * CELL_C + 24;                     // центр градирни
+    var a0, a1;
+    if (ax) { a0 = dir > 0 ? tx + 9 : pw.x2 * CELL_C + 35; a1 = dir > 0 ? pw.x2 * CELL_C + 12 : tx - 10; }
+    else { a0 = dir > 0 ? tz + 9 : pw.z2 * CELL_C + 27; a1 = dir > 0 ? pw.z2 * CELL_C + 13 : tz - 10; }
+    var lo = Math.min(a0, a1), hi = Math.max(a0, a1), y;
+    if (ax ? (hi < ox || lo > ox + CS - 1 || tz + 1 < oz || tz - 1 > oz + CS - 1) : (hi < oz || lo > oz + CS - 1 || tx + 1 < ox || tx - 1 > ox + CS - 1)) return;
+    for (var t = lo; t <= hi; t++) for (var w = -1; w <= 0; w++) {
+      var wx = ax ? t : tx + w, wz = ax ? tz + w : t;
+      for (y = GROUND + 6; y <= GROUND + 7; y++) put(c, wx - ox, y, wz - oz, B.HULL);
+      var lx = mod(wx, CELL_C), lz = mod(wz, CELL_C);
+      if (w === 0 && mod(t, 6) === 0 && lx >= 8 && lz >= 8) for (y = GROUND + 1; y <= GROUND + 5; y++) put(c, wx - ox, y, wz - oz, B.CONCRETE);
+    }
+  }
+
   // ---- Добыча в сундуках: [предмет, от, до, шанс] ------------------------------------------
   var LOOT = {
     city: [[I.CANNED_FOOD, 1, 3, 0.7], [I.BREAD, 1, 2, 0.4], [I.MEDKIT, 1, 1, 0.3], [I.AMMO, 4, 12, 0.35], [I.PISTOL, 1, 1, 0.08],
@@ -1700,6 +2414,13 @@
     build: [[B.PLANKS, 8, 20, 0.7], [B.BARRICADE, 3, 8, 0.55], [I.IRON_INGOT, 1, 4, 0.4], [330 + 4, 1, 1, 0.15], [306, 1, 1, 0.3], [B.LADDER, 4, 10, 0.4],
       [I.CHAINSAW, 1, 1, 0.14], [I.CROWBAR, 1, 1, 0.3], [I.FUEL_CAN, 1, 1, 0.3]],
     metro: [[I.CANNED_FOOD, 1, 3, 0.45], [B.TORCH, 4, 10, 0.6], [I.BANDAGE, 1, 3, 0.4], [I.AMMO, 4, 10, 0.3], [I.CITY_MAP, 1, 1, 0.25]],
+    cargo: [[I.CANNED_FOOD, 2, 6, 0.6], [I.IRON_INGOT, 2, 8, 0.45], [B.WOOL_WHITE, 2, 8, 0.3], [I.LEATHER, 2, 6, 0.3], [I.FUEL_CAN, 1, 1, 0.25],
+      [I.MEDKIT, 1, 2, 0.2], [I.BANDAGE, 2, 5, 0.3], [I.FLASHLIGHT, 1, 1, 0.15], [I.GOLD_INGOT, 1, 4, 0.08], [I.STRING, 2, 6, 0.3],
+      [I.RIFLE_AMMO, 10, 30, 0.1], [I.RIFLE, 1, 1, 0.04], [I.SPACE_RATION, 1, 3, 0.15]],
+    power: [[I.FUEL_CAN, 1, 2, 0.6], [I.IRON_INGOT, 2, 6, 0.5], [I.SPARK_DUST, 4, 12, 0.6], [I.FLASHLIGHT, 1, 1, 0.35], [I.CROWBAR, 1, 1, 0.25],
+      [I.FIRE_AXE, 1, 1, 0.15], [B.LAMP, 1, 3, 0.3], [I.RADIO, 1, 1, 0.1], [I.MEDKIT, 1, 1, 0.2], [I.CANNED_FOOD, 1, 2, 0.3], [B.WIRE, 4, 16, 0.4]],
+    church: [[B.TORCH, 4, 12, 0.7], [I.BREAD, 1, 4, 0.5], [I.BANDAGE, 1, 4, 0.5], [I.MEDKIT, 1, 1, 0.25], [I.BOOK, 1, 3, 0.5], [I.GOLD_INGOT, 1, 3, 0.3],
+      [I.CANNED_FOOD, 1, 3, 0.4], [I.GOLDEN_APPLE, 1, 1, 0.05], [I.CITY_MAP, 1, 1, 0.15]],
     cityhall: [[I.CITY_MAP, 1, 1, 0.8], [I.RADIO, 1, 1, 0.35], [I.PISTOL, 1, 1, 0.4], [I.AMMO, 8, 20, 0.7], [I.GOLD_INGOT, 2, 8, 0.6],
       [I.MEDKIT, 1, 2, 0.5], [I.FLASHLIGHT, 1, 1, 0.4], [I.BOOK, 1, 3, 0.4], [I.BODY_ARMOR, 1, 1, 0.2]],
     // мебель в квартирах и офисах
