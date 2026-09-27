@@ -1583,6 +1583,166 @@
     }
   });
 
+  // ---- Интерьеры: полы, обои, мебель ----------------------------------------------------------
+  tile('parquet', function () {                 // паркет «плетёнкой»: квадраты 8×8, в соседних доски поперёк
+    var cols = [[172, 122, 72], [156, 106, 60], [186, 136, 84], [164, 114, 66]];
+    for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) {
+      var sq = ((x >> 3) + (y >> 3)) & 1, across = sq ? y : x;
+      var c = cols[((across >> 2) + (x >> 3) * 2 + (y >> 3)) & 3];
+      if ((across & 3) === 3) c = mul(c, 0.72);
+      else if (rnd() < 0.12) c = mul(c, 0.9);
+      px(x, y, jit(c, 0.05));
+    }
+  });
+  tile('plaster', function () {
+    fill([222, 218, 208], 0.04);
+    for (var k = 0; k < 2; k++) { var sx = Math.floor(rnd() * 14), sy = Math.floor(rnd() * 14); px(sx, sy, [196, 190, 176]); px(sx + 1, sy, [204, 198, 186]); }
+  });
+  tile('officeCarpet', function () {
+    for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) {
+      var r = rnd();
+      px(x, y, r < 0.15 ? [86, 96, 112] : r < 0.25 ? [122, 132, 148] : jit([104, 114, 130], 0.08));
+    }
+  });
+  tile('kitchenTile', function () {
+    for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) {
+      var grout = x % 8 === 7 || y % 8 === 7, dark = ((x >> 3) + (y >> 3)) & 1;
+      px(x, y, grout ? [150, 150, 146] : jit(dark ? [70, 74, 82] : [228, 226, 218], 0.04));
+    }
+  });
+  // обои четырёх расцветок: полоска, мелкий цветочек, ромбы, крашеная стена; с пятнами сырости
+  function wallpaper(base, accent, kind) {
+    for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) {
+      var c = base;
+      if (kind === 0 && x % 4 === 0) c = accent;
+      if (kind === 1 && (x % 4 === 1 && y % 4 === 1 || x % 4 === 3 && y % 4 === 3)) c = accent;
+      if (kind === 2 && ((x + y) % 8 === 0 || (x - y + 16) % 8 === 0)) c = accent;
+      px(x, y, jit(c, kind === 3 ? 0.05 : 0.03));
+    }
+    for (var k = 0; k < 2; k++) {
+      var sx = Math.floor(rnd() * 16), sy = Math.floor(rnd() * 12), len = 2 + Math.floor(rnd() * 4);
+      for (var j = 0; j < len; j++) px(sx, sy + j, mul(base, 0.84));
+    }
+  }
+  tile('wallpaper0', function () { wallpaper([206, 190, 158], [180, 160, 126], 0); });
+  tile('wallpaper1', function () { wallpaper([172, 190, 154], [132, 154, 118], 1); });
+  tile('wallpaper2', function () { wallpaper([156, 174, 198], [120, 140, 172], 2); });
+  tile('wallpaper3', function () { wallpaper([214, 214, 206], [200, 200, 194], 3); });
+  function fabric(base) {
+    for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) px(x, y, jit((x + y) % 2 ? base : mul(base, 0.92), 0.06));
+  }
+  tile('sofaFabric', function () { fabric([122, 58, 50]); });
+  tile('sofaCushion', function () {
+    fabric([146, 72, 62]);
+    for (var i = 0; i < 16; i++) { px(7, i, [104, 48, 42]); px(8, i, [104, 48, 42]); px(i, 0, [110, 52, 46]); }
+  });
+  tile('woodDark', function () {
+    for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) px(x, y, jit(y % 5 === 0 ? [80, 54, 34] : [100, 70, 44], 0.07));
+  });
+  tile('tvBody', function () { fill([38, 38, 42], 0.05); });
+  tile('tvScreen', function () {
+    for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) {
+      var frame = x === 0 || x === 15 || y === 0 || y === 15;
+      var glare = !frame && (x + y === 9 || x + y === 10) && x < 8;
+      px(x, y, frame ? [30, 30, 34] : glare ? [78, 86, 98] : jit([22, 26, 32], 0.1));
+    }
+  });
+  tile('fridgeSide', function () { fill([222, 224, 226], 0.03); });
+  tile('fridgeFront', function () {
+    fill([230, 232, 234], 0.03);
+    for (var x = 0; x < 16; x++) px(x, 5, [176, 178, 182]);
+    for (var y = 1; y < 5; y++) px(12, y, [150, 152, 158]);
+    for (var y2 = 7; y2 < 14; y2++) px(12, y2, [150, 152, 158]);
+    px(3, 2, [120, 180, 90]); px(4, 2, [220, 80, 60]);                 // магнитики
+  });
+  tile('stoveTop', function () {
+    fill([70, 70, 74], 0.05);
+    [[4, 4], [11, 4], [4, 11], [11, 11]].forEach(function (b) {
+      for (var y = -3; y <= 3; y++) for (var x = -3; x <= 3; x++) {
+        var r = Math.hypot(x, y);
+        if (r > 1.6 && r < 3.2) px(b[0] + x, b[1] + y, [34, 34, 36]);
+      }
+    });
+  });
+  tile('stoveFront', function () {
+    fill([214, 214, 216], 0.03);
+    for (var x = 2; x < 14; x += 3) px(x, 1, [40, 40, 44]);            // ручки
+    for (var y = 4; y < 14; y++) for (var x2 = 2; x2 < 14; x2++) px(x2, y, y === 4 || y === 13 || x2 === 2 || x2 === 13 ? [60, 60, 64] : jit([28, 26, 26], 0.1));
+    for (var x3 = 4; x3 < 12; x3++) px(x3, 3, [150, 150, 156]);
+  });
+  tile('cabinetSide', function () { fill([198, 186, 164], 0.04); });
+  tile('cabinetFront', function () {
+    fill([204, 192, 170], 0.04);
+    for (var y = 0; y < 16; y++) { px(7, y, [150, 138, 116]); px(8, y, [150, 138, 116]); }
+    for (var x = 0; x < 16; x++) px(x, 0, [150, 138, 116]);
+    px(5, 3, [90, 90, 96]); px(5, 4, [90, 90, 96]); px(10, 3, [90, 90, 96]); px(10, 4, [90, 90, 96]);
+  });
+  tile('counterTop', function () {
+    for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) { var r = rnd(); px(x, y, r < 0.1 ? [96, 96, 94] : r < 0.2 ? [160, 160, 156] : jit([130, 130, 126], 0.05)); }
+  });
+  tile('sinkTop', function () {
+    for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) {
+      var inB = x >= 3 && x <= 12 && y >= 4 && y <= 13, rim = inB && (x === 3 || x === 12 || y === 4 || y === 13);
+      px(x, y, rim ? [170, 174, 178] : inB ? jit([126, 130, 134], 0.08) : jit([130, 130, 126], 0.05));
+    }
+    px(7, 8, [60, 60, 64]); px(8, 8, [60, 60, 64]);
+  });
+  tile('wardrobeFront', function () {
+    for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) px(x, y, jit(x === 7 || x === 8 ? [70, 46, 28] : [112, 78, 50], 0.06));
+    for (var y2 = 6; y2 < 10; y2++) { px(6, y2, [200, 180, 120]); px(9, y2, [200, 180, 120]); }
+  });
+  tile('deskWood', function () {
+    for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) px(x, y, jit(y % 4 === 0 ? [150, 108, 66] : [168, 124, 78], 0.05));
+  });
+  tile('deskDrawer', function () {
+    for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) px(x, y, jit(y % 5 === 0 ? [118, 84, 50] : [164, 120, 76], 0.05));
+    [2, 7, 12].forEach(function (y) { for (var x = 6; x < 10; x++) px(x, y, [70, 70, 76]); });
+  });
+  tile('monitorScreen', function () {
+    for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) {
+      var frame = x < 1 || x > 14 || y < 1 || y > 14;
+      px(x, y, frame ? [34, 34, 38] : (x + y === 12 || x + y === 13) && x < 9 ? [72, 88, 110] : jit([18, 24, 36], 0.12));
+    }
+  });
+  tile('chairFabric', function () { fabric([54, 60, 76]); });
+  tile('fileSide', function () { fill([142, 148, 152], 0.04); });
+  tile('fileFront', function () {
+    fill([150, 156, 160], 0.03);
+    for (var d = 0; d < 4; d++) {
+      var y0 = d * 4;
+      for (var x = 0; x < 16; x++) px(x, y0, [104, 110, 116]);
+      for (var x2 = 6; x2 < 10; x2++) px(x2, y0 + 2, [80, 84, 90]);
+      px(7, y0 + 1, [236, 236, 228]); px(8, y0 + 1, [236, 236, 228]);
+    }
+  });
+  tile('porcelain', function () {
+    for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) px(x, y, jit(mix([240, 242, 244], [214, 218, 222], y / 15), 0.02));
+  });
+  tile('medFront', function () {                 // аптечка: белая дверца с зелёным крестом
+    fill([236, 238, 240], 0.02);
+    for (var y = 4; y < 12; y++) for (var x = 6; x < 10; x++) { px(x, y, [40, 160, 80]); px(y, x, [40, 160, 80]); }
+    for (var x2 = 0; x2 < 16; x2++) { px(x2, 0, [190, 192, 196]); px(x2, 15, [190, 192, 196]); }
+  });
+  tile('potClay', function () {
+    for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) px(x, y, jit(y < 2 ? [150, 80, 50] : [176, 98, 62], 0.06));
+  });
+  function carpet(base, orn, border) {
+    for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) {
+      var e = x === 0 || y === 0 || x === 15 || y === 15, e2 = x === 1 || y === 1 || x === 14 || y === 14;
+      var dx = Math.abs(x - 7.5), dy = Math.abs(y - 7.5), dm = Math.abs(dx - dy) < 0.6 && dx + dy < 7;
+      px(x, y, jit(e ? border : e2 ? orn : dm || (dx < 1 && dy < 1) ? orn : base, 0.05));
+    }
+  }
+  tile('carpetRed', function () { carpet([150, 36, 40], [214, 170, 90], [70, 26, 30]); });
+  tile('carpetBlue', function () { carpet([44, 70, 130], [200, 196, 176], [26, 36, 70]); });
+  tile('carpetGreen', function () { carpet([58, 104, 64], [210, 190, 120], [30, 56, 36]); });
+  tile('coolerWhite', function () { fill([226, 228, 230], 0.03); for (var x = 5; x < 11; x++) px(x, 6, [60, 120, 200]); });
+  tile('coolerBlue', function () {
+    for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) px(x, y, jit(x < 3 ? [150, 200, 240] : [100, 160, 220], 0.05));
+  });
+  tile('tableWood', function () { planks([164, 120, 76]); });
+  tile('metalLight', function () { fill([184, 188, 194], 0.05); });
+
   // ---- Сборка атласа ---------------------------------------------------------------
   function makeAtlas() {
     var cv = document.createElement('canvas');

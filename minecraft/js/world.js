@@ -547,7 +547,7 @@
       case 'button': return attachedBox(meta & 7, 6, 4, 2);
       case 'portal': return portalBox(meta);
       case 'pole': return POLE;
-      case 'model': return rotBox(b.model.coll, meta);
+      case 'model': return rotBox(b.model.sel || b.model.coll, meta);
       case 'decal': return attachedBox((meta & 7) > 5 ? 3 : meta & 7, 16, 16, 1);
       default: return collisionBox(id, meta) || FULL;
     }
@@ -557,8 +557,11 @@
   World.prototype.collide = function (x, y, z, out) {
     var id = this.getBlock(x, y, z);
     if (!KC.SOLID[id]) return;
-    var bx = collisionBox(id, this.getMeta(x, y, z));
+    var meta = this.getMeta(x, y, z), bx = collisionBox(id, meta);
     if (bx) out.push([x + bx[0], y + bx[1], z + bx[2], x + bx[3], y + bx[4], z + bx[5]]);
+    // у ступеней вторая коробка — верхняя ступенька
+    var md = BLOCKS[id].model;
+    if (md && md.coll2) { var b2 = rotBox(md.coll2, meta); out.push([x + b2[0], y + b2[1], z + b2[2], x + b2[3], y + b2[4], z + b2[5]]); }
   };
 
   // ---- Мешер ----------------------------------------------------------------------
@@ -639,6 +642,8 @@
       case B.GENERATOR: if (f === FACING_FACE[meta & 3]) return meta & 4 ? T.generatorOn : tl.front; break;
       case B.RAIL_FLOOR: if (f === 2) return meta & 1 ? T.railZ : T.railX; break;
       case B.FARMLAND: if (f === 2) return meta & 1 ? T.farmlandWet : T.farmland; break;
+      // обои: расцветка по meta (0–3), сверху и снизу — побелка
+      case B.WALLPAPER: if (f !== 2 && f !== 3) return T['wallpaper' + (meta & 3)]; break;
       // лежачее бревно: meta 1 — вдоль X, 2 — вдоль Z
       case B.LOG: case B.BIRCH_LOG: case B.SPRUCE_LOG:
         if ((meta & 3) === 1) return f === 0 || f === 1 ? tl.top : tl.side;

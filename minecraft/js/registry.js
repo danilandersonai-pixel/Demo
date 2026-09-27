@@ -41,7 +41,12 @@
     TRASH_BAGS: 141, DUMPSTER: 142, ROAD_BARRIER: 143, BOXES: 144,
     POSTER: 145, GRAFFITI: 146, IVY: 147, CRACKS: 148, LITTER: 149,
     // Зарастание города
-    MOSS: 150, WEEDS: 151, MOSSY_SIDEWALK: 152
+    MOSS: 150, WEEDS: 151, MOSSY_SIDEWALK: 152,
+    // Интерьеры
+    PARQUET: 153, OFFICE_CARPET: 154, WALLPAPER: 155, KITCHEN_TILE: 156, STAIRS: 157, SOFA: 158, ARMCHAIR: 159, TV: 160,
+    FRIDGE: 161, STOVE: 162, KITCHEN_CABINET: 163, SINK: 164, WARDROBE: 165, DESK: 166, DESK_PC: 167, OFFICE_CHAIR: 168,
+    FILE_CABINET: 169, BATHTUB: 170, TOILET: 171, MED_CABINET: 172, POT_PLANT: 173, CARPET: 174, COOLER: 175,
+    DINING_TABLE: 176, CHAIR: 177
   };
 
   // ---- Идентификаторы предметов -----------------------------------------------
@@ -304,6 +309,70 @@
     coll: [0, 0, 5, 16, 11, 11] } }));
   blk(B.BOXES, 'Картонные коробки', 'cardboard', ext(prop, { tool: 'axe', mat: 'wood', hardness: 0.6, siege: 2, fuel: 150, drop: [[I.PAPER, 2]], model: {
     boxes: [[1, 0, 1, 9, 7, 9, 'cardboard'], [8, 0, 6, 15, 6, 14, 'cardboard'], [3, 7, 3, 8, 11, 8, 'cardboard']], coll: [1, 0, 1, 15, 7, 14] } }));
+  // ---- Интерьеры: полы, стены, ступени и мебель ------------------------------------------------
+  // мебель-контейнер открывается как сундук; добыча — по таблице из генератора города
+  blk(B.PARQUET, 'Паркет', { top: 'parquet', bottom: 'plaster', side: 'planks' }, { hardness: 2, tool: 'axe', mat: 'wood', fuel: 300 });
+  blk(B.OFFICE_CARPET, 'Ковролин', { top: 'officeCarpet', bottom: 'tileFloor', side: 'concrete' }, { hardness: 1.2, tool: 'pickaxe', mat: 'cloth' });
+  blk(B.WALLPAPER, 'Стена с обоями', { top: 'plaster', side: 'wallpaper0' }, { hardness: 1.5, tool: 'pickaxe', mat: 'stone', siege: 14 });
+  blk(B.KITCHEN_TILE, 'Кафель', { top: 'kitchenTile', bottom: 'plaster', side: 'concrete' }, { hardness: 1.5, tool: 'pickaxe', mat: 'stone' });
+  // ступени: нижняя половина и верхняя ступенька у задней стороны — на них заходят без прыжка
+  blk(B.STAIRS, 'Ступени', 'concrete', ext(prop, { hardness: 2, mat: 'stone', siege: 16, model: {
+    boxes: [[0, 0, 0, 16, 8, 16, 'concrete'], [0, 8, 0, 16, 16, 8, 'concrete']], coll: [0, 0, 0, 16, 8, 16], coll2: [0, 8, 0, 16, 16, 8], sel: [0, 0, 0, 16, 16, 16] } }));
+  var soft = { tool: 'axe', mat: 'cloth', hardness: 1, fuel: 200 };
+  blk(B.SOFA, 'Диван', 'sofaFabric', ext(prop, ext(soft, { siege: 5, model: {
+    boxes: [[0, 0, 3, 16, 4, 15, 'sofaFabric'], [0, 4, 5, 16, 7, 15, 'sofaCushion'], [0, 4, 1, 16, 13, 5, 'sofaFabric']], coll: [0, 0, 1, 16, 8, 15], sel: [0, 0, 1, 16, 13, 15] } })));
+  blk(B.ARMCHAIR, 'Кресло', 'sofaFabric', ext(prop, ext(soft, { siege: 4, model: {
+    boxes: [[1, 0, 2, 15, 4, 15, 'sofaFabric'], [3, 4, 4, 13, 7, 15, 'sofaCushion'], [1, 4, 1, 15, 13, 4, 'sofaFabric'],
+      [1, 4, 4, 3, 9, 15, 'sofaFabric'], [13, 4, 4, 15, 9, 15, 'sofaFabric']], coll: [1, 0, 1, 15, 9, 15], sel: [1, 0, 1, 15, 13, 15] } })));
+  var wood = { tool: 'axe', mat: 'wood', hardness: 1.5, fuel: 300 };
+  blk(B.TV, 'Телевизор', 'tvBody', ext(prop, { hardness: 1, siege: 3, model: {
+    boxes: [[1, 0, 4, 15, 5, 13, 'woodDark'], [2, 5, 7, 14, 14, 10, { side: 'tvBody', top: 'tvBody', front: 'tvScreen' }], [6, 5, 5, 10, 6, 7, 'tvBody']],
+    coll: [1, 0, 4, 15, 14, 13] } }));
+  var cont = { use: 'chest', entity: 'chest' };
+  blk(B.FRIDGE, 'Холодильник', { side: 'fridgeSide', front: 'fridgeFront' }, ext(prop, ext(cont, { hardness: 2.5, siege: 12, model: {
+    boxes: [[1, 0, 2, 15, 16, 15, { side: 'fridgeSide', top: 'fridgeSide', front: 'fridgeFront' }]], coll: [1, 0, 2, 15, 16, 15] } })));
+  blk(B.STOVE, 'Кухонная плита', { top: 'stoveTop', side: 'fridgeSide', front: 'stoveFront' }, ext(prop, { hardness: 2.5, siege: 10, use: 'furnace', entity: 'furnace', model: {
+    boxes: [[0, 0, 1, 16, 14, 15, { side: 'fridgeSide', top: 'stoveTop', front: 'stoveFront' }]], coll: [0, 0, 1, 16, 14, 15] } }));
+  blk(B.KITCHEN_CABINET, 'Кухонный шкафчик', { top: 'counterTop', side: 'cabinetSide', front: 'cabinetFront' }, ext(prop, ext(wood, ext(cont, { siege: 8, model: {
+    boxes: [[0, 0, 1, 16, 14, 15, { side: 'cabinetSide', top: 'counterTop', front: 'cabinetFront' }]], coll: [0, 0, 1, 16, 14, 15] } }))));
+  blk(B.SINK, 'Раковина', { top: 'sinkTop', side: 'cabinetSide', front: 'cabinetFront' }, ext(prop, ext(wood, { siege: 8, model: {
+    boxes: [[0, 0, 1, 16, 14, 15, { side: 'cabinetSide', top: 'sinkTop', front: 'cabinetFront' }], [7, 14, 2, 9, 16, 4, 'metalLight'], [7, 15, 4, 9, 16, 7, 'metalLight']],
+    coll: [0, 0, 1, 16, 14, 15] } })));
+  blk(B.WARDROBE, 'Платяной шкаф', { side: 'woodDark', front: 'wardrobeFront' }, ext(prop, ext(wood, ext(cont, { siege: 10, model: {
+    boxes: [[0, 0, 2, 16, 16, 15, { side: 'woodDark', top: 'woodDark', front: 'wardrobeFront' }]], coll: [0, 0, 2, 16, 16, 15] } }))));
+  function deskBoxes() {
+    return [[0, 11, 0, 16, 12.5, 16, 'deskWood'], [9, 0, 1, 15, 11, 15, { side: 'deskWood', top: 'deskWood', front: 'deskDrawer' }],
+      [1, 0, 1, 3, 11, 3, 'deskWood'], [1, 0, 13, 3, 11, 15, 'deskWood']];
+  }
+  blk(B.DESK, 'Письменный стол', { side: 'deskWood', front: 'deskDrawer' }, ext(prop, ext(wood, ext(cont, { siege: 6, model: {
+    boxes: deskBoxes(), coll: [0, 0, 0, 16, 12.5, 16] } }))));
+  blk(B.DESK_PC, 'Стол с компьютером', { side: 'deskWood', front: 'monitorScreen' }, ext(prop, ext(wood, ext(cont, { siege: 6, model: {
+    boxes: deskBoxes().concat([[3, 12.5, 2, 13, 16, 3.5, { side: 'tvBody', top: 'tvBody', front: 'monitorScreen' }], [7, 12.5, 3.5, 9, 13.5, 5, 'tvBody'],
+      [4, 12.5, 8, 12, 13, 11, 'tvBody']]), coll: [0, 0, 0, 16, 12.5, 16], sel: [0, 0, 0, 16, 16, 16] } }))));
+  blk(B.OFFICE_CHAIR, 'Офисное кресло', 'chairFabric', ext(prop, { hardness: 1, siege: 3, model: {
+    boxes: [[7, 0, 7, 9, 5, 9, 'metalDark'], [3, 0, 7, 13, 1, 9, 'metalDark'], [7, 0, 3, 9, 1, 13, 'metalDark'],
+      [3, 5, 3, 13, 7, 13, 'chairFabric'], [3, 7, 2, 13, 15, 4, 'chairFabric']], coll: [3, 0, 2, 13, 7, 13], sel: [3, 0, 2, 13, 15, 13] } }));
+  blk(B.FILE_CABINET, 'Картотека', { side: 'fileSide', front: 'fileFront' }, ext(prop, ext(cont, { hardness: 2.5, siege: 12, model: {
+    boxes: [[1, 0, 2, 15, 16, 15, { side: 'fileSide', top: 'fileSide', front: 'fileFront' }]], coll: [1, 0, 2, 15, 16, 15] } })));
+  blk(B.BATHTUB, 'Ванна', 'porcelain', ext(prop, { hardness: 2, mat: 'glass', siege: 8, model: {
+    boxes: [[0, 0, 0, 16, 2, 16, 'porcelain'], [0, 2, 0, 16, 9, 2, 'porcelain'], [0, 2, 14, 16, 9, 16, 'porcelain'],
+      [0, 2, 2, 2, 9, 14, 'porcelain'], [14, 2, 2, 16, 9, 14, 'porcelain']], coll: [0, 0, 0, 16, 9, 16] } }));
+  blk(B.TOILET, 'Унитаз', 'porcelain', ext(prop, { hardness: 1.5, mat: 'glass', siege: 4, model: {
+    boxes: [[5, 0, 5, 11, 6, 12, 'porcelain'], [4, 6, 4, 12, 8, 13, 'porcelain'], [4, 6, 0, 12, 14, 4, 'porcelain'], [5, 8, 5, 11, 8.5, 12, 'metalLight']],
+    coll: [4, 0, 0, 12, 8, 13], sel: [4, 0, 0, 12, 14, 13] } }));
+  blk(B.MED_CABINET, 'Аптечка на стене', { side: 'porcelain', front: 'medFront' }, ext(prop, ext(cont, { hardness: 1, mat: 'metal', siege: 3, model: {
+    boxes: [[3, 3, 0, 13, 13, 4, { side: 'porcelain', top: 'porcelain', front: 'medFront' }]], coll: [3, 3, 0, 13, 13, 4] } })));
+  blk(B.POT_PLANT, 'Цветок в горшке', { side: 'potClay', top: 'leaves' }, ext(prop, { tool: null, hardness: 0.4, mat: 'plant', siege: 1, model: {
+    boxes: [[5, 0, 5, 11, 6, 11, 'potClay'], [3, 6, 3, 13, 15, 13, 'leaves']], coll: [5, 0, 5, 11, 6, 11], sel: [3, 0, 3, 13, 15, 13] } }));
+  blk(B.CARPET, 'Ковёр', 'carpetRed', ext(decal, { mat: 'cloth', replaceable: false, variants: ['carpetRed', 'carpetBlue', 'carpetGreen'], fuel: 60 }));
+  blk(B.COOLER, 'Кулер с водой', 'coolerWhite', ext(prop, { hardness: 1, siege: 3, model: {
+    boxes: [[4, 0, 4, 12, 10, 12, 'coolerWhite'], [5, 10, 5, 11, 16, 11, 'coolerBlue']], coll: [4, 0, 4, 12, 16, 12] } }));
+  blk(B.DINING_TABLE, 'Обеденный стол', 'tableWood', ext(prop, ext(wood, { siege: 6, model: {
+    boxes: [[0, 13, 0, 16, 15, 16, 'tableWood'], [1, 0, 1, 3, 13, 3, 'tableWood'], [13, 0, 1, 15, 13, 3, 'tableWood'],
+      [1, 0, 13, 3, 13, 15, 'tableWood'], [13, 0, 13, 15, 13, 15, 'tableWood']], coll: [0, 0, 0, 16, 15, 16] } })));
+  blk(B.CHAIR, 'Стул', 'tableWood', ext(prop, ext(wood, { hardness: 1, siege: 3, model: {
+    boxes: [[3, 0, 3, 5, 8, 5, 'tableWood'], [11, 0, 3, 13, 8, 5, 'tableWood'], [3, 0, 11, 5, 8, 13, 'tableWood'], [11, 0, 11, 13, 8, 13, 'tableWood'],
+      [3, 8, 3, 13, 9.5, 13, 'tableWood'], [3, 9.5, 3, 13, 16, 4.5, 'tableWood']], coll: [3, 0, 3, 13, 9.5, 13], sel: [3, 0, 3, 13, 16, 13] } })));
   // плитки коробок и вариантов «наклеек» — в индексы атласа
   BLOCKS.forEach(function (b) {
     if (!b) return;
@@ -567,6 +636,13 @@
   shaped(B.BED, 1, ['WWW', 'PPP'], { W: [B.WOOL_WHITE, B.WOOL_RED, B.WOOL_BLUE, B.WOOL_YELLOW, B.WOOL_GREEN], P: B.PLANKS });
   shaped(B.DOOR, 3, ['PP', 'PP', 'PP'], { P: B.PLANKS });
   shaped(B.LADDER, 3, ['S S', 'SSS', 'S S'], { S: I.STICK });
+  // обустройство убежища: ступени, стулья, стол, диван, ковёр, цветок
+  shaped(B.STAIRS, 4, ['C  ', 'CC ', 'CCC'], { C: [B.COBBLE, B.STONE_BRICK, B.CONCRETE] });
+  shaped(B.CHAIR, 2, ['S  ', 'PPP', 'S S'], { P: B.PLANKS, S: I.STICK });
+  shaped(B.DINING_TABLE, 1, ['PPP', 'S S', 'S S'], { P: B.PLANKS, S: I.STICK });
+  shaped(B.SOFA, 2, ['W  ', 'WWW', 'PPP'], { W: [B.WOOL_WHITE, B.WOOL_RED, B.WOOL_BLUE, B.WOOL_YELLOW, B.WOOL_GREEN], P: B.PLANKS });
+  shaped(B.CARPET, 3, ['WW'], { W: [B.WOOL_WHITE, B.WOOL_RED, B.WOOL_BLUE, B.WOOL_YELLOW, B.WOOL_GREEN] });
+  shaped(B.POT_PLANT, 1, ['L', 'B'], { L: B.LEAVES, B: I.BRICK_ITEM });
   shapeless(I.GUNPOWDER, 2, [[I.COAL, I.CHARCOAL], I.FLINT]);
   shaped(B.TNT, 1, ['GSG', 'SGS', 'GSG'], { G: I.GUNPOWDER, S: B.SAND });
   shaped(B.STONE_BRICK, 4, ['SS', 'SS'], { S: B.STONE });

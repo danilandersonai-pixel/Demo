@@ -842,6 +842,199 @@
     greenery(c, x, GROUND + 1, z, wx, wz, soil, Math.max(OV, 0.7), seed, true);
   }
 
+  // =================================================================================
+  // Интерьеры: лестничная клетка и поэтажные планы — квартиры, офисы, больничные палаты
+  // =================================================================================
+  // Лестница у северной стены: две полосы (iz = 1 и 2), марш из четырёх ступеней между площадками
+  // ix = 1 и ix = 6. Марш этажа F идёт по полосе F & 1: чётные поднимаются на восток, нечётные — на запад.
+  // Над тремя нижними ступенями в перекрытии следующего этажа — проём, верхняя ступень стоит в перекрытии.
+  var STAIR_META = [1, 3];
+  function inStairwell(ix, iz) { return ix >= 1 && ix <= 7 && iz >= 1 && iz <= 3; }
+  function stairCell(ix, iz, rel, floors) {
+    if (ix < 2 || ix > 5 || iz < 1 || iz > 2 || rel < 1) return -1;
+    var lane = iz - 1, pos = lane === 0 ? ix - 1 : 6 - ix;          // pos 1..4 — номер ступени вдоль подъёма
+    var F = (rel - pos) / 4;
+    if (F === Math.floor(F) && F >= 0 && F < floors && (F & 1) === lane) return B.STAIRS;
+    if (rel % 4 === 0 && pos <= 3) {                                  // над первыми тремя ступенями — голова не цепляет потолок
+      var Fb = rel / 4 - 1;
+      if (Fb >= 0 && Fb < floors && (Fb & 1) === lane) return 0;      // проём над маршем
+    }
+    return -1;
+  }
+
+  var LOOT_KEYS = ['', 'fridge', 'kitchen', 'wardrobe', 'desk', 'files', 'medicine', 'hospital', 'city', 'office', 'police'];
+  var planCache = new Map();
+  function floorPlan(p, L, seed) {
+    var key = p.cx + ',' + p.cz + ':' + L + ':' + seed, P = planCache.get(key);
+    if (P) return P;
+    if (planCache.size > 600) planCache.clear();
+    var W = p.bx1 - p.bx0 + 1, D = p.bz1 - p.bz0 + 1, n = W * D;
+    P = { W: W, D: D, floor: new Uint8Array(n), id: new Uint8Array(n * 3), meta: new Uint8Array(n * 3), loot: new Uint8Array(n * 3) };
+    var res = new Uint8Array(n);                       // занятые проходами клетки: мебель сюда не ставим
+    var rs = hash2(p.cx * 131 + L * 7, p.cz * 71 - L * 3, seed + 400), rng = KC.mulberry32((rs * 4294967296) >>> 0);
+    function inside(ix, iz) { return ix >= 1 && iz >= 1 && ix <= W - 2 && iz <= D - 2; }
+    function setF(ix, iz, id) { if (inside(ix, iz)) P.floor[ix + iz * W] = id; }
+    function set(ix, iz, r, id, meta, loot) {
+      if (!inside(ix, iz)) return;
+      var k = (ix + iz * W) * 3 + r - 1;
+      P.id[k] = id; P.meta[k] = meta | 0; P.loot[k] = loot ? LOOT_KEYS.indexOf(loot) : 0;
+    }
+    function free(ix, iz) { return inside(ix, iz) && !res[ix + iz * W] && !P.id[(ix + iz * W) * 3]; }
+    // мебель: ставим, если клетка свободна; контейнер получает добычу с шансом (часть уже обшарили)
+    function item(ix, iz, id, meta, loot, lootP) {
+      if (!free(ix, iz)) return false;
+      set(ix, iz, 1, id, meta, loot && rng() < (lootP === undefined ? 0.6 : lootP) ? loot : null);
+      return true;
+    }
+    function wall(ix, iz, id, meta) { if (inside(ix, iz)) for (var r = 1; r <= 3; r++) set(ix, iz, r, id, meta); }
+    function wallX(iz, ix0, ix1, id, meta) { for (var ix = ix0; ix <= ix1; ix++) wall(ix, iz, id, meta); }
+    function wallZ(ix, iz0, iz1, id, meta) { for (var iz = iz0; iz <= iz1; iz++) wall(ix, iz, id, meta); }
+    function opening(ix, iz) { set(ix, iz, 1, 0, 0); set(ix, iz, 2, 0, 0); }
+    // дверь: закрыта, распахнута или выбита; f — сторона створки (0 — к +Z, 2 — к −Z)
+    function door(ix, iz, f) {
+      var r = rng();
+      if (r < 0.2) { opening(ix, iz); return; }
+      var m = f | (r < 0.55 ? 4 : 0);
+      set(ix, iz, 1, B.DOOR, m); set(ix, iz, 2, B.DOOR, m | 8);
+    }
+    function reserve(ix0, iz0, ix1, iz1) { for (var z = iz0; z <= iz1; z++) for (var x = ix0; x <= ix1; x++) if (inside(x, z)) res[x + z * W] = 1; }
+    function floorRect(ix0, iz0, ix1, iz1, id) { for (var z = iz0; z <= iz1; z++) for (var x = ix0; x <= ix1; x++) setF(x, z, id); }
+
+    var st = p.style, office = st !== 'apart' && st !== 'hospital';
+    var wallMeta = st === 'hospital' ? 3 : office ? 3 : Math.floor(rng() * 3);
+    var cz = Math.floor(D / 2) - 1, mx = Math.floor((p.bx0 + p.bx1) / 2) - p.bx0;
+    floorRect(1, 1, W - 2, D - 2, office ? B.OFFICE_CARPET : st === 'hospital' ? B.TILE_FLOOR : B.PARQUET);
+    // лестничная клетка: стена с двумя проходами (к обеим площадкам) и холл до коридора
+    floorRect(1, 1, 7, cz + 1, B.TILE_FLOOR);
+    wallX(3, 1, 7, B.WALLPAPER, 3); wallZ(7, 1, 2, B.WALLPAPER, 3);
+    opening(1, 3); opening(6, 3);
+    reserve(1, 1, 6, cz + 1);
+    if (st === 'apart' || st === 'hospital') roomsPlan(); else officePlan();
+    // следы бегства: мусор и коробки на полу
+    for (var q = 0; q < n; q++) {
+      var qx = q % W, qz = (q / W) | 0;
+      if (!inside(qx, qz) || P.id[q * 3] || res[q]) continue;
+      var rr = rng();
+      if (rr < 0.035) set(qx, qz, 1, B.LITTER, 3);
+      else if (rr < 0.043) set(qx, qz, 1, B.BOXES, Math.floor(rr * 400) & 3);
+    }
+    planCache.set(key, P);
+    return P;
+
+    // ---- Квартиры и палаты: коридор посередине, комнаты по обе стороны ----
+    function roomsPlan() {
+      var hosp = st === 'hospital';
+      floorRect(1, cz, W - 2, cz + 1, B.TILE_FLOOR);
+      reserve(1, cz, W - 2, cz + 1);
+      wallX(cz - 1, 7, W - 2, B.WALLPAPER, wallMeta);
+      wallX(cz + 2, 1, W - 2, B.WALLPAPER, wallMeta);
+      var lobby = L === 0;
+      // северный ряд комнат (на первом этаже вместо них — вестибюль у входа)
+      if (lobby) {
+        wallX(cz - 1, 7, W - 2, 0, 0);
+        floorRect(8, 1, W - 2, cz - 1, B.TILE_FLOOR);
+        reserve(mx - 1, 1, mx + 1, 4);
+        if (hosp) for (var dx = -1; dx <= 1; dx++) item(mx + dx, 6, B.DESK, 2, 'hospital', 0.4);
+        else { item(8, 1, B.POT_PLANT, 0); item(W - 2, 1, B.POT_PLANT, 0); item(W - 2, 3, B.ARMCHAIR, 1); item(W - 2, 4, B.ARMCHAIR, 1); }
+      } else { wallZ(7, 4, cz - 2, B.WALLPAPER, wallMeta); splitRooms(8, 1, W - 2, cz - 2, true); }
+      splitRooms(1, cz + 3, W - 2, D - 2, false);
+      function splitRooms(x0, z0, x1, z1, north) {
+        var a = x0;
+        while (a <= x1) {
+          var b = a + 5;
+          if (x1 - b < 5) b = x1;                                   // узкий остаток — к последней комнате
+          if (b < x1) wallZ(b + 1, z0, z1, B.WALLPAPER, wallMeta);
+          var dz = north ? z1 + 1 : z0 - 1;
+          door(a + 1, dz, north ? 0 : 2);
+          if (hosp) ward(a, b, z0, z1, north); else apartment(a, b, z0, z1, north);
+          a = b + 2;
+        }
+      }
+    }
+    // локальные координаты комнаты: u — вдоль коридора, v — от двери к окнам
+    function roomFrame(a, b, z0, z1, north) {
+      return {
+        Wa: b - a + 1, Da: z1 - z0 + 1,
+        x: function (u) { return a + u; },
+        z: function (v) { return north ? z1 - v : z0 + v; },
+        // куда смотрит «лицо» предмета: к окнам (+v), к двери (−v), по u
+        fv: north ? 2 : 0, fd: north ? 0 : 2, fu: 3, fuN: 1
+      };
+    }
+    function apartment(a, b, z0, z1, north) {
+      var R = roomFrame(a, b, z0, z1, north), Wa = R.Wa, Da = R.Da, u, v;
+      if (Wa < 4 || Da < 4) return;
+      reserve(R.x(1), Math.min(R.z(0), R.z(1)), R.x(1), Math.max(R.z(0), R.z(1)));     // проход от двери
+      // кухня вдоль стены у двери: холодильник, плита, мойка, шкафчики; пол — кафель
+      for (u = 2; u < Wa; u++) { setF(R.x(u), R.z(0), B.KITCHEN_TILE); setF(R.x(u), R.z(1), B.KITCHEN_TILE); }
+      item(R.x(Wa - 1), R.z(0), B.FRIDGE, R.fv, 'fridge', 0.65);
+      item(R.x(Wa - 2), R.z(0), B.STOVE, R.fv);
+      if (Wa > 4) item(R.x(Wa - 3), R.z(0), B.SINK, R.fv);
+      for (u = 2; u < Wa - 3; u++) item(R.x(u), R.z(0), B.KITCHEN_CABINET, R.fv, 'kitchen', 0.55);
+      item(R.x(0), R.z(0), B.WARDROBE, R.fv, 'wardrobe', 0.6);
+      // обеденный стол со стульями
+      if (Da > 5 && rng() < 0.85) {
+        item(R.x(Wa - 2), R.z(2), B.DINING_TABLE, 0);
+        item(R.x(Wa - 3), R.z(2), B.CHAIR, R.fu);
+        if (rng() < 0.7) item(R.x(Wa - 1), R.z(2), B.CHAIR, R.fuN);
+      }
+      // у окон: телевизор, диван напротив, ковёр между ними; кровать и цветок
+      var lv = Da - 1;
+      if (rng() < 0.75) item(R.x(1), R.z(lv), B.TV, R.fd);
+      if (Da > 4) for (u = 0; u < 3; u++) if (rng() < 0.85) item(R.x(u), R.z(lv - 2), B.SOFA, R.fv);
+      if (Da > 5) for (u = 0; u < 3; u++) if (free(R.x(u), R.z(lv - 1))) set(R.x(u), R.z(lv - 1), 1, B.CARPET, 3);
+      item(R.x(Wa - 1), R.z(lv), B.BED, 0);
+      if (Da > 5) item(R.x(Wa - 1), R.z(lv - 1), B.BED, 0);
+      if (rng() < 0.6) item(R.x(Wa - 2), R.z(lv), B.POT_PLANT, 0);
+      else if (rng() < 0.5) item(R.x(Wa - 2), R.z(lv), B.BOOKSHELF, 0);
+      // санузел у боковой стены: ванна, унитаз, раковина и аптечка над ней
+      if (Da > 6) {
+        item(R.x(0), R.z(2), B.BATHTUB, 0);
+        item(R.x(0), R.z(3), B.TOILET, R.fu);
+        if (item(R.x(0), R.z(4), B.SINK, R.fu) && Da > 7) set(R.x(0), R.z(4), 2, B.MED_CABINET, R.fu, rng() < 0.55 ? 'medicine' : null);
+      }
+    }
+    function ward(a, b, z0, z1, north) {
+      var R = roomFrame(a, b, z0, z1, north), Wa = R.Wa, Da = R.Da, u;
+      if (Wa < 3 || Da < 3) return;
+      reserve(R.x(1), Math.min(R.z(0), R.z(1)), R.x(1), Math.max(R.z(0), R.z(1)));
+      for (u = 0; u < Wa; u += 2) { item(R.x(u), R.z(Da - 1), B.BED, 0); if (Da > 5 && u + 1 < Wa && rng() < 0.5) item(R.x(u + 1), R.z(Da - 1), B.CHAIR, R.fd); }
+      if (Da > 4) for (u = 0; u < Wa; u += 2) item(R.x(u), R.z(Da - 3), B.BED, 0);
+      if (item(R.x(Wa - 1), R.z(0), B.SINK, R.fv)) set(R.x(Wa - 1), R.z(0), 2, B.MED_CABINET, R.fv, rng() < 0.75 ? 'medicine' : null);
+      if (rng() < 0.3) item(R.x(0), R.z(0), B.CHEST, 0, 'hospital', 1);
+      else item(R.x(0), R.z(0), B.FILE_CABINET, R.fv, 'files', 0.4);
+    }
+    // ---- Офис: открытое пространство с рядами столов, переговорная за стеклом, шкафы у стен ----
+    function officePlan() {
+      var x, z, police0 = st === 'police' && L === 0, deskLoot = st === 'police' ? 'police' : 'desk';
+      if (police0) reserve(W - 7, D - 7, W - 2, D - 2);                 // оружейная
+      if (L === 0) reserve(mx - 1, 1, mx + 1, 4);                          // проход от входа
+      // переговорная в юго-восточном углу
+      if (!police0) {
+        var mx0 = W - 9, mz0 = D - 8;
+        wallZ(mx0, mz0, D - 2, B.GLASS, 0); wallX(mz0, mx0, W - 2, B.GLASS, 0);
+        opening(mx0, D - 4);
+        reserve(mx0 - 1, D - 5, mx0 - 1, D - 3);
+        for (x = mx0 + 2; x <= W - 4; x++) {
+          item(x, D - 5, B.DINING_TABLE, 0);
+          item(x, D - 6, B.CHAIR, 0); item(x, D - 4, B.CHAIR, 2);
+        }
+        item(W - 2, D - 2, B.POT_PLANT, 0); item(W - 2, mz0 + 1, B.COOLER, 1);
+      }
+      // ряды столов: пары лицом друг к другу, кресла с обеих сторон
+      for (z = 5; z + 3 <= D - 2; z += 6) for (x = 9; x + 2 <= W - 2; x += 4) for (var k = 0; k < 3; k++) {
+        var xx = x + k;
+        if (!free(xx, z) || !free(xx, z + 1) || !free(xx, z - 1) || !free(xx, z + 2)) continue;
+        if (rng() < 0.9) { item(xx, z, rng() < 0.7 ? B.DESK_PC : B.DESK, 2, deskLoot, 0.5); if (rng() < 0.8) item(xx, z - 1, B.OFFICE_CHAIR, 0); }
+        if (rng() < 0.9) { item(xx, z + 1, rng() < 0.7 ? B.DESK_PC : B.DESK, 0, deskLoot, 0.5); if (rng() < 0.8) item(xx, z + 2, B.OFFICE_CHAIR, 2); }
+      }
+      // шкафы-картотеки и книжные полки вдоль западной стены, цветы по углам, кулер у холла
+      for (z = cz + 2; z <= D - 2; z++) if (rng() < 0.7) item(1, z, rng() < 0.6 ? B.FILE_CABINET : B.BOOKSHELF, 3, 'files', 0.55);
+      item(8, cz + 2, B.COOLER, 3); item(W - 2, 1, B.POT_PLANT, 0); item(8, D - 2, B.POT_PLANT, 0);
+      if (L === 0) for (var dx = -1; dx <= 1; dx++) item(mx + dx, 6, B.DESK, 2, 'office', 0.35);   // стойка у входа
+    }
+  }
+
   // ---- Высотки, офисы, жилые дома, больница, полиция, башня с площадкой ----------------
   function buildingColumn(c, x, z, wx, wz, p, seed) {
     var y;
@@ -858,59 +1051,62 @@
     var wallMat = st === 'tower' || st === 'helipad' || st === 'police' ? B.CONCRETE_DARK : st === 'office' || st === 'hospital' ? B.CONCRETE : B.BRICK;
     var onX = wx === p.bx0 || wx === p.bx1, onZ = wz === p.bz0 || wz === p.bz1;
     var corner = onX && onZ;
-    var shaftX = p.bx0 + 1, shaftZ = p.bz0 + 1;
+    var ix = wx - p.bx0, iz = wz - p.bz0, stairs = inStairwell(ix, iz);
     var midX = Math.floor((p.bx0 + p.bx1) / 2), midZ = Math.floor((p.bz0 + p.bz1) / 2);
-    var loot = st === 'tower' || st === 'office' || st === 'helipad' ? 'office' : st === 'hospital' ? 'hospital' : st === 'police' ? 'police' : 'city';
     // оружейная полиции: комната за решёткой в дальнем углу первого этажа
     var armory = st === 'police' && wx >= p.bx1 - 5 && wz >= p.bz1 - 5;
     var armoryWall = armory && (wx === p.bx1 - 5 || wz === p.bz1 - 5);
+    var plans = [];
+    function planAt(L) { return plans[L] || (plans[L] = floorPlan(p, L, seed)); }
     for (y = GROUND; y <= p.top + 1; y++) {
-      var rel = y - GROUND, floorLvl = rel % 4 === 0;
-      var id = 0, meta = 0;
+      var rel = y - GROUND, r4 = rel % 4, L = (rel - r4) / 4;
+      var id = 0, meta = 0, lt = 0;
       if (y === p.top + 1) { if (onX || onZ) id = wallMat; }               // парапет на крыше
       else if (onX || onZ) {
         id = wallMat;
-        var band = rel % 4;
         var along = onX ? wz : wx;
-        if (!corner && (band === 2 || band === 3) && mod(along, 3) !== 0) id = hash3(wx, y, wz, seed + 84) < (p.district === 'downtown' ? 0.22 : 0.14) ? 0 : B.WINDOW;
+        if (!corner && (r4 === 2 || r4 === 3) && mod(along, 3) !== 0) id = hash3(wx, y, wz, seed + 84) < (p.district === 'downtown' ? 0.22 : 0.14) ? 0 : B.WINDOW;
         // вход с улицы (северная стена)
         if (wz === p.bz0 && !onX && rel >= 1 && rel <= 3 && Math.abs(wx - midX) <= 1) id = 0;
         // вывески
         if (st === 'hospital' && rel === 4 && wz === p.bz0 && Math.abs(wx - midX) <= 1) id = B.MED_SIGN;
         if (st === 'hospital' && y === p.top - 1 && !corner && (along === midX || along === midZ)) id = B.MED_SIGN;
         if (st === 'police' && rel === 4 && wz === p.bz0 && Math.abs(wx - midX) <= 3) id = B.POLICE_SIGN;
-      } else if (floorLvl) {
-        id = rel === 0 ? B.TILE_FLOOR : (y === p.top ? wallMat : B.TILE_FLOOR);
-        if (wx === shaftX && wz === shaftZ) id = 0;                          // шахта с лестницей
-        else if (rel > 0 && y < p.top && (wx - p.bx0) % 6 === 3 && (wz - p.bz0) % 6 === 3 && hash2(p.cx * 31 + rel, p.cz, seed + 85) < 0.35) id = B.CEILING_LAMP;
-        if (st === 'helipad' && y === p.top) {
-          var hx = wx - midX, hz = wz - midZ, cheb = Math.max(Math.abs(hx), Math.abs(hz));
-          if (cheb === 5) id = B.HELIPAD;
-          else if (cheb < 5) id = (Math.abs(hx) === 2 && Math.abs(hz) <= 2) || (hz === 0 && Math.abs(hx) <= 2) ? B.CONCRETE : B.CONCRETE_DARK;
+      } else {
+        var sc = stairs ? stairCell(ix, iz, rel, p.floors) : -1;
+        if (sc >= 0) { id = sc; meta = sc ? STAIR_META[iz - 1] : 0; }        // ступени и проёмы лестничной клетки
+        else if (r4 === 0) {
+          if (y === p.top) {
+            id = wallMat;
+            if (st === 'helipad') {
+              var hx = wx - midX, hz = wz - midZ, cheb = Math.max(Math.abs(hx), Math.abs(hz));
+              if (cheb === 5) id = B.HELIPAD;
+              else if (cheb < 5) id = (Math.abs(hx) === 2 && Math.abs(hz) <= 2) || (hz === 0 && Math.abs(hx) <= 2) ? B.CONCRETE : B.CONCRETE_DARK;
+            }
+          } else {
+            var PL = planAt(L);
+            id = PL.floor[ix + iz * PL.W] || B.TILE_FLOOR;
+            if (rel > 0 && !stairs && ix % 6 === 3 && iz % 6 === 3 && hash2(p.cx * 31 + rel, p.cz, seed + 85) < 0.35) id = B.CEILING_LAMP;
+            // лампы над площадками лестницы — там, куда приходит марш
+            else if (rel > 0 && ((ix === 6 && iz === 2) || (ix === 1 && iz === 1)) && hash2(p.cx * 17 + rel, p.cz + ix, seed + 86) < 0.6) id = B.CEILING_LAMP;
+          }
+        } else if (armoryWall && rel <= 3) {
+          id = B.BARS;
+        } else if (armory && rel === 1 && wz === p.bz1 - 1 && (wx === p.bx1 - 1 || wx === p.bx1 - 3)) {
+          id = B.CHEST; meta = 2; lootAt(c, wx, y, wz, 'armory');
+        } else if (armory && rel === 1 && wx === p.bx1 - 1 && wz === p.bz1 - 3) {
+          id = B.CRATE;
+        } else if (!(armory && rel <= 3)) {
+          // комнаты по плану этажа: стены, двери, мебель и её добыча
+          var P2 = planAt(L), k = (ix + iz * P2.W) * 3 + r4 - 1;
+          id = P2.id[k]; meta = P2.meta[k]; lt = P2.loot[k];
         }
-      } else if (wx === shaftX && wz === shaftZ) {
-        id = B.LADDER; meta = 1;                                              // опора — стена с запада
-      } else if (armoryWall && rel >= 1 && rel <= 3) {
-        id = B.BARS;
-      } else if (armory && rel === 1 && wz === p.bz1 - 1 && (wx === p.bx1 - 1 || wx === p.bx1 - 3)) {
-        id = B.CHEST; meta = 2; lootAt(c, wx, y, wz, 'armory');
-      } else if (armory && rel === 1 && wx === p.bx1 - 1 && wz === p.bz1 - 3) {
-        id = B.CRATE;
-      } else if (rel % 4 === 1 && !armory) {
-        // мебель и добыча на этажах
-        var fr = hash3(wx, y, wz, seed + 86), chestP = st === 'hospital' || st === 'police' ? 0.01 : p.district === 'downtown' ? 0.008 : 0.006;
-        if (fr < chestP) { id = B.CHEST; lootAt(c, wx, y, wz, loot); }
-        else if (st === 'hospital' && fr < 0.06 && (wx - p.bx0) % 3 === 1) id = B.BED;
-        else if (fr < chestP + 0.016) id = B.CRATE;
-        else if (fr < chestP + 0.024) id = st === 'office' || st === 'tower' || st === 'police' ? B.BOOKSHELF : B.BED;
-        else if (fr < chestP + 0.03) id = B.TABLE;
       }
-      if (id) put(c, x, y, z, id, meta);
+      if (id) { put(c, x, y, z, id, meta); if (lt) lootAt(c, wx, y, wz, LOOT_KEYS[lt]); }
     }
-    // лестница продолжается сквозь крышу
-    if (wx === shaftX && wz === shaftZ) put(c, x, p.top, z, B.LADDER, 1);
-    // на крыше: вентиляция, бак с водой у жилых домов, мачты
-    if (st !== 'helipad' && wx > p.bx0 + 1 && wx < p.bx1 - 1 && wz > p.bz0 + 1 && wz < p.bz1 - 1 && Math.abs(wx - shaftX) + Math.abs(wz - shaftZ) > 2) {
+    // на крыше: вентиляция, бак с водой у жилых домов, мачты (выход с лестницы не загораживаем)
+    var nearExit = ix <= 8 && iz <= 4;
+    if (st !== 'helipad' && !nearExit && wx > p.bx0 + 1 && wx < p.bx1 - 1 && wz > p.bz0 + 1 && wz < p.bz1 - 1) {
       var rr2 = hash2(wx * 7, wz * 11, seed + 96);
       if (st === 'apart' && wx === p.bx0 + 3 && wz === p.bz1 - 3) put(c, x, p.top + 1, z, B.WATER_TANK, 0);
       else if (rr2 < 0.025) put(c, x, p.top + 1, z, B.VENT, Math.floor(rr2 * 160) & 3);
@@ -929,8 +1125,8 @@
       return;
     }
     // крыша зарастает: сад вокруг деревьев, пробившихся сквозь кровлю, или просто мох и сорняки
-    if (onX || onZ || (wx === shaftX && wz === shaftZ)) return;
-    var nearShaft = Math.abs(wx - shaftX) + Math.abs(wz - shaftZ) <= 2;
+    if (onX || onZ || nearExit) return;
+    var nearShaft = ix <= 9 && iz <= 5;
     if (p.roofGarden) {
       var gd = 99, rt = p.roofTrees;
       for (var ti = 0; ti < rt.length; ti++) gd = Math.min(gd, Math.max(Math.abs(wx - rt[ti][0]), Math.abs(wz - rt[ti][1])));
@@ -1226,6 +1422,17 @@
     build: [[B.PLANKS, 8, 20, 0.7], [B.BARRICADE, 3, 8, 0.55], [I.IRON_INGOT, 1, 4, 0.4], [330 + 4, 1, 1, 0.15], [306, 1, 1, 0.3], [B.LADDER, 4, 10, 0.4],
       [I.CHAINSAW, 1, 1, 0.14], [I.CROWBAR, 1, 1, 0.3], [I.FUEL_CAN, 1, 1, 0.3]],
     metro: [[I.CANNED_FOOD, 1, 3, 0.45], [B.TORCH, 4, 10, 0.6], [I.BANDAGE, 1, 3, 0.4], [I.AMMO, 4, 10, 0.3], [I.CITY_MAP, 1, 1, 0.25]],
+    // мебель в квартирах и офисах
+    fridge: [[I.CANNED_FOOD, 1, 2, 0.35], [I.APPLE, 1, 3, 0.4], [I.BREAD, 1, 2, 0.3], [I.BEEF_COOKED, 1, 2, 0.2], [I.CHICKEN_COOKED, 1, 2, 0.2],
+      [I.PORK_COOKED, 1, 2, 0.15], [I.ROTTEN_FLESH, 1, 3, 0.35]],
+    kitchen: [[I.CANNED_FOOD, 1, 3, 0.55], [I.BREAD, 1, 2, 0.25], [B.TORCH, 1, 4, 0.2], [I.BUCKET, 1, 1, 0.1], [I.SEEDS, 1, 4, 0.15],
+      [I.MACHETE, 1, 1, 0.04], [I.MOLOTOV, 1, 1, 0.05], [I.FLINT_STEEL, 1, 1, 0.08], [I.PAPER, 1, 3, 0.15]],
+    wardrobe: [[330, 1, 1, 0.18], [331, 1, 1, 0.14], [332, 1, 1, 0.14], [333, 1, 1, 0.18], [I.STRING, 1, 4, 0.3], [B.WOOL_WHITE, 1, 3, 0.25],
+      [I.LEATHER, 1, 3, 0.2], [I.BAT, 1, 1, 0.08], [I.BODY_ARMOR, 1, 1, 0.03], [I.SHOTGUN, 1, 1, 0.02], [I.SHELLS, 2, 6, 0.06], [I.FLASHLIGHT, 1, 1, 0.06]],
+    desk: [[I.PAPER, 1, 6, 0.6], [I.BOOK, 1, 1, 0.2], [I.AMMO, 2, 8, 0.12], [I.PISTOL, 1, 1, 0.04], [I.CITY_MAP, 1, 1, 0.07], [I.FLASHLIGHT, 1, 1, 0.06],
+      [I.SPARK_DUST, 1, 3, 0.1], [I.BANDAGE, 1, 1, 0.1], [I.CANNED_FOOD, 1, 1, 0.12]],
+    files: [[I.PAPER, 3, 12, 0.8], [I.BOOK, 1, 3, 0.35], [I.CITY_MAP, 1, 1, 0.12], [I.RADIO, 1, 1, 0.02]],
+    medicine: [[I.BANDAGE, 1, 4, 0.8], [I.MEDKIT, 1, 1, 0.3], [I.GOLDEN_APPLE, 1, 1, 0.02]],
     airdrop: [[I.MEDKIT, 1, 3, 0.9], [I.AMMO, 12, 24, 0.9], [I.CANNED_FOOD, 3, 6, 1], [I.BANDAGE, 2, 4, 0.6], [I.BODY_ARMOR, 1, 1, 0.25],
       [I.FUEL_CAN, 1, 1, 0.5], [I.PISTOL, 1, 1, 0.3], [B.BARRICADE, 2, 4, 0.4], [I.RIFLE_AMMO, 15, 30, 0.4], [I.GRENADE, 1, 3, 0.35],
       [I.SHELLS, 6, 12, 0.35], [I.RIFLE, 1, 1, 0.12]],

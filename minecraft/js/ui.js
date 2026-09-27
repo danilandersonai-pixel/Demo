@@ -278,9 +278,9 @@
 
   var TITLES = { inventory: 'Инвентарь', table: 'Верстак', furnace: 'Печь', chest: 'Сундук' };
 
-  function open(kind, be) {
+  function open(kind, be, title) {
     screen = kind; bent = be || null; slotEls = [];
-    $('cont-title').textContent = kind === 'inventory' && P.creative ? 'Все предметы' : TITLES[kind];
+    $('cont-title').textContent = kind === 'inventory' && P.creative ? 'Все предметы' : title || TITLES[kind];
     var top = $('cont-top');
     top.innerHTML = '';
     var s;

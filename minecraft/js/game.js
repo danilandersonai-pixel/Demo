@@ -823,7 +823,7 @@
 
   // ---- Названия мест: район, особое здание, метро ---------------------------------------------
   var SPECIAL_NOTES = { police: 'оружейная за решёткой на первом этаже', hospital: 'аптечки и бинты, но и пациенты', market: 'много еды и толпа внутри',
-    gas: 'канистры с топливом, бочки взрываются', helipad: 'лестница на крышу — в углу здания', military: 'оружие, боеприпасы и танк' };
+    gas: 'канистры с топливом, бочки взрываются', helipad: 'лестница на крышу — в северо-западном углу', military: 'оружие, боеприпасы и танк' };
   var placeT = 0, lastPlace = '';
   function updatePlace(dt) {
     placeT -= dt;
@@ -1725,7 +1725,9 @@
     state = 'container';
     releaseInput();
     showScreen('container');
-    UI.open(kind, bent);
+    // у мебели-контейнера в заголовке её название: «Холодильник», «Картотека»
+    var cb = bent && bent.x !== undefined ? BLOCKS[world.getBlock(bent.x, bent.y, bent.z)] : null;
+    UI.open(kind, bent, cb && cb.id !== B.CHEST && cb.id !== B.FURNACE ? cb.name : null);
     var drop = zombie.ev && zombie.ev.drop;
     if (bent && drop && bent.x === drop.x && bent.y === drop.y && bent.z === drop.z) drop.opened = true;
     if (locked && document.exitPointerLock) document.exitPointerLock();
