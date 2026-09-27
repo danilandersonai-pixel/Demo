@@ -158,7 +158,8 @@
     var w1 = world.getBlock(e.x, e.y + 0.2, e.z), w2 = world.getBlock(e.x, e.y + e.h * 0.6, e.z);
     e.inWater = w1 === B.WATER || w2 === B.WATER;
     e.inLava = w1 === B.LAVA || w2 === B.LAVA;
-    e.onLadder = world.getBlock(e.x, e.y, e.z) === B.LADDER || world.getBlock(e.x, e.y + 1, e.z) === B.LADDER;
+    var lb0 = KC.BLOCKS[world.getBlock(e.x, e.y, e.z)], lb1 = KC.BLOCKS[world.getBlock(e.x, e.y + 1, e.z)];
+    e.onLadder = !!((lb0 && lb0.climb) || (lb1 && lb1.climb));
   }
 
   // Шаг физики с гравитацией; ctrl — желаемая горизонтальная скорость
@@ -726,7 +727,7 @@
       physics(e, dt, { friction: 8 });
       if (e.deathT <= 0) {
         e.dead = true;
-        if (hooks.particles) for (var i = 0; i < 8; i++) hooks.particles('smoke', e.x + (Math.random() - 0.5) * e.w, e.y + Math.random() * e.h, e.z + (Math.random() - 0.5) * e.w);
+        if (hooks.particles) hooks.particles('poof', e.x, e.y, e.z);
       }
       return;
     }
@@ -761,7 +762,7 @@
     if (e.fire > 0) {
       e.fire -= dt; e.fireT -= dt;
       if (e.fireT <= 0) { e.fireT = 1; damageMob(e, 1, 'fire'); }
-      if (hooks.particles && Math.random() < dt * 8) hooks.particles('flame', e.x + (Math.random() - 0.5) * e.w, e.y + Math.random() * e.h, e.z + (Math.random() - 0.5) * e.w);
+      if (hooks.particles && Math.random() < dt * 7) hooks.particles(Math.random() < 0.8 ? 'fire' : 'smoke', e.x + (Math.random() - 0.5) * e.w, e.y + Math.random() * e.h * 0.8, e.z + (Math.random() - 0.5) * e.w);
     }
     if (e.y < -30) e.dead = true;
     // голоса
@@ -930,10 +931,12 @@
     if (!id) return false;
     var b = KC.BLOCKS[id];
     if (!b || b.hardness < 0 || b.liquid || id === B.BEDROCK || id === B.OBSIDIAN) return false;
-    if (b.leaves || id === B.RUBBLE || id === B.FIRE || b.shape === 'cross') return true;
+    if (b.leaves || id === B.RUBBLE || id === B.FIRE || b.shape === 'cross' || b.shape === 'decal') return true;
+    // лёгкий уличный хлам: мешки, коробки, урны, ограждения — сносит даже легковушка
+    if (id === B.TRASH_BAGS || id === B.BOXES || id === B.TRASH_BIN || id === B.ROAD_BARRIER || id === B.BENCH) return true;
     if (level < 2) return false;
     if (b.siege || id === B.CAR_RED || id === B.CAR_BLUE || id === B.CAR_WHITE || id === B.TIRE || id === B.STREET_POLE ||
-        id === B.STREET_LAMP || id === B.FUEL_BARREL || id === B.CRATE || id === B.SANDBAG) return true;
+        id === B.STREET_LAMP || id === B.FUEL_BARREL || id === B.CRATE || id === B.SANDBAG || b.shape === 'model') return true;
     if (level < 3) return false;
     return b.hardness <= 3 && id !== B.CHEST && id !== B.GENERATOR;
   }
@@ -1074,6 +1077,7 @@
     if (v.y < -30) { v.dead = true; return; }
     v.wheel += v.speed * dt * 1.6;
     vehiclePush(v);
+    vehicleFx(v, dt, th);
     // шум мотора
     if (v.driver && Math.abs(th) > 0.05) {
       v.noiseT -= dt;
@@ -1090,6 +1094,30 @@
       }
     }
     if (v.atPump && v.fuel < 100) v.fuel = Math.min(100, v.fuel + 15 * dt);
+  }
+
+  // Выхлоп, пыль из-под колёс, дым и огонь повреждённого мотора
+  var DUSTY = {};
+  [B.GRASS, B.DIRT, B.SAND, B.GRAVEL, B.SNOW, B.SNOW_GRASS, B.ASH_BLOCK, B.RUBBLE, B.FARMLAND, B.LIGHT_SOIL, B.GOLDEN_GRASS].forEach(function (id) { DUSTY[id] = 1; });
+  function vehicleFx(v, dt, th) {
+    if (!hooks.particles) return;
+    var V = v.V, f = vFwd(v.yaw), rt = [-f[1], f[0]], hl = V.len / 2, hpK = v.hp / V.hp;
+    if (v.driver && v.fuel > 0 && Math.random() < dt * (3 + Math.abs(th) * 9)) {
+      var ex = v.x - f[0] * (hl + 0.1) + rt[0] * V.w * 0.3, ez = v.z - f[1] * (hl + 0.1) + rt[1] * V.w * 0.3;
+      hooks.particles('exhaust', ex, v.y + (v.kind === 'truck' || v.kind === 'bus' ? 0.6 : 0.4), ez, [-f[0] * (0.6 + Math.abs(th)), 0, -f[1] * (0.6 + Math.abs(th))]);
+    }
+    if (Math.abs(v.speed) > 4.5 && v.onGround && Math.random() < dt * Math.abs(v.speed) * 0.9) {
+      var gid = world.getBlock(v.x, v.y - 0.5, v.z);
+      if (DUSTY[gid]) {
+        var side = Math.random() < 0.5 ? 1 : -1;
+        hooks.particles('dust', v.x - f[0] * hl * 0.75 + rt[0] * side * V.w * 0.45, v.y, v.z - f[1] * hl * 0.75 + rt[1] * side * V.w * 0.45, gid);
+      }
+    }
+    if (hpK < 0.5 && Math.random() < dt * (hpK < 0.25 ? 9 : 3.5)) {
+      var mx = v.x + f[0] * hl * 0.6, mz = v.z + f[1] * hl * 0.6, my = v.y + V.h * 0.85;
+      hooks.particles(hpK < 0.25 ? 'smokeDark' : 'smoke', mx, my, mz);
+      if (hpK < 0.25 && Math.random() < 0.6) hooks.particles('fire', mx, my - 0.2, mz);
+    }
   }
 
   // Давим заражённых на ходу и выталкиваем всех из-под корпуса
@@ -1168,7 +1196,13 @@
     list.push(e);
     if (hooks.sound) hooks.sound('cannon', bx, by, bz);
     noise(bx, by, bz, 70);
-    if (hooks.particles) for (var q = 0; q < 10; q++) hooks.particles('smoke', bx + (Math.random() - 0.5), by + (Math.random() - 0.5), bz + (Math.random() - 0.5));
+    if (hooks.particles) {
+      hooks.particles('muzzle', bx, by, bz, 1.6);
+      hooks.particles('shockwave', bx, by, bz, 3);
+      for (var q = 0; q < 10; q++) hooks.particles('smoke', bx + (Math.random() - 0.5), by + (Math.random() - 0.5), bz + (Math.random() - 0.5));
+      for (q = 0; q < 6; q++) hooks.particles('dust', v.x + (Math.random() - 0.5) * 4, v.y, v.z + (Math.random() - 0.5) * 4, world.getBlock(v.x, v.y - 0.5, v.z));
+    }
+    if (hooks.flashAt) hooks.flashAt(bx, by, bz, 14, [2.2, 1.5, 0.8], 0.12);
     v.speed -= fr[0] * dir[0] * 1.5 + fr[1] * dir[2] * 1.5;
   }
 
@@ -1200,7 +1234,11 @@
     }
     var p = hooks.player && hooks.player();
     if (p && !p.creative && Math.hypot(p.x - e.x, p.z - e.z) < 2.2 && Math.abs(p.y - e.y) < 2.5) p.fire = Math.max(p.fire || 0, 4);
-    if (hooks.particles) for (var q = 0; q < 16; q++) hooks.particles('flame', e.x + (Math.random() - 0.5) * 3, e.y + Math.random(), e.z + (Math.random() - 0.5) * 3);
+    if (hooks.particles) {
+      for (var q = 0; q < 14; q++) hooks.particles('fire', e.x + (Math.random() - 0.5) * 3, e.y + Math.random() * 0.5, e.z + (Math.random() - 0.5) * 3);
+      for (q = 0; q < 6; q++) hooks.particles('spark', e.x, e.y + 0.3, e.z);
+    }
+    if (hooks.flashAt) hooks.flashAt(e.x, e.y + 0.8, e.z, 10, [1.8, 0.9, 0.3], 0.5);
   }
   function updateThrown(e, dt) {
     var vx = e.vx, vz = e.vz, vy = e.vy;
@@ -1619,10 +1657,20 @@
   var mobBatch = new M.Batch(4096), itemBatch = new M.Batch(2048);
 
   function humanPose(e, pose, t) {
-    var sw = Math.sin(e.walk) * 0.9 * e.walkAmp;
+    var sw = Math.sin(e.walk) * 0.9 * e.walkAmp, idle = Math.sin(t * 1.6 + e.id) * 0.035 * (1 - e.walkAmp);
     pose.legR = [0, sw]; pose.legL = [0, -sw];
-    pose.armR = [0, -sw * 0.8]; pose.armL = [0, sw * 0.8];
+    pose.armR = [0, -sw * 0.8, 0.03 + idle]; pose.armL = [0, sw * 0.8, -0.03 - idle];
     pose.head = [e.headYaw || 0, e.headPitch || 0];
+    // враг смотрит на игрока, если тот рядом
+    var pl = hooks.player && hooks.player();
+    if (pl && !pl.dead && e.K.hostile) {
+      var ldx = pl.x - e.x, ldz = pl.z - e.z, ld = Math.hypot(ldx, ldz);
+      if (ld < 14) {
+        var rel = Math.atan2(-ldx, -ldz) - e.yaw;
+        rel = Math.atan2(Math.sin(rel), Math.cos(rel));
+        pose.head = [Math.max(-0.9, Math.min(0.9, rel)), Math.max(-0.5, Math.min(0.5, -Math.atan2(pl.y + 1.5 - e.y - e.K.eye, ld)))];
+      }
+    }
     if (e.kind === 'upyr') {
       var sway = Math.sin(t * 1.7 + e.id) * 0.12;
       pose.armR = [0, -sw * 0.5 + sway, 0.08]; pose.armL = [0, sw * 0.5 - sway, -0.08];
@@ -1750,7 +1798,7 @@
         for (var c = 0; c < copies; c++) {
           var ox = c * 0.07, oy = c * 0.05;
           if (it && it.sprite === undefined && it.block !== undefined) M.drawBlockCube(itemBatch, it.block, 0, e.x + ox, e.y + bob + oy, e.z + ox, 0.26, e.age * 1.4 + e.spin, L, e.sunK);
-          else if (it) M.drawSprite(itemBatch, it.sprite, e.x + ox, e.y + bob + 0.05 + oy, e.z, 0.42, e.age * 1.4 + e.spin, L);
+          else if (it) M.drawItem3D(itemBatch, it.sprite, e.x + ox, e.y + bob + 0.12 + oy, e.z, 0.42, e.age * 1.4 + e.spin, L, e.sunK);
         }
       } else if (e.type === 'arrow' && e.proj === 'shell') {
         M.drawSprite(itemBatch, KC.TILE.tankShell, e.x, e.y, e.z, 0.5, Math.atan2(cam.x - e.x, cam.z - e.z), [1.2, 1.2, 1.2]);
@@ -1765,6 +1813,13 @@
         ['wheelFL', 'wheelFR', 'wheelML', 'wheelMR', 'wheelBL', 'wheelBR'].forEach(function (wn, wi) { vp[wn] = [wi < 2 ? steerA : 0, e.wheel, 0]; });
         if (V.cannon) { var rel = e.turret - e.yaw; vp.turret = [rel, 0, 0]; vp.hatch = [rel, 0, 0]; vp.barrel = [rel, e.gunPitch, 0]; }
         var MM = M.MODELS[V.model];
+        // фары горят у машины с водителем, а ночью и в ливень — у любой исправной; стоп-сигналы — при торможении
+        var vglow = null, dark = KC.Light.sunCol[0] + KC.Light.sunCol[1] < 0.35;
+        if (e.hp > 0 && e.fuel > 0 && (e.driver || dark)) {
+          var braking = e.driver && e.ctl && (e.ctl.brake || (e.ctl.throttle < -0.1 && e.speed > 0.5));
+          vglow = { lampL: 2.3, lampR: 2.3, tailL: braking ? 3 : 1.5, tailR: braking ? 3 : 1.5 };
+        }
+        if (V.siren && e.driver) { var red = Math.floor(t * 4) % 2 === 0; vglow = vglow || {}; vglow.barR = red ? 3.2 : 0.45; vglow.barB = red ? 0.45 : 3.2; }
         if (V.tint && MM.paintSet) {
           var tc = CAR_TINTS[e.color % CAR_TINTS.length];
           var hidePaint = MM.otherSet;
@@ -1773,12 +1828,12 @@
           M.drawModel(mobBatch, V.model, [e.x, e.y, e.z], e.yaw, 2, vp, hidePaint, vl, 0, vsun, ptint);
           var hideOther = MM.paintSet;
           if (e === cabinOf) { hideOther = {}; for (var hk in MM.paintSet) hideOther[hk] = true; for (hk in CABIN_HIDE) hideOther[hk] = true; }
-          M.drawModel(mobBatch, V.model, [e.x, e.y, e.z], e.yaw, 2, vp, hideOther, vl, 0, vsun, vhit);
-        } else M.drawModel(mobBatch, V.model, [e.x, e.y, e.z], e.yaw, 2, vp, e === cabinOf ? CABIN_HIDE : null, vl, 0, vsun, vhit);
+          M.drawModel(mobBatch, V.model, [e.x, e.y, e.z], e.yaw, 2, vp, hideOther, vl, 0, vsun, vhit, vglow);
+        } else M.drawModel(mobBatch, V.model, [e.x, e.y, e.z], e.yaw, 2, vp, e === cabinOf ? CABIN_HIDE : null, vl, 0, vsun, vhit, vglow);
         if (e.kind === 'police' && e.siren && Math.floor(t * 4) % 2 === 0 && hooks.particles) { /* мигалка видна по модели */ }
       } else if (e.type === 'thrown') {
         if (!e.light || e.age % 0.5 < 0.02) e.light = lightAt(e.x, e.y, e.z);
-        M.drawSprite(itemBatch, KC.TILE[e.kind], e.x, e.y + 0.15, e.z, 0.4, e.spin, e.light);
+        M.drawItem3D(itemBatch, KC.TILE[e.kind], e.x, e.y + 0.15, e.z, 0.4, Math.atan2(-e.vx, -e.vz), e.light, 1, e.spin);
       } else if (e.type === 'tnt') {
         var fl = Math.floor(e.fuse * 5) % 2 === 0 ? 1.8 : 1;
         M.drawBlockCube(itemBatch, B.TNT, 0, e.x, e.y + 0.49, e.z, 0.98 * (1 + (e.fuse < 0.4 ? (0.4 - e.fuse) * 0.3 : 0)), 0, [L[0] * fl, L[1] * fl, L[2] * fl]);

@@ -1199,6 +1199,11 @@
       '..abccccbbbba...', '..abbbbbbbbba...', '..abbbbbbbbba...', '..abbbbbbbbba...', '..aaaaaaaaaaa...'],
     { a: [110, 20, 18], b: [200, 40, 34], c: [240, 200, 60] });
   });
+  tile('flashlight', function () {
+    sprite(['................', '................', '................', '................', '...........cc...', '..aaaaaaaabcdc..', '..abbbbbbbbcdd..',
+      '..abbbeebbbcdd..', '..aaaaaaaabcdc..', '...........cc...'],
+    { a: [34, 34, 38], b: [72, 76, 84], c: [130, 134, 142], d: [255, 240, 170], e: [200, 60, 50] });
+  });
   tile('radio', function () {
     sprite(['........a.......', '........a.......', '........a.......', '.....aaaaaa.....', '.....abbbba.....', '.....acccca.....', '.....acdcca.....',
       '.....abbbba.....', '.....abebba.....', '.....abbeba.....', '.....abebba.....', '.....abbbba.....', '.....aaaaaa.....'],
@@ -1320,6 +1325,236 @@
     }
   });
 
+  // =================================================================================
+  // Детализация мира: ель, новые растения, городские объекты и «наклейки» на стены и пол
+  // =================================================================================
+  tile('spruceSide', function () {
+    var colK = [];
+    for (var x = 0; x < 16; x++) colK.push(0.8 + rnd() * 0.3);
+    for (var y = 0; y < 16; y++) for (x = 0; x < 16; x++) {
+      var groove = (x % 3 === 0 && rnd() < 0.85) ? 0.68 : 1;
+      px(x, y, jit(mul([74, 54, 36], colK[x] * groove), 0.1));
+    }
+  });
+  tile('spruceTop', function () { rings([150, 118, 78], [118, 90, 58], [66, 48, 32]); });
+  tile('spruceLeaves', function () {
+    for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) {
+      if (rnd() < 0.2) { px(x, y, [0, 0, 0], 0); continue; }
+      var lr = rnd();
+      px(x, y, lr < 0.14 ? [62, 104, 70] : lr < 0.34 ? [22, 52, 34] : jit([36, 78, 50], 0.22));
+    }
+  });
+  tile('mossyCobble', function () {
+    cobble();
+    for (var k = 0; k < 5; k++) {
+      var cx = rnd() * 16, cy = rnd() * 16, r = 1.5 + rnd() * 2.5;
+      for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) if (Math.hypot(x - cx, y - cy) < r && rnd() < 0.8) px(x, y, jit([74, 118, 52], 0.25));
+    }
+  });
+  tile('fern', function () {
+    clear();
+    for (var f = 0; f < 5; f++) {
+      var bx = 3 + f * 2.5, lean = (f - 2) * 0.35, h = 9 + Math.floor(rnd() * 5);
+      for (var y = 0; y < h; y++) {
+        var x = Math.round(bx + lean * y * 0.6), yy = 15 - y;
+        px(x, yy, jit([54, 110, 44], 0.12));
+        if (y > 2 && y % 2 === 0) { px(x - 1, yy, jit([78, 142, 58], 0.12)); px(x + 1, yy, jit([78, 142, 58], 0.12)); }
+      }
+    }
+  });
+  tile('mushroomRed', function () {
+    sprite(['................', '................', '................', '................', '................', '.....aaaaaa.....', '....abaaaaba....',
+      '...aaaaabaaaa...', '...aabaaaaaba...', '...cccccccccc...', '.......dd.......', '.......dd.......', '.......dd.......', '......dddd......', '......dddd......'],
+    { a: [208, 40, 36], b: [246, 240, 230], c: [150, 30, 28], d: [232, 226, 210] });
+  });
+  tile('mushroomBrown', function () {
+    sprite(['................', '................', '................', '................', '................', '................', '......aaaa......',
+      '....aaaaaaaa....', '...abaaaaaaba...', '...cccccccccc...', '.......dd.......', '.......dd.......', '.......dd.......', '......dddd......', '......dddd......'],
+    { a: [150, 110, 76], b: [180, 142, 104], c: [110, 80, 54], d: [226, 214, 190] });
+  });
+  tile('daisy', function () { flower([246, 246, 240], [210, 210, 204], [246, 200, 40]); });
+  tile('bellflower', function () {
+    clear();
+    for (var y = 5; y < 16; y++) px(7, y, [60, 118, 44]);
+    px(8, 12, [74, 140, 50]); px(6, 10, [74, 140, 50]);
+    [[4, 4], [9, 6], [5, 9]].forEach(function (b) {
+      for (var yy = 0; yy < 3; yy++) for (var xx = -1; xx <= 1; xx++) if (!(yy === 0 && xx !== 0)) px(b[0] + xx + 1, b[1] + yy, yy === 2 ? [70, 60, 170] : [110, 96, 214]);
+      px(b[0] + 1, b[1] - 1, [60, 118, 44]);
+    });
+  });
+  tile('deadBush', function () {
+    clear();
+    var br = function (x, y, dx, n) { for (var i = 0; i < n; i++) { px(Math.round(x), y, jit([120, 86, 52], 0.15)); x += dx; y--; } };
+    br(7.5, 15, 0, 6); br(7.5, 11, -0.6, 5); br(7.5, 12, 0.7, 5); br(5, 8, -0.4, 3); br(10, 9, 0.5, 3); br(7.5, 9, 0.1, 4);
+  });
+  tile('lilyPad', function () {
+    clear();
+    for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) {
+      var d = Math.hypot(x - 7.5, y - 7.5), ang = Math.atan2(y - 7.5, x - 7.5);
+      if (d < 7 && !(ang > -0.25 && ang < 0.3 && d > 1)) px(x, y, d < 6 && (x + y) % 5 === 0 ? [70, 130, 50] : jit([52, 110, 40], 0.15));
+    }
+    px(7, 7, [240, 230, 236]); px(8, 7, [236, 190, 210]); px(7, 8, [236, 190, 210]);
+  });
+  tile('pebbles', function () {
+    clear();
+    for (var k = 0; k < 7; k++) {
+      var cx = 1 + rnd() * 13, cy = 1 + rnd() * 13, r = 0.8 + rnd() * 1.2, g = 100 + rnd() * 60;
+      for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) if (Math.hypot(x - cx, y - cy) < r) px(x, y, jit([g, g, g + 4], 0.12));
+    }
+  });
+  tile('fallenLeaves', function () {
+    clear();
+    for (var k = 0; k < 16; k++) {
+      var cx = rnd() * 15, cy = rnd() * 15, col = pick([[170, 96, 30], [196, 140, 40], [140, 64, 28], [120, 130, 44]]);
+      px(Math.floor(cx), Math.floor(cy), col); px(Math.floor(cx) + 1, Math.floor(cy), mul(col, 0.85)); px(Math.floor(cx), Math.floor(cy) + 1, mul(col, 0.9));
+    }
+  });
+  // --- городские объекты ---
+  tile('benchWood', function () {
+    for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) px(x, y, y % 4 === 3 ? [70, 48, 30] : jit([150, 104, 60], 0.08));
+  });
+  tile('metalDark', function () { for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) px(x, y, jit([44, 48, 52], 0.08)); });
+  tile('binGreen', function () {
+    for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) px(x, y, x % 3 === 0 ? [30, 64, 42] : jit([44, 92, 58], 0.07));
+  });
+  tile('hydrantRed', function () {
+    for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) px(x, y, x === 7 || x === 8 ? [236, 90, 80] : jit([190, 36, 32], 0.07));
+  });
+  tile('trafficBox', function () { for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) px(x, y, jit([34, 34, 30], 0.07)); });
+  tile('lampAmber', function () {
+    for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) { var d = Math.hypot(x - 7.5, y - 7.5); px(x, y, d < 3 ? [255, 236, 150] : [240, 170, 30]); }
+  });
+  tile('lampOffRed', function () { for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) px(x, y, jit([90, 22, 20], 0.1)); });
+  tile('lampOffGreen', function () { for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) px(x, y, jit([22, 70, 40], 0.1)); });
+  tile('acSide', function () {
+    for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) px(x, y, y % 3 === 0 ? [150, 152, 150] : jit([196, 198, 194], 0.04));
+  });
+  tile('acFront', function () {
+    for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) {
+      var d = Math.hypot(x - 10, y - 8);
+      var c = [200, 202, 198];
+      if (d < 4.6) c = (Math.floor(d * 2) % 2 === 0) ? [70, 72, 74] : [120, 122, 124];
+      else if (x < 5 && y % 2 === 0) c = [140, 142, 140];
+      px(x, y, jit(c, 0.04));
+    }
+  });
+  tile('tankWood', function () {
+    for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) {
+      var band = y === 3 || y === 12;
+      px(x, y, band ? [60, 60, 64] : x % 4 === 0 ? [96, 66, 40] : jit([136, 96, 58], 0.08));
+    }
+  });
+  tile('tankTop', function () { for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) px(x, y, Math.hypot(x - 7.5, y - 7.5) < 2 ? [70, 72, 76] : jit([112, 116, 120], 0.06)); });
+  tile('ventMetal', function () {
+    for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) px(x, y, y % 3 === 1 ? [80, 84, 88] : jit([150, 156, 160], 0.05));
+  });
+  tile('bagBlack', function () {
+    for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) px(x, y, rnd() < 0.08 ? [70, 72, 78] : jit([22, 22, 26], 0.2));
+  });
+  tile('dumpsterGreen', function () {
+    for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) {
+      var rib = x % 5 === 0, rust = rnd() < 0.05;
+      px(x, y, rust ? [110, 70, 40] : rib ? [30, 70, 44] : jit([48, 104, 66], 0.07));
+    }
+  });
+  tile('dumpsterLid', function () { for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) px(x, y, y % 8 === 0 ? [20, 22, 22] : jit([36, 40, 38], 0.07)); });
+  tile('barrierStripe', function () {
+    for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) px(x, y, Math.floor((x + y) / 4) % 2 === 0 ? [220, 40, 34] : [240, 240, 236]);
+  });
+  tile('cardboard', function () {
+    for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) px(x, y, x === 7 || x === 8 ? [196, 170, 110] : jit([160, 120, 70], 0.08));
+  });
+  // --- наклейки: афиши, граффити, плющ, трещины, пятна, мусор ---
+  tile('poster1', function () {
+    clear();
+    for (var y = 1; y < 15; y++) for (var x = 3; x < 13; x++) {
+      var c = [236, 226, 200];
+      if (y < 5) c = [40, 60, 140];
+      if (y >= 6 && y <= 10 && Math.hypot(x - 8, y - 8) < 2.6) c = [230, 150, 40];
+      if (y === 12 || y === 13) c = x % 2 ? [40, 40, 44] : [236, 226, 200];
+      px(x, y, jit(c, 0.06));
+    }
+  });
+  tile('poster2', function () {
+    clear();
+    for (var y = 2; y < 14; y++) for (var x = 2; x < 14; x++) {
+      var c = [242, 238, 226];
+      if ((y === 4 || y === 7 || y === 9 || y === 11) && x > 3 && x < 12) c = [30, 30, 34];
+      if (y >= 3 && y <= 5 && x >= 10 && x <= 12) c = [40, 150, 80];
+      px(x, y, jit(c, 0.05));
+    }
+    px(2, 2, [0, 0, 0], 0); px(13, 13, [0, 0, 0], 0);
+  });
+  tile('poster3', function () {
+    clear();
+    for (var y = 0; y < 16; y++) for (var x = 1; x < 15; x++) {
+      var c = y < 8 ? [200, 40, 60] : [30, 30, 40];
+      if (y >= 9 && y <= 10) c = [250, 220, 60];
+      if (y === 12 && x % 3 !== 0) c = [240, 240, 240];
+      if (rnd() < 0.06) continue;
+      px(x, y, jit(c, 0.06));
+    }
+  });
+  function tag(col, col2, seedK) {
+    clear();
+    var x = 1.5, y = 9;
+    for (var k = 0; k < 44; k++) {
+      var a = Math.sin(k * 0.55 + seedK) * 1.4 + Math.cos(k * 0.21 + seedK * 2) * 1.2;
+      x += 0.32; y += a * 0.55;
+      if (y < 2) y = 2; if (y > 13) y = 13;
+      px(Math.round(x), Math.round(y), col); px(Math.round(x), Math.round(y) + 1, col2);
+    }
+  }
+  tile('graffiti1', function () { tag([60, 200, 90], [20, 90, 40], 0.3); });
+  tile('graffiti2', function () { tag([240, 90, 170], [120, 30, 80], 2.1); });
+  tile('graffiti3', function () {
+    clear();
+    for (var y = 3; y < 13; y++) for (var x = 2; x < 14; x++) {
+      var edge = y === 3 || y === 12 || x === 2 || x === 13;
+      if ((x + y) % 7 === 0 || edge) px(x, y, edge ? [30, 30, 30] : [60, 140, 230]);
+      else if (rnd() < 0.55) px(x, y, [250, 200, 40]);
+    }
+  });
+  tile('ivy', function () {
+    clear();
+    for (var v = 0; v < 4; v++) {
+      var x = 2 + v * 4 + Math.floor(rnd() * 2);
+      for (var y = 0; y < 16; y++) {
+        x += rnd() < 0.3 ? (rnd() < 0.5 ? -1 : 1) : 0;
+        x = Math.max(0, Math.min(15, x));
+        px(x, y, [58, 84, 40]);
+        if (rnd() < 0.55) { var lx = x + (rnd() < 0.5 ? -1 : 1); px(lx, y, jit([62, 124, 48], 0.2)); if (rnd() < 0.5) px(lx, y + 1 > 15 ? y : y + 1, jit([84, 150, 60], 0.2)); }
+      }
+    }
+  });
+  tile('crackDecal', function () {
+    clear();
+    var draw = function (x, y, dx, dy, n) {
+      for (var i = 0; i < n; i++) {
+        px(Math.round(x), Math.round(y), [20, 20, 22]);
+        x += dx + (rnd() - 0.5) * 0.8; y += dy + (rnd() - 0.5) * 0.8;
+        if (x < 0 || y < 0 || x > 15 || y > 15) return;
+      }
+    };
+    draw(2, 3, 0.8, 0.6, 16); draw(8, 7, -0.4, 0.9, 9); draw(9, 7, 0.9, -0.3, 7); draw(5, 12, 0.9, 0.2, 9);
+  });
+  tile('oilStain', function () {
+    clear();
+    for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) {
+      var d = Math.hypot((x - 7.5) * 1.1, y - 7.5) + (rnd() - 0.5) * 1.6;
+      if (d < 6) px(x, y, d < 3 ? [16, 16, 20] : [30, 30, 34]);
+    }
+  });
+  tile('litter', function () {
+    clear();
+    for (var k = 0; k < 4; k++) {
+      var cx = 1 + Math.floor(rnd() * 11), cy = 1 + Math.floor(rnd() * 11), w = 2 + Math.floor(rnd() * 3), h = 2 + Math.floor(rnd() * 2);
+      var col = pick([[236, 232, 220], [210, 200, 180], [200, 60, 50], [70, 110, 190]]);
+      for (var y = cy; y < cy + h; y++) for (var x = cx; x < cx + w; x++) px(x, y, jit(col, 0.06));
+    }
+    px(12, 12, [150, 150, 156]); px(13, 12, [190, 190, 196]); px(12, 13, [120, 120, 126]);
+  });
+
   // ---- Сборка атласа ---------------------------------------------------------------
   function makeAtlas() {
     var cv = document.createElement('canvas');
@@ -1333,6 +1568,10 @@
       PAINTERS[i]();
     }
     ctx.putImageData(img, 0, 0);
+    // прозрачность пикселей — для объёмных (выдавленных) предметов
+    var alpha = new Uint8Array(ATLAS * ATLAS_H);
+    for (i = 0; i < alpha.length; i++) alpha[i] = d[i * 4 + 3];
+    KC.atlasAlpha = alpha;
     d = null;
     return cv;
   }

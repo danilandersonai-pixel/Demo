@@ -346,30 +346,79 @@
       }
       if (surf.top !== B.GRASS && surf.top !== B.SNOW_GRASS) continue;
       var density = 0.003 + clamp(forest[ci], 0, 1) * 0.07;
-      if (bi === BIOME_SNOW) density *= 0.5;
-      if (roll >= density || self.isCave(gx, t, gz)) continue;
-      var birch = bi !== BIOME_SNOW && hash2(gx, gz, seed + 7) < 0.28;
-      var th = 5 + Math.floor(hash2(gx, gz, seed + 9) * 3);
+      if (bi === BIOME_SNOW) density *= 0.7;
+      if (roll >= density || self.isCave(gx, t, gz)) {
+        // реже деревьев: кусты, валуны и поваленные стволы
+        var r2 = hash2(gx, gz, seed + 21);
+        if (self.isCave(gx, t, gz)) continue;
+        if (bi !== BIOME_SNOW && r2 < 0.003 + clamp(forest[ci], 0, 1) * 0.004) {
+          put(lx, t + 1, lz, B.LOG, false);
+          for (var by = 1; by <= 2; by++) for (var bz = -1; bz <= 1; bz++) for (var bx2 = -1; bx2 <= 1; bx2++) {
+            if (by === 2 && Math.abs(bx2) + Math.abs(bz) > 1) continue;
+            if (Math.abs(bx2) === 1 && Math.abs(bz) === 1 && hash3(gx + bx2, t + by, gz + bz, seed + 22) < 0.5) continue;
+            put(lx + bx2, t + by, lz + bz, B.LEAVES, true, 0);
+          }
+        } else if (r2 > 0.9991) {
+          for (var vy = -1; vy <= 1; vy++) for (var vz = -2; vz <= 2; vz++) for (var vx = -2; vx <= 2; vx++) {
+            var vd = Math.sqrt(vx * vx + vy * vy * 1.6 + vz * vz) + hash3(gx + vx, t + vy, gz + vz, seed + 24) * 0.6;
+            if (vd < 1.9) put(lx + vx, t + vy, lz + vz, hash3(gx + vx, t + vy, gz + vz, seed + 25) < 0.55 ? B.MOSSY_COBBLE : B.COBBLE, false);
+          }
+        } else if (r2 > 0.998 && forest[ci] > 0.15) {
+          // бревно вдоль X или Z, только на ровной земле
+          var alongX = hash2(gx, gz, seed + 26) < 0.5, flat = true, ll = 3;
+          for (var li = 1; li <= ll; li++) {
+            var qx = alongX ? x + li : x, qz = alongX ? z : z + li;
+            if (qx >= P || qz >= P || hs[qx + qz * P] !== t) flat = false;
+          }
+          if (flat) for (li = 0; li <= ll; li++) put(alongX ? lx + li : lx, t + 1, alongX ? lz : lz + li, B.LOG, true, alongX ? 1 : 2);
+        }
+        continue;
+      }
+      // ели — в снегах и на высоких холмах
+      if (bi === BIOME_SNOW || (t > 56 && hash2(gx, gz, seed + 23) < 0.55)) {
+        var sth = 7 + Math.floor(hash2(gx, gz, seed + 9) * 4), stop = t + sth + 1;
+        for (var si = 0; si <= sth - 2; si++) {
+          var sy2 = stop - si, sr = si === 0 ? 0 : si === 1 ? 1 : (si % 2 === 0 ? 1 : 2) + (si > 5 ? 1 : 0);
+          for (var sdz = -sr; sdz <= sr; sdz++) for (var sdx = -sr; sdx <= sr; sdx++) {
+            if (Math.abs(sdx) + Math.abs(sdz) > sr + (sr > 1 ? 1 : 0)) continue;
+            put(lx + sdx, sy2, lz + sdz, B.SPRUCE_LEAVES, true);
+          }
+        }
+        for (var sty = 1; sty <= sth; sty++) put(lx, t + sty, lz, B.SPRUCE_LOG, false);
+        continue;
+      }
+      var birch = hash2(gx, gz, seed + 7) < 0.28;
+      var big = !birch && hash2(gx, gz, seed + 27) < 0.12;
+      var th = (big ? 7 : 5) + Math.floor(hash2(gx, gz, seed + 9) * 3);
       var crown = t + th;
-      for (var ly = crown - 2; ly <= crown + 1; ly++) {
-        var rad = ly <= crown - 1 ? 2 : 1;
+      for (var ly = crown - (big ? 3 : 2); ly <= crown + 1; ly++) {
+        var rad = ly <= crown - 1 ? (big && ly <= crown - 2 ? 3 : 2) : 1;
         for (var dz = -rad; dz <= rad; dz++) for (var dx = -rad; dx <= rad; dx++) {
           var corner = Math.abs(dx) === rad && Math.abs(dz) === rad;
           if (corner && (rad === 1 ? ly === crown + 1 : hash3(gx + dx, ly, gz + dz, seed) < 0.55)) continue;
+          if (rad === 3 && Math.abs(dx) + Math.abs(dz) > 4) continue;
           put(lx + dx, ly, lz + dz, B.LEAVES, true, birch ? 1 : 0);
         }
       }
       for (var ty = 1; ty <= th; ty++) put(lx, t + ty, lz, birch ? B.BIRCH_LOG : B.LOG, false);
     }
 
-    // 3. Трава, цветы, тыквы, тростник у воды
+    // 3. Трава, цветы, грибы, тыквы, тростник и кувшинки у воды, галька и листья на земле
     for (z = 0; z < CS; z++) for (x = 0; x < CS; x++) {
       var tI = (x + G) + (z + G) * P, tt = hs[tI];
+      var pr = hash2(ox + x, oz + z, seed + 11);
+      // кувшинки на мелкой воде
+      if (tt < WL && tt >= WL - 3 && bio[tI] !== BIOME_SNOW && pr < 0.035 && b[x + z * CS + WL * LAYER] === B.WATER && b[x + z * CS + (WL + 1) * LAYER] === 0) {
+        b[x + z * CS + (WL + 1) * LAYER] = B.LILY_PAD; m[x + z * CS + (WL + 1) * LAYER] = 3;
+        continue;
+      }
       if (tt < WL || tt + 3 >= H) continue;
       var topIdx = x + z * CS + tt * LAYER, above = topIdx + LAYER;
       var topId = b[topIdx];
       if (b[above] !== 0) continue;
-      var pr = hash2(ox + x, oz + z, seed + 11);
+      var pr2 = hash2(ox + x, oz + z, seed + 31);
+      if (topId === B.SAND && bio[tI] === BIOME_DESERT && pr2 < 0.006) { b[above] = B.DEAD_BUSH; continue; }
+      if ((topId === B.GRASS || topId === B.SAND || topId === B.GRAVEL || topId === B.STONE) && pr2 > 0.995) { b[above] = B.PEBBLES; m[above] = 3; continue; }
       // тростник: песок или трава на уровне моря рядом с водой
       if ((topId === B.SAND || topId === B.GRASS) && tt === WL) {
         var nearWater = hs[tI + 1] < WL || hs[tI - 1] < WL || hs[tI + P] < WL || hs[tI - P] < WL;
@@ -379,13 +428,19 @@
           continue;
         }
       }
+      if (topId === B.SNOW_GRASS && pr < 0.03) { b[above] = B.FERN; continue; }
       if (topId !== B.GRASS) continue;
-      var grassy = 0.06 + clamp(forest[tI] + 0.3, 0, 1) * 0.1;
-      if (pr < grassy) b[above] = B.TALL_GRASS;
+      var fo = forest[tI], grassy = 0.06 + clamp(fo + 0.3, 0, 1) * 0.1;
+      // в лесу под деревьями — папоротники, грибы и опавшие листья
+      if (fo > 0.25 && pr2 < 0.04 + fo * 0.05) { b[above] = B.FALLEN_LEAVES; m[above] = 3; continue; }
+      if (pr < grassy) b[above] = fo > 0.2 && hash2(ox + x, oz + z, seed + 33) < 0.45 ? B.FERN : B.TALL_GRASS;
       else if (pr < grassy + 0.007) b[above] = B.POPPY;
       else if (pr < grassy + 0.014) b[above] = B.DANDELION;
       else if (pr < grassy + 0.019) b[above] = B.CORNFLOWER;
       else if (pr < grassy + 0.0215) { b[above] = B.PUMPKIN; m[above] = Math.floor(hash2(ox + x, oz + z, seed + 17) * 4); }
+      else if (pr < grassy + 0.028) b[above] = B.DAISY;
+      else if (pr < grassy + 0.032) b[above] = B.BELLFLOWER;
+      else if (fo > 0.2 && pr < grassy + 0.036) b[above] = hash2(ox + x, oz + z, seed + 35) < 0.4 ? B.MUSHROOM_RED : B.MUSHROOM_BROWN;
     }
 
     return this._finish(c, { hs: hs, bio: bio, G: G, P: P });
@@ -444,6 +499,19 @@
     }
   }
 
+  // Поворот коробки модели (в 1/16, «лицом» к +Z) по meta 0–3 → доли блока
+  function rotBox(bx, m) {
+    var x0 = bx[0], z0 = bx[2], x1 = bx[3], z1 = bx[5], a, b, c, d;
+    switch (m & 3) {
+      case 1: a = 16 - z1; b = x0; c = 16 - z0; d = x1; break;
+      case 2: a = 16 - x1; b = 16 - z1; c = 16 - x0; d = 16 - z0; break;
+      case 3: a = z0; b = 16 - x1; c = z1; d = 16 - x0; break;
+      default: a = x0; b = z0; c = x1; d = z1;
+    }
+    return [a / 16, bx[1] / 16, b / 16, c / 16, bx[4] / 16, d / 16];
+  }
+  var FRONT_BY_META = [4, 1, 5, 0];
+
   var POLE = [6 / 16, 0, 6 / 16, 10 / 16, 1, 10 / 16];
   function portalBox(meta) { return (meta & 1) ? [6 / 16, 0, 0, 10 / 16, 1, 1] : [0, 0, 6 / 16, 1, 1, 10 / 16]; }
   function collisionBox(id, meta) {
@@ -455,6 +523,7 @@
       case 'chest': return [1 / 16, 0, 1 / 16, 15 / 16, 14 / 16, 15 / 16];
       case 'cactus': return [1 / 16, 0, 1 / 16, 15 / 16, 1, 15 / 16];
       case 'door': return doorBox(meta);
+      case 'model': return rotBox(b.model.coll, meta);
       default: return FULL;
     }
   }
@@ -476,6 +545,8 @@
       case 'button': return attachedBox(meta & 7, 6, 4, 2);
       case 'portal': return portalBox(meta);
       case 'pole': return POLE;
+      case 'model': return rotBox(b.model.coll, meta);
+      case 'decal': return attachedBox((meta & 7) > 5 ? 3 : meta & 7, 16, 16, 1);
       default: return collisionBox(id, meta) || FULL;
     }
   }
@@ -502,7 +573,7 @@
   for (var li = 0; li < 16; li++) LIGHT_CURVE[li] = Math.pow(li / 15, 1.45);
 
   // Материал вершины: от него в шейдере зависят анимация (ветер, волны, течение) и свечение
-  var MAT = { SOLID: 0, PLANT: 1, LEAVES: 2, WATER: 3, LAVA: 4, GLOW: 5, PORTAL: 6, FIRE: 7, GLASS: 8, GRASS: 9, PLANT_GLOW: 10, METAL: 11 };
+  var MAT = { SOLID: 0, PLANT: 1, LEAVES: 2, WATER: 3, LAVA: 4, GLOW: 5, PORTAL: 6, FIRE: 7, GLASS: 8, GRASS: 9, PLANT_GLOW: 10, METAL: 11, BLINK: 12 };
   var curMat = 0;
   // Первая «светотень» вершины упакована: материал × 2048 + нормаль × 256 + AO × 200
   // (нормаль 0…5 — грань в порядке FACES, 6 — плоские растения, освещённые со всех сторон)
@@ -566,6 +637,11 @@
       case B.GENERATOR: if (f === FACING_FACE[meta & 3]) return meta & 4 ? T.generatorOn : tl.front; break;
       case B.RAIL_FLOOR: if (f === 2) return meta & 1 ? T.railZ : T.railX; break;
       case B.FARMLAND: if (f === 2) return meta & 1 ? T.farmlandWet : T.farmland; break;
+      // лежачее бревно: meta 1 — вдоль X, 2 — вдоль Z
+      case B.LOG: case B.BIRCH_LOG: case B.SPRUCE_LOG:
+        if ((meta & 3) === 1) return f === 0 || f === 1 ? tl.top : tl.side;
+        if ((meta & 3) === 2) return f === 4 || f === 5 ? tl.top : tl.side;
+        break;
       case B.PISTON:
         var pf = meta & 7;
         if (f === pf) return meta & 8 ? T.pistonInner : T.pistonFace;
@@ -573,6 +649,17 @@
         return T.pistonSide;
     }
     return tl[key];
+  }
+
+  // Случайный поворот текстуры по координатам — меньше заметных повторов у природных блоков
+  var ROT = new Uint8Array(256);   // 1 — только верх, 2 — все грани
+  [B.GRASS, B.SNOW_GRASS, B.GOLDEN_GRASS].forEach(function (id) { ROT[id] = 1; });
+  [B.DIRT, B.SAND, B.GRAVEL, B.STONE, B.SNOW, B.CLAY, B.COBBLE, B.MOSSY_COBBLE, B.ASPHALT, B.ASHSTONE, B.ASH_BLOCK,
+    B.CLOUD, B.LIGHT_SOIL, B.RUBBLE, B.ASTEROID, B.MAGMA, B.OBSIDIAN, B.LEAVES, B.SPRUCE_LEAVES].forEach(function (id) { ROT[id] = 2; });
+  function hashI(x, y, z) {
+    var h = (x * 73856093) ^ (y * 19349663) ^ (z * 83492791);
+    h = Math.imul(h ^ (h >>> 13), 1274126177);
+    return (h ^ (h >>> 16)) >>> 0;
   }
 
   World.prototype.buildMesh = function (chunk) {
@@ -685,7 +772,8 @@
               emitBox(ob, wx, y, wz, [1 / 16, 0, 1 / 16, 15 / 16, 1, 15 / 16], [f], bd.tiles.side, p, 1);
               continue;
             }
-            emitFace(ob, face, faceTile(bd, id, meta, f), p, wx, y, wz, false, 0, glow);
+            var rt = ROT[id] === 2 || (ROT[id] === 1 && f === 2) ? (hashI(wx, y, wz) >>> (f * 2)) & 3 : 0;
+            emitFace(ob, face, faceTile(bd, id, meta, f), p, wx, y, wz, false, 0, glow, rt);
           }
           break;
         case 'liquid': emitLiquid(id === B.LAVA ? ob : wb, bd, id, meta, p, wx, y, wz); break;
@@ -701,7 +789,7 @@
       water: wb.data.subarray(0, wb.n), waterQuads: wb.n / (4 * FLOATS), topY: topY };
   };
 
-  function emitFace(buf, face, tile, p, wx, wy, wz, liquid, topH, glow) {
+  function emitFace(buf, face, tile, p, wx, wy, wz, liquid, topH, glow, rot) {
     buf.reserve(1);
     var uv = UVS[tile], a = p + face.no, k;
     var ao = [3, 3, 3, 3], sky = [1, 1, 1, 1], blk = [0, 0, 0, 0];
@@ -728,7 +816,8 @@
       var py = wy + o[1] + u[1] * ci + v[1] * cj;
       var pz = wz + o[2] + u[2] * ci + v[2] * cj;
       if (liquid && py > wy + 0.5) py = wy + topH;
-      buf.v(px, py, pz, ci ? uv[2] : uv[0], cj ? uv[1] : uv[3], pk(AO_CURVE[ao[k]], face.idx), sky[k], blk[k]);
+      var rk = rot ? (k + rot) & 3 : k;
+      buf.v(px, py, pz, CORNERS[rk][0] ? uv[2] : uv[0], CORNERS[rk][1] ? uv[1] : uv[3], pk(AO_CURVE[ao[k]], face.idx), sky[k], blk[k]);
     }
   }
 
@@ -885,6 +974,30 @@
         break;
       case 'pole':
         emitBox(buf, wx, wy, wz, POLE, ALL, tl.side, p);
+        break;
+      case 'model':
+        // объект из коробок, повёрнутый по meta; у коробки — плитки боков, верха и «лица»
+        var md = bd.model, mr = meta & 3, fr = FRONT_BY_META[mr], saveMat = curMat;
+        for (var bi = 0; bi < md.boxes.length; bi++) {
+          var bxs = md.boxes[bi], tt6 = bxs[6], t6 = [tt6.side, tt6.side, tt6.top, tt6.top, tt6.side, tt6.side];
+          t6[fr] = tt6.front;
+          curMat = bxs[7] === 'blink' ? MAT.BLINK : bxs[7] === 'glow' ? MAT.GLOW : saveMat;
+          emitBox(buf, wx, wy, wz, rotBox(bxs, mr), ALL, t6, p);
+        }
+        curMat = saveMat;
+        break;
+      case 'decal':
+        // плоская картинка у грани опоры; вариант рисунка — по координатам
+        var vt = bd.variants ? bd.variants[hashI(wx, wy, wz) % bd.variants.length] : tl.side, ee = 0.012, db;
+        switch (dir) {
+          case 0: db = [1 - ee, 0, 0, 1, 1, 1]; break;
+          case 1: db = [0, 0, 0, ee, 1, 1]; break;
+          case 2: db = [0, 1 - ee, 0, 1, 1, 1]; break;
+          case 4: db = [0, 0, 1 - ee, 1, 1, 1]; break;
+          case 5: db = [0, 0, 0, 1, 1, ee]; break;
+          default: db = id === B.LILY_PAD ? [0, -0.125, 0, 1, -0.11, 1] : [0, 0, 0, 1, ee, 1];
+        }
+        emitBox(buf, wx, wy, wz, db, [dir ^ 1], vt, p);
         break;
       case 'pistonHead':
         var hd = DIRS[dir], pb = [0, 0, 0, 1, 1, 1], arm = [6 / 16, 6 / 16, 6 / 16, 10 / 16, 10 / 16, 10 / 16];

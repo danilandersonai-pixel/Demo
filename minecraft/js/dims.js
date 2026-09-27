@@ -456,6 +456,11 @@
         // трещины и воронки на брошенных дорогах; в центре их больше
         if (id === B.ASPHALT && hash2(wx, wz, seed + 75) < (dist === 'downtown' ? 0.03 : 0.012)) id = B.RUBBLE;
         put(c, x, GROUND, z, id, meta);
+        if (id === B.ASPHALT) {
+          var rr = hash2(wx, wz, seed + 90);
+          if (rr < (dist === 'downtown' ? 0.06 : 0.035)) put(c, x, GROUND + 1, z, B.CRACKS, 3);
+          else if (rr > 0.9975 && !(lx < 8 && lz < 8)) put(c, x, GROUND + 1, z, B.ROAD_BARRIER, lx < 8 ? 0 : 1);
+        }
       } else if (walk) {
         put(c, x, GROUND, z, dist === 'suburb' ? B.GRASS : B.SIDEWALK);
         if (dist === 'suburb' && (lx === 9 || lx === 38 || lz === 9 || lz === 38)) put(c, x, GROUND, z, B.SIDEWALK);
@@ -464,7 +469,7 @@
         if (lampSpot) {
           for (y = GROUND + 1; y <= GROUND + 5; y++) put(c, x, y, z, B.STREET_POLE);
           put(c, x, GROUND + 6, z, hash2(wx, wz, seed + 76) < (dist === 'downtown' ? 0.55 : 0.35) ? B.CONCRETE_DARK : B.STREET_LAMP);
-        }
+        } else streetProp(c, x, z, wx, wz, lx, lz, dist, seed);
       } else {
         cityPlotColumn(c, x, z, wx, wz, p, seed);
       }
@@ -494,6 +499,52 @@
   }
 
   function lootAt(c, wx, y, wz, table) { (c.loot = c.loot || []).push([wx, y, wz, table]); }
+
+  // ---- Уличные мелочи: светофоры, скамейки, урны, гидранты, мусор ------------------------
+  function streetProp(c, x, z, wx, wz, lx, lz, dist, seed) {
+    var y = GROUND + 1;
+    // светофоры на внешних углах тротуаров у перекрёстков (на окраинах их нет); все мигают жёлтым
+    if ((lx === 8 || lx === 39) && (lz === 8 || lz === 39)) {
+      if (dist === 'suburb') return;
+      for (var yy = y; yy < y + 4; yy++) put(c, x, yy, z, B.STREET_POLE);
+      put(c, x, y + 4, z, B.TRAFFIC_LIGHT, lz === 8 ? 2 : 0);
+      return;
+    }
+    var inner = lx === 9 || lx === 38 || lz === 9 || lz === 38;
+    var sideX = lx === 8 || lx === 9 || lx === 38 || lx === 39;
+    var along = sideX ? lz : lx, r = hash2(wx, wz, seed + 91);
+    // «лицом» к дороге
+    var face = lx === 8 || lx === 9 ? 1 : lx === 38 || lx === 39 ? 3 : lz === 8 || lz === 9 ? 2 : 0;
+    if (inner) {
+      if ((along === 16 || along === 30) && r < 0.5) { put(c, x, y, z, B.BENCH, face); return; }
+      if ((along === 17 || along === 31) && r < 0.55) { put(c, x, y, z, B.TRASH_BIN, 0); return; }
+      if (r < 0.014) { put(c, x, y, z, hash2(wx, wz, seed + 92) < 0.6 ? B.TRASH_BAGS : B.BOXES, Math.floor(r * 400) & 3); return; }
+    } else if (along === 20 && r < 0.4 && dist !== 'suburb') { put(c, x, y, z, B.HYDRANT, face); return; }
+    if (r > 0.95) put(c, x, y, z, B.LITTER, 3);
+  }
+
+  // Клетка снаружи у стены дома: плющ по простенкам, афиши и граффити у входа, кондиционеры под окнами
+  function faceAway(d) { return d === 0 ? 1 : d === 1 ? 3 : d === 4 ? 2 : 0; }
+  function facadeDetail(c, x, z, wx, wz, p, seed) {
+    var d = -1;
+    if (wx === p.bx0 - 1 && wz > p.bz0 && wz < p.bz1) d = 0;
+    else if (wx === p.bx1 + 1 && wz > p.bz0 && wz < p.bz1) d = 1;
+    else if (wz === p.bz0 - 1 && wx > p.bx0 && wx < p.bx1) d = 4;
+    else if (wz === p.bz1 + 1 && wx > p.bx0 && wx < p.bx1) d = 5;
+    if (d < 0) return;
+    var along = d === 0 || d === 1 ? wz : wx, pillar = mod(along, 3) === 0;
+    var midX = Math.floor((p.bx0 + p.bx1) / 2);
+    if (d === 4 && Math.abs(wx - midX) <= 2) return;                       // у входа ничего
+    var r = hash2(wx * 3 + d, wz * 5 - d, seed + 93), dist = p.district, y;
+    if (pillar && r < (dist === 'residential' || dist === 'suburb' ? 0.35 : 0.12)) {
+      var hIvy = 2 + Math.floor(hash2(wx, wz, seed + 94) * Math.min(14, p.top - GROUND));
+      for (y = GROUND + 1; y <= GROUND + hIvy && y < p.top; y++) put(c, x, y, z, B.IVY, d);
+      return;
+    }
+    if (r < 0.22) put(c, x, GROUND + 1, z, r < 0.09 ? B.POSTER : B.GRAFFITI, d);
+    else if (r > 0.95) put(c, x, GROUND + 1, z, r > 0.978 ? B.DUMPSTER : B.TRASH_BAGS, faceAway(d));
+    if (!pillar) for (y = GROUND + 5; y < p.top - 1; y += 4) if (hash3(wx, y, wz, seed + 95) < 0.07) put(c, x, y, z, B.AC_UNIT, faceAway(d));
+  }
 
   function cityPlotColumn(c, x, z, wx, wz, p, seed) {
     var y, px = wx - p.x0, pz = wz - p.z0;
@@ -534,7 +585,8 @@
         return;
       }
     }
-    if (px % 7 === 1 && pz === 13 && px > 2 && px < 26) put(c, x, GROUND + 1, z, B.PLANKS);  // скамейки
+    if (px % 7 === 1 && (pz === 12 || pz === 15) && px > 2 && px < 26) put(c, x, GROUND + 1, z, B.BENCH, pz === 12 ? 2 : 0);  // скамейки у дорожки
+    else if (px % 7 === 2 && pz === 12 && px > 2 && px < 26) put(c, x, GROUND + 1, z, B.TRASH_BIN, 0);
     else if (hash2(wx, wz, seed + 80) < 0.08) put(c, x, GROUND + 1, z, hash2(wx, wz, seed + 81) < 0.3 ? B.POPPY : B.TALL_GRASS);
   }
 
@@ -542,7 +594,7 @@
   function buildingColumn(c, x, z, wx, wz, p, seed) {
     var y;
     put(c, x, GROUND, z, B.SIDEWALK);
-    if (wx < p.bx0 || wx > p.bx1 || wz < p.bz0 || wz > p.bz1) return;
+    if (wx < p.bx0 || wx > p.bx1 || wz < p.bz0 || wz > p.bz1) { facadeDetail(c, x, z, wx, wz, p, seed); return; }
     var st = p.style;
     var wallMat = st === 'tower' || st === 'helipad' || st === 'police' ? B.CONCRETE_DARK : st === 'office' || st === 'hospital' ? B.CONCRETE : B.BRICK;
     var onX = wx === p.bx0 || wx === p.bx1, onZ = wz === p.bz0 || wz === p.bz1;
@@ -598,6 +650,13 @@
     }
     // лестница продолжается сквозь крышу
     if (wx === shaftX && wz === shaftZ) put(c, x, p.top, z, B.LADDER, 1);
+    // на крыше: вентиляция, бак с водой у жилых домов, мачты
+    if (st !== 'helipad' && wx > p.bx0 + 1 && wx < p.bx1 - 1 && wz > p.bz0 + 1 && wz < p.bz1 - 1 && Math.abs(wx - shaftX) + Math.abs(wz - shaftZ) > 2) {
+      var rr2 = hash2(wx * 7, wz * 11, seed + 96);
+      if (st === 'apart' && wx === p.bx0 + 3 && wz === p.bz1 - 3) put(c, x, p.top + 1, z, B.WATER_TANK, 0);
+      else if (rr2 < 0.025) put(c, x, p.top + 1, z, B.VENT, Math.floor(rr2 * 160) & 3);
+      else if (rr2 > 0.993 && st !== 'tower') { put(c, x, p.top + 1, z, B.STREET_POLE); put(c, x, p.top + 2, z, B.STREET_POLE); }
+    }
     // антенна на небоскрёбе
     if (st === 'tower' && wx === midX && wz === midZ) {
       for (y = p.top + 1; y <= Math.min(H - 3, p.top + 5); y++) put(c, x, y, z, B.STREET_POLE);
@@ -863,14 +922,14 @@
       [B.TORCH, 2, 6, 0.4], [I.BAT, 1, 1, 0.12], [B.PLANKS, 4, 12, 0.3], [I.CITY_MAP, 1, 1, 0.08], [I.SHOTGUN, 1, 1, 0.04],
       [I.SHELLS, 2, 8, 0.12], [I.FIRE_AXE, 1, 1, 0.05]],
     hospital: [[I.MEDKIT, 1, 2, 0.7], [I.BANDAGE, 2, 6, 0.8], [I.CANNED_FOOD, 1, 2, 0.3], [I.GOLDEN_APPLE, 1, 1, 0.06], [I.PAPER, 1, 4, 0.3]],
-    police: [[I.AMMO, 6, 16, 0.6], [I.PISTOL, 1, 1, 0.25], [I.BODY_ARMOR, 1, 1, 0.15], [I.BANDAGE, 1, 3, 0.4], [I.CANNED_FOOD, 1, 2, 0.3],
+    police: [[I.AMMO, 6, 16, 0.6], [I.PISTOL, 1, 1, 0.25], [I.FLASHLIGHT, 1, 1, 0.3], [I.BODY_ARMOR, 1, 1, 0.15], [I.BANDAGE, 1, 3, 0.4], [I.CANNED_FOOD, 1, 2, 0.3],
       [I.CITY_MAP, 1, 1, 0.25], [I.RADIO, 1, 1, 0.15], [I.SHOTGUN, 1, 1, 0.2], [I.SHELLS, 4, 12, 0.45]],
-    armory: [[I.RADIO, 1, 1, 1], [I.AMMO, 16, 32, 1], [I.PISTOL, 1, 1, 0.8], [I.BODY_ARMOR, 1, 1, 0.6], [I.MACHETE, 1, 1, 0.4], [I.MEDKIT, 1, 1, 0.5],
+    armory: [[I.RADIO, 1, 1, 1], [I.FLASHLIGHT, 1, 1, 0.9], [I.AMMO, 16, 32, 1], [I.PISTOL, 1, 1, 0.8], [I.BODY_ARMOR, 1, 1, 0.6], [I.MACHETE, 1, 1, 0.4], [I.MEDKIT, 1, 1, 0.5],
       [I.SHOTGUN, 1, 1, 0.7], [I.SHELLS, 8, 20, 0.9], [I.RIFLE, 1, 1, 0.3], [I.RIFLE_AMMO, 20, 40, 0.4]],
-    military: [[I.RIFLE, 1, 1, 0.7], [I.RIFLE_AMMO, 30, 60, 1], [I.SNIPER, 1, 1, 0.25], [I.GRENADE, 2, 5, 0.7], [I.TANK_SHELL, 4, 10, 0.8],
+    military: [[I.FLASHLIGHT, 1, 1, 0.5], [I.RIFLE, 1, 1, 0.7], [I.RIFLE_AMMO, 30, 60, 1], [I.SNIPER, 1, 1, 0.25], [I.GRENADE, 2, 5, 0.7], [I.TANK_SHELL, 4, 10, 0.8],
       [I.BODY_ARMOR, 1, 1, 0.5], [I.MEDKIT, 1, 2, 0.6], [I.SPACE_RATION, 2, 4, 0.5], [I.SHELLS, 8, 16, 0.4], [I.FLAMETHROWER, 1, 1, 0.12],
       [I.FUEL_CAN, 1, 2, 0.5], [I.CITY_MAP, 1, 1, 0.3]],
-    market: [[I.CANNED_FOOD, 2, 5, 0.8], [I.BREAD, 1, 4, 0.6], [I.APPLE, 2, 6, 0.5], [I.BEEF_COOKED, 1, 3, 0.3], [I.PORK_COOKED, 1, 3, 0.2],
+    market: [[I.FLASHLIGHT, 1, 1, 0.2], [I.CANNED_FOOD, 2, 5, 0.8], [I.BREAD, 1, 4, 0.6], [I.APPLE, 2, 6, 0.5], [I.BEEF_COOKED, 1, 3, 0.3], [I.PORK_COOKED, 1, 3, 0.2],
       [B.TORCH, 4, 10, 0.3], [I.BANDAGE, 1, 3, 0.2]],
     gas: [[I.FUEL_CAN, 1, 2, 0.85], [I.CANNED_FOOD, 1, 2, 0.4], [I.BREAD, 1, 2, 0.3], [B.TORCH, 2, 6, 0.4], [I.CITY_MAP, 1, 1, 0.3], [I.MOLOTOV, 1, 3, 0.35]],
     industrial: [[B.PLANKS, 6, 16, 0.6], [I.IRON_INGOT, 2, 6, 0.5], [I.FUEL_CAN, 1, 1, 0.35], [I.STICK, 4, 12, 0.4], [B.BARRICADE, 2, 6, 0.45],

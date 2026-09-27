@@ -140,6 +140,8 @@
       case 'cactus': return below === B.CACTUS || below === B.SAND;
       case 'farmland': return below === B.FARMLAND;
       case 'floor': return OPAQUE[below] === 1;
+      case 'water': return below === B.WATER;
+      case 'sandy': return below === B.SAND || below === B.GRAVEL || below === B.DIRT;
       case 'attached':
         var d = DIRS[m & 7] || DIRS[3];
         return OPAQUE[get(x + d[0], y + d[1], z + d[2])] === 1;
@@ -653,6 +655,8 @@
         if (b.hardness < 0 || b.blastProof) continue;
         gone.push([x, y, z, id]);
       }
+      // обломки разлетаются кусочками текстур разрушенных блоков
+      if (hooks.particles) gone.forEach(function (g, i) { if (i % 3 === 0) for (var q = 0; q < 2; q++) hooks.particles('block', g[0] + 0.5, g[1] + 0.5, g[2] + 0.5, g[3]); });
       gone.forEach(function (g) {
         if (g[3] === B.TNT) { primeTnt(g[0], g[1], g[2], 0.5 + Math.random()); return; }
         if (BLOCKS[g[3]].explosive) { world.setBlock(g[0], g[1], g[2], 0, 0); schedule(g[0], g[1], g[2], 'blast', 4 + Math.floor(Math.random() * 6)); return; }
@@ -661,7 +665,7 @@
     }
     if (hooks.explosionHit) hooks.explosionHit(ex, ey, ez, power);
     if (KC.Entities.noise) KC.Entities.noise(ex, ey, ez, 48);
-    if (hooks.particles) hooks.particles('explosion', ex, ey, ez);
+    if (hooks.particles) hooks.particles('explosion', ex, ey, ez, power);
     if (hooks.sound) hooks.sound('boom', ex, ey, ez);
   }
 

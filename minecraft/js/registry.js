@@ -33,7 +33,13 @@
     // Особые здания и выживание в городе
     MED_SIGN: 107, POLICE_SIGN: 108, METRO_SIGN: 109, BARS: 110, SHELF: 111, FUEL_PUMP: 112, FUEL_BARREL: 113,
     RAIL_FLOOR: 114, BARRICADE: 115, GENERATOR: 116, HELIPAD: 117, LANDING_LIGHT: 118, AIRDROP: 119, FIRE: 120,
-    SANDBAG: 121
+    SANDBAG: 121,
+    // Детализация мира: ель, растения, городские объекты и «наклейки»
+    SPRUCE_LOG: 122, SPRUCE_LEAVES: 123, MOSSY_COBBLE: 124, FERN: 125, MUSHROOM_RED: 126, MUSHROOM_BROWN: 127,
+    DAISY: 128, BELLFLOWER: 129, DEAD_BUSH: 130, LILY_PAD: 131, PEBBLES: 132, FALLEN_LEAVES: 133,
+    BENCH: 134, TRASH_BIN: 135, HYDRANT: 136, TRAFFIC_LIGHT: 137, AC_UNIT: 138, WATER_TANK: 139, VENT: 140,
+    TRASH_BAGS: 141, DUMPSTER: 142, ROAD_BARRIER: 143, BOXES: 144,
+    POSTER: 145, GRAFFITI: 146, IVY: 147, CRACKS: 148, LITTER: 149
   };
 
   // ---- Идентификаторы предметов -----------------------------------------------
@@ -52,7 +58,8 @@
     SHOTGUN: 365, RIFLE: 366, SNIPER: 367, FLAMETHROWER: 368, GRENADE: 369, MOLOTOV: 370, FIRE_AXE: 371,
     CROWBAR: 372, CHAINSAW: 373, SHELLS: 374, RIFLE_AMMO: 375, TANK_SHELL: 376,
     // техника (предметы для творчества: ставят машину на землю)
-    VEH_SEDAN: 377, VEH_PICKUP: 378, VEH_POLICE: 379, VEH_BUS: 380, VEH_TRUCK: 381, VEH_DOZER: 382, VEH_TANK: 383
+    VEH_SEDAN: 377, VEH_PICKUP: 378, VEH_POLICE: 379, VEH_BUS: 380, VEH_TRUCK: 381, VEH_DOZER: 382, VEH_TANK: 383,
+    FLASHLIGHT: 384
   };
   // Инструменты 300–324 (материал × вид), броня 330–345 (материал × слот)
   var TOOL_MATS = ['wood', 'stone', 'iron', 'gold', 'diamond'];
@@ -238,6 +245,68 @@
   blk(B.SANDBAG, 'Мешки с песком', { top: 'sandbagTop', side: 'sandbag' }, { hardness: 1.2, tool: 'shovel', mat: 'sand', blastProof: true });
   blk(B.FIRE, 'Огонь', 'fire', { shape: 'cross', opaque: false, solid: false, hardness: 0, mat: 'plant', light: 14, glow: true,
     support: 'floor', replaceable: true, drop: [] });
+  // ---- Детализация мира ---------------------------------------------------------------
+  blk(B.SPRUCE_LOG, 'Еловое бревно', { top: 'spruceTop', side: 'spruceSide' }, { hardness: 2, tool: 'axe', mat: 'wood', fuel: 300 });
+  blk(B.SPRUCE_LEAVES, 'Хвоя', 'spruceLeaves', { opaque: false, leaves: true, hardness: 0.2, tool: 'shears', mat: 'plant' });
+  blk(B.MOSSY_COBBLE, 'Замшелый булыжник', 'mossyCobble', ext(rockPick, { hardness: 2 }));
+  blk(B.FERN, 'Папоротник', 'fern', ext(plant, { replaceable: true, drop: [] }));
+  blk(B.MUSHROOM_RED, 'Мухомор', 'mushroomRed', plant);
+  blk(B.MUSHROOM_BROWN, 'Гриб', 'mushroomBrown', plant);
+  blk(B.DAISY, 'Ромашка', 'daisy', plant);
+  blk(B.BELLFLOWER, 'Колокольчик', 'bellflower', plant);
+  blk(B.DEAD_BUSH, 'Сухой куст', 'deadBush', ext(plant, { support: 'sandy', replaceable: true, fuel: 100, drop: [[I.STICK, 1]] }));
+  // «наклейка»: плоская картинка у грани соседнего блока; meta — направление на опору (порядок DIRS)
+  var decal = { shape: 'decal', opaque: false, solid: false, hardness: 0.1, mat: 'plant', support: 'attached', replaceable: true };
+  blk(B.LILY_PAD, 'Кувшинка', 'lilyPad', ext(decal, { support: 'water', replaceable: false }));
+  blk(B.PEBBLES, 'Галька', 'pebbles', ext(decal, { mat: 'stone', drop: [] }));
+  blk(B.FALLEN_LEAVES, 'Опавшие листья', 'fallenLeaves', ext(decal, { drop: [] }));
+  blk(B.POSTER, 'Афиша', 'poster1', ext(decal, { mat: 'cloth', replaceable: false, variants: ['poster1', 'poster2', 'poster3'] }));
+  blk(B.GRAFFITI, 'Граффити', 'graffiti1', ext(decal, { mat: 'cloth', variants: ['graffiti1', 'graffiti2', 'graffiti3'], drop: [] }));
+  blk(B.IVY, 'Плющ', 'ivy', ext(decal, { replaceable: false, climb: true }));
+  blk(B.CRACKS, 'Трещины', 'crackDecal', ext(decal, { mat: 'stone', variants: ['crackDecal', 'crackDecal', 'oilStain'], drop: [] }));
+  blk(B.LITTER, 'Мусор', 'litter', ext(decal, { mat: 'cloth', drop: [] }));
+  // городские объекты из нескольких коробок (единица — 1/16 блока, «лицом» к +Z; meta 0–3 — поворот)
+  var prop = { shape: 'model', opaque: false, solid: true, hardness: 1.5, tool: 'pickaxe', mat: 'metal' };
+  blk(B.BENCH, 'Скамейка', 'benchWood', ext(prop, { tool: 'axe', mat: 'wood', siege: 4, model: {
+    boxes: [[1, 0, 3, 3, 6, 5, 'metalDark'], [13, 0, 3, 15, 6, 5, 'metalDark'], [1, 0, 11, 3, 6, 13, 'metalDark'], [13, 0, 11, 15, 6, 13, 'metalDark'],
+      [0, 6, 2, 16, 7.5, 13, 'benchWood'], [1, 7.5, 1, 3, 14, 2.5, 'metalDark'], [13, 7.5, 1, 15, 14, 2.5, 'metalDark'], [0, 9, 1.2, 16, 13, 2.4, 'benchWood']],
+    coll: [0, 0, 1, 16, 8, 13] } }));
+  blk(B.TRASH_BIN, 'Урна', 'binGreen', ext(prop, { siege: 3, model: {
+    boxes: [[4, 0, 4, 12, 11, 12, 'binGreen'], [3.5, 11, 3.5, 12.5, 12, 12.5, 'metalDark']], coll: [4, 0, 4, 12, 12, 12] } }));
+  blk(B.HYDRANT, 'Гидрант', 'hydrantRed', ext(prop, { hardness: 3, model: {
+    boxes: [[5, 0, 5, 11, 2, 11, 'hydrantRed'], [5.5, 2, 5.5, 10.5, 10, 10.5, 'hydrantRed'], [6, 10, 6, 10, 12, 10, 'hydrantRed'], [7.3, 12, 7.3, 8.7, 13, 8.7, 'metalDark'],
+      [3, 6, 7, 5.5, 8, 9, 'hydrantRed'], [10.5, 6, 7, 13, 8, 9, 'hydrantRed'], [7, 5, 10.5, 9, 8, 12.5, 'hydrantRed']], coll: [5, 0, 5, 11, 12, 11] } }));
+  blk(B.TRAFFIC_LIGHT, 'Светофор', 'trafficBox', ext(prop, { hardness: 2, model: {
+    boxes: [[5, 0, 5.5, 11, 16, 10.5, 'trafficBox'], [6.5, 11.5, 10.5, 9.5, 14.5, 11.1, 'lampOffRed'], [6.5, 6.5, 10.5, 9.5, 9.5, 11.1, 'lampAmber', 'blink'],
+      [6.5, 1.5, 10.5, 9.5, 4.5, 11.1, 'lampOffGreen'], [6.5, 6.5, 4.9, 9.5, 9.5, 5.5, 'lampAmber', 'blink']], coll: [5, 0, 5, 11, 16, 11] } }));
+  blk(B.AC_UNIT, 'Кондиционер', 'acFront', ext(prop, { model: {
+    boxes: [[1, 3, 0, 15, 13, 8, { side: 'acSide', top: 'acSide', front: 'acFront' }], [2, 1, 0, 3, 3, 7, 'metalDark'], [13, 1, 0, 14, 3, 7, 'metalDark']],
+    coll: [1, 1, 0, 15, 13, 8] } }));
+  blk(B.WATER_TANK, 'Бак на крыше', 'tankWood', ext(prop, { tool: 'axe', mat: 'wood', hardness: 2, model: {
+    boxes: [[1, 0, 1, 3, 5, 3, 'metalDark'], [13, 0, 1, 15, 5, 3, 'metalDark'], [1, 0, 13, 3, 5, 15, 'metalDark'], [13, 0, 13, 15, 5, 15, 'metalDark'],
+      [0.5, 5, 0.5, 15.5, 16, 15.5, { side: 'tankWood', top: 'tankTop' }]], coll: [0, 0, 0, 16, 16, 16] } }));
+  blk(B.VENT, 'Вентиляция', 'ventMetal', ext(prop, { model: {
+    boxes: [[2, 0, 2, 14, 8, 14, 'ventMetal'], [1, 8, 1, 15, 10, 15, 'metalDark']], coll: [1, 0, 1, 15, 10, 15] } }));
+  blk(B.TRASH_BAGS, 'Мусорные мешки', 'bagBlack', ext(prop, { tool: null, mat: 'cloth', hardness: 0.3, siege: 1, drop: [], model: {
+    boxes: [[1, 0, 2, 8, 6, 9, 'bagBlack'], [7, 0, 6, 14, 5, 13, 'bagBlack'], [3, 0, 9, 9, 4, 15, 'bagBlack'], [4, 6, 5, 5, 7, 6, 'bagBlack']], coll: [1, 0, 2, 14, 6, 15] } }));
+  blk(B.DUMPSTER, 'Мусорный контейнер', 'dumpsterGreen', ext(prop, { hardness: 3, siege: 12, model: {
+    boxes: [[0, 1, 1, 16, 13, 15, 'dumpsterGreen'], [0, 13, 0.5, 16, 14.5, 15.5, 'dumpsterLid'], [1, 0, 2, 3, 1, 4, 'metalDark'], [13, 0, 2, 15, 1, 4, 'metalDark'],
+      [1, 0, 12, 3, 1, 14, 'metalDark'], [13, 0, 12, 15, 1, 14, 'metalDark']], coll: [0, 0, 1, 16, 14.5, 15] } }));
+  blk(B.ROAD_BARRIER, 'Дорожное ограждение', 'barrierStripe', ext(prop, { hardness: 1, siege: 5, model: {
+    boxes: [[0, 7, 7, 16, 11, 9, 'barrierStripe'], [1, 0, 7.5, 3, 7, 8.5, 'metalDark'], [13, 0, 7.5, 15, 7, 8.5, 'metalDark'], [0, 0, 5, 4, 1, 11, 'metalDark'], [12, 0, 5, 16, 1, 11, 'metalDark']],
+    coll: [0, 0, 5, 16, 11, 11] } }));
+  blk(B.BOXES, 'Картонные коробки', 'cardboard', ext(prop, { tool: 'axe', mat: 'wood', hardness: 0.6, siege: 2, fuel: 150, drop: [[I.PAPER, 2]], model: {
+    boxes: [[1, 0, 1, 9, 7, 9, 'cardboard'], [8, 0, 6, 15, 6, 14, 'cardboard'], [3, 7, 3, 8, 11, 8, 'cardboard']], coll: [1, 0, 1, 15, 7, 14] } }));
+  // плитки коробок и вариантов «наклеек» — в индексы атласа
+  BLOCKS.forEach(function (b) {
+    if (!b) return;
+    if (b.variants) b.variants = b.variants.map(function (n) { return T[n]; });
+    if (b.model) b.model.boxes.forEach(function (bx) {
+      var t = bx[6];
+      bx[6] = typeof t === 'string' ? { side: T[t], top: T[t], front: T[t] } : { side: T[t.side], top: T[t.top || t.side], front: T[t.front || t.side] };
+    });
+  });
+
   // что заражённые могут выломать, если оно мешает добраться до игрока (секунды на один блок)
   [[B.DOOR, 9], [B.GLASS, 1.5], [B.SANDBAG, 20], [B.WINDOW, 2], [B.PLANKS, 12], [B.CRATE, 6], [B.BOOKSHELF, 8], [B.TABLE, 6], [B.LADDER, 3],
     [B.WOOL_WHITE, 3], [B.LEAVES, 2], [B.SHELF, 7], [B.TNT, 2]].forEach(function (p) { BLOCKS[p[0]].siege = p[1]; });
@@ -281,6 +350,9 @@
   BLOCK_SPRITES[B.PLATE] = 'plateItem'; BLOCK_SPRITES[B.SPARK_TORCH] = 'sparkTorchOn';
   BLOCK_SPRITES[B.GLOWROOT] = 'glowroot'; BLOCK_SPRITES[B.FIREFLOWER] = 'fireflower'; BLOCK_SPRITES[B.HALO_FLOWER] = 'haloFlower';
   BLOCK_SPRITES[B.HELL_GATE] = 'hellGate'; BLOCK_SPRITES[B.HEAVEN_GATE] = 'heavenGate'; BLOCK_SPRITES[B.STREET_POLE] = 'pole';
+  [[B.FERN, 'fern'], [B.MUSHROOM_RED, 'mushroomRed'], [B.MUSHROOM_BROWN, 'mushroomBrown'], [B.DAISY, 'daisy'], [B.BELLFLOWER, 'bellflower'],
+    [B.DEAD_BUSH, 'deadBush'], [B.LILY_PAD, 'lilyPad'], [B.PEBBLES, 'pebbles'], [B.FALLEN_LEAVES, 'fallenLeaves'], [B.POSTER, 'poster1'],
+    [B.GRAFFITI, 'graffiti2'], [B.IVY, 'ivy'], [B.CRACKS, 'crackDecal'], [B.LITTER, 'litter']].forEach(function (p) { BLOCK_SPRITES[p[0]] = p[1]; });
   var NOT_ITEMS = [B.AIR, B.WATER, B.LAVA, B.WHEAT, B.WIRE, B.PISTON_HEAD, B.FARMLAND, B.FIRE];
   BLOCKS.forEach(function (b, id) {
     if (!b || NOT_ITEMS.indexOf(id) >= 0) return;
@@ -352,6 +424,7 @@
   item(I.RADIO, 'Рация', 'radio', { stack: 1 });
   item(I.BODY_ARMOR, 'Бронежилет', 'bodyArmor', { stack: 1, dur: 360, armor: { slot: 1, points: 7, mat: 'kevlar' } });
   item(I.CITY_MAP, 'Карта района', 'cityMap', { stack: 1 });
+  item(I.FLASHLIGHT, 'Фонарик', 'flashlight', { stack: 1, flashlight: true });
   // Огнестрельное: semi — по одному выстрелу на нажатие, auto — очередью, scope — прицел (выстрел при отпускании)
   item(I.SHOTGUN, 'Дробовик', 'shotgun', { stack: 1, dur: 400, gun: { dmg: 4.5, pellets: 7, spread: 0.085, range: 24, cd: 0.95, ammo: I.SHELLS, semi: true, noise: 48, sound: 'shotgun', knock: 6 } });
   item(I.RIFLE, 'Автомат', 'rifle', { stack: 1, dur: 1200, gun: { dmg: 6, range: 64, cd: 0.11, ammo: I.RIFLE_AMMO, auto: true, spread: 0.014, bloom: 0.01, noise: 50, sound: 'rifle' } });
@@ -430,7 +503,7 @@
       return rnd() < 0.03 ? [[I.APPLE, 1]] : [];
     }
     if (b.leaves) {
-      if (t && t.kind === 'shears') return [[B.LEAVES, 1]];
+      if (t && t.kind === 'shears') return [[id === B.SPRUCE_LEAVES ? B.SPRUCE_LEAVES : B.LEAVES, 1]];
       var out = [];
       if (rnd() < 0.05) out.push([B.SAPLING, 1, meta & 1]);
       if (!(meta & 1) && rnd() < 0.01) out.push([I.APPLE, 1]);
@@ -445,7 +518,7 @@
 
   // ---- Рецепты ------------------------------------------------------------------
   var RECIPES = [];
-  var LOGS = [B.LOG, B.BIRCH_LOG];
+  var LOGS = [B.LOG, B.BIRCH_LOG, B.SPRUCE_LOG];
   function shaped(out, n, rows, keys) {
     var k = {};
     for (var ch in keys) k[ch] = [].concat(keys[ch]);
@@ -537,6 +610,7 @@
   shapeless(I.CANNED_FOOD, 2, [I.IRON_INGOT, [I.BEEF_COOKED, I.PORK_COOKED, I.MUTTON_COOKED, I.CHICKEN_COOKED]]);
   shapeless(I.AMMO, 8, [I.GUNPOWDER, I.IRON_INGOT]);
   shaped(I.PISTOL, 1, ['III', 'R  '], { I: I.IRON_INGOT, R: I.SPARK_DUST });
+  shaped(I.FLASHLIGHT, 1, ['G', 'I', 'R'], { G: B.GLASS, I: I.IRON_INGOT, R: I.SPARK_DUST });
   shaped(B.CRATE, 1, ['PPP', 'PSP', 'PPP'], { P: B.PLANKS, S: I.STICK });
   shapeless(B.CONCRETE, 4, [B.SAND, B.GRAVEL, I.WATER_BUCKET]);
   shaped(B.LIGHT_PANEL, 4, ['GGG', 'GRG', 'GGG'], { G: B.GLASS, R: I.SPARK_DUST });

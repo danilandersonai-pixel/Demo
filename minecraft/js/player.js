@@ -232,8 +232,10 @@
     if (e.fly || e.inWater || e.onLadder || P.feather > 0) e.fallDist = 0;
     if (landed) {
       // облако мягкое, а при слабой тяжести и падать не больно
-      var soft = BLOCKS[world.getBlock(e.x, e.y - 0.2, e.z)];
+      var underId = world.getBlock(e.x, e.y - 0.2, e.z), soft = BLOCKS[underId];
       var fall = e.fallDist * grav;
+      if (fall > 1.2 && hooks.particles) for (var dp = 0; dp < Math.min(10, 2 + fall * 1.5); dp++) hooks.particles('dust', e.x, e.y, e.z, underId);
+      if (fall > 1.2 && hooks.sound) hooks.sound('land');
       if (soft && soft.soft) fall = 0;
       if (fall > 3.2 && !P.creative) hurt(Math.ceil(fall - 3), 'Падение');
       P.feather = 0;
@@ -258,8 +260,19 @@
           P.stepDist = 0;
           var under = world.getBlock(e.x, e.y - 0.2, e.z);
           if (under && hooks.sound) hooks.sound('step:' + (BLOCKS[under].mat || 'stone'));
+          if (P.sprinting && under && hooks.particles) { hooks.particles('dust', e.x, e.y, e.z, under); hooks.particles('dust', e.x, e.y, e.z, under); }
         }
       }
+    }
+    // всплеск при прыжке в воду и пузыри, пока голова под водой
+    if (e.inWater && !P.wasInWater && e.vy < -4 && hooks.particles) {
+      for (var sp = 0; sp < 12; sp++) hooks.particles('splash', e.x, Math.floor(e.y) + 1, e.z);
+      if (hooks.sound) hooks.sound('splash');
+    }
+    P.wasInWater = e.inWater;
+    if (P.headInWater && hooks.particles) {
+      P.bubbleT = (P.bubbleT || 0) - dt;
+      if (P.bubbleT <= 0) { P.bubbleT = 0.6 + Math.random() * 0.9; for (var bb = 0; bb < 3; bb++) hooks.particles('bubble', e.x - Math.sin(e.yaw) * 0.3, e.y + EYE, e.z - Math.cos(e.yaw) * 0.3); }
     }
     P.walkDist += moved;
     // насколько игрок шумит шагами: 0 — стоит или крадётся, 1 — идёт, 2 — бежит
@@ -479,6 +492,10 @@
         world.setBlock(x, y, z, id, meta);
         world.setBlock(x, y + 1, z, id, meta | 8);
         return true;
+      case B.AC_UNIT:
+        // кондиционер вешают на стену: он смотрит от неё
+        if (n === 2 || n === 3) return false;
+        meta = { 4: 0, 1: 1, 5: 2, 0: 3 }[n]; break;
       case B.DOOR:
         if (!cellFree(x, y + 1, z, true)) return false;
         meta = facingFromYaw(e.yaw);
@@ -487,6 +504,8 @@
         world.setBlock(x, y + 1, z, B.DOOR, meta | 8);
         return true;
     }
+    if (b.shape === 'decal' && id !== B.LILY_PAD) meta = n ^ 1;
+    else if (b.shape === 'model' && id !== B.AC_UNIT) meta = facingFromYaw(e.yaw);
     if (!KC.Sim.supported(x, y, z, id, meta)) {
       if (b.support === 'soil') toast('Нужна трава или земля');
       else if (b.support === 'farmland') toast('Семена сажают на пашню — вскопайте землю мотыгой');
@@ -702,6 +721,11 @@
     P.recoil = gun.pellets ? 0.35 : gun.scope ? 0.4 : 0.2;
     if (hooks.sound) hooks.sound(gun.sound || 'gunshot');
     if (hooks.flash) hooks.flash('muzzle');
+    // гильза вылетает вправо
+    if (hooks.particles) {
+      var ry = Math.cos(e.yaw), rz = -Math.sin(e.yaw);
+      hooks.particles('casing', e.x + ry * 0.35 - Math.sin(e.yaw) * 0.4, e.y + EYE - 0.35, e.z + rz * 0.35 - Math.cos(e.yaw) * 0.4, [ry, 0, rz]);
+    }
     E.noise(e.x, e.y, e.z, gun.noise || 40);
     var spread = (gun.spread || 0) + (P.bloom || 0) + (extraSpread || 0);
     if (gun.bloom) P.bloom = Math.min(0.07, (P.bloom || 0) + gun.bloom);
@@ -717,7 +741,14 @@
     var o = hit.o, d = hit.d, t = hit.t;
     if (hooks.particles) {
       if (tracer) for (var k = 1; k < Math.min(t, 24); k += 1.5) hooks.particles('tracer', o[0] + d[0] * k, o[1] + d[1] * k - 0.05, o[2] + d[2] * k);
-      for (var j = 0; j < (gun.pellets ? 2 : 5); j++) hooks.particles(hit.mob ? 'crit' : 'spark', o[0] + d[0] * (t - 0.05), o[1] + d[1] * (t - 0.05), o[2] + d[2] * (t - 0.05));
+      var ix = o[0] + d[0] * (t - 0.05), iy = o[1] + d[1] * (t - 0.05), iz = o[2] + d[2] * (t - 0.05);
+      if (hit.mob) hooks.particles('hit', ix, iy, iz);
+      else {
+        var hid = hit.block ? hit.block.id : 0, hm = hid && BLOCKS[hid] ? BLOCKS[hid].mat : 'metal';
+        // по камню и металлу — искры, по земле, дереву и ткани — пыль и щепки
+        if (hm === 'stone' || hm === 'metal' || hm === 'glass' || !hid) for (var j = 0; j < (gun.pellets ? 1 : 3); j++) hooks.particles('spark', ix, iy, iz);
+        if (hid) { hooks.particles('dust', ix, iy - 0.1, iz, hid); if (Math.random() < 0.6) hooks.particles('block', ix, iy, iz, hid); }
+      }
     }
     var kb = gun.knock || 4;
     (hit.mobs || (hit.mob ? [hit.mob] : [])).forEach(function (m, idx) {
@@ -820,7 +851,13 @@
     var bob = Math.sin(P.walkDist * 2.2) * 0.02 * (P.walkAmp || 0), bobY = Math.abs(Math.cos(P.walkDist * 2.2)) * 0.025 * (P.walkAmp || 0);
     var eat = P.using && P.using.kind === 'eat' ? Math.min(1, P.using.t * 3) : 0;
     var draw = P.using && P.using.kind === 'bow' ? Math.min(1, P.using.t) : 0;
-    var c = [0.56 + bob - sw * 0.2 - eat * 0.32, -0.52 + bobY + sw * 0.12 + eat * (0.2 + Math.sin(t * 22) * 0.03), -0.95 - sw * 0.15 + eat * 0.25];
+    // предмет чуть отстаёт от поворотов камеры и «дышит» в покое
+    var e0 = P.e, dyw = e0.yaw - (P.lastYaw === undefined ? e0.yaw : P.lastYaw), dpt = e0.pitch - (P.lastPitch === undefined ? e0.pitch : P.lastPitch);
+    dyw = Math.atan2(Math.sin(dyw), Math.cos(dyw));
+    P.lastYaw = e0.yaw; P.lastPitch = e0.pitch;
+    P.swayX = ((P.swayX || 0) + dyw * 0.5) * 0.86; P.swayY = ((P.swayY || 0) + dpt * 0.5) * 0.86;
+    var sx = Math.max(-0.08, Math.min(0.08, P.swayX)), sy2 = Math.max(-0.08, Math.min(0.08, P.swayY)), breathe = Math.sin(t * 1.7) * 0.006;
+    var c = [0.56 + bob - sw * 0.2 - eat * 0.32 + sx, -0.52 + bobY + sw * 0.12 + eat * (0.2 + Math.sin(t * 22) * 0.03) - sy2 + breathe, -0.95 - sw * 0.15 + eat * 0.25];
     if (!it) {
       var arm = M.MODELS.player.byName.armR;
       var R0 = M.rot(-0.25 + sw * 0.4, 1.35 - sw * 0.9, 0.2);
@@ -840,21 +877,13 @@
         return KC.tileUV(tile);
       }, R, c, L);
     } else {
-      var uv = KC.tileUV(it.sprite), s = 0.25;
-      var tool = it.tool || st.id === I.BOW || st.id === I.STICK;
+      // объёмный предмет: спрайт выдавлен на толщину пикселя, бортики темнее — видно форму
+      var tool = it.tool || st.id === I.BOW || st.id === I.STICK || it.gun || it.flashlight;
       var R2 = M.rot(-0.55 + draw * 0.4, -sw * 1.1 + rc * 2.2, tool ? 0.1 : 0);
-      var pts = [[-s, -s, 0], [s, -s, 0], [s, s, 0], [-s, s, 0]];
-      var uvs = tool ? [[uv[2], uv[3]], [uv[0], uv[3]], [uv[0], uv[1]], [uv[2], uv[1]]] : [[uv[0], uv[3]], [uv[2], uv[3]], [uv[2], uv[1]], [uv[0], uv[1]]];
-      var cc = [c[0] + 0.06 - draw * 0.3, c[1] + 0.1 + draw * 0.1, c[2] + draw * 0.2];
-      heldBatch.reserve(2);
-      for (var side = 0; side < 2; side++) {
-        for (var k = 0; k < 4; k++) {
-          var kk = side ? 3 - k : k;
-          var w = M.apply(R2, pts[kk]);
-          heldBatch.v(cc[0] + w[0], cc[1] + w[1], cc[2] + w[2], uvs[kk][0], uvs[kk][1], L[0], L[1], L[2]);
-        }
-        heldBatch.quads++;
-      }
+      var cc = [c[0] + 0.06 - draw * 0.3, c[1] + 0.1 + draw * 0.1, c[2] + draw * 0.2 + rc * 0.25];
+      var sh = [1, 0.78, 0.66, 0.66, 0.86, 0.55], cols = [];
+      for (var f6 = 0; f6 < 6; f6++) cols.push([L[0] * sh[f6], L[1] * sh[f6], L[2] * sh[f6]]);
+      M.drawExtruded(heldBatch, it.sprite, R2, cc, 0.5, tool, cols);
     }
     return { data: heldBatch.view().data, quads: heldBatch.quads, mob: false };
   }

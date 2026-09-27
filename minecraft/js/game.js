@@ -81,6 +81,7 @@
     atlas = KC.makeAtlas();
     renderer.setAtlas(atlas);
     renderer.setMobAtlas(KC.Models.init());
+    renderer.setParticleTex(KC.FX.makeTexture());
 
     var s = storageGet(SET_KEY);
     if (s) for (var k in settings) if (typeof s[k] === typeof settings[k]) settings[k] = s[k];
@@ -169,6 +170,7 @@
       if (v.V.mass < 2 && impact > 13) P.hurt(Math.round((impact - 12) / 2), 'Авария');
     };
 
+    h.flashAt = addFlash;
     hooksS = hooksCommon();
     hooksS.explosionHit = explosionHit;
 
@@ -194,7 +196,12 @@
       var e = P.e, cp = Math.cos(e.pitch), d = [-Math.sin(e.yaw) * cp, Math.sin(e.pitch), -Math.cos(e.yaw) * cp];
       var x = e.x + d[0] * 1.2, y = e.y + P.EYE - 0.15 + d[1] * 1.2, z = e.z + d[2] * 1.2;
       if (kind === 'flame') addFlash(x, y, z, 9, [1.5, 0.75, 0.25], 0.12);
-      else addFlash(x, y, z, 10, [1.8, 1.35, 0.8], 0.07);
+      else {
+        addFlash(x, y, z, 10, [1.8, 1.35, 0.8], 0.07);
+        // вспышка у ствола: чуть правее и ниже центра экрана, где держим оружие
+        var rx = Math.cos(e.yaw), rz = -Math.sin(e.yaw);
+        KC.FX.emit('muzzle', e.x + d[0] * 0.95 + rx * 0.2, e.y + P.EYE - 0.2 + d[1] * 0.95, e.z + d[2] * 0.95 + rz * 0.2, 0.28);
+      }
     };
     hp.placeVehicle = placeVehicle;
     hp.leaveVehicle = exitVehicle;
@@ -214,6 +221,7 @@
     world.storedMobs = data.storedMobs || {};
     world.cityPop = data.cityPop || {};
     heli = null; alarms.length = 0;
+    KC.FX.setWorld(world, fxHooks);
     E.init(world, hooksE);
     Sim.init(world, hooksS);
     P.init(world, hooksP);
@@ -289,7 +297,7 @@
     titleCam.x = e.x; titleCam.z = e.z;
     titleCam.y = (placedSaved ? e.y : Math.max(spawn.h, WL)) + 16;
     titleCam.yaw = e.yaw + 0.6;
-    particlesList.length = 0;
+    KC.FX.clear();
     target = null; targetMob = null;
     UI.forceHud();
     updateZombieHud();
@@ -335,7 +343,7 @@
     while (guard++ < H && E.boxHits(e.x, e.y, e.z, e.w, e.h)) e.y += 1;
     P.portalT = -1;
     placed = true; placedSaved = true;
-    particlesList.length = 0; target = null; targetMob = null;
+    KC.FX.clear(); target = null; targetMob = null;
     $('fade').classList.remove('is-on'); void $('fade').offsetWidth; $('fade').classList.add('is-on');
     Audio.play('teleport');
     showDimLabel();
@@ -1061,84 +1069,43 @@
     return { o: o, d: d, block: mobs.length || v ? null : b, mob: mobs[0] || null, mobs: mobs, vehicle: mobs.length ? null : v && v.v, t: mobs.length ? t : lim };
   }
 
-  // ---- Частицы -----------------------------------------------------------------------
-  var particlesList = [];
-  var WHITE_UV = null;
+  // ---- Частицы: живут в KC.FX; здесь — вход для хуков и вспышка света от взрыва --------------
   function particles(kind, x, y, z, extra) {
-    if (reduceMotion && kind !== 'explosion') return;
-    if (!WHITE_UV) WHITE_UV = KC.tileUV(KC.TILE.primedTnt);
-    var p = { x: x, y: y, z: z, vx: (Math.random() - 0.5) * 2, vy: Math.random() * 2, vz: (Math.random() - 0.5) * 2,
-      life: 0.6 + Math.random() * 0.5, size: 0.08, grav: 12, col: [1, 1, 1], uv: WHITE_UV };
-    switch (kind) {
-      case 'block':
-        var tl = KC.tileUV(BLOCKS[extra].tiles.side), ou = Math.floor(Math.random() * 13), ov = Math.floor(Math.random() * 13);
-        var SW = KC.ATLAS_W, SH = KC.ATLAS_H;
-        p.uv = [tl[0] + ou / SW, tl[1] + ov / SH, tl[0] + (ou + 3) / SW, tl[1] + (ov + 3) / SH];
-        p.x += (Math.random() - 0.5) * 0.8; p.y += (Math.random() - 0.5) * 0.8; p.z += (Math.random() - 0.5) * 0.8;
-        p.vx *= 1.6; p.vz *= 1.6; p.vy = 1 + Math.random() * 3; p.size = 0.05 + Math.random() * 0.05; p.grav = 18;
-        break;
-      case 'smoke': p.col = [0.55, 0.55, 0.55]; p.grav = -1.5; p.vy = 0.5; p.size = 0.1 + Math.random() * 0.08; p.life = 1; break;
-      case 'flame': p.col = [1.4, 0.7, 0.2]; p.grav = -2; p.vx *= 0.2; p.vz *= 0.2; p.vy = 0.4; p.size = 0.06; p.life = 0.4; break;
-      case 'heart': p.col = [1.3, 0.25, 0.35]; p.grav = -1; p.vx *= 0.3; p.vz *= 0.3; p.vy = 0.8; p.size = 0.1; p.life = 1; break;
-      case 'crit': p.col = [1.3, 1.2, 0.6]; p.vx *= 2.5; p.vz *= 2.5; p.vy = 2 + Math.random() * 2; p.size = 0.05; p.life = 0.5; break;
-      case 'splash': p.col = [0.5, 0.7, 1.2]; p.vy = 3; p.size = 0.05; break;
-      case 'spark': p.col = [1.5, 1.2, 0.5]; p.vx *= 2; p.vz *= 2; p.vy = 1 + Math.random() * 2; p.size = 0.035; p.life = 0.3; break;
-      case 'tracer': p.col = [1.6, 1.4, 0.8]; p.vx = p.vy = p.vz = 0; p.grav = 0; p.size = 0.025; p.life = 0.07; break;
-      case 'jet':
-        var jd = extra || [0, 0, -1], js = 9 + Math.random() * 3;
-        p.vx = jd[0] * js + (Math.random() - 0.5) * 2; p.vy = jd[1] * js + (Math.random() - 0.5) * 2 + 0.5; p.vz = jd[2] * js + (Math.random() - 0.5) * 2;
-        p.col = Math.random() < 0.5 ? [1.6, 0.8, 0.2] : [1.7, 1.2, 0.4]; p.grav = -1; p.size = 0.08 + Math.random() * 0.12; p.life = 0.45 + Math.random() * 0.25; break;
-      case 'smokeRed':
-        var sr = Math.random() * 0.25;
-        p.col = [1.05 - sr, 0.22 + sr * 0.3, 0.2]; p.grav = -0.6; p.vx = p.vx * 0.5 + 0.35; p.vz = p.vz * 0.5 + 0.15; p.vy = 1.4 + Math.random();
-        p.size = 0.22 + Math.random() * 0.3; p.life = 4 + Math.random() * 2; break;
-      case 'smokeDark':
-        var sd = Math.random() * 0.15;
-        p.col = [0.5 + sd, 0.44 + sd, 0.4 + sd]; p.grav = -0.5; p.vx = p.vx * 0.8 + 0.4; p.vz = p.vz * 0.8 + 0.2; p.vy = 1.2 + Math.random();
-        p.size = 0.5 + Math.random() * 0.6; p.life = 6; break;
-      case 'portal': p.col = [1.3, 0.9, 1.5]; p.grav = -1.2; p.vx *= 0.4; p.vz *= 0.4; p.vy = 0.3; p.size = 0.05; p.life = 0.9; break;
-      case 'explosion':
-        addFlash(x, y + 0.5, z, 16, [2.2, 1.3, 0.55], 0.55);
-        for (var i = 0; i < 40; i++) {
-          particlesList.push({ x: x + (Math.random() - 0.5) * 3, y: y + (Math.random() - 0.5) * 3, z: z + (Math.random() - 0.5) * 3,
-            vx: (Math.random() - 0.5) * 3, vy: Math.random() * 2, vz: (Math.random() - 0.5) * 3, life: 0.8 + Math.random() * 0.8,
-            size: 0.25 + Math.random() * 0.35, grav: -1, col: i % 3 ? [0.6, 0.6, 0.6] : [1.3, 0.9, 0.5], uv: WHITE_UV });
-        }
-        return;
-    }
-    particlesList.push(p);
-    if (particlesList.length > 600) particlesList.splice(0, particlesList.length - 600);
+    if (kind === 'explosion') addFlash(x, y + 0.5, z, 16, [2.2, 1.3, 0.55], 0.55);
+    KC.FX.emit(kind, x, y, z, extra);
   }
-
-  var partData = new Float32Array(0);
-  function updateParticles(dt) {
-    for (var i = particlesList.length - 1; i >= 0; i--) {
-      var p = particlesList[i];
-      p.life -= dt;
-      if (p.life <= 0) { particlesList.splice(i, 1); continue; }
-      p.vy -= p.grav * dt;
-      p.x += p.vx * dt; p.y += p.vy * dt; p.z += p.vz * dt;
-      if (p.grav > 0 && KC.SOLID[world.getBlock(p.x, p.y, p.z)]) { p.y = Math.floor(p.y) + 1.001; p.vy = 0; p.vx *= 0.5; p.vz *= 0.5; }
-    }
-    var n = particlesList.length;
-    if (!n) return null;
-    var need = n * 32;
-    if (partData.length < need) partData = new Float32Array(need * 2);
-    var r = renderer.right, u = renderer.up, d = partData, o = 0;
-    var L = E.lightAt(P.e.x, P.e.y + 1, P.e.z);
-    for (i = 0; i < n; i++) {
-      p = particlesList[i];
-      var s = p.size, rx = r[0] * s, ry = r[1] * s, rz = r[2] * s, ux = u[0] * s, uy = u[1] * s, uz = u[2] * s;
-      var cr = p.col[0] * (p.col[0] > 1 ? 1 : L[0]), cg = p.col[1] * (p.col[0] > 1 ? 1 : L[1]), cb = p.col[2] * (p.col[0] > 1 ? 1 : L[2]);
-      var cs = [[-1, -1, p.uv[0], p.uv[3]], [1, -1, p.uv[2], p.uv[3]], [1, 1, p.uv[2], p.uv[1]], [-1, 1, p.uv[0], p.uv[1]]];
-      for (var k = 0; k < 4; k++) {
-        var a = cs[k][0], b = cs[k][1];
-        d[o++] = p.x + rx * a + ux * b; d[o++] = p.y + ry * a + uy * b; d[o++] = p.z + rz * a + uz * b;
-        d[o++] = cs[k][2]; d[o++] = cs[k][3]; d[o++] = cr; d[o++] = cg; d[o++] = cb;
-      }
-    }
-    return { data: d.subarray(0, o), quads: n };
+  // Контекст для эффектов: камера, мир, погода, свет для частиц
+  function fxContext(cam, sky) {
+    var e = P.e, dim = world.dim, city = worldType === 'city' && dim === 'over', title = state === 'title';
+    var sc = LG.sunCol, at = LG.ambTop;
+    var amb = [at[0] * 0.85 + sc[0] * 0.45 + LG.ambCave[0], at[1] * 0.85 + sc[1] * 0.45 + LG.ambCave[1], at[2] * 0.85 + sc[2] * 0.45 + LG.ambCave[2]];
+    var lum = Math.min(1, amb[0] * 0.3 + amb[1] * 0.5 + amb[2] * 0.2);
+    var px = title ? cam.x : e.x, py = title ? cam.y : e.y, pz = title ? cam.z : e.z;
+    return {
+      cam: cam, right: renderer.right, up: renderer.up, fwd: renderer.fwd, player: { x: px, y: py, z: pz },
+      dim: dim, city: city, night: 1 - sky.raw, weatherOn: dim === 'over',
+      snowy: dim === 'over' && !city && world.biomeAt(px, pz) === KC.World.BIOME_SNOW,
+      under: !title && P.headInWater, indoors: world.skyAt(px, py + 1.6, pz) < 0.5,
+      scale: quality().parts, reduce: reduceMotion, ambient: amb,
+      rainCol: [0.55 + lum * 0.35, 0.6 + lum * 0.35, 0.68 + lum * 0.35], snowCol: [0.75 + lum * 0.35, 0.78 + lum * 0.35, 0.85 + lum * 0.3]
+    };
   }
+  // Тряска камеры от взрывов: сила падает с расстоянием
+  var shakeK = 0;
+  function shake(power, x, y, z) {
+    var d = Math.hypot(x - P.e.x, y - P.e.y, z - P.e.z);
+    shakeK = Math.min(1.2, Math.max(shakeK, power / 3 * Math.max(0, 1 - d / (power * 8))));
+  }
+  var fxHooks = {
+    lightAt: function (x, y, z) { return E.lightAt(x, y, z); },
+    groundAt: function (x, z) {
+      var c = world.getChunk(Math.floor(x) >> 4, Math.floor(z) >> 4);
+      return c ? c.hmap[(Math.floor(x) & 15) + (Math.floor(z) & 15) * 16] : -1e9;
+    },
+    skyOpen: function (x, y, z) { return world.skyAt(x, y, z) >= 1; },
+    sound: function (n, x, y, z) { Audio.play(n, x, y, z); },
+    shake: shake
+  };
 
   // Урон от взрыва по существам и игроку
   function explosionHit(x, y, z, power) {
@@ -1175,12 +1142,23 @@
     var hor = D.hor || mix3([0.035, 0.05, 0.11], [0.70, 0.82, 0.96], day);
     var dusk = D.top ? 0 : clamp(1 - Math.abs(sun[1]) * 3.4, 0, 1);
     hor = mix3(hor, [0.93, 0.56, 0.34], dusk * 0.5);
+    // непогода: небо затягивает серым, вспышка молнии на миг высвечивает его
+    var Wk = world && world.dim === 'over' ? KC.FX.weather.k : 0, fl = world && world.dim === 'over' ? KC.FX.weather.flash : 0;
+    var cloud = mix3([0.16, 0.18, 0.25], [1, 1, 1], Math.max(day, dusk * 0.6));
+    if (Wk > 0) {
+      var gt = (top[0] * 0.3 + top[1] * 0.5 + top[2] * 0.2) * 0.72, gh = (hor[0] * 0.3 + hor[1] * 0.5 + hor[2] * 0.2) * 0.8;
+      top = mix3(top, [gt * 0.95, gt, gt * 1.06], Wk * 0.85);
+      hor = mix3(hor, [gh * 0.96, gh, gh * 1.04], Wk * 0.8);
+      cloud = mix3(cloud, [cloud[0] * 0.5, cloud[1] * 0.52, cloud[2] * 0.56], Wk);
+      dusk *= 1 - Wk * 0.8;
+    }
+    if (fl > 0) { var fk = fl * fl; top = [top[0] + fk * 0.5, top[1] + fk * 0.55, top[2] + fk * 0.7]; hor = [hor[0] + fk * 0.35, hor[1] + fk * 0.38, hor[2] + fk * 0.5]; }
     return {
       top: top, hor: hor, sun: sun, sunR: sunR, sunU: sunU,
-      glow: D.noSun ? [0, 0, 0] : [dusk * 0.55 + day * 0.12, dusk * 0.3 + day * 0.1, dusk * 0.12 + day * 0.06],
-      night: D.stars !== undefined ? D.stars : D.noSun ? 0 : 1 - day, day: dayFactor, raw: day,
-      sunVis: D.noSun ? 0 : 1, planet: D.planet ? 1 : 0, moon: ((moonDay + 4) % 8) / 8,
-      cloud: mix3([0.16, 0.18, 0.25], [1, 1, 1], Math.max(day, dusk * 0.6))
+      glow: D.noSun ? [0, 0, 0] : [(dusk * 0.55 + day * 0.12) * (1 - Wk * 0.8), (dusk * 0.3 + day * 0.1) * (1 - Wk * 0.8), (dusk * 0.12 + day * 0.06) * (1 - Wk * 0.8)],
+      night: (D.stars !== undefined ? D.stars : D.noSun ? 0 : 1 - day) * (1 - Wk * 0.9), day: dayFactor, raw: day,
+      sunVis: D.noSun || Wk > 0.55 ? 0 : 1, planet: D.planet ? 1 : 0, moon: ((moonDay + 4) % 8) / 8,
+      cloud: cloud, wk: Wk, flash: fl
     };
   }
   // ---- Свет кадра: солнце или луна, небесный эмбиент, отсвет тумана ----------------------------
@@ -1206,6 +1184,14 @@
       bot = [top[0] * 0.7, top[1] * 0.68, top[2] * 0.64];
       if (world && world.dim === 'heaven') { col = [0.52, 0.48, 0.38]; top = [0.74, 0.74, 0.8]; bot = [0.64, 0.62, 0.6]; }
     }
+    // тучи гасят прямое солнце и чуть приглушают небо; молния на миг заливает всё холодным светом
+    var wk = sky.wk || 0, fl = sky.flash || 0;
+    if (wk > 0) {
+      col = col.map(function (v) { return v * (1 - 0.85 * wk); });
+      top = top.map(function (v) { return v * (1 - 0.2 * wk); });
+      bot = bot.map(function (v) { return v * (1 - 0.2 * wk); });
+    }
+    if (fl > 0) { var f2 = fl * fl; top = [top[0] + f2 * 0.8, top[1] + f2 * 0.85, top[2] + f2 * 1.1]; bot = [bot[0] + f2 * 0.4, bot[1] + f2 * 0.42, bot[2] + f2 * 0.55]; }
     LG.sunDir = dir; LG.sunCol = col; LG.ambTop = top; LG.ambBot = bot; LG.ambCave = cave; LG.skyDep = skyDep;
     // тени строим не ниже 20° над горизонтом — иначе они тянутся на полкарты
     var sd = dir;
@@ -1217,7 +1203,7 @@
     var hor = sky.hor;
     LG.fogSun = D.noSun || D.vacuum ? hor : mix3(hor, [Math.min(1.2, hor[0] * 1.15 + 0.25), hor[1] * 1.05 + 0.12, hor[2] * 0.95 + 0.04], Math.max(dusk, 0.35 * dayK));
   }
-  function weatherWind() { return 1; }
+  function weatherWind() { return world && world.dim === 'over' ? KC.FX.weather.wind : 1; }
 
   // ---- Динамические источники света: факел в руке, вспышки выстрелов и взрывов, фары, горящие мобы ---
   var flashes = [];
@@ -1242,6 +1228,13 @@
       out.push({ x: f.x, y: f.y, z: f.z, r: f.r * (0.6 + 0.4 * k), col: [f.col[0] * k, f.col[1] * k, f.col[2] * k], pri: 3 });
     }
     if (state !== 'title' && placed && !P.dead) {
+      // фонарик: луч из руки туда, куда смотрим
+      var hst = P.inv[P.slot];
+      if (hst && KC.ITEMS[hst.id] && KC.ITEMS[hst.id].flashlight && !P.vehicle) {
+        var ld = lookDir(), ex = eyePos();
+        out.push({ x: ex[0] + Math.cos(e.yaw) * 0.25, y: ex[1] - 0.2, z: ex[2] - Math.sin(e.yaw) * 0.25, r: 34, col: [1.55, 1.5, 1.35], cone: 0.9, dir: ld, pri: 3 });
+        out.push({ x: ex[0] + ld[0] * 1.2, y: ex[1] + ld[1] * 1.2, z: ex[2] + ld[2] * 1.2, r: 3.5, col: [0.35, 0.34, 0.3], pri: 3 });
+      }
       var hl = heldLight();
       if (hl) {
         var fl = 0.9 + Math.sin(gameTime * 17) * 0.05 + Math.sin(gameTime * 7.3) * 0.05;
@@ -1270,8 +1263,47 @@
         out.push({ x: m.x, y: m.y, z: m.z, r: m.proj === 'laser' ? 4 : 7, col: m.proj === 'laser' ? [1.4, 0.2, 0.2] : [1.4, 0.7, 0.25], pri: 1, d2: d2 });
       }
     });
+    KC.FX.lights().forEach(function (l) { out.push(l); });
     out.sort(function (a, b) { return (b.pri - a.pri) || ((a.d2 || 0) - (b.d2 || 0)); });
     return out;
+  }
+
+  // ---- Звуковая атмосфера: петли по миру и погоде, редкие звуки вокруг ------------------------
+  var ambT = { bird: 3, cricket: 1, far: 12, drip: 4, chime: 8, lava: 5, tick: 0 };
+  function ambienceTick(dt, sky) {
+    if (!settings.sound) return;
+    ambT.tick -= dt;
+    var e = state === 'title' ? titleCam : P.e, dim = world.dim, Wf = KC.FX.weather;
+    var sk = world.skyAt(e.x, e.y + 1.6, e.z), open = sk >= 0.9, under = state !== 'title' && P.headInWater;
+    var city = worldType === 'city' && dim === 'over', day = sky.raw, wk = dim === 'over' ? Wf.k : 0;
+    if (ambT.tick <= 0) {
+      ambT.tick = 0.25;
+      var high = clamp((e.y - 60) / 40, 0, 1);
+      Audio.ambience({
+        wind: under ? 0 : (dim === 'space' ? 0 : (0.25 + high * 0.6 + wk * 0.8) * (open ? 1 : 0.25) + (dim === 'heaven' ? 0.3 : 0)),
+        rain: under ? 0 : wk * (1 - Wf.snow) * (open ? 1 : 0.15),
+        roof: under ? 0 : wk * (1 - Wf.snow) * (open ? 0 : 0.8),
+        hell: dim === 'hell' ? 1 : 0,
+        heaven: dim === 'heaven' ? 1 : 0,
+        hum: dim === 'space' && KC.Gen.inStation && KC.Gen.inStation(e.x, e.y + 1, e.z) ? 1 : 0,
+        water: under ? 1 : 0
+      });
+    }
+    if (state !== 'playing' || under) return;
+    function around(r0, r1) { var a = Math.random() * 6.283, r = r0 + Math.random() * (r1 - r0); return [e.x + Math.cos(a) * r, e.y + 2 + Math.random() * 5, e.z + Math.sin(a) * r]; }
+    var p3;
+    if (dim === 'over' && !city && wk < 0.3) {
+      if (day > 0.6 && open && (ambT.bird -= dt) <= 0) { ambT.bird = 1.5 + Math.random() * 4.5; p3 = around(6, 18); Audio.play('bird', p3[0], p3[1], p3[2], 0.9); }
+      if (day < 0.3 && (ambT.cricket -= dt) <= 0) { ambT.cricket = 0.6 + Math.random() * 1.8; p3 = around(3, 12); Audio.play('cricket', p3[0], e.y, p3[2], 0.8); }
+    }
+    if (city && (ambT.far -= dt) <= 0) {
+      ambT.far = 10 + Math.random() * 18;
+      var fk = Math.random(), far = around(12, 20);
+      Audio.play(fk < 0.35 ? 'siren-far' : fk < 0.75 ? 'groan-far' : 'dog-far', far[0], far[1], far[2], 1);
+    }
+    if (dim === 'over' && sk < 0.15 && e.y < 45 && (ambT.drip -= dt) <= 0) { ambT.drip = 2.5 + Math.random() * 5; p3 = around(2, 8); Audio.play('drip', p3[0], e.y + 2, p3[2], 0.9); }
+    if (dim === 'heaven' && (ambT.chime -= dt) <= 0) { ambT.chime = 7 + Math.random() * 9; p3 = around(4, 12); Audio.play('chime', p3[0], p3[1], p3[2], 1); }
+    if (dim === 'hell' && (ambT.lava -= dt) <= 0) { ambT.lava = 2 + Math.random() * 5; p3 = around(6, 16); Audio.play('lava-pop', p3[0], e.y - 3, p3[2], 1); }
   }
 
   // ---- Цветокоррекция: у каждого мира своё настроение, ночью холоднее, на закате теплее --------------
@@ -1407,7 +1439,9 @@
     var sky = skyState();
     updateLighting(sky);
     LG.time = gameTime;
-    var parts = updateParticles(dt);
+    var fxr = KC.FX.update(dt, fxContext(cam, sky));
+    ambienceTick(dt, sky);
+    var Wk = world.dim === 'over' ? KC.FX.weather.k : 0;
     var under = state !== 'title' && P.headInWater;
     var inLava = state !== 'title' && world.getBlock(e.x, e.y + P.EYE, e.z) === B.LAVA;
     var fogColor = inLava ? [0.9, 0.3, 0.05] : under ? [0.06 * sky.day + 0.02, 0.2 * sky.day + 0.03, 0.42 * sky.day + 0.05] : sky.hor;
@@ -1435,9 +1469,9 @@
     }
     renderer.render({
       cam: cam, sky: sky, brightness: settings.bright,
-      fog: { color: fogColor, start: inLava ? 0 : under ? 0 : R * (DIM.fogNear || 0.55), end: inLava ? 3 : under ? 16 : R - 4 },
-      clouds: DIM.noClouds ? null : { size: Math.max(R * 2, 220), y: DIM.cloudsY || 112, offset: cloudOffset, color: sky.cloud },
-      chunks: list, mobs: ents.mobs, items: ents.items, particles: parts,
+      fog: { color: fogColor, start: inLava ? 0 : under ? 0 : R * (DIM.fogNear || 0.55) * (1 - Wk * 0.45), end: inLava ? 3 : under ? 16 : (R - 4) * (1 - Wk * 0.3) },
+      clouds: DIM.noClouds ? null : { size: Math.max(R * 2, 220), y: DIM.cloudsY || 112, offset: cloudOffset, color: sky.cloud, alpha: 0.8 + Wk * 0.15, shadow: 0.5 * (1 - Wk) },
+      chunks: list, mobs: ents.mobs, items: ents.items, particles: fxr.solid, soft: fxr.soft, wet: Wk * (1 - KC.FX.weather.snow),
       crack: buildCrack(), highlight: hl, held: held, underwater: under,
       light: LG, lights: gatherLights(dt, cam), time: gameTime, grade: gradeFor(sky)
     });
@@ -1479,8 +1513,19 @@
     }
   }
 
-  // Камера: от первого лица, сзади или спереди
+  // Камера с тряской от взрывов (при reduced-motion не трясёт)
   function camera(dt) {
+    var cam = cameraBase(dt);
+    if (shakeK > 0.001 && !reduceMotion && state !== 'title') {
+      var k = shakeK * shakeK, t = gameTime * 37;
+      cam = { x: cam.x + Math.sin(t * 1.3) * 0.07 * k, y: cam.y + Math.sin(t * 1.7 + 1) * 0.07 * k, z: cam.z + Math.cos(t * 1.1) * 0.07 * k,
+        yaw: cam.yaw + Math.sin(t * 0.9 + 2) * 0.018 * k, pitch: cam.pitch + Math.sin(t * 1.9) * 0.022 * k };
+    }
+    shakeK = Math.max(0, shakeK - dt * 1.6);
+    return cam;
+  }
+  // Камера: от первого лица, сзади или спереди
+  function cameraBase(dt) {
     if (state === 'title') {
       if (!reduceMotion) titleCam.yaw += dt * 0.045;
       return titleCam;
@@ -2040,6 +2085,7 @@
     get zombie() { return zombie; }, get scenario() { return scenario; }, goTo: goTo, travel: travel, zombieDawn: zombieDawn,
     evac: function () { return evacInfo(); }, enterVehicle: enterVehicle, exitVehicle: exitVehicle, get vehicle() { return P.vehicle; }, refuel: refuelVehicle, openMap: openMap, carHit: carHit, events: { airdrop: airdrop, survivor: survivorEvent, fire: fireEvent }, get heli() { return heli; },
     P: P, play: play, pause: pause, setTime: function (t) { timeOfDay = t; lastTod = t; }, save: saveGame,
+    weather: function (k, instant) { KC.FX.setWeather(k); if (instant) KC.FX.weather.k = k === 'clear' ? 0 : k === 'rain' ? 0.75 : 1; },
     open: openContainer, close: closeContainer, setMode: function (m) { mode = m; P.setCreative(m === 'creative'); }
   };
 

@@ -166,7 +166,7 @@
 
   var BLOCK_FS = [
     'uniform sampler2D uTex; uniform vec3 uCam; uniform float uAlpha; uniform float uCut; uniform float uTime; uniform float uEmit;',
-    'uniform vec3 uSunDir; uniform vec3 uSunCol; uniform vec3 uSkyTop; uniform vec3 uSkyHor; uniform vec3 uFogC;',
+    'uniform vec3 uSunDir; uniform vec3 uSunCol; uniform vec3 uSkyTop; uniform vec3 uSkyHor; uniform vec3 uFogC; uniform float uWet;',
     DYN_GLSL, SHADOW_GLSL,
     'varying vec2 vUV; varying vec2 vL; varying vec3 vBase; varying vec3 vSun;',
     '#ifdef FANCY',
@@ -213,6 +213,14 @@
     '  vec3 L = vBase + vSun * sh;',
     '  if (uNumL > 0.5) L += dynLight(vW, N, omni);',
     '  vec3 col = c.rgb * L;',
+    // мокрые поверхности под дождём темнеют и отражают небо
+    '  if (uWet > 0.01 && N.y > 0.5 && omni < 0.5 && !IS(mat, 3.0)) {',
+    '    float w = uWet * smoothstep(0.85, 1.0, vL.x);',
+    '    vec3 V = normalize(uCam - vW);',
+    '    vec3 R = reflect(-V, N);',
+    '    col = col * (1.0 - 0.3 * w) + mix(uSkyHor, uSkyTop, clamp(R.y, 0.0, 1.0)) * (0.16 * w * pow(1.0 - max(dot(N, V), 0.0), 3.0));',
+    '    col += uSunCol * pow(max(dot(R, uSunDir), 0.0), 90.0) * 2.5 * w * sh;',
+    '  }',
     '  if (mat > 3.5) {',
     // металл и стекло ловят блики солнца
     '    if (IS(mat, 11.0) || IS(mat, 8.0)) {',
@@ -221,9 +229,11 @@
     '      col += uSunCol * pow(max(dot(N, H), 0.0), 60.0) * sh * (IS(mat, 8.0) ? 1.4 : 0.8);',
     '    }',
     // светящиеся блоки не зависят от освещения и дают яркость выше 1 для свечения
-    '    else if (IS(mat, 5.0) || IS(mat, 4.0) || IS(mat, 6.0) || IS(mat, 7.0) || IS(mat, 10.0)) {',
+    '    else if (IS(mat, 5.0) || IS(mat, 4.0) || IS(mat, 6.0) || IS(mat, 7.0) || IS(mat, 10.0) || IS(mat, 12.0)) {',
     '      float fl = IS(mat, 7.0) ? 1.0 + 0.22 * sin(uTime * 13.0 + vW.x * 3.1 + vW.z * 1.7) + 0.12 * sin(uTime * 23.0 + vW.y * 5.0) : 1.0;',
     '      if (IS(mat, 4.0)) fl = 0.92 + 0.12 * sin(uTime * 1.3 + vW.x * 0.7 - vW.z * 0.5);',
+    // мигающий жёлтый светофора в брошенном городе
+    '      if (IS(mat, 12.0)) fl = 0.08 + step(0.5, fract(uTime * 0.8 + (vW.x + vW.z) * 0.013)) * 1.1;',
     '      col = mix(col, c.rgb * uEmit * fl, IS(mat, 10.0) ? 0.6 : 1.0);',
     '    }',
     '  } else if (IS(mat, 3.0) && N.y > 0.5) {',
@@ -246,6 +256,7 @@
     // простой путь: тень — по открытости неба, без бликов и отражений
     '  vec3 col = c.rgb * (vBase + vSun * smoothstep(0.82, 1.0, vL.x));',
     '  if ((mat > 3.5 && mat < 7.5) || IS(mat, 10.0)) col = mix(col, c.rgb * uEmit, IS(mat, 10.0) ? 0.6 : 1.0);',
+    '  if (IS(mat, 12.0)) col = c.rgb * uEmit * (0.08 + step(0.5, fract(uTime * 0.8 + vUV.x * 3.0)));',
     '  gl_FragColor = vec4(mix(col, uFogC, vFogK), alpha);',
     '#endif',
     '}'
@@ -421,6 +432,29 @@
     '}'
   ].join('\n');
 
+  // ---- Мягкие частицы: свой атлас, цвет с прозрачностью; аддитивные гаснут в тумане ---------------
+  var PART_VS = [
+    'attribute vec3 aPos; attribute vec2 aUV; attribute vec4 aCol;',
+    'uniform mat4 uVP; uniform vec3 uCamP; uniform vec2 uFogR;',
+    'varying vec2 vUV; varying vec4 vCol; varying float vFog;',
+    'void main() {',
+    '  gl_Position = uVP * vec4(aPos, 1.0);',
+    '  vUV = aUV; vCol = aCol;',
+    '  vFog = clamp((length(aPos.xz - uCamP.xz) - uFogR.x) / (uFogR.y - uFogR.x), 0.0, 1.0);',
+    '}'
+  ].join('\n');
+  var PART_FS = [
+    'uniform sampler2D uTex; uniform vec3 uFogC; uniform float uAdd;',
+    'varying vec2 vUV; varying vec4 vCol; varying float vFog;',
+    'void main() {',
+    '  vec4 t = texture2D(uTex, vUV);',
+    '  vec4 c = t * vCol;',
+    '  if (uAdd > 0.5) { gl_FragColor = vec4(c.rgb * t.a * (1.0 - vFog), 1.0); return; }',
+    '  if (c.a < 0.004) discard;',
+    '  gl_FragColor = vec4(mix(c.rgb, uFogC, vFog), c.a);',
+    '}'
+  ].join('\n');
+
   var LINE_VS = 'attribute vec3 aPos; uniform mat4 uVP; void main() { gl_Position = uVP * vec4(aPos, 1.0); }';
   var LINE_FS = 'uniform vec4 uColor; void main() { gl_FragColor = uColor; }';
 
@@ -548,6 +582,7 @@
     this.sky = this.program(SKY_VS, HP + SKY_FS, ['aPos']);
     this.cloud = this.program(CLOUD_VS, HP + CLOUD_FS, ['aPos']);
     this.cloud3 = this.program(CLOUD3_VS, HP + CLOUD3_FS, ['aBox', 'aLoc', 'aN']);
+    this.part = this.program(PART_VS, HP + PART_FS, ['aPos', 'aUV', 'aCol']);
     this.shadowProg = this.program(SHADOW_VS, HP + SHADOW_FS, ['aPos', 'aUV']);
     this.bloomPre = this.program(POST_VS, HP + BLOOM_PRE_FS, ['aPos']);
     this.bloomDown = this.program(POST_VS, HP + BLOOM_DOWN_FS, ['aPos']);
@@ -649,6 +684,15 @@
   };
 
   Renderer.prototype.setAtlas = function (canvas) { this.atlas = this.texture(canvas, false); };
+  // Атлас частиц: мягкие края, поэтому линейная фильтрация и мипы (не глубже 8 пикселей на клетку)
+  Renderer.prototype.setParticleTex = function (canvas) {
+    var gl = this.gl, t = this.texture(canvas, false);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.generateMipmap(gl.TEXTURE_2D);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+    if (this.caps.gl2) gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAX_LEVEL, 2);
+    this.partTex = t;
+  };
   Renderer.prototype.setMobAtlas = function (canvas) { this.mobAtlas = this.texture(canvas, false); };
 
   Renderer.prototype.makeClouds = function (seed) {
@@ -861,6 +905,18 @@
       gl.vertexAttribPointer(0, 3, gl.FLOAT, false, STRIDE, base);
       gl.vertexAttribPointer(1, 2, gl.FLOAT, false, STRIDE, base + 12);
       gl.vertexAttribPointer(2, 3, gl.FLOAT, false, STRIDE, base + 20);
+      gl.drawElements(gl.TRIANGLES, n * 6, gl.UNSIGNED_SHORT, 0);
+    }
+  };
+
+  // Вершины частиц: позиция, UV, цвет с альфой — 9 чисел
+  Renderer.prototype.drawRange9 = function (startQuad, count) {
+    var gl = this.gl, S9 = 36;
+    for (var start = 0; start < count; start += MAX_QUADS) {
+      var n = Math.min(MAX_QUADS, count - start), base = (startQuad + start) * 4 * S9;
+      gl.vertexAttribPointer(0, 3, gl.FLOAT, false, S9, base);
+      gl.vertexAttribPointer(1, 2, gl.FLOAT, false, S9, base + 12);
+      gl.vertexAttribPointer(2, 4, gl.FLOAT, false, S9, base + 20);
       gl.drawElements(gl.TRIANGLES, n * 6, gl.UNSIGNED_SHORT, 0);
     }
   };
@@ -1131,6 +1187,7 @@
     gl.uniform3fv(P.u.uBlockCol, L.blockCol);
     gl.uniform1f(P.u.uSkyDep, L.skyDep === undefined ? 1 : L.skyDep);
     gl.uniform3fv(P.u.uSkyTop, sky.top);
+    gl.uniform1f(P.u.uWet, env.wet || 0);
     gl.uniform3fv(P.u.uSkyHor, sky.hor);
     this.dynUniforms(P);
     if (this.shadowsOn) {
@@ -1257,6 +1314,31 @@
     for (i = visible.length - 1; i >= 0; i--) {
       var wm = visible[i].m;
       if (wm.water) { this.drawQuads(wm.water, wm.waterQuads); quads += wm.waterQuads; }
+    }
+
+    // Мягкие частицы: сначала полупрозрачные (от дальних к ближним), затем светящиеся
+    if (env.soft && env.soft.quads && this.partTex) {
+      var PP = this.part, sq = env.soft;
+      gl.useProgram(PP.p);
+      gl.uniformMatrix4fv(PP.u.uVP, false, this.vp);
+      gl.uniform3f(PP.u.uCamP, cam.x, cam.y, cam.z);
+      gl.uniform2f(PP.u.uFogR, env.fog.start, env.fog.end);
+      gl.uniform3fv(PP.u.uFogC, env.fog.color);
+      gl.bindTexture(gl.TEXTURE_2D, this.partTex);
+      gl.uniform1i(PP.u.uTex, 0);
+      gl.enableVertexAttribArray(0); gl.enableVertexAttribArray(1); gl.enableVertexAttribArray(2);
+      gl.bindBuffer(gl.ARRAY_BUFFER, this.dynBuf);
+      gl.bufferData(gl.ARRAY_BUFFER, sq.data, gl.DYNAMIC_DRAW);
+      if (sq.addStart > 0) {
+        gl.uniform1f(PP.u.uAdd, 0);
+        this.drawRange9(0, sq.addStart);
+      }
+      if (sq.quads > sq.addStart) {
+        gl.blendFuncSeparate(gl.ONE, gl.ONE, gl.ZERO, gl.ONE);
+        gl.uniform1f(PP.u.uAdd, 1);
+        this.drawRange9(sq.addStart, sq.quads - sq.addStart);
+        gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+      }
     }
 
     // Рамка выделения

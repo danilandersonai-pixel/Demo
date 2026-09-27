@@ -100,6 +100,12 @@
         if (kind[1] === 'glass' && kind[0] === 'break') for (i = 0; i < 3; i++) tone(d, t + i * 0.03, 'sine', 2400 + Math.random() * 2400, 2000, 0.12, 0.12);
         return;
       }
+      // шаги: короткий глухой шорох по материалу под ногами
+      if (name.indexOf('step:') === 0) {
+        var sp = MAT[name.slice(5)] || MAT.stone;
+        noiseHit(d, t, sp[0] * 0.7 * (0.85 + Math.random() * 0.3), sp[1] * 0.8, 0.07, sp[3] * 0.32, 'bandpass');
+        return;
+      }
       // мотор: «engine:частота» — чем быстрее едем, тем выше гул
       if (name.indexOf('engine:') === 0) {
         var ef = +name.slice(7) || 50;
@@ -176,14 +182,77 @@
         case 'splash': noiseHit(d, t, 700, 0.6, 0.4, 1.2, 'lowpass'); break;
         case 'tool-break': tone(d, t, 'square', 900, 300, 0.2, 0.25); noiseHit(d, t, 2400, 2, 0.15, 0.8); break;
         case 'step': noiseHit(d, t, 700, 1, 0.05, 0.25); break;
+        case 'thunder': noiseHit(d, t, 110, 0.5, 3.2, 2.2, 'lowpass'); noiseHit(d, t + 0.3, 70, 0.4, 2.8, 1.6, 'lowpass'); break;
+        // жизнь вокруг: птицы, сверчки, капли, далёкие звуки города, треск огня, звон Небес
+        case 'bird':
+          var bf = 2200 + Math.random() * 1600, bn = 2 + Math.floor(Math.random() * 4);
+          for (i = 0; i < bn; i++) tone(d, t + i * 0.11, 'sine', bf * (1 + Math.random() * 0.15), bf * (0.75 + Math.random() * 0.2), 0.08, 0.1);
+          break;
+        case 'cricket': for (i = 0; i < 3; i++) tone(d, t + i * 0.045, 'square', 4300, 4250, 0.03, 0.035, 6000); break;
+        case 'drip': tone(d, t, 'sine', 1400 + Math.random() * 500, 700, 0.12, 0.18); break;
+        case 'siren-far':
+          var so = tone(d, t, 'sine', 620, 620, 3.2, 0.05);
+          so.frequency.setValueAtTime(620, t); so.frequency.linearRampToValueAtTime(880, t + 1.4); so.frequency.linearRampToValueAtTime(620, t + 2.9);
+          break;
+        case 'groan-far': tone(d, t, 'sawtooth', 110, 70, 1.4, 0.07, 380); break;
+        case 'dog-far': for (i = 0; i < 2; i++) { tone(d, t + i * 0.35, 'sawtooth', 480, 260, 0.14, 0.06, 1200); noiseHit(d, t + i * 0.35, 900, 1, 0.1, 0.1); } break;
+        case 'crackle': for (i = 0; i < 4; i++) noiseHit(d, t + Math.random() * 0.3, 2500 + Math.random() * 2500, 3, 0.02, 0.35, 'bandpass'); break;
+        case 'chime': [880, 1108.7, 1318.5].forEach(function (f, k) { tone(d, t + k * 0.22, 'sine', f, f, 1.4, 0.07); }); break;
+        case 'lava-pop': noiseHit(d, t, 240, 1.2, 0.18, 0.8, 'lowpass'); break;
+        case 'land': noiseHit(d, t, 380, 0.8, 0.12, 0.6, 'lowpass'); break;
+        case 'thunder-near': noiseHit(d, t, 2400, 0.4, 0.25, 2.6, 'highpass'); noiseHit(d, t + 0.05, 160, 0.5, 3.5, 3, 'lowpass'); tone(d, t, 'sine', 55, 28, 2.5, 0.9); break;
       }
+    } catch (e) { /* звук необязателен */ }
+  }
+
+  // ---- Фоновые петли: ветер, дождь (снаружи и по крыше), гул Пекла, хор Небес, гудение станции ---
+  var loops = {};
+  function loopNoise(type, freq, q) {
+    var src = ctx.createBufferSource(); src.buffer = noise; src.loop = true;
+    var f = ctx.createBiquadFilter(); f.type = type; f.frequency.value = freq; f.Q.value = q;
+    var g = ctx.createGain(); g.gain.value = 0;
+    src.connect(f); f.connect(g); g.connect(master);
+    src.start(0, Math.random());
+    return { src: src, f: f, g: g };
+  }
+  function loopTone(freqs, type, lp) {
+    var g = ctx.createGain(); g.gain.value = 0;
+    var f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = lp; f.connect(g); g.connect(master);
+    freqs.forEach(function (fr, k) {
+      var o = ctx.createOscillator(); o.type = type; o.frequency.value = fr; o.detune.value = (k % 2 ? 4 : -4);
+      o.connect(f); o.start();
+    });
+    return { f: f, g: g };
+  }
+  var MAKE = {
+    wind: function () { return loopNoise('bandpass', 380, 0.7); },
+    rain: function () { return loopNoise('highpass', 1300, 0.4); },
+    roof: function () { return loopNoise('lowpass', 520, 0.6); },
+    hell: function () { return loopNoise('lowpass', 95, 0.8); },
+    heaven: function () { return loopTone([261.6, 329.6, 392, 523.3], 'sine', 1500); },
+    hum: function () { return loopTone([55, 110, 166], 'sawtooth', 260); },
+    water: function () { return loopNoise('lowpass', 300, 0.5); }
+  };
+  var LOOP_VOL = { wind: 0.13, rain: 0.2, roof: 0.22, hell: 0.3, heaven: 0.045, hum: 0.06, water: 0.25 };
+  // s — громкости слоёв 0…1; всё плавно, за полсекунды
+  function ambience(s) {
+    if (!ctx || ctx.state !== 'running') return;
+    try {
+      var t = ctx.currentTime;
+      for (var name in MAKE) {
+        var v = enabled ? (s[name] || 0) * LOOP_VOL[name] : 0, L = loops[name];
+        if (!L) { if (v < 0.002) continue; L = loops[name] = MAKE[name](); }
+        L.g.gain.setTargetAtTime(v, t, 0.5);
+      }
+      if (loops.wind) loops.wind.f.frequency.setTargetAtTime(260 + Math.sin(t * 0.21) * 110 + (s.wind || 0) * 260, t, 1.2);
     } catch (e) { /* звук необязателен */ }
   }
 
   KC.Audio = {
     ensure: ensure,
     play: play,
+    ambience: ambience,
     setListener: function (x, y, z, yaw) { listener.x = x; listener.y = y; listener.z = z; listener.yaw = yaw; },
-    setEnabled: function (on) { enabled = on; if (on) ensure(); }
+    setEnabled: function (on) { enabled = on; if (on) ensure(); else ambience({}); }
   };
 })(window.KC = window.KC || {});

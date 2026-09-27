@@ -705,7 +705,7 @@
 
   // Рисует модель в батч. pose: { part: [yaw, pitch, roll] }, hidden: { part: true }
   // origin — мировая позиция ног, yaw — поворот тела, scale — размер (1 взрослый), color — [r,g,b] свет в точке
-  function drawModel(batch, name, origin, yaw, scale, pose, hidden, color, bodyRoll, sunK, tint) {
+  function drawModel(batch, name, origin, yaw, scale, pose, hidden, color, bodyRoll, sunK, tint, glow) {
     var model = MODELS[name];
     if (!model) return;
     var s = scale / 16;
@@ -724,6 +724,8 @@
         var nrm = [0, 0, 0]; nrm[F.na] = F.ns;
         var wn = apply(m, nrm);
         var fc = faceLight(wn, color, sunK || 0, tint), cr = fc[0], cg = fc[1], cb = fc[2];
+        // светящиеся детали (фары, мигалка) не зависят от освещения
+        if (glow && glow[p.name]) { cr = cg = cb = glow[p.name]; }
         for (var k = 0; k < 4; k++) {
           var ci = CORNERS[k][0], cj = CORNERS[k][1];
           var pt = [0, 0, 0];
@@ -765,6 +767,56 @@
     }
   }
 
+  // ---- Объёмные предметы: спрайт «выдавлен» на толщину пикселя ----------------------------------
+  // Лицо и изнанка — вся плитка с вырезанием по прозрачности, по краям непрозрачных пикселей — бортики.
+  // Грани: 0 лицо (+z), 1 изнанка (−z), 2 +x, 3 −x, 4 +y, 5 −y. Кэш на плитку.
+  var extrudeCache = {};
+  function extrude(tile) {
+    var m = extrudeCache[tile];
+    if (m) return m;
+    var A = KC.atlasAlpha, W = KC.ATLAS_W, Hh = KC.ATLAS_H, tx = (tile % 16) * 16, ty = Math.floor(tile / 16) * 16;
+    function solid(x, y) { return !!A && x >= 0 && y >= 0 && x < 16 && y < 16 && A[(ty + y) * W + tx + x] > 127; }
+    var pos = [], uv = [], face = [], t = 0.5 / 16, uvT = KC.tileUV(tile);
+    function q(pts, uvs, f) { for (var k = 0; k < 4; k++) { pos.push(pts[k][0], pts[k][1], pts[k][2]); uv.push(uvs[k][0], uvs[k][1]); } face.push(f); }
+    var full = [[uvT[0], uvT[3]], [uvT[2], uvT[3]], [uvT[2], uvT[1]], [uvT[0], uvT[1]]];
+    q([[-0.5, -0.5, t], [0.5, -0.5, t], [0.5, 0.5, t], [-0.5, 0.5, t]], full, 0);
+    q([[0.5, -0.5, -t], [-0.5, -0.5, -t], [-0.5, 0.5, -t], [0.5, 0.5, -t]], [full[1], full[0], full[3], full[2]], 1);
+    for (var py = 0; py < 16; py++) for (var px = 0; px < 16; px++) {
+      if (!solid(px, py)) continue;
+      var x0 = -0.5 + px / 16, x1 = x0 + 1 / 16, y1 = 0.5 - py / 16, y0 = y1 - 1 / 16;
+      var cu = (tx + px + 0.5) / W, cv = (ty + py + 0.5) / Hh, c4 = [[cu, cv], [cu, cv], [cu, cv], [cu, cv]];
+      if (!solid(px + 1, py)) q([[x1, y0, t], [x1, y0, -t], [x1, y1, -t], [x1, y1, t]], c4, 2);
+      if (!solid(px - 1, py)) q([[x0, y0, -t], [x0, y0, t], [x0, y1, t], [x0, y1, -t]], c4, 3);
+      if (!solid(px, py - 1)) q([[x0, y1, t], [x1, y1, t], [x1, y1, -t], [x0, y1, -t]], c4, 4);
+      if (!solid(px, py + 1)) q([[x0, y0, -t], [x1, y0, -t], [x1, y0, t], [x0, y0, t]], c4, 5);
+    }
+    m = { pos: new Float32Array(pos), uv: new Float32Array(uv), face: new Uint8Array(face), n: face.length };
+    extrudeCache[tile] = m;
+    return m;
+  }
+  var EXT_N = [[0, 0, 1], [0, 0, -1], [1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0]];
+  // R — матрица поворота 3×3, c — центр, size — размер плитки, mirror — зеркально по x,
+  // cols — шесть цветов граней (или функция грань → цвет)
+  function drawExtruded(batch, tile, R, c, size, mirror, cols) {
+    var m = extrude(tile), n = m.n, P = m.pos, U = m.uv, sx = mirror ? -size : size;
+    batch.reserve(n);
+    for (var i = 0; i < n; i++) {
+      var col = cols[m.face[i]];
+      for (var k = 0; k < 4; k++) {
+        var o = (i * 4 + k) * 3, lx = P[o] * sx, ly = P[o + 1] * size, lz = P[o + 2] * size;
+        batch.v(c[0] + R[0] * lx + R[1] * ly + R[2] * lz, c[1] + R[3] * lx + R[4] * ly + R[5] * lz, c[2] + R[6] * lx + R[7] * ly + R[8] * lz,
+          U[(i * 4 + k) * 2], U[(i * 4 + k) * 2 + 1], col[0], col[1], col[2]);
+      }
+      batch.quads++;
+    }
+  }
+  // Предмет на земле или в полёте: свет граней по солнцу, как у моделей
+  function drawItem3D(batch, tile, cx, cy, cz, size, yaw, light, sunK, pitch) {
+    var R = rot(yaw, pitch || 0, 0), cols = [];
+    for (var f = 0; f < 6; f++) { var fc = faceLight(apply(R, EXT_N[f]), light, sunK || 0, null); cols.push([fc[0], fc[1], fc[2]]); }
+    drawExtruded(batch, tile, R, [cx, cy, cz], size, false, cols);
+  }
+
   // Плоский двусторонний спрайт из атласа, повёрнутый вокруг вертикали
   function drawSprite(batch, tile, cx, cy, cz, size, yaw, color) {
     var uv = KC.tileUV(tile), h = size / 2;
@@ -784,6 +836,6 @@
 
   KC.Models = {
     ATLAS: ATLAS, init: init, MODELS: MODELS, drawModel: drawModel, drawBlockCube: drawBlockCube, drawSprite: drawSprite,
-    Batch: Batch, rot: rot, apply: apply, faceLight: faceLight
+    Batch: Batch, rot: rot, apply: apply, faceLight: faceLight, drawExtruded: drawExtruded, drawItem3D: drawItem3D, extrude: extrude
   };
 })(window.KC = window.KC || {});
