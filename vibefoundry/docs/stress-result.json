@@ -1,0 +1,9 @@
+{
+  "buildings": 2001,
+  "belts": 6240,
+  "items": 10000,
+  "entities": 8248,
+  "itemsOnBelts": 10000,
+  "msPerTick": 4.026,
+  "upsPossible": 248
+}
