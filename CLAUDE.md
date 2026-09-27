@@ -24,6 +24,10 @@ code in this repository.
 «без сборки и npm» ниже относятся только к сайту; руководство по игре — в
 `ai-factory/CLAUDE.md`.
 
+Третий проект — воксельная песочница **Кубокрафт** (в духе Minecraft) в каталоге
+`minecraft/`: чистый WebGL без сборки и зависимостей, руководство — в
+`minecraft/CLAUDE.md`.
+
 ## Структура
 
 ```
@@ -31,6 +35,7 @@ code in this repository.
 ├── CLAUDE.md                       — этот файл (актуальное руководство)
 ├── .github/workflows/deploy-pages.yml  — деплой на GitHub Pages
 ├── ai-factory/                     — игра-песочница (React + Vite), см. ai-factory/CLAUDE.md
+├── minecraft/                      — воксельная песочница «Кубокрафт» (WebGL), см. minecraft/CLAUDE.md
 ├── .claude/                        — инфраструктура Claude Code (к сайту не относится)
 │   ├── settings.json               — разрешённые читающие команды и MCP-вызовы
 │   ├── repo-map/snapshot.json      — последний снимок карты репозиториев

@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>Кубокрафт</title>
+<meta name="description" content="Бесконечный мир из кубиков в браузере: копай, строй, летай. Воксельная песочница на чистом WebGL.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600;700&family=Press+Start+2P&display=swap">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<canvas id="gl" aria-label="Игровой мир"></canvas>
+
+<!-- Игровой интерфейс -->
+<div id="hud" hidden>
+  <div class="crosshair" aria-hidden="true"></div>
+  <div id="water-tint" hidden></div>
+  <pre id="debug" hidden></pre>
+  <p id="hint" hidden></p>
+  <p id="toast" aria-live="polite"></p>
+  <div id="hotbar" role="toolbar" aria-label="Выбор блока"></div>
+</div>
+
+<!-- Сенсорное управление -->
+<div id="touch" hidden>
+  <div id="joy" hidden><div id="joy-knob"></div></div>
+  <div class="t-top">
+    <button type="button" class="t-btn t-small" id="t-fly" aria-label="Полёт">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 14l8-8 8 8M4 20l8-8 8 8"/></svg>
+    </button>
+    <button type="button" class="t-btn t-small" id="t-inv" aria-label="Все блоки">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z"/></svg>
+    </button>
+    <button type="button" class="t-btn t-small" id="t-pause" aria-label="Пауза">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14M16 5v14"/></svg>
+    </button>
+  </div>
+  <div class="t-actions">
+    <button type="button" class="t-btn" id="t-break" aria-label="Сломать блок">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5l14 14M19 5L5 19"/></svg>
+      <span>Сломать</span>
+    </button>
+    <button type="button" class="t-btn" id="t-place" aria-label="Поставить блок">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9zM12 12l8-4.5M12 12v9M12 12L4 7.5"/></svg>
+      <span>Поставить</span>
+    </button>
+    <button type="button" class="t-btn t-down" id="t-down" aria-label="Спуститься" hidden>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 9l7 7 7-7"/></svg>
+    </button>
+    <button type="button" class="t-btn t-jump" id="t-jump" aria-label="Прыжок">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 15l7-7 7 7"/></svg>
+    </button>
+  </div>
+</div>
+
+<!-- Титульный экран -->
+<section id="title" class="screen screen--title" aria-labelledby="title-h">
+  <div class="title-col">
+    <h1 id="title-h" class="logo">Кубокрафт</h1>
+    <p class="tagline">Бесконечный мир из&nbsp;кубиков прямо в&nbsp;браузере. Копайте пещеры, стройте дома, летайте над горами.</p>
+
+    <div class="title-actions">
+      <button type="button" class="btn btn--primary" id="btn-play">Играть</button>
+      <button type="button" class="btn" id="btn-new-title">Новый мир</button>
+    </div>
+    <p class="world-meta">
+      <span id="seed-label">Сид мира: —</span>
+      <span id="load-label" class="load-label">Мир строится…</span>
+    </p>
+    <p class="rotate-hint">Удобнее играть, повернув телефон горизонтально.</p>
+
+    <div class="controls" id="controls-desktop">
+      <h2 class="controls-h">Клавиатура и мышь</h2>
+      <dl class="keys">
+        <dt><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></dt><dd>ходьба</dd>
+        <dt><kbd>Пробел</kbd></dt><dd>прыжок, двойное нажатие — полёт</dd>
+        <dt><kbd>Shift</kbd></dt><dd>бег, в полёте — вниз</dd>
+        <dt><kbd>ЛКМ</kbd></dt><dd>сломать блок</dd>
+        <dt><kbd>ПКМ</kbd></dt><dd>поставить блок</dd>
+        <dt><kbd>СКМ</kbd></dt><dd>взять блок в руку</dd>
+        <dt><kbd>1–9</kbd><kbd>колесо</kbd></dt><dd>выбор блока</dd>
+        <dt><kbd>E</kbd></dt><dd>все блоки</dd>
+        <dt><kbd>F</kbd><kbd>F3</kbd></dt><dd>полёт, координаты</dd>
+        <dt><kbd>Esc</kbd></dt><dd>пауза и настройки</dd>
+      </dl>
+    </div>
+    <div class="controls" id="controls-touch">
+      <h2 class="controls-h">Сенсорный экран</h2>
+      <dl class="keys">
+        <dt>Левая половина</dt><dd>джойстик ходьбы</dd>
+        <dt>Правая половина</dt><dd>свайп — осмотреться</dd>
+        <dt>Кнопки справа</dt><dd>прыжок, сломать, поставить</dd>
+        <dt>Сверху</dt><dd>полёт, все блоки, пауза</dd>
+      </dl>
+    </div>
+  </div>
+</section>
+
+<!-- Пауза -->
+<section id="pause" class="screen screen--side" aria-labelledby="pause-h" hidden>
+  <div class="sheet">
+    <h2 id="pause-h" class="sheet-h">Пауза</h2>
+    <button type="button" class="btn btn--primary btn--wide" id="btn-resume">Вернуться в игру</button>
+
+    <div class="settings">
+      <label class="set-row" for="set-dist">
+        <span class="set-name">Дальность прорисовки</span>
+        <output id="out-dist" for="set-dist">6 чанков</output>
+        <input type="range" id="set-dist" min="2" max="10" step="1" value="6">
+      </label>
+      <label class="set-row" for="set-sens">
+        <span class="set-name">Чувствительность обзора</span>
+        <output id="out-sens" for="set-sens">1,0×</output>
+        <input type="range" id="set-sens" min="0.3" max="2.5" step="0.1" value="1">
+      </label>
+      <label class="set-check" for="set-cycle"><input type="checkbox" id="set-cycle"> <span>Смена дня и ночи</span></label>
+      <label class="set-check" for="set-sound"><input type="checkbox" id="set-sound"> <span>Звуки</span></label>
+      <label class="set-check" for="set-autojump"><input type="checkbox" id="set-autojump"> <span>Автопрыжок на ступеньки</span></label>
+      <label class="set-check" for="set-debug"><input type="checkbox" id="set-debug"> <span>Координаты и FPS</span></label>
+    </div>
+
+    <div class="sheet-foot">
+      <button type="button" class="btn btn--danger btn--wide" id="btn-new">Новый мир</button>
+      <button type="button" class="btn btn--wide" id="btn-title">В главное меню</button>
+      <p class="save-note" id="save-note">Мир сохраняется автоматически в этом браузере.</p>
+    </div>
+  </div>
+</section>
+
+<!-- Инвентарь -->
+<section id="inventory" class="screen screen--center" aria-labelledby="inv-h" hidden>
+  <div class="sheet sheet--inv">
+    <div class="inv-head">
+      <h2 id="inv-h" class="sheet-h">Блоки</h2>
+      <button type="button" class="btn" id="btn-inv-close">Готово <kbd>E</kbd></button>
+    </div>
+    <p class="inv-hint">Выберите ячейку в панели внизу, затем блок — он встанет в эту ячейку.</p>
+    <div id="inv-grid" class="inv-grid"></div>
+  </div>
+</section>
+
+<div id="fatal" class="screen screen--center" hidden>
+  <div class="sheet">
+    <h2 class="sheet-h">Не получилось запустить</h2>
+    <p id="fatal-text">Браузер не дал доступ к WebGL. Включите аппаратное ускорение или откройте игру в другом браузере.</p>
+  </div>
+</div>
+
+<script src="js/noise.js"></script>
+<script src="js/blocks.js"></script>
+<script src="js/world.js"></script>
+<script src="js/renderer.js"></script>
+<script src="js/game.js"></script>
+</body>
+</html>
