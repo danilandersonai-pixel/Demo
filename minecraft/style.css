@@ -478,6 +478,25 @@ select, input[type="text"] {
     radial-gradient(circle at center, transparent 0 34vmin, #000 34.5vmin);
 }
 #fade.is-on { animation: fade-out 1.1s ease-out; }
+/* Заставка: кинорамка, затемнение, вспышка удара, титры */
+#intro { position: fixed; inset: 0; z-index: 13; cursor: pointer; }
+#intro[hidden] { display: none; }
+#intro::before, #intro::after { content: ''; position: absolute; left: 0; right: 0; height: 10vh; background: #000; z-index: 2; }
+#intro::before { top: 0; }
+#intro::after { bottom: 0; }
+#intro-black { position: absolute; inset: 0; background: #000; opacity: 1; }
+#intro-flash { position: absolute; inset: 0; background: #fff3dc; opacity: 0; pointer-events: none; }
+#intro-flash.is-on { animation: fade-out 1.4s ease-out; }
+#intro-cap {
+  position: absolute; left: 50%; bottom: calc(10vh + 28px); transform: translateX(-50%); z-index: 3;
+  margin: 0; width: min(720px, calc(100vw - 32px)); font: 500 clamp(15px, 2.2vw, 19px)/1.45 var(--body);
+  color: #f3e9d6; text-align: center; text-shadow: 0 2px 0 rgba(0, 0, 0, 0.85); opacity: 0; transition: opacity 0.6s;
+}
+#intro-cap.is-on { opacity: 1; }
+#intro-skip {
+  position: absolute; right: max(16px, env(safe-area-inset-right, 0px)); bottom: calc(10vh - 30px); z-index: 3;
+  margin: 0; font: 500 13px/1.3 var(--body); color: rgba(255, 255, 255, 0.55);
+}
 @keyframes fade-out { from { opacity: 1; } to { opacity: 0; } }
 #dim-label {
   position: absolute; left: 50%; top: 22%; transform: translateX(-50%);
@@ -650,4 +669,5 @@ body[data-state="dead"] #bars { display: none; }
 @media (prefers-reduced-motion: reduce) {
   .btn, #toast, #sleep, #dim-label, #msg, .nav-arr { transition: none; }
   #fade.is-on { animation: none; }
+  #intro-flash.is-on, #intro-cap { animation: none; transition: none; }
 }

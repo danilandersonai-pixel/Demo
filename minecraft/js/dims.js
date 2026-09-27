@@ -2692,6 +2692,8 @@
       [I.FIRE_AXE, 1, 1, 0.15], [B.LAMP, 1, 3, 0.3], [I.RADIO, 1, 1, 0.1], [I.MEDKIT, 1, 1, 0.2], [I.CANNED_FOOD, 1, 2, 0.3], [B.WIRE, 4, 16, 0.4]],
     church: [[B.TORCH, 4, 12, 0.7], [I.BREAD, 1, 4, 0.5], [I.BANDAGE, 1, 4, 0.5], [I.MEDKIT, 1, 1, 0.25], [I.BOOK, 1, 3, 0.5], [I.GOLD_INGOT, 1, 3, 0.3],
       [I.CANNED_FOOD, 1, 3, 0.4], [I.GOLDEN_APPLE, 1, 1, 0.05], [I.CITY_MAP, 1, 1, 0.15]],
+    crash: [[I.MEDKIT, 1, 1, 0.9], [I.BANDAGE, 2, 4, 0.9], [I.PISTOL, 1, 1, 0.8], [I.AMMO, 8, 16, 0.9], [I.CANNED_FOOD, 1, 3, 0.8],
+      [I.FLASHLIGHT, 1, 1, 0.7], [I.CITY_MAP, 1, 1, 0.5], [B.TORCH, 2, 6, 0.5], [I.FUEL_CAN, 1, 1, 0.3], [I.SPACE_RATION, 1, 2, 0.4]],
     cityhall: [[I.CITY_MAP, 1, 1, 0.8], [I.RADIO, 1, 1, 0.35], [I.PISTOL, 1, 1, 0.4], [I.AMMO, 8, 20, 0.7], [I.GOLD_INGOT, 2, 8, 0.6],
       [I.MEDKIT, 1, 2, 0.5], [I.FLASHLIGHT, 1, 1, 0.4], [I.BOOK, 1, 3, 0.4], [I.BODY_ARMOR, 1, 1, 0.2]],
     // мебель в квартирах и офисах

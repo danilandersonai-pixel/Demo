@@ -603,6 +603,7 @@
     }
   }
   function vehicleUpdate(m, dt) {
+    if (m.st === 'intro') return;
     var ev = evacInfo(), e = P.e, tx, ty, tz;
     m.t = (m.t || 0) + dt;
     var onPad = !P.dead && Math.hypot(e.x - ev.x, e.z - ev.z) < 6 && Math.abs(e.y - ev.y) < 2.5;
@@ -634,6 +635,198 @@
     m.vx = m.vy = m.vz = 0;
     m.soundT -= dt;
     if (m.soundT <= 0) { m.soundT = 0.8; Audio.play('heli', m.x, m.y, m.z); }
+  }
+
+  // ---- Заставка режима зомби: эвакуационный вертолёт сбит над городом ---------------------------
+  // Полёт с моря над городом → попадание, штопор → удар и темнота → игрок приходит в себя у горящих
+  // обломков. Мир в это время не живёт (state 'intro'), двигаются только вертолёт, камера и частицы.
+  // Любая клавиша, щелчок или касание пропускают заставку
+  var intro = null;
+  var INTRO = { fly: 9, fall: 4.2, dark: 3.2, wake: 2.6 };
+  var INTRO_CAPS = [
+    [0.6, 'Последний эвакуационный рейс. Внизу — остров, захваченный заражёнными…'],
+    [5.2, 'Пилот ведёт машину к центру города, к площадке эвакуации.'],
+    [9.0, 'Попадание! Хвост горит — вертолёт теряет управление!'],
+    [INTRO.fly + INTRO.fall + 0.4, '…Вы очнулись среди обломков. Экипажа нет. Вертолёт горит, и на шум уже идут заражённые — уходите!']
+  ];
+  function startIntro() {
+    var G = KC.Gen, e = P.e, cell = G.CELL, C = G.cityCenter(world.seed);
+    var ox = e.x - (C.x * cell + 24), oz = e.z - (C.z * cell + 24), ol = Math.hypot(ox, oz) || 1;
+    ox /= ol; oz /= ol;                                                     // от центра наружу — к морю
+    var sp = G.citySpawn(), K = { x: sp.x, y: G.CITY_GROUND + 1, z: sp.z + 13 };   // улица впереди точки старта
+    var A = G.CITY_GROUND + 38;
+    intro = { t: 0, K: K, A: A, H: { x: K.x + ox * 58, z: K.z + oz * 58 }, S: { x: K.x + ox * 220, z: K.z + oz * 220 },
+      yaw0: Math.atan2(ox, oz), cap: -1, smokeT: 0, alarmT: 0, soundT: 0, crashed: false, heli: null,
+      cam: { x: 0, y: 0, z: 0, yaw: 0, pitch: 0 }, camPos: null, spin: 0, spinYaw: 0 };
+    var h = E.spawnMob('heli', intro.S.x, A, intro.S.z, { yaw: intro.yaw0 });
+    if (h) { h.st = 'intro'; h.rotor = 18; h.bank = 0; }
+    intro.heli = h;
+    state = 'intro';
+    document.body.setAttribute('data-state', 'intro');
+    $('hud').hidden = true;
+    $('intro').hidden = false;
+    $('intro-black').style.opacity = '1';
+    $('intro-cap').textContent = '';
+    $('intro-cap').classList.remove('is-on');
+    introFrame(0);
+  }
+  function introCaption(t) {
+    var idx = -1;
+    for (var i = 0; i < INTRO_CAPS.length; i++) if (t >= INTRO_CAPS[i][0]) idx = i;
+    if (idx !== intro.cap) {
+      intro.cap = idx;
+      var el = $('intro-cap');
+      el.textContent = idx >= 0 ? INTRO_CAPS[idx][1] : '';
+      el.classList.toggle('is-on', idx >= 0);
+    }
+  }
+  function lerp(a, b, t) { return a + (b - a) * t; }
+  // Положение вертолёта в момент t
+  function introHeli(t, out) {
+    var I = intro;
+    if (t < INTRO.fly) {
+      var k = t / INTRO.fly;
+      out.x = lerp(I.S.x, I.H.x, k); out.z = lerp(I.S.z, I.H.z, k);
+      out.y = I.A + Math.sin(t * 1.3) * 0.6; out.yaw = I.yaw0; out.bank = Math.sin(t * 0.7) * 0.05;
+      return out;
+    }
+    // штопор: спираль с сужающимся радиусом к месту падения, снижение с ускорением
+    var f = Math.min(1, (t - INTRO.fly) / INTRO.fall), ease = f * f;
+    var rad = (1 - f) * 9, ang = I.yaw0 + f * f * 11;
+    out.x = lerp(I.H.x, I.K.x, Math.sqrt(f)) + Math.cos(ang) * rad;
+    out.z = lerp(I.H.z, I.K.z, Math.sqrt(f)) + Math.sin(ang) * rad;
+    out.y = lerp(I.A, I.K.y + 0.6, ease);
+    out.yaw = I.yaw0 + f * f * 16; out.bank = 0.35 + f * 0.3;
+    return out;
+  }
+  var IH = { x: 0, y: 0, z: 0, yaw: 0, bank: 0 };
+  function introFrame(dt) {
+    var I = intro, e = P.e, t = I.t, h = I.heli, black = 0;
+    introCaption(t);
+    if (t < INTRO.fly + INTRO.fall) {
+      introHeli(t, IH);
+      if (h && !h.dead) { h.x = IH.x; h.y = IH.y; h.z = IH.z; h.yaw = IH.yaw; h.bank = IH.bank; h.vx = h.vy = h.vz = 0; }
+      // камера: сзади и сверху; в штопоре — отстаёт и держит вертолёт в кадре
+      var fwdX = -Math.sin(t < INTRO.fly ? IH.yaw : I.yaw0), fwdZ = -Math.cos(t < INTRO.fly ? IH.yaw : I.yaw0);
+      var want = t < INTRO.fly ? { x: IH.x - fwdX * 17 + fwdZ * 4, y: IH.y + 6, z: IH.z - fwdZ * 17 - fwdX * 4 }
+        : { x: I.K.x - fwdX * 34 + fwdZ * 10, y: I.K.y + 14, z: I.K.z - fwdZ * 34 - fwdX * 10 };
+      if (!I.camPos) I.camPos = want;
+      var kC = Math.min(1, dt * (t < INTRO.fly ? 3 : 1.2));
+      I.camPos = { x: lerp(I.camPos.x, want.x, kC), y: lerp(I.camPos.y, want.y, kC), z: lerp(I.camPos.z, want.z, kC) };
+      var lx = IH.x - I.camPos.x, ly = IH.y + 1.2 - I.camPos.y, lz = IH.z - I.camPos.z;
+      I.cam = { x: I.camPos.x, y: I.camPos.y, z: I.camPos.z, yaw: Math.atan2(-lx, -lz), pitch: Math.atan2(ly, Math.hypot(lx, lz)) };
+      if (t < 1.2) black = 1 - t / 1.2;
+      // звук винтов; после попадания — дым и огонь из хвоста, сирена, тряска
+      I.soundT -= dt;
+      if (I.soundT <= 0) { I.soundT = 0.8; Audio.play('heli', IH.x, IH.y, IH.z); }
+      if (t >= INTRO.fly) {
+        if (!I.hit) {
+          I.hit = true;
+          var tx = IH.x - fwdX * 4, tz = IH.z - fwdZ * 4;
+          KC.FX.emit('explosion', tx, IH.y + 1, tz, 4);
+          addFlash(tx, IH.y + 1, tz, 30, [2.2, 1.4, 0.6], 0.5);
+          Audio.play('boom', tx, IH.y, tz);
+          shakeK = 1.2;
+        }
+        I.smokeT -= dt;
+        if (I.smokeT <= 0) {
+          I.smokeT = 0.05;
+          var bx = IH.x + Math.sin(IH.yaw) * 3.5, bz = IH.z + Math.cos(IH.yaw) * 3.5;
+          KC.FX.emit('smokeDark', bx, IH.y + 1.2, bz); KC.FX.emit('fire', bx, IH.y + 1, bz);
+        }
+        I.alarmT -= dt;
+        if (I.alarmT <= 0) { I.alarmT = 1; Audio.play('alarm', IH.x, IH.y, IH.z); }
+        shakeK = Math.max(shakeK, 0.35 + (t - INTRO.fly) / INTRO.fall * 0.6);
+      }
+    } else {
+      if (!I.crashed) introCrash();
+      var td = t - INTRO.fly - INTRO.fall;
+      black = td < INTRO.dark ? 1 : Math.max(0, 1 - (td - INTRO.dark) / 1.2);
+      // пришёл в себя: лежит на спине, медленно поднимается и поворачивается к обломкам
+      var w = Math.max(0, Math.min(1, (td - INTRO.dark) / INTRO.wake)), sm = w * w * (3 - 2 * w);
+      var toK = Math.atan2(-(I.K.x - e.x), -(I.K.z - e.z));
+      I.cam = { x: e.x, y: e.y + lerp(0.35, P.EYE, sm), z: e.z, yaw: toK + (1 - sm) * 0.5, pitch: lerp(0.9, -0.12, sm) };
+      if (td >= INTRO.dark + INTRO.wake) { endIntro(); return; }
+    }
+    $('intro-black').style.opacity = String(black);
+  }
+  // Удар: взрыв, вспышка, обломки на месте падения; игрок ранен
+  function introCrash() {
+    var I = intro, K = I.K;
+    I.crashed = true;
+    if (I.heli) I.heli.dead = true;
+    KC.FX.emit('explosion', K.x, K.y + 1, K.z, 6);
+    addFlash(K.x, K.y + 1, K.z, 40, [2.4, 1.5, 0.6], 1.2);
+    Audio.play('boom', K.x, K.y, K.z); Audio.play('crash', K.x, K.y, K.z);
+    placeWreck(K);
+    shakeK = 0;
+    P.hp = Math.min(P.hp, 13);
+    $('intro-flash').classList.remove('is-on'); void $('intro-flash').offsetWidth; $('intro-flash').classList.add('is-on');
+  }
+  function placeWreck(K) {
+    var W = world, x0 = Math.floor(K.x), z0 = Math.floor(K.z), y0 = KC.Gen.CITY_GROUND, dx, dz, y, h;
+    // камера могла улететь далеко, и чанки у места падения выгрузились — строим их заново
+    for (dz = (z0 - 9) >> 4; dz <= (z0 + 9) >> 4; dz++) for (dx = (x0 - 12) >> 4; dx <= (x0 + 12) >> 4; dx++) if (!W.getChunk(dx, dz)) W.generate(dx, dz);
+    function set(x, y, z, id, m) { W.setBlock(x, y, z, id, m || 0); }
+    // техника на месте падения не нужна
+    E.list.forEach(function (v) { if (v.type === 'vehicle' && Math.hypot(v.x - K.x, v.z - K.z) < 9) v.dead = true; });
+    // выжженная воронка и обломки вокруг
+    for (dz = -7; dz <= 7; dz++) for (dx = -7; dx <= 7; dx++) {
+      var d = Math.hypot(dx + 1, dz), x = x0 + dx, z = z0 + dz;
+      h = KC.hash2(x, z, W.seed + 700);
+      if (d < 2.6) { set(x, y0, z, B.SCORCHED); for (y = y0 + 1; y <= y0 + 4; y++) set(x, y, z, 0); }
+      else if (d < 5.5) { if (h < 0.75) set(x, y0, z, B.SCORCHED); for (y = y0 + 1; y <= y0 + 3; y++) if (W.getBlock(x, y, z) && !KC.OPAQUE[W.getBlock(x, y, z)]) set(x, y, z, 0); }
+      if (d >= 2 && d < 7.5 && h > 0.86) set(x, y0 + 1, z, h > 0.95 ? B.CAR_BURNT : h > 0.92 ? B.EMBERS : B.RUBBLE);
+    }
+    // фюзеляж поперёк улицы, носом к −X: корпус, выбитые стёкла, сорванная дверь со стороны игрока
+    for (dx = -3; dx <= 2; dx++) for (dz = -1; dz <= 1; dz++) for (y = y0 + 1; y <= y0 + 3; y++) {
+      var shell = dz !== 0 || y === y0 + 1 || y === y0 + 3 || dx === -3 || dx === 2;
+      if (!shell) { set(x0 + dx, y, z0 + dz, 0); continue; }
+      var id = KC.hash3(x0 + dx, y, z0 + dz, W.seed + 701) < 0.3 ? B.CAR_BURNT : B.HULL_DARK;
+      if (dx === -3 && y === y0 + 2 && dz === 0) id = 0;                                   // выбитое лобовое стекло
+      if (dz === -1 && dx === 0 && y <= y0 + 2) id = 0;                                     // сорванная дверь
+      if (dz === -1 && y === y0 + 2 && (dx === -2 || dx === 1)) id = B.WINDOW;
+      if (dz === 1 && y === y0 + 2 && (dx === -2 || dx === 0)) id = B.WINDOW;
+      set(x0 + dx, y, z0 + dz, id);
+    }
+    // хвостовая балка с изломом и киль
+    for (dx = 3; dx <= 8; dx++) set(x0 + dx, y0 + 1, z0 + (dx >= 7 ? 1 : 0), B.HULL);
+    set(x0 + 8, y0 + 2, z0 + 1, B.HULL); set(x0 + 8, y0 + 3, z0 + 1, B.HULL_DARK);
+    // лопасти винта — погнутые прутья на асфальте
+    for (var i = 2; i <= 7; i++) { set(x0 - 1 - (i >> 2), y0 + 1, z0 - i, B.BARS); set(x0 - 2 - i, y0 + 1, z0 + 1 + (i >> 1), B.BARS); }
+    // огонь на обломках и вокруг
+    [[-1, 4, 0], [1, 4, 0], [0, 4, 1], [3, 2, 0], [-2, 1, -2], [5, 1, -1], [-4, 1, 2]].forEach(function (f) {
+      var fx = x0 + f[0], fy = y0 + f[1], fz = z0 + f[2];
+      if (!W.getBlock(fx, fy, fz) && KC.SOLID[W.getBlock(fx, fy - 1, fz)]) set(fx, fy, fz, B.FIRE);
+    });
+    // ящик с аварийным запасом, вылетевший из грузового отсека
+    var cx = x0 + 2, cz = z0 - 3;
+    set(cx, y0 + 1, cz, B.CHEST, 1);
+    var be = KC.Sim.getBent(cx, y0 + 1, cz);
+    if (be) be.slots = KC.Gen.rollLoot('crash', cx, y0 + 1, cz, W.seed);
+    set(cx + 1, y0 + 1, cz, B.CRATE);
+  }
+  function endIntro() {
+    if (!intro) return;
+    if (!intro.crashed) introCrash();
+    var I = intro, e = P.e;
+    intro = null;
+    $('intro').hidden = true;
+    $('intro-cap').classList.remove('is-on');
+    e.yaw = Math.atan2(-(I.K.x - e.x), -(I.K.z - e.z)); e.pitch = -0.1;
+    state = 'playing';
+    showScreen(null);
+    UI.forceHud();
+    E.noise(I.K.x, I.K.y, I.K.z, 60);                                       // на шум крушения идут заражённые
+    tips.start = 1;
+    message('Цель — эвакуация. У обломков — ящик с аварийным запасом. Найдите рацию в полицейском участке: стрелка вверху покажет дорогу', 10);
+    saveGame();
+  }
+  function skipIntro() {
+    if (!intro) return;
+    if (!intro.crashed) introCrash();
+    intro.t = Math.max(intro.t, INTRO.fly + INTRO.fall + INTRO.dark + INTRO.wake);
+    endIntro();
   }
 
   // ---- Сигнализация машин: удар или выстрел по машине собирает заражённых -------------------
@@ -1490,9 +1683,10 @@
     }
     cloudOffset += dt * 1.1;
 
+    if (state === 'intro' && intro) { intro.t += dt; introFrame(dt); }
     var cam = camera(dt);
     var ccx = Math.floor(cam.x / CS), ccz = Math.floor(cam.z / CS);
-    stream(ccx, ccz, state === 'title' ? 12 : (isTouch ? 4 : 6));
+    stream(ccx, ccz, state === 'title' || state === 'intro' ? 12 : (isTouch ? 4 : 6));
     var list = visibleChunks(ccx, ccz);
 
     var sprintFov = !reduceMotion && state === 'playing' && (P.sprinting || (e.fly && Math.hypot(e.vx, e.vz) > 8));
@@ -1529,7 +1723,7 @@
     var ents = E.buildRender(cam, gameTime, thirdPerson && !P.dead ? function (batch) { P.drawBody(batch, pL, playerSun); } : null,
       driving && vehCam === 1 ? P.vehicle : null);
     var held = null;
-    if (!thirdPerson && !driving && state !== 'title' && placed && !P.dead) {
+    if (!thirdPerson && !driving && state !== 'title' && state !== 'intro' && placed && !P.dead) {
       var hL = [pL[0] + LG.sunCol[0] * 0.5 * playerSun, pL[1] + LG.sunCol[1] * 0.5 * playerSun, pL[2] + LG.sunCol[2] * 0.5 * playerSun];
       var own = heldLight();
       if (own) { hL[0] += own.col[0] * 0.5; hL[1] += own.col[1] * 0.5; hL[2] += own.col[2] * 0.5; }
@@ -1600,6 +1794,7 @@
   }
   // Камера: от первого лица, сзади или спереди
   function cameraBase(dt) {
+    if (state === 'intro' && intro) return intro.cam;
     if (state === 'title') {
       if (!reduceMotion) titleCam.yaw += dt * 0.045;
       return titleCam;
@@ -1701,6 +1896,7 @@
 
   function play() {
     Audio.ensure();
+    var fresh = !placedSaved;
     if (!placed) placePlayer();
     // после загрузки — снова за руль той же машины
     if (pendingVeh) {
@@ -1714,6 +1910,7 @@
     showScreen(P.dead ? 'death' : null);
     UI.forceHud();
     if (!isTouch && state === 'playing') lockPointer();
+    if (scenario === 'zombie' && fresh && !tips.start && !P.dead && world.dim === 'over') { startIntro(); return; }
     if (scenario === 'zombie' && !tips.start) {
       tips.start = 1;
       message('Цель — эвакуация. Сначала найдите рацию в полицейском участке: стрелка вверху покажет дорогу. Припасы — в сундуках домов и магазинов', 9);
@@ -1910,6 +2107,7 @@
       updateTitle();
       play();
     });
+    $('intro').addEventListener('pointerdown', function (e) { e.preventDefault(); skipIntro(); });
     $('btn-resume').addEventListener('click', resume);
     $('btn-title').addEventListener('click', toTitle);
     $('btn-respawn').addEventListener('click', doRespawn);
@@ -2027,6 +2225,7 @@
 
     window.addEventListener('keydown', function (e) {
       var code = e.code;
+      if (state === 'intro') { e.preventDefault(); skipIntro(); return; }
       if (state === 'title') {
         if (code === 'Enter' && document.activeElement === document.body && $('newworld').hidden) play();
         if (code === 'Escape' && !$('newworld').hidden) $('newworld').hidden = true;
@@ -2159,7 +2358,7 @@
   KC.debug = {
     get world() { return world; }, get player() { return P.e; }, get state() { return state; }, get target() { return target; },
     get zombie() { return zombie; }, get scenario() { return scenario; }, goTo: goTo, travel: travel, zombieDawn: zombieDawn,
-    evac: function () { return evacInfo(); }, enterVehicle: enterVehicle, exitVehicle: exitVehicle, get vehicle() { return P.vehicle; }, refuel: refuelVehicle, openMap: openMap, carHit: carHit, events: { airdrop: airdrop, survivor: survivorEvent, fire: fireEvent }, get heli() { return heli; },
+    evac: function () { return evacInfo(); }, skipIntro: skipIntro, get intro() { return intro; }, enterVehicle: enterVehicle, exitVehicle: exitVehicle, get vehicle() { return P.vehicle; }, refuel: refuelVehicle, openMap: openMap, carHit: carHit, events: { airdrop: airdrop, survivor: survivorEvent, fire: fireEvent }, get heli() { return heli; },
     P: P, play: play, pause: pause, setTime: function (t) { timeOfDay = t; lastTod = t; }, save: saveGame,
     setGfx: function (g) { settings.gfx = g; settings.gfxAuto = false; applyQuality(); }, get renderer() { return renderer; },
     weather: function (k, instant) { KC.FX.setWeather(k); if (instant) KC.FX.weather.k = k === 'clear' ? 0 : k === 'rain' ? 0.75 : 1; },
