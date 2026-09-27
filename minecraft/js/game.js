@@ -25,7 +25,21 @@
   function storageSet(key, val) { try { window.localStorage.setItem(key, JSON.stringify(val)); return true; } catch (e) { return false; } }
 
   // ---- Состояние ---------------------------------------------------------------------
-  var settings = { dist: isTouch ? 4 : 6, sens: 1, cycle: true, sound: true, autojump: isTouch, debug: false, bright: 0.25 };
+  var settings = { dist: isTouch ? 4 : 6, sens: 1, cycle: true, sound: true, autojump: isTouch, debug: false, bright: 0.25, gfx: isTouch ? 1 : 2 };
+  // Пресеты качества графики: что включать в рендерере и сколько частиц рождать
+  var QUALITY = [
+    { lights: 2, sway: false, fancy: false, shadows: 0, pcf: 1, shadowHalf: 40, post: false, bloom: false, msaa: 0, rays: false, cloudShadows: false, clouds3d: false, parts: 0.5 },
+    { lights: 4, sway: true, fancy: true, shadows: 0, pcf: 1, shadowHalf: 40, post: true, bloom: true, msaa: 0, rays: false, cloudShadows: true, clouds3d: true, parts: 0.8 },
+    { lights: 8, sway: true, fancy: true, shadows: 1024, pcf: 1, shadowHalf: 40, post: true, bloom: true, msaa: 0, rays: false, cloudShadows: true, clouds3d: true, parts: 1 },
+    { lights: 8, sway: true, fancy: true, shadows: 2048, pcf: 2, shadowHalf: 56, post: true, bloom: true, msaa: 4, rays: true, cloudShadows: true, clouds3d: true, parts: 1 }
+  ];
+  function quality() { return QUALITY[clamp(settings.gfx | 0, 0, 3)]; }
+  function applyQuality() {
+    var q = quality(), rq = {};
+    for (var k in q) if (k !== 'parts') rq[k] = q[k];
+    if (reduceMotion) rq.sway = false;
+    renderer.setQuality(rq);
+  }
   var state = 'title';            // title | playing | paused | container | dead
   var world, renderer, atlas, spawn, placed = false, hasSave = false;
   var mode = 'survival', difficulty = 2;
@@ -33,7 +47,7 @@
   var scenario = null, worldType = 'normal', dimData = {}, lastPos = {}, backDim = {}, overSpawn = null;
   var zombie = { day: 1, won: false, kills: 0 }, lastTod = 0;
   var titleCam = { x: 0, y: 0, z: 0, yaw: 0.6, pitch: -0.3 };
-  var timeOfDay = 0.3, cloudOffset = 0, view = 0;
+  var timeOfDay = 0.3, cloudOffset = 0, view = 0, moonDay = 0;
   var keys = {}, mouse = { l: false, r: false, lPress: false, rPress: false };
   var joy = { id: null, cx: 0, cy: 0, x: 0, y: 0 }, lookTouch = { id: null, x: 0, y: 0 };
   var touchJump = false, touchDown = false, touchSprint = false;
@@ -71,7 +85,9 @@
     var s = storageGet(SET_KEY);
     if (s) for (var k in settings) if (typeof s[k] === typeof settings[k]) settings[k] = s[k];
     settings.dist = clamp(settings.dist | 0, 2, 10);
+    settings.gfx = clamp(settings.gfx | 0, 0, 3);
     Audio.setEnabled(settings.sound);
+    try { applyQuality(); } catch (err) { settings.gfx = 0; applyQuality(); }
 
     UI.init({
       atlas: atlas, toast: toast,
@@ -174,6 +190,12 @@
     hp.openMap = openMap;
     hp.useRadio = useRadio;
     hp.generatorFueled = generatorFueled;
+    hp.flash = function (kind) {
+      var e = P.e, cp = Math.cos(e.pitch), d = [-Math.sin(e.yaw) * cp, Math.sin(e.pitch), -Math.cos(e.yaw) * cp];
+      var x = e.x + d[0] * 1.2, y = e.y + P.EYE - 0.15 + d[1] * 1.2, z = e.z + d[2] * 1.2;
+      if (kind === 'flame') addFlash(x, y, z, 9, [1.5, 0.75, 0.25], 0.12);
+      else addFlash(x, y, z, 10, [1.8, 1.35, 0.8], 0.07);
+    };
     hp.placeVehicle = placeVehicle;
     hp.leaveVehicle = exitVehicle;
     hp.hitVehicle = function (v, dmg) { E.damageVehicle(v, dmg); };
@@ -232,6 +254,7 @@
 
     renderer.makeClouds(seed);
     timeOfDay = ok && typeof save.time === 'number' ? save.time % 1 : 0.28;
+    moonDay = ok && typeof save.moon === 'number' ? save.moon : 0;
     if (!settings.cycle) timeOfDay = 0.28;
     lastTod = timeOfDay;
 
@@ -1075,6 +1098,7 @@
         p.size = 0.5 + Math.random() * 0.6; p.life = 6; break;
       case 'portal': p.col = [1.3, 0.9, 1.5]; p.grav = -1.2; p.vx *= 0.4; p.vz *= 0.4; p.vy = 0.3; p.size = 0.05; p.life = 0.9; break;
       case 'explosion':
+        addFlash(x, y + 0.5, z, 16, [2.2, 1.3, 0.55], 0.55);
         for (var i = 0; i < 40; i++) {
           particlesList.push({ x: x + (Math.random() - 0.5) * 3, y: y + (Math.random() - 0.5) * 3, z: z + (Math.random() - 0.5) * 3,
             vx: (Math.random() - 0.5) * 3, vy: Math.random() * 2, vz: (Math.random() - 0.5) * 3, life: 0.8 + Math.random() * 0.8,
@@ -1155,10 +1179,121 @@
       top: top, hor: hor, sun: sun, sunR: sunR, sunU: sunU,
       glow: D.noSun ? [0, 0, 0] : [dusk * 0.55 + day * 0.12, dusk * 0.3 + day * 0.1, dusk * 0.12 + day * 0.06],
       night: D.stars !== undefined ? D.stars : D.noSun ? 0 : 1 - day, day: dayFactor, raw: day,
-      sunVis: D.noSun ? 0 : 1, planet: D.planet ? 1 : 0,
+      sunVis: D.noSun ? 0 : 1, planet: D.planet ? 1 : 0, moon: ((moonDay + 4) % 8) / 8,
       cloud: mix3([0.16, 0.18, 0.25], [1, 1, 1], Math.max(day, dusk * 0.6))
     };
   }
+  // ---- Свет кадра: солнце или луна, небесный эмбиент, отсвет тумана ----------------------------
+  var LG = KC.Light;
+  function set3(o, r, g, b) { o[0] = r; o[1] = g; o[2] = b; return o; }
+  function updateLighting(sky) {
+    var D = KC.DIMS[world ? world.dim : 'over'] || KC.DIMS.over;
+    var sun = sky.sun, el = sun[1], dayK = sky.raw, dusk = D.top ? 0 : clamp(1 - Math.abs(el) * 3.4, 0, 1);
+    var dir = sun, col, top, bot, cave = [0.045, 0.05, 0.06], skyDep = 1;
+    if (D.noSun) {
+      // Пекло: неба нет, светит снизу — лавовое море и магматит
+      col = [0, 0, 0]; dir = [0.3, 0.9, 0.3];
+      top = [0.15, 0.07, 0.05]; bot = [0.34, 0.15, 0.07]; cave = [0.07, 0.035, 0.03]; skyDep = 0;
+    } else if (D.vacuum) {
+      // Космос: резкое солнце и чёрные тени, снизу — голубой отсвет планеты
+      col = [0.9, 0.85, 0.76]; top = [0.07, 0.07, 0.09]; bot = [0.11, 0.16, 0.3]; cave = [0.035, 0.035, 0.045];
+    } else {
+      var sunUp = smooth(-0.03, 0.14, el), moonUp = smooth(-0.03, 0.14, -el), warm = 1 - smooth(0.04, 0.42, el);
+      if (el >= 0) col = mix3([1.02, 0.97, 0.88], [1.05, 0.55, 0.27], warm).map(function (v) { return v * 0.52 * sunUp; });
+      else { dir = [-sun[0], -sun[1], -sun[2]]; col = [0.3 * 0.36 * moonUp, 0.36 * 0.36 * moonUp, 0.55 * 0.36 * moonUp]; }
+      top = mix3([0.13, 0.155, 0.25], [0.56, 0.61, 0.7], dayK);
+      top = mix3(top, [0.62, 0.46, 0.42], dusk * 0.35);
+      bot = [top[0] * 0.7, top[1] * 0.68, top[2] * 0.64];
+      if (world && world.dim === 'heaven') { col = [0.52, 0.48, 0.38]; top = [0.74, 0.74, 0.8]; bot = [0.64, 0.62, 0.6]; }
+    }
+    LG.sunDir = dir; LG.sunCol = col; LG.ambTop = top; LG.ambBot = bot; LG.ambCave = cave; LG.skyDep = skyDep;
+    // тени строим не ниже 20° над горизонтом — иначе они тянутся на полкарты
+    var sd = dir;
+    if (sd[1] < 0.34) { var hl = Math.hypot(sd[0], sd[2]) || 1, kk = Math.sqrt(1 - 0.34 * 0.34) / hl; sd = [sd[0] * kk, 0.34, sd[2] * kk]; }
+    LG.shadowDir = sd;
+    LG.shadowK = col[0] * 0.3 + col[1] * 0.5 + col[2] * 0.2;
+    LG.bright = settings.bright;
+    LG.wind = weatherWind();
+    var hor = sky.hor;
+    LG.fogSun = D.noSun || D.vacuum ? hor : mix3(hor, [Math.min(1.2, hor[0] * 1.15 + 0.25), hor[1] * 1.05 + 0.12, hor[2] * 0.95 + 0.04], Math.max(dusk, 0.35 * dayK));
+  }
+  function weatherWind() { return 1; }
+
+  // ---- Динамические источники света: факел в руке, вспышки выстрелов и взрывов, фары, горящие мобы ---
+  var flashes = [];
+  function addFlash(x, y, z, r, col, life) { flashes.push({ x: x, y: y, z: z, r: r, col: col, t: life, life: life }); if (flashes.length > 24) flashes.shift(); }
+  function heldLight() {
+    var st = P.inv[P.slot];
+    if (!st) return null;
+    if (st.id === I.LAVA_BUCKET) return { r: 8, col: [1.2, 0.55, 0.2] };
+    var it = KC.ITEMS[st.id];
+    if (!it || it.block === undefined) return null;
+    var lv = KC.emission(it.block, it.block === B.LAMP || it.block === B.LANDING_LIGHT ? 1 : 0) || BLOCKS[it.block].light || 0;
+    if (!lv) return null;
+    return { r: 3 + lv * 0.62, col: it.block === B.SPARK_TORCH ? [1.0, 0.3, 0.2] : it.block === B.GLOWROOT || it.block === B.SKY_CRYSTAL ? [0.6, 0.85, 1.1] : [1.05, 0.74, 0.44] };
+  }
+  function gatherLights(dt, cam) {
+    var out = [], e = P.e;
+    for (var i = flashes.length - 1; i >= 0; i--) {
+      var f = flashes[i];
+      f.t -= dt;
+      if (f.t <= 0) { flashes.splice(i, 1); continue; }
+      var k = f.t / f.life;
+      out.push({ x: f.x, y: f.y, z: f.z, r: f.r * (0.6 + 0.4 * k), col: [f.col[0] * k, f.col[1] * k, f.col[2] * k], pri: 3 });
+    }
+    if (state !== 'title' && placed && !P.dead) {
+      var hl = heldLight();
+      if (hl) {
+        var fl = 0.9 + Math.sin(gameTime * 17) * 0.05 + Math.sin(gameTime * 7.3) * 0.05;
+        out.push({ x: e.x - Math.sin(e.yaw) * 0.4, y: e.y + 1.3, z: e.z - Math.cos(e.yaw) * 0.4, r: hl.r, col: [hl.col[0] * fl, hl.col[1] * fl, hl.col[2] * fl], pri: 2 });
+      }
+    }
+    var night = 1 - smooth(0.2, 0.55, LG.shadowK / 0.6 + (world.dim === 'over' ? 0 : 1));
+    E.list.forEach(function (m) {
+      if (m.dead) return;
+      var dx = m.x - cam.x, dz = m.z - cam.z, d2 = dx * dx + dz * dz;
+      if (d2 > 70 * 70) return;
+      if (m.type === 'vehicle') {
+        // фары: у машины с водителем или ночью; полицейская мигалка — красный и синий по очереди
+        if ((m.driver || night > 0.3) && m.hp > 0 && m.fuel > 0) {
+          var fw = E.vFwd(m.yaw), lx = m.x + fw[0] * m.V.len * 0.5, lz = m.z + fw[1] * m.V.len * 0.5;
+          out.push({ x: lx, y: m.y + 1.0, z: lz, r: m.driver ? 30 : 22, col: [1.25, 1.18, 1.0], cone: 0.8, dir: [fw[0] * 0.97, -0.22, fw[1] * 0.97], pri: m.driver ? 2 : 1, d2: d2 });
+        }
+        if (m.V.siren && m.driver) {
+          var red = Math.floor(gameTime * 4) % 2 === 0;
+          out.push({ x: m.x, y: m.y + 2.2, z: m.z, r: 11, col: red ? [1.4, 0.15, 0.1] : [0.15, 0.35, 1.5], pri: 1, d2: d2 });
+        }
+      } else if (m.type === 'mob') {
+        if (m.K.glow) out.push({ x: m.x, y: m.y + m.h * 0.6, z: m.z, r: 7, col: m.kind === 'wisp' ? [1.3, 0.6, 0.2] : [0.8, 0.9, 1.2], pri: 1, d2: d2 });
+        else if (m.fire > 0) out.push({ x: m.x, y: m.y + m.h * 0.6, z: m.z, r: 6, col: [1.3, 0.62, 0.22], pri: 1, d2: d2 });
+      } else if (m.type === 'arrow' && (m.proj === 'fireball' || m.proj === 'laser')) {
+        out.push({ x: m.x, y: m.y, z: m.z, r: m.proj === 'laser' ? 4 : 7, col: m.proj === 'laser' ? [1.4, 0.2, 0.2] : [1.4, 0.7, 0.25], pri: 1, d2: d2 });
+      }
+    });
+    out.sort(function (a, b) { return (b.pri - a.pri) || ((a.d2 || 0) - (b.d2 || 0)); });
+    return out;
+  }
+
+  // ---- Цветокоррекция: у каждого мира своё настроение, ночью холоднее, на закате теплее --------------
+  function gradeFor(sky) {
+    var D = world.dim, g = { exposure: 1, sat: 1.08, contrast: 1.05, lift: [0, 0, 0], gain: [1, 1, 1], vignette: 0.3, bloom: 0.2, rays: 0.45, rayCol: [1.0, 0.86, 0.62] };
+    if (D === 'hell') { g.sat = 1.14; g.contrast = 1.1; g.gain = [1.05, 0.96, 0.9]; g.lift = [0.025, 0.004, 0]; g.vignette = 0.5; g.bloom = 0.32; g.wave = 0.18; }
+    else if (D === 'heaven') { g.sat = 1.04; g.contrast = 0.97; g.lift = [0.03, 0.03, 0.035]; g.gain = [1.02, 1.0, 0.97]; g.bloom = 0.34; g.vignette = 0.18; g.rays = 0.7; }
+    else if (D === 'space') { g.sat = 1.0; g.contrast = 1.12; g.bloom = 0.3; g.vignette = 0.42; }
+    else {
+      var night = 1 - sky.raw, dusk = clamp(1 - Math.abs(sky.sun[1]) * 3.4, 0, 1);
+      g.gain = [1 - night * 0.06 + dusk * 0.04, 1 - night * 0.02, 1 + night * 0.06 - dusk * 0.05];
+      g.rayCol = mix3([1.0, 0.86, 0.62], [1.1, 0.6, 0.3], dusk);
+      g.bloom = 0.2 + night * 0.08;
+      if (scenario === 'zombie' && worldType === 'city') {
+        // город после катастрофы: выцветшие краски, зеленоватые тени, тяжёлая виньетка
+        g.sat = 0.8; g.contrast = 1.1; g.lift = [0.012, 0.022, 0.014]; g.gain = [g.gain[0] * 0.98, g.gain[1], g.gain[2] * 0.95]; g.vignette = 0.48;
+      }
+    }
+    if (P.flash > 0 && state !== 'title') g.tint = [0.55, 0.02, 0.0, Math.min(0.35, P.flash)];
+    return g;
+  }
+
   function clockText() {
     var h = (timeOfDay * 24 + 6) % 24, hh = Math.floor(h), mm = Math.floor((h - hh) * 60);
     return (hh < 10 ? '0' : '') + hh + ':' + (mm < 10 ? '0' : '') + mm;
@@ -1190,6 +1325,7 @@
 
   // ---- Главный цикл --------------------------------------------------------------------
   var last = performance.now(), fpsT = 0, fpsN = 0, fps = 0, debugT = 0, progressT = 0, gameTime = 0;
+  var playerLightT = 0, playerSun = 1;
 
   function input() {
     var f = 0, s = 0;
@@ -1236,6 +1372,7 @@
     }
     if (settings.cycle && (simulate || state === 'title')) timeOfDay = (timeOfDay + dt / DAY_LENGTH) % 1;
     // рассвет в городе засчитывает пережитую ночь
+    if (lastTod > 0.9 && timeOfDay < 0.1) moonDay++;
     if (scenario === 'zombie' && simulate && world.dim === 'over' && lastTod > 0.9 && timeOfDay < 0.1) zombieDawn();
     if (scenario === 'zombie' && simulate && world.dim === 'over' && zombie.heliActive && lastTod < 0.5 && timeOfDay >= 0.5) heliMissed();
     lastTod = timeOfDay;
@@ -1268,6 +1405,8 @@
 
     if (placed && state === 'playing') updateTarget(); else { target = null; targetMob = null; }
     var sky = skyState();
+    updateLighting(sky);
+    LG.time = gameTime;
     var parts = updateParticles(dt);
     var under = state !== 'title' && P.headInWater;
     var inLava = state !== 'title' && world.getBlock(e.x, e.y + P.EYE, e.z) === B.LAVA;
@@ -1276,10 +1415,19 @@
 
     var driving = !!P.vehicle && state !== 'title';
     var thirdPerson = view !== 0 && state !== 'title' && !driving;
-    var ents = E.buildRender(cam, gameTime, thirdPerson && !P.dead ? function (batch) { P.drawBody(batch, E.lightAt(e.x, e.y + 1.4, e.z)); } : null,
+    // свет на игроке: рассеянный + солнце (луч к светилу проверяем пару раз в секунду)
+    playerLightT -= dt;
+    if (playerLightT <= 0 && state !== 'title') { playerLightT = 0.2; playerSun = E.sunVis(e.x, e.y + 1.4, e.z); }
+    var pL = E.lightAt(e.x, e.y + 1.4, e.z);
+    var ents = E.buildRender(cam, gameTime, thirdPerson && !P.dead ? function (batch) { P.drawBody(batch, pL, playerSun); } : null,
       driving && vehCam === 1 ? P.vehicle : null);
     var held = null;
-    if (!thirdPerson && !driving && state !== 'title' && placed && !P.dead) held = P.buildHeld(gameTime, E.lightAt(e.x, e.y + 1.4, e.z));
+    if (!thirdPerson && !driving && state !== 'title' && placed && !P.dead) {
+      var hL = [pL[0] + LG.sunCol[0] * 0.5 * playerSun, pL[1] + LG.sunCol[1] * 0.5 * playerSun, pL[2] + LG.sunCol[2] * 0.5 * playerSun];
+      var own = heldLight();
+      if (own) { hL[0] += own.col[0] * 0.5; hL[1] += own.col[1] * 0.5; hL[2] += own.col[2] * 0.5; }
+      held = P.buildHeld(gameTime, hL);
+    }
     var hl = null;
     if (state === 'playing' && target && !targetMob) {
       var sb = target.box || [0, 0, 0, 1, 1, 1];
@@ -1290,7 +1438,8 @@
       fog: { color: fogColor, start: inLava ? 0 : under ? 0 : R * (DIM.fogNear || 0.55), end: inLava ? 3 : under ? 16 : R - 4 },
       clouds: DIM.noClouds ? null : { size: Math.max(R * 2, 220), y: DIM.cloudsY || 112, offset: cloudOffset, color: sky.cloud },
       chunks: list, mobs: ents.mobs, items: ents.items, particles: parts,
-      crack: buildCrack(), highlight: hl, held: held, underwater: under
+      crack: buildCrack(), highlight: hl, held: held, underwater: under,
+      light: LG, lights: gatherLights(dt, cam), time: gameTime, grade: gradeFor(sky)
     });
 
     $('water-tint').hidden = !under;
@@ -1315,7 +1464,7 @@
         $('debug').textContent =
           'XYZ   ' + e.x.toFixed(1) + '  ' + e.y.toFixed(1) + '  ' + e.z.toFixed(1) + '\n' +
           'Чанк  ' + Math.floor(e.x / CS) + '  ' + Math.floor(e.z / CS) + '   мобов ' + mobs + '\n' +
-          'FPS   ' + fps + '   чанков в кадре ' + renderer.stats.chunks + '\n' +
+          'FPS   ' + fps + '   чанков в кадре ' + renderer.stats.chunks + (renderer.stats.shadowChunks ? ' · в тенях ' + renderer.stats.shadowChunks : '') + '\n' +
           'Время ' + clockText() + '   ' + (mode === 'creative' ? 'творчество' : 'выживание · ' + DIFF_NAMES[difficulty].toLowerCase()) + (e.fly ? '   полёт' : '') + '\n' +
           'Мир   ' + KC.DIMS[world.dim].name + (worldType === 'city' && world.dim === 'over' ? ' · мегаполис' : '') + (scenario === 'zombie' ? '   день ' + zombie.day : '');
       }
@@ -1399,7 +1548,7 @@
     for (var k in dimData) dims[k] = dimData[k];
     dims[world.dim] = snapshotWorld();
     var ok = storageSet(SAVE_KEY, {
-      v: 3, seed: world.seed, mode: mode, diff: difficulty, time: timeOfDay, tips: tips,
+      v: 3, seed: world.seed, mode: mode, diff: difficulty, time: timeOfDay, moon: moonDay, tips: tips,
       scenario: scenario, worldType: worldType, dim: world.dim, dims: dims, lastPos: lastPos, backDim: backDim, zombie: zombie,
       player: { x: e.x, y: e.y, z: e.z, yaw: e.yaw, pitch: e.pitch, fly: e.fly, hp: P.hp, food: P.food, sat: P.sat, air: P.air, veh: P.vehicle ? 1 : 0,
         inv: P.inv.map(packStack), armor: P.armor.map(packStack), slot: P.slot, spawn: P.spawnPoint }
@@ -1660,6 +1809,13 @@
     });
     $('set-diff').addEventListener('change', function () { difficulty = +$('set-diff').value; toast('Сложность: ' + DIFF_NAMES[difficulty].toLowerCase()); });
 
+    var gfx = $('set-gfx');
+    gfx.value = String(settings.gfx);
+    gfx.addEventListener('change', function () {
+      settings.gfx = +gfx.value;
+      try { applyQuality(); } catch (err) { settings.gfx = 0; gfx.value = '0'; applyQuality(); toast('Видеокарта не справилась — включено низкое качество'); }
+      saveSettings();
+    });
     var dist = $('set-dist'), sens = $('set-sens'), bright = $('set-bright');
     function distLabel() { $('out-dist').textContent = settings.dist + ' ' + chunkWord(settings.dist); }
     function sensLabel() { $('out-sens').textContent = settings.sens.toFixed(1).replace('.', ',') + '×'; }

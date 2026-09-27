@@ -209,14 +209,46 @@
   }
 
   // ---- Свет в точке для раскраски сущностей ---------------------------------------
+  // Рассеянный свет в точке: небесный эмбиент (по открытости неба) и факелы — как в шейдере блоков.
+  // Прямое солнце добавляет модель по нормалям граней с долей sunVis.
   function lightAt(x, y, z) {
-    var sky = world.skyAt(x, y, z) * (hooks.day ? hooks.day() : 1);
+    var Lg = KC.Light, sky = world.skyAt(x, y, z), s = Lg.skyDep ? sky * sky : 1;
     var bl = Math.pow(world.blockLightAt(x, y, z) / 15, 1.45);
-    return [Math.max(sky, bl, 0.07), Math.max(sky, bl * 0.86, 0.07), Math.max(sky, bl * 0.66, 0.07)];
+    var out = [0, 0, 0], lum = 0, i;
+    for (i = 0; i < 3; i++) { out[i] = (Lg.ambTop[i] * 0.6 + Lg.ambBot[i] * 0.4) * s + Lg.ambCave[i]; }
+    lum = out[0] * 0.3 + out[1] * 0.5 + out[2] * 0.2;
+    var k = 1 - Math.min(1, lum) * 0.55;
+    for (i = 0; i < 3; i++) out[i] += Lg.blockCol[i] * bl * k;
+    return out;
+  }
+  // Видно ли светило из точки: луч по вокселям в сторону солнца (или луны); листва пропускает часть света
+  function sunVis(x, y, z) {
+    var Lg = KC.Light, d = Lg.shadowDir || Lg.sunDir, sc = Lg.sunCol;
+    if (sc[0] + sc[1] + sc[2] < 0.01 || d[1] <= 0.02) return 0;
+    var ix = Math.floor(x), iy = Math.floor(y), iz = Math.floor(z);
+    var sx = d[0] > 0 ? 1 : -1, sz = d[2] > 0 ? 1 : -1;
+    var tdx = d[0] ? Math.abs(1 / d[0]) : 1e9, tdy = Math.abs(1 / d[1]), tdz = d[2] ? Math.abs(1 / d[2]) : 1e9;
+    var tx = d[0] > 0 ? (ix + 1 - x) * tdx : (x - ix) * tdx;
+    var ty = (iy + 1 - y) * tdy;
+    var tz = d[2] > 0 ? (iz + 1 - z) * tdz : (z - iz) * tdz;
+    var vis = 1, H = KC.H;
+    for (var i = 0; i < 200; i++) {
+      if (tx < ty && tx < tz) { ix += sx; tx += tdx; } else if (ty < tz) { iy++; ty += tdy; } else { iz += sz; tz += tdz; }
+      if (iy >= H) return vis;
+      var id = world.getBlock(ix, iy, iz);
+      if (!id) continue;
+      if (KC.OPAQUE[id]) return 0;
+      if (KC.BLOCKS[id].leaves) { vis *= 0.55; if (vis < 0.15) return 0; }
+    }
+    return vis;
   }
   function refreshLight(e, dt) {
     e.lightT -= dt;
-    if (e.lightT <= 0) { e.lightT = 0.4 + Math.random() * 0.2; e.light = lightAt(e.x, e.y + e.h * 0.7, e.z); }
+    if (e.lightT <= 0) {
+      e.lightT = 0.4 + Math.random() * 0.2;
+      e.light = lightAt(e.x, e.y + e.h * 0.7, e.z);
+      e.sunK = sunVis(e.x, e.y + e.h * 0.7, e.z);
+    }
     return e.light;
   }
 
@@ -1642,12 +1674,12 @@
       var L = e.light || [1, 1, 1];
       if (e.type === 'mob') {
         for (var k in pose) delete pose[k];
-        var col = [L[0], L[1], L[2]];
-        if (e.hurt > 0 || e.deathT > 0) { col[1] *= 0.4; col[2] *= 0.4; col[0] = Math.min(1.2, col[0] * 1.3); }
-        if (e.fire > 0) { col[0] = Math.min(1.3, col[0] + 0.3); col[1] *= 0.85; col[2] *= 0.6; }
+        var col = L, tint = null, sunK = e.sunK || 0;
+        if (e.hurt > 0 || e.deathT > 0) tint = [1.3, 0.42, 0.42];
+        else if (e.fire > 0) tint = [1.35, 0.88, 0.62];
         var scale = (e.grow > 0 ? 0.55 : 1) * (e.K.scale || 1);
         var oy = 0;
-        if (e.K.glow) col = [1.25, 1.1, 0.95];
+        if (e.K.glow) { col = [1.25, 1.1, 0.95]; sunK = 0; }
         var roll = e.deathT > 0 ? (1 - e.deathT / 0.8) * Math.PI / 2 : 0;
         var hidden = null;
         var sw = Math.sin(e.walk) * 0.7 * e.walkAmp;
@@ -1709,15 +1741,15 @@
             pose.head = [e.headYaw || 0, e.kind === 'sheep' && e.walkAmp < 0.1 ? Math.sin(t * 0.6 + e.id) * 0.3 - 0.2 : 0];
         }
         if (e.kind === 'sheep') hidden = e.sheared ? { wool: true } : { skin: true };
-        M.drawModel(mobBatch, e.K.model, [e.x, e.y + oy, e.z], e.yaw, scale, pose, hidden, col, roll);
+        M.drawModel(mobBatch, e.K.model, [e.x, e.y + oy, e.z], e.yaw, scale, pose, hidden, col, roll, sunK, tint);
       } else if (e.type === 'item') {
-        if (e.age % 1 < 0.02 || !e.light) e.light = lightAt(e.x, e.y + 0.3, e.z);
+        if (e.age % 1 < 0.02 || !e.light) { e.light = lightAt(e.x, e.y + 0.3, e.z); e.sunK = sunVis(e.x, e.y + 0.3, e.z); }
         var bob = Math.sin(e.age * 2.5 + e.spin) * 0.07 + 0.2;
         var it = KC.ITEMS[e.stack.id];
         var copies = e.stack.n > 16 ? 3 : e.stack.n > 1 ? 2 : 1;
         for (var c = 0; c < copies; c++) {
           var ox = c * 0.07, oy = c * 0.05;
-          if (it && it.sprite === undefined && it.block !== undefined) M.drawBlockCube(itemBatch, it.block, 0, e.x + ox, e.y + bob + oy, e.z + ox, 0.26, e.age * 1.4 + e.spin, L);
+          if (it && it.sprite === undefined && it.block !== undefined) M.drawBlockCube(itemBatch, it.block, 0, e.x + ox, e.y + bob + oy, e.z + ox, 0.26, e.age * 1.4 + e.spin, L, e.sunK);
           else if (it) M.drawSprite(itemBatch, it.sprite, e.x + ox, e.y + bob + 0.05 + oy, e.z, 0.42, e.age * 1.4 + e.spin, L);
         }
       } else if (e.type === 'arrow' && e.proj === 'shell') {
@@ -1728,7 +1760,7 @@
       } else if (e.type === 'arrow') {
         drawArrow(e, e.proj === 'laser' ? [1.5, 1.5, 1.5] : L);
       } else if (e.type === 'vehicle') {
-        var V = e.V, vp = {}, vl = e.light || [1, 1, 1], vcol = e.hitT > 0 ? [vl[0] * 1.3, vl[1] * 0.6, vl[2] * 0.6] : vl;
+        var V = e.V, vp = {}, vl = e.light || [1, 1, 1], vhit = e.hitT > 0 ? [1.3, 0.6, 0.6] : null, vsun = e.sunK || 0;
         var steerA = e.steer * 0.45;
         ['wheelFL', 'wheelFR', 'wheelML', 'wheelMR', 'wheelBL', 'wheelBR'].forEach(function (wn, wi) { vp[wn] = [wi < 2 ? steerA : 0, e.wheel, 0]; });
         if (V.cannon) { var rel = e.turret - e.yaw; vp.turret = [rel, 0, 0]; vp.hatch = [rel, 0, 0]; vp.barrel = [rel, e.gunPitch, 0]; }
@@ -1737,11 +1769,12 @@
           var tc = CAR_TINTS[e.color % CAR_TINTS.length];
           var hidePaint = MM.otherSet;
           if (e === cabinOf) { hidePaint = {}; for (var hp2 in MM.otherSet) hidePaint[hp2] = true; hidePaint.paintRoof = true; }
-          M.drawModel(mobBatch, V.model, [e.x, e.y, e.z], e.yaw, 2, vp, hidePaint, [vcol[0] * tc[0], vcol[1] * tc[1], vcol[2] * tc[2]], 0);
+          var ptint = vhit ? [tc[0] * vhit[0], tc[1] * vhit[1], tc[2] * vhit[2]] : tc;
+          M.drawModel(mobBatch, V.model, [e.x, e.y, e.z], e.yaw, 2, vp, hidePaint, vl, 0, vsun, ptint);
           var hideOther = MM.paintSet;
           if (e === cabinOf) { hideOther = {}; for (var hk in MM.paintSet) hideOther[hk] = true; for (hk in CABIN_HIDE) hideOther[hk] = true; }
-          M.drawModel(mobBatch, V.model, [e.x, e.y, e.z], e.yaw, 2, vp, hideOther, vcol, 0);
-        } else M.drawModel(mobBatch, V.model, [e.x, e.y, e.z], e.yaw, 2, vp, e === cabinOf ? CABIN_HIDE : null, vcol, 0);
+          M.drawModel(mobBatch, V.model, [e.x, e.y, e.z], e.yaw, 2, vp, hideOther, vl, 0, vsun, vhit);
+        } else M.drawModel(mobBatch, V.model, [e.x, e.y, e.z], e.yaw, 2, vp, e === cabinOf ? CABIN_HIDE : null, vl, 0, vsun, vhit);
         if (e.kind === 'police' && e.siren && Math.floor(t * 4) % 2 === 0 && hooks.particles) { /* мигалка видна по модели */ }
       } else if (e.type === 'thrown') {
         if (!e.light || e.age % 0.5 < 0.02) e.light = lightAt(e.x, e.y, e.z);
@@ -1750,7 +1783,7 @@
         var fl = Math.floor(e.fuse * 5) % 2 === 0 ? 1.8 : 1;
         M.drawBlockCube(itemBatch, B.TNT, 0, e.x, e.y + 0.49, e.z, 0.98 * (1 + (e.fuse < 0.4 ? (0.4 - e.fuse) * 0.3 : 0)), 0, [L[0] * fl, L[1] * fl, L[2] * fl]);
       } else if (e.type === 'falling') {
-        M.drawBlockCube(itemBatch, e.block, e.meta, e.x, e.y + 0.49, e.z, 0.98, 0, L);
+        M.drawBlockCube(itemBatch, e.block, e.meta, e.x, e.y + 0.49, e.z, 0.98, 0, L, e.sunK);
       }
     }
     if (playerView) playerView(mobBatch);
@@ -1805,7 +1838,7 @@
 
   KC.Entities = {
     init: init, update: update, list: list, KINDS: KINDS,
-    physics: physics, move: move, boxHits: boxHits, senseLiquids: senseLiquids, lightAt: lightAt,
+    physics: physics, move: move, boxHits: boxHits, senseLiquids: senseLiquids, lightAt: lightAt, sunVis: sunVis,
     dropItem: dropItem, dropDrops: dropDrops, spawnMob: spawnMob, damageMob: damageMob,
     shootArrow: shootArrow, launchArrow: launchArrow, shootBolt: shootBolt, throwItem: throwItem, gravityAt: gravityAt, alertHorde: alertHorde, spawnTnt: spawnTnt, spawnFalling: spawnFalling,
     raycast: raycast, buildRender: buildRender, onChunkUnload: onChunkUnload, noise: noise,

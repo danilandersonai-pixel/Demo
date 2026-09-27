@@ -687,9 +687,25 @@
   };
   Batch.prototype.view = function () { return { data: this.data.subarray(0, this.n), quads: this.quads }; };
 
+  // Свет грани модели: рассеянный (сверху ярче, снизу темнее) + прямое солнце по нормали.
+  // light — [r,g,b] небо и факелы в точке, sunK — доля солнца (0 в тени), tint — оттенок (ранение, краска)
+  var shadeOut = [0, 0, 0];
+  function faceLight(wn, light, sunK, tint) {
+    var Lg = KC.Light, amb = 0.75 + 0.25 * wn[1] - 0.05 * Math.abs(wn[0]);
+    var ndl = 0;
+    if (sunK > 0) { var sd = Lg.sunDir; ndl = Math.max(0, wn[0] * sd[0] + wn[1] * sd[1] + wn[2] * sd[2]) * sunK; }
+    var sc = Lg.sunCol, br = Lg.bright || 0;
+    for (var i = 0; i < 3; i++) {
+      var v = light[i] * amb + sc[i] * ndl;
+      if (br && v < 1) v += (Math.sqrt(v) - v) * br;
+      shadeOut[i] = tint ? v * tint[i] : v;
+    }
+    return shadeOut;
+  }
+
   // Рисует модель в батч. pose: { part: [yaw, pitch, roll] }, hidden: { part: true }
-  // origin — мировая позиция ног, yaw — поворот тела, scale — размер (1 взрослый), color — [r,g,b] свет×оттенок
-  function drawModel(batch, name, origin, yaw, scale, pose, hidden, color, bodyRoll) {
+  // origin — мировая позиция ног, yaw — поворот тела, scale — размер (1 взрослый), color — [r,g,b] свет в точке
+  function drawModel(batch, name, origin, yaw, scale, pose, hidden, color, bodyRoll, sunK, tint) {
     var model = MODELS[name];
     if (!model) return;
     var s = scale / 16;
@@ -707,8 +723,7 @@
         var F = BOXF[f], rect = p.faces[f];
         var nrm = [0, 0, 0]; nrm[F.na] = F.ns;
         var wn = apply(m, nrm);
-        var shade = 0.62 + 0.38 * Math.max(0, wn[1]) + 0.12 * Math.abs(wn[0]);
-        if (wn[1] < -0.5) shade = 0.5;
+        var fc = faceLight(wn, color, sunK || 0, tint), cr = fc[0], cg = fc[1], cb = fc[2];
         for (var k = 0; k < 4; k++) {
           var ci = CORNERS[k][0], cj = CORNERS[k][1];
           var pt = [0, 0, 0];
@@ -720,7 +735,7 @@
           // сдвигаем UV на волосок внутрь, чтобы не цеплять соседнюю грань
           u += ci ? -0.0005 : 0.0005; v += cj ? 0.0005 : -0.0005;
           batch.v(origin[0] + (piv[0] + w[0]) * s, origin[1] + (piv[1] + w[1]) * s, origin[2] + (piv[2] + w[2]) * s,
-            u, v, color[0] * shade, color[1] * shade, color[2] * shade);
+            u, v, cr, cg, cb);
         }
         batch.quads++;
       }
@@ -728,13 +743,15 @@
   }
 
   // Коробка «как блок» с текстурами атласа блоков (для предметов на земле, падающего песка, динамита)
-  function drawBlockCube(batch, id, meta, cx, cy, cz, size, yaw, color) {
+  function drawBlockCube(batch, id, meta, cx, cy, cz, size, yaw, color, sunK) {
     var b = KC.BLOCKS[id];
     var tl = b.tiles, tiles = [tl.side, tl.side, tl.top, tl.bottom, tl.side, tl.front !== undefined ? tl.front : tl.side];
     var m = rot(yaw, 0, 0), h = size / 2;
     batch.reserve(6);
     for (var f = 0; f < 6; f++) {
       var F = BOXF[f], uv = KC.tileUV(tiles[f]);
+      var nrm = [0, 0, 0]; nrm[F.na] = F.ns;
+      var fc = faceLight(apply(m, nrm), color, sunK || 0, null), cr = fc[0], cg = fc[1], cb = fc[2];
       for (var k = 0; k < 4; k++) {
         var ci = CORNERS[k][0], cj = CORNERS[k][1];
         var pt = [0, 0, 0];
@@ -742,8 +759,7 @@
         pt[F.ua] = ((F.us > 0) === (ci === 1)) ? h : -h;
         pt[F.va] = ((F.vs > 0) === (cj === 1)) ? h : -h;
         var w = apply(m, pt);
-        batch.v(cx + w[0], cy + w[1], cz + w[2], ci ? uv[2] : uv[0], cj ? uv[1] : uv[3],
-          color[0] * F.shade, color[1] * F.shade, color[2] * F.shade);
+        batch.v(cx + w[0], cy + w[1], cz + w[2], ci ? uv[2] : uv[0], cj ? uv[1] : uv[3], cr, cg, cb);
       }
       batch.quads++;
     }
@@ -768,6 +784,6 @@
 
   KC.Models = {
     ATLAS: ATLAS, init: init, MODELS: MODELS, drawModel: drawModel, drawBlockCube: drawBlockCube, drawSprite: drawSprite,
-    Batch: Batch, rot: rot, apply: apply
+    Batch: Batch, rot: rot, apply: apply, faceLight: faceLight
   };
 })(window.KC = window.KC || {});

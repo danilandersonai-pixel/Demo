@@ -501,6 +501,27 @@
   var LIGHT_CURVE = new Float32Array(16);
   for (var li = 0; li < 16; li++) LIGHT_CURVE[li] = Math.pow(li / 15, 1.45);
 
+  // Материал вершины: от него в шейдере зависят анимация (ветер, волны, течение) и свечение
+  var MAT = { SOLID: 0, PLANT: 1, LEAVES: 2, WATER: 3, LAVA: 4, GLOW: 5, PORTAL: 6, FIRE: 7, GLASS: 8, GRASS: 9, PLANT_GLOW: 10, METAL: 11 };
+  var curMat = 0;
+  // Первая «светотень» вершины упакована: материал × 2048 + нормаль × 256 + AO × 200
+  // (нормаль 0…5 — грань в порядке FACES, 6 — плоские растения, освещённые со всех сторон)
+  function pk(ao, n) { return curMat * 2048 + n * 256 + Math.min(255, Math.round(ao * 200)); }
+  function matOf(id, bd, meta) {
+    if (id === B.WATER) return MAT.WATER;
+    if (id === B.LAVA) return MAT.LAVA;
+    if (id === B.FIRE) return MAT.FIRE;
+    if (bd.shape === 'portal') return MAT.PORTAL;
+    if (bd.shape === 'cross' || bd.shape === 'crop') return bd.light ? MAT.PLANT_GLOW : MAT.PLANT;
+    if (bd.leaves) return MAT.LEAVES;
+    if (bd.shape === 'torch' || bd.glow || id === B.JACK || ((id === B.LAMP || id === B.LANDING_LIGHT) && (meta & 1)) ||
+      (id === B.FURNACE && (meta & 4))) return MAT.GLOW;
+    if (id === B.GRASS || id === B.GOLDEN_GRASS) return MAT.GRASS;
+    if (bd.glass) return MAT.GLASS;
+    if (bd.mat === 'metal') return MAT.METAL;
+    return MAT.SOLID;
+  }
+
   function Buf(q) { this.data = new Float32Array(q * 4 * FLOATS); this.n = 0; }
   Buf.prototype.reserve = function (q) {
     var need = this.n + q * 4 * FLOATS;
@@ -525,7 +546,7 @@
     { n: [0, 0, -1], u: [-1, 0, 0], v: [0, 1, 0], o: [1, 0, 0], shade: 0.86, tile: 'side', na: 2, ns: -1, ua: 0, us: -1, va: 1, vs: 1 }
   ];
   function off(v) { return v[0] + v[2] * PW + v[1] * PA; }
-  FACES.forEach(function (f) { f.no = off(f.n); f.uo = off(f.u); f.vo = off(f.v); });
+  FACES.forEach(function (f, i) { f.no = off(f.n); f.uo = off(f.u); f.vo = off(f.v); f.idx = i; });
   var AO_CURVE = [0.46, 0.66, 0.83, 1.0];
   var CORNERS = [[0, 0], [1, 0], [1, 1], [0, 1]];
   var UVS = [];
@@ -650,6 +671,7 @@
       if (!id) continue;
       var bd = BLOCKS[id], meta = pmeta[p];
       var wx = ox + x, wz = oz + z;
+      curMat = matOf(id, bd, meta);
       switch (bd.shape) {
         case 'cube': case 'cactus':
           // Сами светильники горят ровно, без теней (печь светит только наружу)
@@ -660,7 +682,7 @@
             else if (OPAQUE[nid]) continue;
             if (f === 3 && y === 0) continue;
             if (bd.shape === 'cactus' && f !== 2 && f !== 3) {
-              emitBox(ob, wx, y, wz, [1 / 16, 0, 1 / 16, 15 / 16, 1, 15 / 16], [f], bd.tiles.side, p, face.shade);
+              emitBox(ob, wx, y, wz, [1 / 16, 0, 1 / 16, 15 / 16, 1, 15 / 16], [f], bd.tiles.side, p, 1);
               continue;
             }
             emitFace(ob, face, faceTile(bd, id, meta, f), p, wx, y, wz, false, 0, glow);
@@ -706,7 +728,7 @@
       var py = wy + o[1] + u[1] * ci + v[1] * cj;
       var pz = wz + o[2] + u[2] * ci + v[2] * cj;
       if (liquid && py > wy + 0.5) py = wy + topH;
-      buf.v(px, py, pz, ci ? uv[2] : uv[0], cj ? uv[1] : uv[3], face.shade * AO_CURVE[ao[k]], sky[k], blk[k]);
+      buf.v(px, py, pz, ci ? uv[2] : uv[0], cj ? uv[1] : uv[3], pk(AO_CURVE[ao[k]], face.idx), sky[k], blk[k]);
     }
   }
 
@@ -743,6 +765,7 @@
   }
   // Двусторонний вертикальный квадрат между точками A и B
   function quad2(buf, A, Bp, y0, y1, uv, l, sky, blk) {
+    l = pk(l, 6);
     buf.v(A[0], y0, A[1], uv[0], uv[3], l, sky, blk);
     buf.v(Bp[0], y0, Bp[1], uv[2], uv[3], l, sky, blk);
     buf.v(Bp[0], y1, Bp[1], uv[2], uv[1], l, sky, blk);
@@ -770,7 +793,7 @@
       var tile = typeof tiles === 'number' ? tiles : tiles[f];
       if (tile === undefined || tile === null) continue;
       var uv = UVS[tile], ov = uvOver && uvOver[f];
-      var shade = face.shade * (shadeMul || 1);
+      var shade = pk(shadeMul || 1, f);
       for (var k = 0; k < 4; k++) {
         var ci = CORNERS[k][0], cj = CORNERS[k][1];
         var pt = [0, 0, 0];
@@ -819,7 +842,7 @@
       case 'wire':
         buf.reserve(1);
         var wuv = UVS[(meta & 15) ? T.wireOn : T.wireOff], yy = wy + 0.02;
-        var wl = 1, sk = psky[p], bl = Math.max(pblk[p], (meta & 15) / 30);
+        var wl = pk(1, 2), sk = psky[p], bl = Math.max(pblk[p], (meta & 15) / 30);
         buf.v(wx, yy, wz, wuv[0], wuv[3], wl, sk, bl);
         buf.v(wx, yy, wz + 1, wuv[2], wuv[3], wl, sk, bl);
         buf.v(wx + 1, yy, wz + 1, wuv[2], wuv[1], wl, sk, bl);
@@ -879,6 +902,13 @@
   KC.H = H;
   KC.WL = WL;
   KC.FLOATS = FLOATS;
+  KC.MAT = MAT;
+  // Освещение кадра: его заполняет game.js, читают шейдеры и сущности (свет мобов считается на процессоре)
+  KC.Light = {
+    sunDir: [0.3, 0.9, 0.3], sunCol: [0.52, 0.5, 0.46], ambTop: [0.56, 0.61, 0.7], ambBot: [0.38, 0.4, 0.44],
+    ambCave: [0.045, 0.05, 0.06], blockCol: [1.0, 0.82, 0.6], skyDep: 1, bright: 0, fogSun: [0.8, 0.8, 0.8],
+    wind: 1, time: 0
+  };
   KC.DIRS = DIRS;
   KC.FACING_FACE = FACING_FACE;
   KC.EMITTER = EMITTER;

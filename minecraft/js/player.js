@@ -701,6 +701,7 @@
     var e = P.e, n = gun.pellets || 1;
     P.recoil = gun.pellets ? 0.35 : gun.scope ? 0.4 : 0.2;
     if (hooks.sound) hooks.sound(gun.sound || 'gunshot');
+    if (hooks.flash) hooks.flash('muzzle');
     E.noise(e.x, e.y, e.z, gun.noise || 40);
     var spread = (gun.spread || 0) + (P.bloom || 0) + (extraSpread || 0);
     if (gun.bloom) P.bloom = Math.min(0.07, (P.bloom || 0) + gun.bloom);
@@ -737,6 +738,7 @@
     var d = [-Math.sin(e.yaw) * cp, Math.sin(e.pitch), -Math.cos(e.yaw) * cp];
     var ox = e.x, oy = e.y + EYE - 0.2, oz = e.z;
     if (hooks.particles) for (var k = 0; k < 3; k++) hooks.particles('jet', ox + d[0] * 0.8, oy + d[1] * 0.8, oz + d[2] * 0.8, d);
+    if (hooks.flash) hooks.flash('flame');
     E.noise(ox, oy, oz, gun.noise || 15);
     P.flameSnd = (P.flameSnd || 0) - gun.cd;
     if (P.flameSnd <= 0) { P.flameSnd = 0.4; if (hooks.sound) hooks.sound('flame'); }
@@ -858,15 +860,14 @@
   }
 
   // Модель игрока для вида от третьего лица
-  function drawBody(batch, L) {
+  function drawBody(batch, L, sunK) {
     var e = P.e, sw = Math.sin(P.walkDist * 2.2) * 0.9 * (P.walkAmp || 0);
     var hit = P.swing > 0 ? Math.sin(Math.min(1, P.swing) * Math.PI) * 1.2 : 0;
     var pose = {
       head: [0, e.pitch * 0.8], legR: [0, sw], legL: [0, -sw],
       armR: [0, -sw * 0.8 + hit], armL: [0, sw * 0.8]
     };
-    var col = P.flash > 0 ? [L[0] * 1.2, L[1] * 0.45, L[2] * 0.45] : L;
-    M.drawModel(batch, 'player', [e.x, e.y - (P.sneak ? 0.15 : 0), e.z], e.yaw, 0.94, pose, null, col, 0);
+    M.drawModel(batch, 'player', [e.x, e.y - (P.sneak ? 0.15 : 0), e.z], e.yaw, 0.94, pose, null, L, 0, sunK || 0, P.flash > 0 ? [1.2, 0.45, 0.45] : null);
   }
 
   function init(w, h) { world = w; hooks = h || {}; if (!P.e) P.e = newEnt(); }
