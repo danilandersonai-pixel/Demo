@@ -52,7 +52,7 @@
     // Порт, старый город, правительственный квартал, электростанция
     CONTAINER: 187, BOLLARD: 188, CRANE_BEAM: 189, SHIP_HULL: 190, SHIP_CABIN: 191, ROOF_TILE: 192, ROOF_SLOPE: 193, PLASTER: 194,
     PAVING: 195, CHIMNEY_BRICK: 196, COOLING_CONCRETE: 197, TRANSFORMER: 198, QUAY_EDGE: 199, STAINED_GLASS: 200, COPPER_ROOF: 201,
-    COPPER_SLOPE: 202, FLAG: 203
+    COPPER_SLOPE: 202, FLAG: 203, BEACON_LAMP: 204
   };
 
   // ---- Идентификаторы предметов -----------------------------------------------
@@ -419,6 +419,7 @@
   // флаг: тонкое полотнище в клетке рядом с флагштоком, вдоль X (meta 0) или Z (meta 1)
   blk(B.FLAG, 'Флаг', 'flagCity', ext(prop, { tool: null, hardness: 0.3, mat: 'cloth', siege: 1, fuel: 60, model: {
     boxes: [[0, 3, 7.5, 16, 15, 8.5, 'flagCity']], coll: [0, 3, 7, 16, 15, 9] } }));
+  blk(B.BEACON_LAMP, 'Фонарь маяка', 'beaconLamp', { hardness: 1, mat: 'glass', light: 15, glow: true, drop: [[B.GLASS, 1]] });
   blk(B.COPPER_ROOF, 'Медная кровля', 'copperRoof', ext(metal, { hardness: 2 }));
   blk(B.COPPER_SLOPE, 'Скат медной кровли', 'copperRoof', ext(prop, { hardness: 2, model: {
     boxes: [[0, 0, 0, 16, 8, 16, 'copperRoof'], [0, 8, 0, 16, 16, 8, 'copperRoof']], coll: [0, 0, 0, 16, 8, 16], coll2: [0, 8, 0, 16, 16, 8], sel: [0, 0, 0, 16, 16, 16] } }));

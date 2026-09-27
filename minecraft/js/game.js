@@ -825,7 +825,7 @@
   var SPECIAL_NOTES = { police: 'оружейная за решёткой на первом этаже', hospital: 'аптечки и бинты, но и пациенты', market: 'много еды и толпа внутри',
     gas: 'канистры с топливом, бочки взрываются', helipad: 'лестница на крышу — в северо-западном углу', military: 'оружие, боеприпасы и танк',
     cityhall: 'восточное крыло рухнуло; сейф мэра — на третьем этаже', power: 'градирня, машинный зал, в пультовой — топливо и инструменты',
-    church: 'толстые стены и колокольня; у алтаря — припасы' };
+    church: 'толстые стены и колокольня; у алтаря — припасы', lighthouse: 'лестница наверх внутри башни; ночью фонарь горит сам' };
   var placeT = 0, lastPlace = '';
   function updatePlace(dt) {
     placeT -= dt;
@@ -845,7 +845,7 @@
   // ---- Карта района ---------------------------------------------------------------------------
   var MAP_COL = { downtown: '#4a5160', residential: '#6b5a48', industrial: '#6a6243', suburb: '#8a8a66', port: '#56606b', old: '#8a6048', gov: '#7d7566', sea: '#1d4560' };
   var MAP_ICON = { police: ['П', '#3f6fd8'], hospital: ['Б', '#2fae63'], market: ['С', '#e08a2a'], gas: ['З', '#d0453a'], helipad: ['★', '#f0b545'], military: ['В', '#6b7d3a'],
-    cityhall: ['Р', '#a8864a'], power: ['Э', '#d8b43a'], church: ['Х', '#9b7fc8'] };
+    cityhall: ['Р', '#a8864a'], power: ['Э', '#d8b43a'], church: ['Х', '#9b7fc8'], lighthouse: ['Л', '#e0e0e0'] };
   function openMap() {
     if (state !== 'playing') return;
     if (!world || world.type !== 'city' || world.dim !== 'over') { toast('Эта карта — только для города'); return; }
@@ -1228,6 +1228,7 @@
     if (!lv) return null;
     return { r: 3 + lv * 0.62, col: it.block === B.SPARK_TORCH ? [1.0, 0.3, 0.2] : it.block === B.GLOWROOT || it.block === B.SKY_CRYSTAL ? [0.6, 0.85, 1.1] : [1.05, 0.74, 0.44] };
   }
+  var beamParts = [];
   function gatherLights(dt, cam) {
     var out = [], e = P.e;
     for (var i = flashes.length - 1; i >= 0; i--) {
@@ -1273,6 +1274,28 @@
         out.push({ x: m.x, y: m.y, z: m.z, r: m.proj === 'laser' ? 4 : 7, col: m.proj === 'laser' ? [1.4, 0.2, 0.2] : [1.4, 0.7, 0.25], pri: 1, d2: d2 });
       }
     });
+    // маяк: два луча вращаются над морем и городом, пока темно
+    if (world.type === 'city' && world.dim === 'over' && night > 0.25) {
+      var lamp = KC.Gen.lighthouseLamp(world.seed);
+      if (lamp) {
+        var ldx = lamp.x - cam.x, ldz = lamp.z - cam.z, ld2 = ldx * ldx + ldz * ldz;
+        if (ld2 < 260 * 260) for (var bi = 0; bi < 2; bi++) {
+          var ba = gameTime * 0.8 + bi * Math.PI, kN = Math.min(1, (night - 0.25) * 3), bx = Math.cos(ba), bz = Math.sin(ba);
+          out.push({ x: lamp.x, y: lamp.y, z: lamp.z, r: 140, col: [4.2 * kN, 3.8 * kN, 2.9 * kN], cone: 0.86,
+            dir: [bx * 0.96, -0.28, bz * 0.96], pri: 2, d2: ld2 });
+          // видимый луч в воздухе: цепочка светящихся пятен, шире и бледнее к концу; пятна живут, пока их продлеваем
+          for (var bk = 1; bk <= 26; bk++) {
+            var bd = Math.pow(bk, 1.25) * 2, bs = 0.8 + bd * 0.16, bI = 0.55 * kN * (1 - bk / 27), idx = bi * 26 + bk;
+            var bpx = lamp.x + bx * bd, bpy = lamp.y - bd * 0.12, bpz = lamp.z + bz * bd, bp = beamParts[idx];
+            if (!bp || bp.kind !== 'beam' || bp.beamTok !== idx || bp.age >= bp.life) {
+              bp = KC.FX.emit('beam', bpx, bpy, bpz, [bs, bI]);
+              if (bp) bp.beamTok = idx;
+              beamParts[idx] = bp;
+            } else { bp.x = bpx; bp.y = bpy; bp.z = bpz; bp.age = 0.02; bp.r = 1.3 * bI; bp.g = 1.2 * bI; bp.b = 0.9 * bI; }
+          }
+        }
+      }
+    }
     KC.FX.lights().forEach(function (l) { out.push(l); });
     out.sort(function (a, b) { return (b.pri - a.pri) || ((a.d2 || 0) - (b.d2 || 0)); });
     return out;

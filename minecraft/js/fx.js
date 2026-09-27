@@ -366,6 +366,11 @@
         p.vx = rnd(-0.08, 0.08); p.vy = rnd(-0.05, 0.05); p.vz = rnd(-0.08, 0.08); p.wob = 0.15;
         p.life = rnd(4, 8); p.s0 = p.s1 = rnd(0.015, 0.03); p.r = p.g = p.b = 1.3; p.a = 0.6; p.fin = 1; p.fout = 1.5;
         return pushSoft(p);
+      case 'beam':
+        // луч маяка: свечение, которое игра каждый кадр переносит вдоль луча; extra = [размер, яркость]
+        p = newP(); p.x = x; p.y = y; p.z = z; p.sp = SP.glow; p.life = 0.3; p.kind = 'beam';
+        p.s0 = p.s1 = extra[0]; p.add = true; p.lit = false; p.r = 1.3 * extra[1]; p.g = 1.2 * extra[1]; p.b = 0.9 * extra[1]; p.fin = 0.01; p.fout = 0.15;
+        return pushSoft(p);
       case 'shockwave':
         p = newP(); p.x = x; p.y = y; p.z = z; p.sp = SP.ring; p.life = 0.45; p.s0 = 0.5; p.s1 = extra || 7;
         p.add = true; p.lit = false; p.r = 1.3; p.g = 1.1; p.b = 0.8; p.fin = 0.01; p.fout = 0.35;

@@ -1398,7 +1398,7 @@
   var POPULATION = {
     market: [['infected', 9], ['runner', 2]], hospital: [['patient', 7]], police: [['cop', 5]],
     gas: [['infected', 3]], helipad: [['infected', 5], ['runner', 2], ['brute', 1]], military: [['soldier', 6]],
-    church: [['infected', 6], ['runner', 1]], power: [['infected', 3], ['brute', 1]]
+    church: [['infected', 6], ['runner', 1]], power: [['infected', 3], ['brute', 1]], lighthouse: [['infected', 2]]
   };
   var popT = 0;
   function populateSpecials(dt) {
