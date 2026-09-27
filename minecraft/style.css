@@ -469,6 +469,14 @@ select, input[type="text"] {
   background: radial-gradient(ellipse at center, rgba(255, 190, 90, 0.05), rgba(190, 70, 255, 0.55));
 }
 #fade { position: absolute; inset: 0; background: #fff6e0; opacity: 0; pointer-events: none; }
+/* Оптический прицел снайперской винтовки */
+#scope {
+  position: absolute; inset: 0; opacity: 0; pointer-events: none;
+  background:
+    linear-gradient(#000, #000) center / 2px 38vmin no-repeat,
+    linear-gradient(#000, #000) center / 38vmin 2px no-repeat,
+    radial-gradient(circle at center, transparent 0 34vmin, #000 34.5vmin);
+}
 #fade.is-on { animation: fade-out 1.1s ease-out; }
 @keyframes fade-out { from { opacity: 1; } to { opacity: 0; } }
 #dim-label {
@@ -507,6 +515,25 @@ select, input[type="text"] {
 #msg.is-on { opacity: 1; }
 .map-panel { display: flex; flex-direction: column; align-items: center; gap: 12px; max-width: calc(100vw - 32px); }
 #map-canvas { width: min(450px, calc(100vw - 64px), calc(100vh - 220px)); height: auto; aspect-ratio: 1; image-rendering: pixelated; border: 2px solid var(--edge-hi); }
+/* Панель техники: название, скорость, топливо, прочность */
+#veh {
+  position: absolute; left: max(12px, env(safe-area-inset-left, 0px)); bottom: calc(var(--slot) + 70px + env(safe-area-inset-bottom, 0px));
+  display: grid; grid-template-columns: auto auto; gap: 4px 10px; align-items: center; padding: 8px 12px; min-width: 190px;
+  font: 600 13px/1.3 var(--body); color: var(--ink); background: rgba(0, 0, 0, 0.55); border-left: 3px solid var(--accent);
+  pointer-events: none;
+}
+#veh[hidden] { display: none; }
+body.is-touch #veh { min-width: 150px; padding: 6px 10px; bottom: calc(var(--slot) + 56px + env(safe-area-inset-bottom, 0px)); }
+body.is-touch #veh span { font-size: 15px; }
+#veh b { font: 400 11px/1.2 var(--pixel); color: var(--accent); }
+#veh span { justify-self: end; font-size: 18px; font-variant-numeric: tabular-nums; }
+.veh-bar { grid-column: 1 / -1; position: relative; display: block; height: 6px; background: rgba(255, 255, 255, 0.12); }
+.veh-bar em { position: absolute; inset: 0 auto 0 0; background: #e8b04a; }
+.veh-bar--hp em { background: #6fc36b; }
+.veh-bar--fuel.is-low em { background: #e2694c; }
+.veh-bar::before { position: absolute; right: 100%; margin-right: 6px; top: -4px; font: 600 10px/1 var(--body); font-style: normal; color: var(--ink-2); }
+#veh small { grid-column: 1 / -1; color: var(--ink-2); font-size: 12px; }
+#veh small:empty { display: none; }
 .map-body, .map-side { display: flex; flex-direction: column; align-items: center; gap: 12px; }
 .map-legend { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 12px; margin: 0; padding: 0; list-style: none; font-size: 13px; color: var(--ink-2); max-width: 450px; }
 /* низкий экран (телефон лёжа): легенда справа от карты */

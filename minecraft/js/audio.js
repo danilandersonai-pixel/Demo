@@ -100,6 +100,13 @@
         if (kind[1] === 'glass' && kind[0] === 'break') for (i = 0; i < 3; i++) tone(d, t + i * 0.03, 'sine', 2400 + Math.random() * 2400, 2000, 0.12, 0.12);
         return;
       }
+      // мотор: «engine:частота» — чем быстрее едем, тем выше гул
+      if (name.indexOf('engine:') === 0) {
+        var ef = +name.slice(7) || 50;
+        tone(d, t, 'sawtooth', ef, ef * 1.04, 0.32, 0.16, 420);
+        tone(d, t, 'square', ef * 0.5, ef * 0.52, 0.32, 0.08, 300);
+        return;
+      }
       switch (name) {
         case 'say-pig': tone(d, t, 'square', 190, 140, 0.16, 0.25, 900); tone(d, t + 0.2, 'square', 170, 120, 0.14, 0.2, 900); break;
         case 'say-cow': var o = tone(d, t, 'sawtooth', 125, 92, 0.8, 0.3, 650); o.detune.setValueAtTime(0, t); o.detune.linearRampToValueAtTime(-80, t + 0.8); break;
@@ -143,6 +150,16 @@
         case 'radio': noiseHit(d, t, 2000, 0.4, 0.5, 0.5); for (i = 0; i < 3; i++) tone(d, t + 0.5 + i * 0.12, 'square', 900, 900, 0.08, 0.12, 2500); break;
         case 'heli': for (i = 0; i < 8; i++) noiseHit(d, t + i * 0.09, 160, 0.7, 0.07, 1.4, 'lowpass'); break;
         case 'drop': noiseHit(d, t, 500, 0.6, 0.5, 1.8, 'lowpass'); tone(d, t, 'sine', 90, 40, 0.4, 0.5); break;
+        case 'shotgun': noiseHit(d, t, 900, 0.5, 0.4, 3, 'lowpass'); tone(d, t, 'square', 120, 40, 0.2, 0.7); break;
+        case 'rifle': noiseHit(d, t, 1800, 0.6, 0.12, 1.8, 'lowpass'); tone(d, t, 'square', 200, 70, 0.07, 0.4); break;
+        case 'sniper': noiseHit(d, t, 1100, 0.4, 0.7, 3, 'lowpass'); tone(d, t, 'sawtooth', 300, 40, 0.5, 0.6); noiseHit(d, t + 0.4, 600, 0.5, 0.6, 0.4, 'lowpass'); break;
+        case 'flame': noiseHit(d, t, 500, 0.4, 0.45, 1.1, 'lowpass'); break;
+        case 'throw': noiseHit(d, t, 2400, 1, 0.15, 0.5); break;
+        case 'chainsaw': for (i = 0; i < 6; i++) tone(d, t + i * 0.05, 'sawtooth', 180 + Math.random() * 60, 150, 0.06, 0.25, 1800); break;
+        case 'horn': tone(d, t, 'square', 440, 440, 0.45, 0.35, 1400); tone(d, t, 'square', 554, 554, 0.45, 0.3, 1400); break;
+        case 'crash': noiseHit(d, t, 700, 0.6, 0.5, 2.4, 'lowpass'); tone(d, t, 'square', 90, 40, 0.3, 0.5); break;
+        case 'cannon': noiseHit(d, t, 300, 0.5, 1.2, 3.2, 'lowpass'); tone(d, t, 'sine', 60, 25, 1.0, 1); break;
+        case 'door-car': tone(d, t, 'triangle', 200, 120, 0.12, 0.4); noiseHit(d, t, 600, 1, 0.08, 0.8); break;
         case 'victory': [523, 659, 784, 1047].forEach(function (f, k) { tone(d, t + k * 0.18, 'triangle', f, f, 0.5, 0.3); }); break;
         case 'eat': for (i = 0; i < 3; i++) noiseHit(d, t + i * 0.12, 900, 1.5, 0.07, 1.2); break;
         case 'burp': tone(d, t, 'sawtooth', 110, 70, 0.3, 0.3, 400); break;

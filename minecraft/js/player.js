@@ -136,10 +136,11 @@
     'Огонь': 'Вы сгорели', 'Голод': 'Вы умерли от голода', 'Кактус': 'Вы укололись о кактус насмерть',
     'Взрыв': 'Вас разорвало взрывом', 'Стрела': 'Вас застрелили', 'Бездна': 'Вы упали в бездну',
     'Отравление': 'Вас доконал яд', 'Огненный шар': 'Вас испепелил огненный шар', 'Лазер': 'Вас подстрелил лазер',
-    'Вакуум': 'Вам не хватило воздуха в открытом космосе', 'Магматит': 'Вы обожгли ноги о магматит'
+    'Вакуум': 'Вам не хватило воздуха в открытом космосе', 'Магматит': 'Вы обожгли ноги о магматит', 'Авария': 'Вы разбились на машине'
   };
   function die(cause) {
     if (P.dead) return;
+    if (P.vehicle && hooks.leaveVehicle) hooks.leaveVehicle();
     P.dead = true; P.e.dead = true; P.hp = 0;
     var e = P.e;
     P.deathCause = CAUSES[cause] || (cause ? cause + ' одолел вас' : 'Вы погибли');
@@ -273,6 +274,7 @@
     var e = P.e;
     P.invul -= dt; P.flash -= dt; P.gunCd -= dt;
     if (P.recoil > 0) P.recoil = Math.max(0, P.recoil - dt);
+    if (P.bloom > 0) P.bloom = Math.max(0, P.bloom - dt * 0.12);
     if (P.feather > 0) P.feather -= dt;
     portalCheck(dt);
     if (P.creative) { P.hp = 20; P.food = 20; P.air = 15; e.fire = 0; P.vacuum = false; return; }
@@ -354,7 +356,7 @@
     var e = P.e;
     var id = world.getBlock(e.x, e.y + 0.3, e.z), id2 = world.getBlock(e.x, e.y + 1.2, e.z);
     var b = BLOCKS[id] && BLOCKS[id].portal ? BLOCKS[id] : BLOCKS[id2] && BLOCKS[id2].portal ? BLOCKS[id2] : null;
-    if (!b || P.dead) { P.portalT = 0; return; }
+    if (!b || P.dead || P.vehicle) { P.portalT = 0; return; }
     if (P.portalT < 0) return;
     if (P.portalT === 0 && hooks.sound) hooks.sound('portal');
     P.portalT += dt;
@@ -405,6 +407,7 @@
     var crit = !e.onGround && e.vy < 0 && !e.inWater && !e.fly;
     if (crit) dmg *= 1.5;
     var dx = mob.x - e.x, dz = mob.z - e.z, d = Math.hypot(dx, dz) || 1, kb = P.sprinting ? 7 : 4.5;
+    if (it && it.tool && it.tool.loud) { E.noise(e.x, e.y, e.z, it.tool.loud); if (hooks.sound) hooks.sound('chainsaw'); }
     if (E.damageMob(mob, dmg, 'player', [dx / d * kb, 3.6, dz / d * kb])) {
       if (it && it.tool && it.tool.ignite && !mob.K.fireImmune) mob.fire = Math.max(mob.fire, 5);
       if (crit && hooks.particles) for (var i = 0; i < 6; i++) hooks.particles('crit', mob.x, mob.y + mob.h * 0.7, mob.z);
@@ -556,20 +559,33 @@
       return true;
     }
     if (it.gun) {
+      var gun = it.gun;
+      // снайперка: удерживаем — прицел, отпускаем — выстрел (см. updateUse)
+      if (gun.scope) {
+        if (!P.using || P.using.kind !== 'aim') P.using = { kind: 'aim', t: 0, slot: P.slot, slow: true };
+        return true;
+      }
       if (P.gunCd > 0) return true;
-      if (!P.creative && !count(I.AMMO)) {
-        if (begin) { toast('Нет патронов'); if (hooks.sound) hooks.sound('gun-empty'); }
+      if (gun.semi && !P.fresh) return true;             // одиночные: по выстрелу на нажатие
+      if (gun.ammo && !P.creative && !count(gun.ammo)) {
+        if (P.fresh || begin) { toast('Нет патронов: ' + KC.itemName(gun.ammo).toLowerCase()); if (hooks.sound) hooks.sound('gun-empty'); }
         P.gunCd = 0.4;
         return false;
       }
-      P.gunCd = it.gun.cd;
-      shoot(it.gun);
-      if (!P.creative) consume(I.AMMO, 1);
+      P.gunCd = gun.cd;
+      if (gun.flame) flame(gun); else shoot(gun, 0);
+      if (gun.ammo && !P.creative) consume(gun.ammo, 1);
       wearHeld(1);
+      return true;
+    }
+    if (it.thrown) {
+      if (!begin) return false;
+      throwHeld(it.thrown);
       return true;
     }
     if (!begin) return false;
     if (st.id === I.CITY_MAP && hooks.openMap) { hooks.openMap(); return true; }
+    if (it.vehicle && hooks.placeVehicle) { if (hooks.placeVehicle(it.vehicle) && !P.creative) useOne(); return true; }
     if (st.id === I.RADIO && hooks.useRadio) { hooks.useRadio(); return true; }
     if (it.heal) {
       if (P.hp >= 20 && !P.creative) { toast('Вы и так здоровы'); return false; }
@@ -652,6 +668,17 @@
         P.using = null;
         if (hooks.hudChanged) hooks.hudChanged();
       }
+    } else if (u.kind === 'aim') {
+      u.t += dt;
+      if (holding) return;
+      P.using = null;
+      var gun = it.gun;
+      if (P.gunCd > 0) return;
+      if (!P.creative && !count(gun.ammo)) { toast('Нет патронов: ' + KC.itemName(gun.ammo).toLowerCase()); if (hooks.sound) hooks.sound('gun-empty'); return; }
+      P.gunCd = gun.cd;
+      shoot(gun, u.t < 0.35 ? 0.03 : 0);                  // без прицеливания — неточно
+      if (!P.creative) consume(gun.ammo, 1);
+      wearHeld(1);
     } else if (u.kind === 'bow') {
       u.t += dt;
       if (!holding) {
@@ -669,22 +696,75 @@
   }
 
   // Выстрел: мгновенный луч до первого существа или блока
-  function shoot(gun) {
-    var e = P.e, hit = hooks.rayHit ? hooks.rayHit(gun.range) : null;
-    P.recoil = 0.2;
-    if (hooks.sound) hooks.sound('gunshot');
-    if (!hit) return;
+  // Выстрел: мгновенный луч (у дробовика — несколько дробин с разбросом)
+  function shoot(gun, extraSpread) {
+    var e = P.e, n = gun.pellets || 1;
+    P.recoil = gun.pellets ? 0.35 : gun.scope ? 0.4 : 0.2;
+    if (hooks.sound) hooks.sound(gun.sound || 'gunshot');
+    E.noise(e.x, e.y, e.z, gun.noise || 40);
+    var spread = (gun.spread || 0) + (P.bloom || 0) + (extraSpread || 0);
+    if (gun.bloom) P.bloom = Math.min(0.07, (P.bloom || 0) + gun.bloom);
+    // урон всех дробин по одной цели складывается и наносится разом
+    var dmgMap = [];
+    for (var i = 0; i < n; i++) {
+      var hit = hooks.rayHit ? hooks.rayHit(gun.range, spread, gun.pierce || 1) : null;
+      if (hit) bulletHit(gun, hit, i === 0, dmgMap);
+    }
+    dmgMap.forEach(function (h) { E.damageMob(h.m, h.dmg, 'player', h.kn, true); });
+  }
+  function bulletHit(gun, hit, tracer, dmgMap) {
     var o = hit.o, d = hit.d, t = hit.t;
     if (hooks.particles) {
-      for (var k = 1; k < Math.min(t, 24); k += 1.5) hooks.particles('tracer', o[0] + d[0] * k, o[1] + d[1] * k - 0.05, o[2] + d[2] * k);
-      for (var j = 0; j < 5; j++) hooks.particles(hit.mob ? 'crit' : 'spark', o[0] + d[0] * (t - 0.05), o[1] + d[1] * (t - 0.05), o[2] + d[2] * (t - 0.05));
+      if (tracer) for (var k = 1; k < Math.min(t, 24); k += 1.5) hooks.particles('tracer', o[0] + d[0] * k, o[1] + d[1] * k - 0.05, o[2] + d[2] * k);
+      for (var j = 0; j < (gun.pellets ? 2 : 5); j++) hooks.particles(hit.mob ? 'crit' : 'spark', o[0] + d[0] * (t - 0.05), o[1] + d[1] * (t - 0.05), o[2] + d[2] * (t - 0.05));
     }
-    E.noise(e.x, e.y, e.z, 40);
-    if (hit.mob) E.damageMob(hit.mob, gun.dmg * (1 - (hit.mob.K.bulletproof || 0)), 'player', [d[0] * 4, 2.5, d[2] * 4]);
-    else if (hit.block && BLOCKS[hit.block.id].explosive) { KC.Sim.breakBlock(hit.block.x, hit.block.y, hit.block.z, false); KC.Sim.explode(hit.block.x + 0.5, hit.block.y + 0.5, hit.block.z + 0.5, BLOCKS[hit.block.id].explosive); }
+    var kb = gun.knock || 4;
+    (hit.mobs || (hit.mob ? [hit.mob] : [])).forEach(function (m, idx) {
+      var dmg = gun.dmg * (1 - (m.K.bulletproof || 0) * (gun.scope ? 0.5 : 1)) * (idx ? 0.7 : 1);
+      for (var q = 0; q < dmgMap.length; q++) if (dmgMap[q].m === m) { dmgMap[q].dmg += dmg; return; }
+      dmgMap.push({ m: m, dmg: dmg, kn: [d[0] * kb, 2.5, d[2] * kb] });
+    });
+    if (hit.vehicle && hooks.hitVehicle) hooks.hitVehicle(hit.vehicle, gun.dmg * 0.3);
+    if (hit.mob || hit.vehicle) return;
+    if (hit.block && BLOCKS[hit.block.id].explosive) { KC.Sim.breakBlock(hit.block.x, hit.block.y, hit.block.z, false); KC.Sim.explode(hit.block.x + 0.5, hit.block.y + 0.5, hit.block.z + 0.5, BLOCKS[hit.block.id].explosive); }
     else if (hit.block && hooks.carHit && isCar(hit.block.id)) hooks.carHit(hit.block.x, hit.block.y, hit.block.z);
     else if (hit.block && hit.block.id === B.TNT) KC.Sim.primeTnt(hit.block.x, hit.block.y, hit.block.z);
     else if (hit.block && BLOCKS[hit.block.id].mat === 'glass' && BLOCKS[hit.block.id].hardness < 1) KC.Sim.breakBlock(hit.block.x, hit.block.y, hit.block.z, false);
+  }
+  // Огнемёт: конус огня на несколько блоков, поджигает всё живое и иногда — пол
+  function flame(gun) {
+    var e = P.e, cp = Math.cos(e.pitch);
+    var d = [-Math.sin(e.yaw) * cp, Math.sin(e.pitch), -Math.cos(e.yaw) * cp];
+    var ox = e.x, oy = e.y + EYE - 0.2, oz = e.z;
+    if (hooks.particles) for (var k = 0; k < 3; k++) hooks.particles('jet', ox + d[0] * 0.8, oy + d[1] * 0.8, oz + d[2] * 0.8, d);
+    E.noise(ox, oy, oz, gun.noise || 15);
+    P.flameSnd = (P.flameSnd || 0) - gun.cd;
+    if (P.flameSnd <= 0) { P.flameSnd = 0.4; if (hooks.sound) hooks.sound('flame'); }
+    E.list.forEach(function (m) {
+      if (m.dead || m.type !== 'mob' || m.deathT > 0 || m.K.npc) return;
+      var vx = m.x - ox, vy = m.y + m.h / 2 - oy, vz = m.z - oz, dist = Math.sqrt(vx * vx + vy * vy + vz * vz);
+      if (dist > gun.range || dist < 0.1) return;
+      var cos = (vx * d[0] + vy * d[1] + vz * d[2]) / dist;
+      if (cos < 0.9) return;
+      if (!m.K.fireImmune) m.fire = Math.max(m.fire, 6);
+      E.damageMob(m, m.K.fireImmune ? 0.2 : 1.5, 'player', [d[0] * 1.5, 0.5, d[2] * 1.5]);
+    });
+    if (Math.random() < 0.05 && hooks.rayHit) {
+      var h = hooks.rayHit(gun.range, 0.08, 1);
+      if (h && h.block && h.block.ny === 1) {
+        var fx = h.block.x, fy = h.block.y + 1, fz = h.block.z;
+        if (!world.getBlock(fx, fy, fz) && KC.OPAQUE[world.getBlock(fx, fy - 1, fz)]) world.setBlock(fx, fy, fz, B.FIRE, 0);
+      }
+    }
+  }
+  // Граната и бутылка с зажигательной смесью летят по дуге
+  function throwHeld(kind) {
+    var e = P.e, cp = Math.cos(e.pitch);
+    var d = [-Math.sin(e.yaw) * cp, Math.sin(e.pitch), -Math.cos(e.yaw) * cp], sp = 15;
+    E.throwItem(kind, e.x + d[0] * 0.5, e.y + EYE - 0.1 + d[1] * 0.5, e.z + d[2] * 0.5, d[0] * sp + e.vx * 0.5, d[1] * sp + 3, d[2] * sp + e.vz * 0.5);
+    if (!P.creative) useOne();
+    P.swing = 0.01;
+    if (hooks.sound) hooks.sound('throw');
   }
   // Сутки — 24 000 тиков, игровой час — 1000
   function fuelHours(ticks) { var h = Math.max(1, Math.round(ticks / 1000)); return h + ' ч'; }

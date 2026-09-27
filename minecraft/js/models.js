@@ -4,7 +4,7 @@
 (function (KC) {
   'use strict';
 
-  var ATLAS = 512;
+  var ATLAS = 1024;
   var cv, ctx, img, data;
   var shelfX = 0, shelfY = 0, shelfH = 0;
   var rnd = KC.mulberry32(777);
@@ -399,6 +399,135 @@
       part('strutR2', [2, 8, 2], [-11, 2, 12], [-1, 0, -1], [40, 40, 44], 0.05),
       part('strutL2', [2, 8, 2], [11, 2, 12], [-1, 0, -1], [40, 40, 44], 0.05)
     ] };
+
+    // ---- Заражённый военный ---------------------------------------------------------
+    var CAMO = function (f, x, y) { var h = (x * 7 + y * 13 + (f.length * 3)) % 9; return h < 3 ? [70, 86, 50] : h < 5 ? [104, 92, 60] : h < 6 ? [44, 50, 34] : null; };
+    MODELS.soldier = { parts: humanoid({
+      head: SICK, headNoise: 0.1,
+      headPaint: function (f, x, y) {
+        if (y <= 2 || f === 'top') return (x + y) % 4 === 0 ? [60, 74, 44] : [80, 96, 58];          // каска
+        if (f === 'front' && y === 3) return [60, 74, 44];
+        return sickFace(f, x, y);
+      },
+      body: [82, 96, 58], bodyPaint: function (f, x, y) {
+        if (y >= 2 && y <= 8 && x >= 1 && x <= 6) return (x + y) % 5 === 0 ? [40, 44, 36] : [54, 60, 46];    // разгрузка
+        if ((x * 5 + y * 3) % 17 === 0) return STAIN;
+        return CAMO(f, x, y);
+      },
+      arm: [82, 96, 58], armPaint: function (f, x, y, w, h) { return y >= h - 2 ? SICK : CAMO(f, x, y); },
+      leg: [82, 96, 58], legPaint: function (f, x, y, w, h) { return y >= h - 3 ? [36, 32, 28] : CAMO(f, x, y); }
+    }) };
+
+    // ---- Техника: единица модели — 1/8 блока (рисуется с масштабом 2) ----------------------
+    // Детали «paint…» перекрашиваются в цвет машины, остальные — как есть
+    var TIRE = [28, 28, 30], RIM = [150, 152, 158], GLASSC = [70, 110, 140], CHROME = [176, 180, 188];
+    function wheel(name, x, y, z, w, d) {
+      return part(name, [w, d, d], [x, y, z], [-w / 2, -d / 2, -d / 2], TIRE, 0.1, function (f, px, py, fw, fh) {
+        if ((f === 'right' || f === 'left') && Math.abs(px - fw / 2 + 0.5) < fw / 4 && Math.abs(py - fh / 2 + 0.5) < fh / 4) return RIM;
+        return (px + py) % 3 === 0 ? [44, 44, 46] : null;
+      });
+    }
+    function glassPaint(f, x, y, w, h) { return (x === 0 || x === w - 1) && (f === 'left' || f === 'right' || f === 'front' || f === 'back') ? [30, 30, 34] : (x + y) % 7 === 0 ? [140, 190, 220] : null; }
+    function lampsFront(z, y, half) {
+      return [part('lampL', [3, 2, 1], [-half + 2, y, z], [-1.5, 0, -0.5], [255, 244, 190], 0.02), part('lampR', [3, 2, 1], [half - 2, y, z], [-1.5, 0, -0.5], [255, 244, 190], 0.02)];
+    }
+    function lampsBack(z, y, half) {
+      return [part('tailL', [3, 2, 1], [-half + 2, y, z], [-1.5, 0, -0.5], [210, 30, 30], 0.02), part('tailR', [3, 2, 1], [half - 2, y, z], [-1.5, 0, -0.5], [210, 30, 30], 0.02)];
+    }
+    function sedanParts(bodyColor, bodyPaint) {
+      return [
+        part('paintBody', [16, 5, 34], [0, 2, 0], [-8, 0, -17], bodyColor, 0.03, bodyPaint),
+        part('paintRoof', [14, 1, 14], [0, 11, 1], [-7, 0, -7], bodyColor, 0.03),
+        part('glass', [14, 4, 16], [0, 7, 1], [-7, 0, -8], GLASSC, 0.05, glassPaint),
+        part('bumperF', [16, 2, 1], [0, 2, -17], [-8, 0, -1], CHROME, 0.04),
+        part('bumperB', [16, 2, 1], [0, 2, 17], [-8, 0, 0], CHROME, 0.04),
+        wheel('wheelFL', -7.5, 2.5, -10, 3, 5), wheel('wheelFR', 7.5, 2.5, -10, 3, 5),
+        wheel('wheelBL', -7.5, 2.5, 11, 3, 5), wheel('wheelBR', 7.5, 2.5, 11, 3, 5)
+      ].concat(lampsFront(-17.1, 5, 8), lampsBack(17.1, 5, 8));
+    }
+    MODELS.sedan = { parts: sedanParts([236, 236, 236]) };
+    MODELS.police = { parts: sedanParts([240, 242, 246], function (f, x, y) {
+      if ((f === 'left' || f === 'right') && y >= 1 && y <= 2) return [30, 60, 160];                  // синяя полоса
+      if (f === 'top' && x >= 3 && x <= 12 && y > 2 && y < 12) return [30, 30, 36];                  // тёмный капот
+      return null;
+    }).concat([
+      part('barR', [5, 1, 2], [-3, 12, 1], [-2.5, 0, -1], [230, 30, 30], 0.02),
+      part('barB', [5, 1, 2], [3, 12, 1], [-2.5, 0, -1], [40, 80, 240], 0.02)
+    ]) };
+    MODELS.pickup = { parts: [
+      part('paintBody', [17, 6, 38], [0, 3, 0], [-8.5, 0, -19], [236, 236, 236], 0.03),
+      part('paintRoof', [15, 1, 13], [0, 13, -5], [-7.5, 0, -6.5], [236, 236, 236], 0.03),
+      part('glass', [15, 4, 14], [0, 9, -5], [-7.5, 0, -7], GLASSC, 0.05, glassPaint),
+      part('paintBedL', [1, 3, 17], [-8, 9, 10.5], [0, 0, -8.5], [236, 236, 236], 0.03),
+      part('paintBedR', [1, 3, 17], [7, 9, 10.5], [0, 0, -8.5], [236, 236, 236], 0.03),
+      part('paintGate', [17, 3, 1], [0, 9, 18.5], [-8.5, 0, 0], [236, 236, 236], 0.03),
+      part('bed', [15, 1, 16], [0, 9, 10.5], [-7.5, 0, -8], [60, 56, 50], 0.1),
+      part('bumperF', [17, 2, 1], [0, 3, -19], [-8.5, 0, -1], CHROME, 0.04),
+      wheel('wheelFL', -8, 3, -11, 3, 6), wheel('wheelFR', 8, 3, -11, 3, 6),
+      wheel('wheelBL', -8, 3, 12, 3, 6), wheel('wheelBR', 8, 3, 12, 3, 6)
+    ].concat(lampsFront(-19.1, 7, 8.5), lampsBack(19.1, 7, 8.5)) };
+    MODELS.bus = { parts: [
+      part('body', [22, 22, 80], [0, 3, 0], [-11, 0, -40], [236, 236, 230], 0.03, function (f, x, y, w, h) {
+        var side = f === 'left' || f === 'right';
+        if (side && y >= 3 && y <= 10 && x % 10 !== 0 && !(f === 'left' && x > 64 && x < 70)) return [44, 64, 84];      // окна
+        if (side && (y === 13 || y === 14)) return [40, 90, 190];                                                     // полоса
+        if (f === 'front' && y >= 3 && y <= 11 && x > 1 && x < w - 2) return [60, 100, 130];                          // лобовое
+        if (f === 'front' && y === 17 && (x < 5 || x > w - 6)) return [255, 244, 190];                                 // фары
+        if (f === 'back' && y === 17 && (x < 4 || x > w - 5)) return [210, 30, 30];
+        if (f === 'front' && y >= 1 && y <= 2 && x > 5 && x < w - 6) return [255, 170, 40];                            // табло
+        return null;
+      }),
+      part('roof', [20, 2, 76], [0, 25, 0], [-10, 0, -38], [180, 182, 186], 0.05),
+      wheel('wheelFL', -10.5, 3.5, -27, 3, 7), wheel('wheelFR', 10.5, 3.5, -27, 3, 7),
+      wheel('wheelBL', -10.5, 3.5, 25, 3, 7), wheel('wheelBR', 10.5, 3.5, 25, 3, 7)
+    ] };
+    MODELS.truck = { parts: [
+      part('frame', [18, 3, 56], [0, 4, 0], [-9, 0, -28], [40, 40, 44], 0.1),
+      part('paintCab', [22, 14, 14], [0, 6, -21], [-11, 0, -7], [236, 236, 236], 0.03, function (f, x, y, w, h) {
+        if (f === 'front' && y >= 1 && y <= 5 && x > 1 && x < w - 2) return [70, 110, 140];
+        if ((f === 'left' || f === 'right') && y >= 1 && y <= 5 && x > 2 && x < 10) return [70, 110, 140];
+        if (f === 'front' && y === 10 && (x < 4 || x > w - 5)) return [255, 244, 190];
+        return null;
+      }),
+      part('paintBed', [22, 10, 38], [0, 8, 7], [-11, 0, -19], [236, 236, 236], 0.05, function (f, x, y) { return (f === 'left' || f === 'right') && x % 6 === 0 ? [150, 150, 150] : null; }),
+      part('load', [20, 1, 36], [0, 18, 7], [-10, 0, -18], [120, 96, 70], 0.2),
+      part('grille', [18, 5, 1], [0, 6, -28], [-9, 0, -1], [60, 60, 64], 0.1),
+      wheel('wheelFL', -10.5, 4, -21, 4, 8), wheel('wheelFR', 10.5, 4, -21, 4, 8),
+      wheel('wheelML', -10.5, 4, 10, 4, 8), wheel('wheelMR', 10.5, 4, 10, 4, 8),
+      wheel('wheelBL', -10.5, 4, 20, 4, 8), wheel('wheelBR', 10.5, 4, 20, 4, 8)
+    ] };
+    function track(name, x, len, hgt) {
+      return part(name, [6, hgt, len], [x, 0, 0], [-3, 0, -len / 2], [34, 34, 36], 0.1, function (f, px, py, w, h) {
+        if ((f === 'left' || f === 'right') && py > 1 && py < h - 2 && px % 6 >= 2 && px % 6 <= 4) return [70, 70, 74];     // катки
+        if (f === 'top' && py % 3 === 0) return [54, 54, 56];                                                             // траки
+        return null;
+      });
+    }
+    var DOZER = [236, 186, 30];
+    MODELS.dozer = { parts: [
+      track('trackL', -9, 34, 7), track('trackR', 9, 34, 7),
+      part('body', [16, 8, 26], [0, 7, 3], [-8, 0, -13], DOZER, 0.05, function (f, x, y) { return f === 'front' && y >= 2 && y <= 5 && x % 2 ? [60, 60, 60] : null; }),
+      part('cab', [14, 9, 12], [0, 15, 8], [-7, 0, -6], GLASSC, 0.05, glassPaint),
+      part('roof', [16, 1, 14], [0, 24, 8], [-8, 0, -7], DOZER, 0.05),
+      part('blade', [26, 9, 2], [0, 1, -20], [-13, 0, -1], [120, 124, 130], 0.08, function (f, x, y) { return f === 'front' && y === 0 ? [180, 184, 190] : null; }),
+      part('armL', [2, 2, 12], [-7, 5, -13], [-1, 0, -6], [80, 80, 84], 0.05),
+      part('armR', [2, 2, 12], [7, 5, -13], [-1, 0, -6], [80, 80, 84], 0.05),
+      part('pipe', [2, 6, 2], [5, 15, -6], [-1, 0, -1], [40, 40, 42], 0.05)
+    ] };
+    var OLIVE = [96, 110, 60];
+    MODELS.tank = { parts: [
+      track('trackL', -10, 52, 8), track('trackR', 10, 52, 8),
+      part('hull', [18, 6, 46], [0, 3, 0], [-9, 0, -23], OLIVE, 0.06),
+      part('hullTop', [26, 3, 42], [0, 8, 1], [-13, 0, -21], OLIVE, 0.06, function (f, x, y) { return f === 'top' && (x === 1 || x === 24) ? [70, 80, 44] : null; }),
+      part('turret', [16, 7, 18], [0, 11, 2], [-8, 0, -9], OLIVE, 0.06, function (f, x, y) { return f === 'top' && x > 9 && x < 14 && y > 10 && y < 15 ? [70, 80, 44] : null; }),
+      part('barrel', [2, 2, 24], [0, 14.5, 2], [-1, -1, -33], [70, 80, 44], 0.06),
+      part('hatch', [6, 1, 6], [0, 18, 2], [1, 0, 1], [70, 80, 44], 0.06)
+    ] };
+    for (var vk in { sedan: 1, pickup: 1, truck: 1 }) {
+      var paint = {}, other = {};
+      MODELS[vk].parts.forEach(function (p) { if (p.name.indexOf('paint') === 0) paint[p.name] = true; else other[p.name] = true; });
+      MODELS[vk].paintSet = paint; MODELS[vk].otherSet = other;
+    }
 
     // ---- Пекло: бес и огненный дух ---------------------------------------------------
     var IMP = [152, 52, 36];

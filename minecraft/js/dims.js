@@ -297,7 +297,7 @@
   }
 
   // Особые здания рядом со стартом есть всегда: без них не пройти сценарий
-  var FORCED = [['police', 2, -1], ['hospital', -1, 2], ['market', 2, 1], ['gas', -2, -1]];
+  var FORCED = [['police', 2, -1], ['hospital', -1, 2], ['market', 2, 1], ['gas', -2, -1], ['military', -3, -3]];
   function forcedKind(seed, cxI, czI) {
     var k = Math.floor(hash2(7, 7, seed + 211) * 4);
     for (var i = 0; i < FORCED.length; i++) {
@@ -308,12 +308,12 @@
     return null;
   }
   var SPECIAL_ODDS = {
-    downtown: [['police', 0.05], ['hospital', 0.1], ['market', 0.14]],
+    downtown: [['police', 0.05], ['hospital', 0.1], ['market', 0.14], ['military', 0.17]],
     residential: [['police', 0.03], ['hospital', 0.06], ['market', 0.12], ['gas', 0.15]],
-    industrial: [['gas', 0.07]],
+    industrial: [['gas', 0.07], ['military', 0.1]],
     suburb: [['gas', 0.02], ['market', 0.035]]
   };
-  var SPECIAL_NAMES = { police: 'Полицейский участок', hospital: 'Больница', market: 'Супермаркет', gas: 'Заправка', helipad: 'Площадка эвакуации' };
+  var SPECIAL_NAMES = { police: 'Полицейский участок', hospital: 'Больница', market: 'Супермаркет', gas: 'Заправка', helipad: 'Площадка эвакуации', military: 'Военный блокпост' };
 
   var plotCache = new Map();
   function plotInfo(seed, cxI, czI) {
@@ -345,6 +345,7 @@
     else if (special === 'hospital') building('hospital', 4 + Math.floor(f * 2));
     else if (special === 'police') building('police', 3);
     else if (special === 'market') { info.kind = 'market'; info.bx0 = info.x0 + 1; info.bx1 = info.x0 + 26; info.bz0 = info.z0 + 2; info.bz1 = info.z0 + 25; info.top = GROUND + 6; info.floors = 1; }
+    else if (special === 'military') { info.kind = 'military'; info.bx0 = info.x0; info.bx1 = info.x0 + 27; info.bz0 = info.z0; info.bz1 = info.z0 + 27; info.top = GROUND + 6; info.floors = 1; }
     else if (special === 'gas') { info.kind = 'gas'; info.bx0 = info.x0 + 20; info.bx1 = info.x0 + 26; info.bz0 = info.z0 + 3; info.bz1 = info.z0 + 12; info.top = GROUND + 4; info.floors = 1; }
     else if (dist === 'suburb') info.kind = r < 0.1 ? 'park' : r < 0.14 ? 'ruin' : 'houses';
     else if (dist === 'industrial') {
@@ -512,6 +513,7 @@
       case 'construction': constructionColumn(c, x, z, wx, wz, px, pz, p, seed); return;
       case 'market': marketColumn(c, x, z, wx, wz, px, pz, p, seed); return;
       case 'gas': gasColumn(c, x, z, wx, wz, px, pz, p, seed); return;
+      case 'military': militaryColumn(c, x, z, wx, wz, px, pz, p, seed); return;
     }
     buildingColumn(c, x, z, wx, wz, p, seed);
   }
@@ -706,7 +708,7 @@
           if (r === 0) put(c, x, y, z, B.PLANKS);
           else if ((wx - p.bx0) % 4 === 0) put(c, x, y, z, B.STREET_POLE);
         }
-      } else if (hash2(wx, wz, seed + 261) < 0.02) put(c, x, GROUND + 1, z, B.CRATE);
+      } else if (px < 23 && hash2(wx, wz, seed + 261) < 0.02) put(c, x, GROUND + 1, z, B.CRATE);   // угол справа — стоянка бульдозера
       return;
     }
     var ix = wx - p.bx0, iz = wz - p.bz0;
@@ -794,28 +796,91 @@
     }
   }
 
+  // ---- Военный блокпост: стена из мешков, вышки, палатки, ящики, место под танк ---------------
+  function militaryColumn(c, x, z, wx, wz, px, pz, p, seed) {
+    var y;
+    put(c, x, GROUND, z, (px + pz) % 7 === 0 ? B.CONCRETE_DARK : B.CONCRETE);
+    var ring = px === 0 || px === 27 || pz === 0 || pz === 27;
+    if (ring) {
+      if (pz === 0 && px >= 11 && px <= 16) {                              // ворота с шлагбаумом
+        if (px === 11 || px === 16) for (y = GROUND + 1; y <= GROUND + 2; y++) put(c, x, y, z, B.CONCRETE);
+        return;
+      }
+      for (y = GROUND + 1; y <= GROUND + 2; y++) put(c, x, y, z, B.SANDBAG);
+      return;
+    }
+    // две вышки по углам: бетонные опоры, дощатый настил, мешки по краю, лестница
+    var towers = [[2, 2], [25, 25]];
+    for (var t = 0; t < 2; t++) {
+      var tx = px - towers[t][0], tz = pz - towers[t][1];
+      if (Math.abs(tx) > 1 || Math.abs(tz) > 2) continue;
+      if (Math.abs(tx) <= 1 && Math.abs(tz) <= 1) {
+        var ladderSide = tx === 0 && tz === (t ? -1 : 1);                 // опора лестницы и проход на площадку
+        if ((Math.abs(tx) === 1 && Math.abs(tz) === 1) || ladderSide) for (y = GROUND + 1; y <= GROUND + 5; y++) put(c, x, y, z, B.CONCRETE);
+        put(c, x, GROUND + 6, z, B.PLANKS);
+        if ((Math.abs(tx) === 1 || Math.abs(tz) === 1) && !ladderSide) put(c, x, GROUND + 7, z, B.SANDBAG);
+        if (tx === 0 && tz === 0) { put(c, x, GROUND + 7, z, 0); put(c, x, GROUND + 8, z, B.STREET_POLE); put(c, x, GROUND + 9, z, B.LIGHT_PANEL); }
+        return;
+      }
+      if (tx === 0 && tz === (t ? -2 : 2)) {                             // лестница к опоре вышки
+        for (y = GROUND + 1; y <= GROUND + 6; y++) put(c, x, y, z, B.LADDER, t ? 4 : 5);
+        return;
+      }
+    }
+    // палатка: зелёные стены, крыша, вход с запада
+    if (px >= 17 && px <= 24 && pz >= 3 && pz <= 9) {
+      var edge = px === 17 || px === 24 || pz === 3 || pz === 9;
+      for (y = GROUND + 1; y <= GROUND + 3; y++) {
+        if (y === GROUND + 3) put(c, x, y, z, B.WOOL_GREEN);
+        else if (edge && !(px === 17 && (pz === 6 || pz === 5))) put(c, x, y, z, B.WOOL_GREEN);
+      }
+      if (px === 23 && pz === 8) { put(c, x, GROUND + 1, z, B.CHEST, 3); lootAt(c, wx, GROUND + 1, wz, 'military'); }
+      else if (px === 23 && pz === 4) { put(c, x, GROUND + 1, z, B.CHEST, 3); lootAt(c, wx, GROUND + 1, wz, 'military'); }
+      else if (!edge && px === 19 && pz % 2 === 0) put(c, x, GROUND + 1, z, B.BED);
+      return;
+    }
+    // штабель ящиков и сундук с боеприпасами
+    if (px >= 3 && px <= 8 && pz >= 20 && pz <= 24) {
+      var hgt = 1 + Math.floor(hash2(wx, wz, seed + 290) * 3);
+      if (px === 5 && pz === 22) { put(c, x, GROUND + 1, z, B.CHEST, 0); lootAt(c, wx, GROUND + 1, wz, 'military'); return; }
+      for (y = GROUND + 1; y <= GROUND + hgt; y++) put(c, x, y, z, B.CRATE);
+      return;
+    }
+    // прожектор
+    if (px === 13 && pz === 26) { for (y = GROUND + 1; y <= GROUND + 4; y++) put(c, x, y, z, B.STREET_POLE); put(c, x, GROUND + 5, z, B.LIGHT_PANEL); return; }
+    // бочки с топливом у стены
+    if (px >= 24 && px <= 26 && pz >= 12 && pz <= 13) put(c, x, GROUND + 1, z, B.FUEL_BARREL);
+  }
+
   // ---- Добыча в сундуках: [предмет, от, до, шанс] ------------------------------------------
   var LOOT = {
     city: [[I.CANNED_FOOD, 1, 3, 0.7], [I.BREAD, 1, 2, 0.4], [I.MEDKIT, 1, 1, 0.3], [I.AMMO, 4, 12, 0.35], [I.PISTOL, 1, 1, 0.08],
       [I.BAT, 1, 1, 0.15], [I.MACHETE, 1, 1, 0.07], [B.TORCH, 2, 8, 0.4], [I.APPLE, 1, 3, 0.3], [I.IRON_INGOT, 1, 3, 0.25], [I.STRING, 1, 3, 0.2],
-      [I.BANDAGE, 1, 3, 0.3], [I.CITY_MAP, 1, 1, 0.05]],
+      [I.BANDAGE, 1, 3, 0.3], [I.CITY_MAP, 1, 1, 0.05], [I.FIRE_AXE, 1, 1, 0.04], [I.SHELLS, 2, 6, 0.1]],
     office: [[I.PAPER, 2, 8, 0.6], [I.BOOK, 1, 2, 0.3], [I.CANNED_FOOD, 1, 2, 0.5], [I.MEDKIT, 1, 2, 0.35], [I.AMMO, 6, 16, 0.4],
       [I.PISTOL, 1, 1, 0.14], [I.MACHETE, 1, 1, 0.1], [I.SPARK_DUST, 2, 6, 0.3], [I.DIAMOND, 1, 1, 0.05], [I.CITY_MAP, 1, 1, 0.1]],
     house: [[I.CANNED_FOOD, 1, 2, 0.5], [I.BREAD, 1, 3, 0.5], [I.APPLE, 1, 4, 0.5], [I.SEEDS, 2, 6, 0.3], [I.BANDAGE, 1, 2, 0.35],
-      [B.TORCH, 2, 6, 0.4], [I.BAT, 1, 1, 0.12], [B.PLANKS, 4, 12, 0.3], [I.CITY_MAP, 1, 1, 0.08]],
+      [B.TORCH, 2, 6, 0.4], [I.BAT, 1, 1, 0.12], [B.PLANKS, 4, 12, 0.3], [I.CITY_MAP, 1, 1, 0.08], [I.SHOTGUN, 1, 1, 0.04],
+      [I.SHELLS, 2, 8, 0.12], [I.FIRE_AXE, 1, 1, 0.05]],
     hospital: [[I.MEDKIT, 1, 2, 0.7], [I.BANDAGE, 2, 6, 0.8], [I.CANNED_FOOD, 1, 2, 0.3], [I.GOLDEN_APPLE, 1, 1, 0.06], [I.PAPER, 1, 4, 0.3]],
     police: [[I.AMMO, 6, 16, 0.6], [I.PISTOL, 1, 1, 0.25], [I.BODY_ARMOR, 1, 1, 0.15], [I.BANDAGE, 1, 3, 0.4], [I.CANNED_FOOD, 1, 2, 0.3],
-      [I.CITY_MAP, 1, 1, 0.25], [I.RADIO, 1, 1, 0.15]],
-    armory: [[I.RADIO, 1, 1, 1], [I.AMMO, 16, 32, 1], [I.PISTOL, 1, 1, 0.8], [I.BODY_ARMOR, 1, 1, 0.6], [I.MACHETE, 1, 1, 0.4], [I.MEDKIT, 1, 1, 0.5]],
+      [I.CITY_MAP, 1, 1, 0.25], [I.RADIO, 1, 1, 0.15], [I.SHOTGUN, 1, 1, 0.2], [I.SHELLS, 4, 12, 0.45]],
+    armory: [[I.RADIO, 1, 1, 1], [I.AMMO, 16, 32, 1], [I.PISTOL, 1, 1, 0.8], [I.BODY_ARMOR, 1, 1, 0.6], [I.MACHETE, 1, 1, 0.4], [I.MEDKIT, 1, 1, 0.5],
+      [I.SHOTGUN, 1, 1, 0.7], [I.SHELLS, 8, 20, 0.9], [I.RIFLE, 1, 1, 0.3], [I.RIFLE_AMMO, 20, 40, 0.4]],
+    military: [[I.RIFLE, 1, 1, 0.7], [I.RIFLE_AMMO, 30, 60, 1], [I.SNIPER, 1, 1, 0.25], [I.GRENADE, 2, 5, 0.7], [I.TANK_SHELL, 4, 10, 0.8],
+      [I.BODY_ARMOR, 1, 1, 0.5], [I.MEDKIT, 1, 2, 0.6], [I.SPACE_RATION, 2, 4, 0.5], [I.SHELLS, 8, 16, 0.4], [I.FLAMETHROWER, 1, 1, 0.12],
+      [I.FUEL_CAN, 1, 2, 0.5], [I.CITY_MAP, 1, 1, 0.3]],
     market: [[I.CANNED_FOOD, 2, 5, 0.8], [I.BREAD, 1, 4, 0.6], [I.APPLE, 2, 6, 0.5], [I.BEEF_COOKED, 1, 3, 0.3], [I.PORK_COOKED, 1, 3, 0.2],
       [B.TORCH, 4, 10, 0.3], [I.BANDAGE, 1, 3, 0.2]],
-    gas: [[I.FUEL_CAN, 1, 2, 0.85], [I.CANNED_FOOD, 1, 2, 0.4], [I.BREAD, 1, 2, 0.3], [B.TORCH, 2, 6, 0.4], [I.CITY_MAP, 1, 1, 0.3]],
+    gas: [[I.FUEL_CAN, 1, 2, 0.85], [I.CANNED_FOOD, 1, 2, 0.4], [I.BREAD, 1, 2, 0.3], [B.TORCH, 2, 6, 0.4], [I.CITY_MAP, 1, 1, 0.3], [I.MOLOTOV, 1, 3, 0.35]],
     industrial: [[B.PLANKS, 6, 16, 0.6], [I.IRON_INGOT, 2, 6, 0.5], [I.FUEL_CAN, 1, 1, 0.35], [I.STICK, 4, 12, 0.4], [B.BARRICADE, 2, 6, 0.45],
-      [I.SPARK_DUST, 2, 8, 0.3], [B.TNT, 1, 2, 0.06]],
-    build: [[B.PLANKS, 8, 20, 0.7], [B.BARRICADE, 3, 8, 0.55], [I.IRON_INGOT, 1, 4, 0.4], [330 + 4, 1, 1, 0.15], [306, 1, 1, 0.3], [B.LADDER, 4, 10, 0.4]],
+      [I.SPARK_DUST, 2, 8, 0.3], [B.TNT, 1, 2, 0.06], [I.CROWBAR, 1, 1, 0.2], [I.FIRE_AXE, 1, 1, 0.1]],
+    build: [[B.PLANKS, 8, 20, 0.7], [B.BARRICADE, 3, 8, 0.55], [I.IRON_INGOT, 1, 4, 0.4], [330 + 4, 1, 1, 0.15], [306, 1, 1, 0.3], [B.LADDER, 4, 10, 0.4],
+      [I.CHAINSAW, 1, 1, 0.14], [I.CROWBAR, 1, 1, 0.3], [I.FUEL_CAN, 1, 1, 0.3]],
     metro: [[I.CANNED_FOOD, 1, 3, 0.45], [B.TORCH, 4, 10, 0.6], [I.BANDAGE, 1, 3, 0.4], [I.AMMO, 4, 10, 0.3], [I.CITY_MAP, 1, 1, 0.25]],
     airdrop: [[I.MEDKIT, 1, 3, 0.9], [I.AMMO, 12, 24, 0.9], [I.CANNED_FOOD, 3, 6, 1], [I.BANDAGE, 2, 4, 0.6], [I.BODY_ARMOR, 1, 1, 0.25],
-      [I.FUEL_CAN, 1, 1, 0.5], [I.PISTOL, 1, 1, 0.3], [B.BARRICADE, 2, 4, 0.4]],
+      [I.FUEL_CAN, 1, 1, 0.5], [I.PISTOL, 1, 1, 0.3], [B.BARRICADE, 2, 4, 0.4], [I.RIFLE_AMMO, 15, 30, 0.4], [I.GRENADE, 1, 3, 0.35],
+      [I.SHELLS, 6, 12, 0.35], [I.RIFLE, 1, 1, 0.12]],
     space: [[I.SPACE_RATION, 2, 5, 0.9], [I.SPACE_HELMET, 1, 1, 0.6], [I.METEOR_IRON, 1, 4, 0.5], [I.LASER_CUTTER, 1, 1, 0.2],
       [I.DIAMOND, 1, 3, 0.35], [I.SPARK_DUST, 4, 12, 0.5], [B.LIGHT_PANEL, 2, 6, 0.4], [I.MEDKIT, 1, 2, 0.4]]
   };

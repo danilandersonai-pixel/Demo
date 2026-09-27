@@ -32,7 +32,8 @@
     TIRE: 104, RUBBLE: 105, CRATE: 106,
     // Особые здания и выживание в городе
     MED_SIGN: 107, POLICE_SIGN: 108, METRO_SIGN: 109, BARS: 110, SHELF: 111, FUEL_PUMP: 112, FUEL_BARREL: 113,
-    RAIL_FLOOR: 114, BARRICADE: 115, GENERATOR: 116, HELIPAD: 117, LANDING_LIGHT: 118, AIRDROP: 119, FIRE: 120
+    RAIL_FLOOR: 114, BARRICADE: 115, GENERATOR: 116, HELIPAD: 117, LANDING_LIGHT: 118, AIRDROP: 119, FIRE: 120,
+    SANDBAG: 121
   };
 
   // ---- Идентификаторы предметов -----------------------------------------------
@@ -46,7 +47,12 @@
     DYE_RED: 295, DYE_YELLOW: 296, DYE_BLUE: 297, DYE_GREEN: 298,
     SULFUR: 346, BLOOD_CRYSTAL: 347, SKY_SHARD: 348, METEOR_IRON: 349, SPACE_RATION: 350, CANNED_FOOD: 351,
     MEDKIT: 352, PISTOL: 353, AMMO: 354, BAT: 355, MACHETE: 356, HELL_BLADE: 357, SPACE_HELMET: 358,
-    LASER_CUTTER: 359, BANDAGE: 360, FUEL_CAN: 361, RADIO: 362, BODY_ARMOR: 363, CITY_MAP: 364
+    LASER_CUTTER: 359, BANDAGE: 360, FUEL_CAN: 361, RADIO: 362, BODY_ARMOR: 363, CITY_MAP: 364,
+    // оружие и боеприпасы
+    SHOTGUN: 365, RIFLE: 366, SNIPER: 367, FLAMETHROWER: 368, GRENADE: 369, MOLOTOV: 370, FIRE_AXE: 371,
+    CROWBAR: 372, CHAINSAW: 373, SHELLS: 374, RIFLE_AMMO: 375, TANK_SHELL: 376,
+    // техника (предметы для творчества: ставят машину на землю)
+    VEH_SEDAN: 377, VEH_PICKUP: 378, VEH_POLICE: 379, VEH_BUS: 380, VEH_TRUCK: 381, VEH_DOZER: 382, VEH_TANK: 383
   };
   // Инструменты 300–324 (материал × вид), броня 330–345 (материал × слот)
   var TOOL_MATS = ['wood', 'stone', 'iron', 'gold', 'diamond'];
@@ -229,10 +235,11 @@
   blk(B.HELIPAD, 'Разметка вертолётной площадки', 'helipad', ext(road, { hardness: 1.8 }));
   blk(B.LANDING_LIGHT, 'Посадочный огонь', 'landingOff', { hardness: 0.5, mat: 'glass' });
   blk(B.AIRDROP, 'Гуманитарный груз', { top: 'airdropTop', side: 'airdropSide' }, { hardness: 2, tool: 'axe', mat: 'wood', use: 'chest', entity: 'chest', drop: [[B.PLANKS, 3]] });
+  blk(B.SANDBAG, 'Мешки с песком', { top: 'sandbagTop', side: 'sandbag' }, { hardness: 1.2, tool: 'shovel', mat: 'sand', blastProof: true });
   blk(B.FIRE, 'Огонь', 'fire', { shape: 'cross', opaque: false, solid: false, hardness: 0, mat: 'plant', light: 14, glow: true,
     support: 'floor', replaceable: true, drop: [] });
   // что заражённые могут выломать, если оно мешает добраться до игрока (секунды на один блок)
-  [[B.DOOR, 9], [B.GLASS, 1.5], [B.WINDOW, 2], [B.PLANKS, 12], [B.CRATE, 6], [B.BOOKSHELF, 8], [B.TABLE, 6], [B.LADDER, 3],
+  [[B.DOOR, 9], [B.GLASS, 1.5], [B.SANDBAG, 20], [B.WINDOW, 2], [B.PLANKS, 12], [B.CRATE, 6], [B.BOOKSHELF, 8], [B.TABLE, 6], [B.LADDER, 3],
     [B.WOOL_WHITE, 3], [B.LEAVES, 2], [B.SHELF, 7], [B.TNT, 2]].forEach(function (p) { BLOCKS[p[0]].siege = p[1]; });
 
   // ---- Флаги ------------------------------------------------------------------------
@@ -333,7 +340,7 @@
   item(I.SPACE_RATION, 'Космический паёк', 'spaceRation', { food: { h: 8, s: 10 } });
   item(I.CANNED_FOOD, 'Консервы', 'cannedFood', { food: { h: 6, s: 7.2 } });
   item(I.MEDKIT, 'Аптечка', 'medkit', { stack: 8, heal: 8 });
-  item(I.PISTOL, 'Пистолет', 'pistol', { stack: 1, dur: 600, gun: { dmg: 8, range: 48, cd: 0.45 } });
+  item(I.PISTOL, 'Пистолет', 'pistol', { stack: 1, dur: 600, gun: { dmg: 8, range: 48, cd: 0.45, ammo: I.AMMO, semi: true, spread: 0.006, noise: 40, sound: 'gunshot' } });
   item(I.AMMO, 'Патроны', 'ammo');
   item(I.BAT, 'Бита', 'bat', { stack: 1, dur: 180, fuel: 200, tool: { kind: 'sword', tier: 1, speed: 1, dmg: 5, mat: 'wood' } });
   item(I.MACHETE, 'Мачете', 'machete', { stack: 1, dur: 450, tool: { kind: 'sword', tier: 3, speed: 1.5, dmg: 7, mat: 'iron' } });
@@ -345,6 +352,22 @@
   item(I.RADIO, 'Рация', 'radio', { stack: 1 });
   item(I.BODY_ARMOR, 'Бронежилет', 'bodyArmor', { stack: 1, dur: 360, armor: { slot: 1, points: 7, mat: 'kevlar' } });
   item(I.CITY_MAP, 'Карта района', 'cityMap', { stack: 1 });
+  // Огнестрельное: semi — по одному выстрелу на нажатие, auto — очередью, scope — прицел (выстрел при отпускании)
+  item(I.SHOTGUN, 'Дробовик', 'shotgun', { stack: 1, dur: 400, gun: { dmg: 4.5, pellets: 7, spread: 0.085, range: 24, cd: 0.95, ammo: I.SHELLS, semi: true, noise: 48, sound: 'shotgun', knock: 6 } });
+  item(I.RIFLE, 'Автомат', 'rifle', { stack: 1, dur: 1200, gun: { dmg: 6, range: 64, cd: 0.11, ammo: I.RIFLE_AMMO, auto: true, spread: 0.014, bloom: 0.01, noise: 50, sound: 'rifle' } });
+  item(I.SNIPER, 'Снайперская винтовка', 'sniper', { stack: 1, dur: 300, gun: { dmg: 36, range: 140, cd: 1.3, ammo: I.RIFLE_AMMO, scope: true, pierce: 3, noise: 60, sound: 'sniper', knock: 5 } });
+  item(I.FLAMETHROWER, 'Огнемёт', 'flamethrower', { stack: 1, dur: 400, gun: { flame: true, range: 7, cd: 0.08, auto: true, noise: 15, sound: 'flame' } });
+  item(I.GRENADE, 'Граната', 'grenade', { stack: 8, thrown: 'grenade' });
+  item(I.MOLOTOV, 'Коктейль Молотова', 'molotov', { stack: 8, thrown: 'molotov' });
+  item(I.FIRE_AXE, 'Пожарный топор', 'fireAxe', { stack: 1, dur: 450, tool: { kind: 'axe', tier: 3, speed: 7, dmg: 8, mat: 'iron' } });
+  item(I.CROWBAR, 'Лом', 'crowbar', { stack: 1, dur: 600, tool: { kind: 'pickaxe', tier: 2, speed: 4, dmg: 6, mat: 'iron' } });
+  item(I.CHAINSAW, 'Бензопила', 'chainsaw', { stack: 1, dur: 500, tool: { kind: 'axe', tier: 3, speed: 18, dmg: 11, mat: 'iron', loud: 26 } });
+  item(I.SHELLS, 'Дробь', 'shells');
+  item(I.RIFLE_AMMO, 'Винтовочные патроны', 'rifleAmmo');
+  item(I.TANK_SHELL, 'Танковый снаряд', 'tankShell', { stack: 16 });
+  [[I.VEH_SEDAN, 'Легковушка', 'vehSedan', 'sedan'], [I.VEH_PICKUP, 'Пикап', 'vehPickup', 'pickup'], [I.VEH_POLICE, 'Полицейская машина', 'vehPolice', 'police'],
+    [I.VEH_BUS, 'Автобус', 'vehBus', 'bus'], [I.VEH_TRUCK, 'Самосвал', 'vehTruck', 'truck'], [I.VEH_DOZER, 'Бульдозер', 'vehDozer', 'dozer'],
+    [I.VEH_TANK, 'Танк', 'vehTank', 'tank']].forEach(function (v) { item(v[0], v[1], v[2], { stack: 1, vehicle: v[3] }); });
 
   var MAT_RU = { wood: 'Деревянн', stone: 'Каменн', iron: 'Железн', gold: 'Золот', diamond: 'Алмазн', leather: 'Кожан' };
   var TOOL_RU = { pickaxe: ['ая', 'кирка'], axe: ['ый', 'топор'], shovel: ['ая', 'лопата'], sword: ['ый', 'меч'], hoe: ['ая', 'мотыга'] };
@@ -522,6 +545,20 @@
   shapeless(I.BANDAGE, 2, [B.WOOL_WHITE, I.STRING]);
   shaped(B.BARS, 8, ['III', 'III'], { I: I.IRON_INGOT });
   shaped(B.LANDING_LIGHT, 2, ['G', 'R'], { G: B.GLASS, R: I.SPARK_DUST });
+  // Оружие и боеприпасы
+  shapeless(I.SHELLS, 6, [I.GUNPOWDER, I.IRON_INGOT, I.PAPER]);
+  shapeless(I.RIFLE_AMMO, 12, [I.GUNPOWDER, I.GUNPOWDER, I.IRON_INGOT]);
+  shaped(I.TANK_SHELL, 2, ['GIG', 'III'], { G: I.GUNPOWDER, I: I.IRON_INGOT });
+  shaped(I.SHOTGUN, 1, ['III', 'PPS'], { I: I.IRON_INGOT, P: B.PLANKS, S: I.STICK });
+  shaped(I.RIFLE, 1, ['III', 'IRS', ' P '], { I: I.IRON_INGOT, R: I.SPARK_DUST, S: I.STICK, P: B.PLANKS });
+  shaped(I.SNIPER, 1, ['IIG', 'IRS', ' P '], { I: I.IRON_INGOT, G: B.GLASS, R: I.SPARK_DUST, S: I.STICK, P: B.PLANKS });
+  shaped(I.FLAMETHROWER, 1, ['IIF', ' RS'], { I: I.IRON_INGOT, F: I.FUEL_CAN, R: I.SPARK_DUST, S: I.STICK });
+  shaped(I.GRENADE, 2, [' S ', 'IGI', ' I '], { S: I.STRING, I: I.IRON_INGOT, G: I.GUNPOWDER });
+  shapeless(I.MOLOTOV, 3, [B.GLASS, I.FUEL_CAN, B.WOOL_WHITE]);
+  shaped(I.FIRE_AXE, 1, ['IID', 'IS ', ' S '], { I: I.IRON_INGOT, D: I.DYE_RED, S: I.STICK });
+  shaped(I.CROWBAR, 1, [' II', ' I ', 'I  '], { I: I.IRON_INGOT });
+  shaped(I.CHAINSAW, 1, ['III', 'IFS'], { I: I.IRON_INGOT, F: I.FUEL_CAN, S: I.STICK });
+  shaped(B.SANDBAG, 4, ['WSW', 'SWS'], { W: B.WOOL_WHITE, S: B.SAND });
 
   // Плавка: вход → выход
   var SMELT = {};

@@ -128,7 +128,11 @@
   var hooksE = null, hooksS = null, hooksP = null;
   function buildHooks() {
     var h = hooksE = hooksCommon();
-    h.hurtPlayer = function (amt, cause, src, knock, fire) { P.hurt(amt, cause, src, knock, fire); };
+    // в машине удары и выстрелы принимает на себя корпус
+    h.hurtPlayer = function (amt, cause, src, knock, fire) {
+      if (P.vehicle && !P.vehicle.dead) { E.damageVehicle(P.vehicle, amt * 1.5); P.flash = 0.15; return; }
+      P.hurt(amt, cause, src, knock, fire);
+    };
     h.give = function (st) { return P.give(st); };
     h.heldId = function () { return P.heldId(); };
     h.explode = function (x, y, z, pw) { Sim.explode(x, y, z, pw); };
@@ -138,6 +142,16 @@
     h.killed = function (m, source) { if (source === 'player' && m.K.zombie) zombie.kills++; };
     h.worldDay = function () { return zombie.day; };
     h.vehicle = vehicleUpdate;
+    h.playerVehicle = function () { return P.vehicle || null; };
+    h.vehicleDestroyed = function (v) {
+      if (P.vehicle !== v) return;
+      exitVehicle();
+      toast(v.V.name + ' взорвался!');
+    };
+    h.vehicleCrash = function (v, impact) {
+      P.flash = Math.min(0.5, impact / 30);
+      if (v.V.mass < 2 && impact > 13) P.hurt(Math.round((impact - 12) / 2), 'Авария');
+    };
 
     hooksS = hooksCommon();
     hooksS.explosionHit = explosionHit;
@@ -160,6 +174,9 @@
     hp.openMap = openMap;
     hp.useRadio = useRadio;
     hp.generatorFueled = generatorFueled;
+    hp.placeVehicle = placeVehicle;
+    hp.leaveVehicle = exitVehicle;
+    hp.hitVehicle = function (v, dmg) { E.damageVehicle(v, dmg); };
     hp.blockBroken = function (x, y, z, id) {
       Audio.play('break:' + BLOCKS[id].mat, x + 0.5, y + 0.5, z + 0.5);
       for (var i = 0; i < 12; i++) particles('block', x + 0.5, y + 0.5, z + 0.5, id);
@@ -202,6 +219,7 @@
     backDim = ok && save.backDim ? save.backDim : {};
     zombie = zombieDefaults(ok && save.zombie ? save.zombie : null);
     alarms.length = 0; alarmed = {}; heli = null; evacCache = null; lastPlace = ''; navCache = null;
+    P.vehicle = null; pendingVeh = false;
     overSpawn = null;
     var dim = ok && save.dim && KC.DIMS[save.dim] ? save.dim : 'over';
 
@@ -227,6 +245,7 @@
         P.slot = sp.slot | 0;
         P.hp = sp.hp || 20; P.food = sp.food === undefined ? 20 : sp.food; P.sat = sp.sat || 0; P.air = sp.air === undefined ? 15 : sp.air;
         P.spawnPoint = sp.spawn || null;
+        pendingVeh = !!sp.veh;
         tips = save.tips || {};
       } else if (Array.isArray(save.hotbar)) {
         save.hotbar.forEach(function (id, i) { if (KC.ITEMS[id]) P.inv[i] = { id: id, n: 64, d: 0 }; });
@@ -253,7 +272,7 @@
     updateZombieHud();
     if ($('seed-label')) updateTitle();
   }
-  var placedSaved = false;
+  var placedSaved = false, pendingVeh = false;
 
   // ---- Путешествия между мирами ----------------------------------------------------------
   // Врата типа kind ведут в своё измерение, а из него — туда, откуда пришли
@@ -267,6 +286,7 @@
 
   function goTo(dim, via, forcePos) {
     if (!KC.DIMS[dim] || dim === world.dim) return;
+    if (P.vehicle) exitVehicle();
     var e = P.e, from = world.dim, fx = e.x, fz = e.z;
     lastPos[from] = { x: e.x, y: e.y, z: e.z, yaw: e.yaw };
     if (dim !== 'over' && via !== 'fall') backDim[dim] = from;
@@ -320,6 +340,115 @@
     el.classList.add('is-on');
     clearTimeout(dimLabelT);
     dimLabelT = setTimeout(function () { el.classList.remove('is-on'); }, 2600);
+  }
+
+  // ---- Техника: посадка, управление, камера ------------------------------------------------
+  var vehCam = 0, targetVeh = null, vehHudT = 0;
+  function enterVehicle(v) {
+    if (!v || v.dead || v.driver || P.vehicle || P.dead) return;
+    P.vehicle = v; v.driver = true; P.e.fly = false;
+    P.mining = null; P.using = null;
+    seatPlayer(v);
+    P.e.pitch = Math.min(P.e.pitch, -0.3);            // камера сзади смотрит чуть сверху — машину видно над панелью
+    Audio.play('door-car', v.x, v.y + 1, v.z);
+    if (!v.V.cabin) vehCam = 0;
+    if (!tips.drive) {
+      tips.drive = 1;
+      message(isTouch ? 'Джойстик — газ и руль, «вверх» — тормоз, «Бить» — ' + (v.V.cannon ? 'выстрел из пушки' : 'гудок') + ', «вниз» — выйти'
+        : 'W/S — газ и тормоз, A/D — руль, пробел — тормоз, ЛКМ — ' + (v.V.cannon ? 'выстрел из пушки' : 'гудок') + ', Shift — выйти, F5 — вид', 9);
+    } else toast(v.V.name + (v.fuel <= 0 ? ': бак пуст' : ''));
+    UI.renderHud();
+  }
+  function exitVehicle() {
+    var v = P.vehicle;
+    if (!v) return;
+    var spot = E.exitSpot(v);
+    P.vehicle = null; v.driver = false; v.ctl = null;
+    var e = P.e;
+    e.x = spot.x; e.y = spot.y; e.z = spot.z; e.vx = e.vy = e.vz = 0; e.fallDist = 0;
+    Audio.play('door-car', v.x, v.y + 1, v.z);
+    $('veh').hidden = true;
+  }
+  function refuelVehicle(v) {
+    var st = P.held();
+    if (!st || st.id !== I.FUEL_CAN) return false;
+    if (v.fuel >= 99) { toast('Бак и так полон'); return true; }
+    v.fuel = Math.min(100, v.fuel + 45);
+    if (!P.creative) { st.n--; if (!st.n) P.inv[P.slot] = null; }
+    Audio.play('splash', v.x, v.y + 1, v.z);
+    toast(v.V.name + ': бак заправлен на ' + Math.round(v.fuel) + '%');
+    UI.renderHud();
+    return true;
+  }
+  // Место водителя: сиденье смещено вбок и вдоль корпуса, высота — уровень глаз
+  function seatPlayer(v) {
+    var f = E.vFwd(v.yaw), r = [-f[1], f[0]], s = v.V.seat, e = P.e;
+    e.x = v.x + r[0] * s[0] - f[0] * s[2];
+    e.z = v.z + r[1] * s[0] - f[1] * s[2];
+    e.y = v.y + s[1] - P.EYE;
+    e.vx = e.vy = e.vz = 0; e.fallDist = 0; e.onGround = true;
+  }
+  function driveInput(dt, inp) {
+    var v = P.vehicle;
+    if (!v) return;
+    if (v.dead) { P.vehicle = null; $('veh').hidden = true; return; }
+    v.ctl = state === 'playing' ? { throttle: clamp(inp.f, -1, 1), steer: clamp(inp.s, -1, 1), brake: inp.jump } : { throttle: 0, steer: 0, brake: true };
+    // башня танка следит за взглядом
+    if (v.V.cannon) {
+      var dy = P.e.yaw - v.turret;
+      while (dy > Math.PI) dy -= Math.PI * 2;
+      while (dy < -Math.PI) dy += Math.PI * 2;
+      v.turret += clamp(dy, -1.3 * dt, 1.3 * dt);
+      v.gunPitch += (clamp(P.e.pitch, -0.12, 0.35) - v.gunPitch) * Math.min(1, dt * 4);
+    }
+    v.engineT = (v.engineT || 0) - dt;
+    if (v.engineT <= 0 && v.fuel > 0) { v.engineT = 0.3; Audio.play('engine:' + Math.round((v.V.mass > 2 ? 34 : 48) + Math.abs(v.speed) * 4), v.x, v.y + 1, v.z, 0.6); }
+  }
+  // ЛКМ за рулём: пушка у танка, у остальных — гудок (заражённые идут на звук)
+  function vehicleAction() {
+    var v = P.vehicle;
+    if (!v) return;
+    if (v.V.cannon) {
+      if (v.cannonCd > 0) return;
+      if (!P.creative && !P.count(I.TANK_SHELL)) { toast('Нет танковых снарядов'); v.cannonCd = 0.6; return; }
+      v.cannonCd = 2.4;
+      var f = E.vFwd(v.turret), cp = Math.cos(v.gunPitch);
+      E.fireCannon(v, [f[0] * cp, Math.sin(v.gunPitch), f[1] * cp]);
+      if (!P.creative) P.consume(I.TANK_SHELL, 1);
+      P.flash = 0.2;
+      UI.renderHud();
+      return;
+    }
+    if (v.hornCd > 0) return;
+    v.hornCd = 0.7;
+    Audio.play('horn', v.x, v.y + 1, v.z);
+    E.noise(v.x, v.y, v.z, 32);
+  }
+  function placeVehicle(kind) {
+    var t = target, e = P.e;
+    if (!t) return false;
+    var x = t.x + t.nx + 0.5, y = t.y + t.ny, z = t.z + t.nz + 0.5;
+    var v = E.spawnVehicle(kind, x, y, z, e.yaw);
+    if (!v) return false;
+    for (var up = 0; up < 3 && E.vHits(v, v.x, v.y, v.z, v.yaw); up++) v.y += 1;
+    if (E.vHits(v, v.x, v.y, v.z, v.yaw)) { v.dead = true; toast('Здесь не хватает места'); return false; }
+    v.fuel = 100;
+    return true;
+  }
+  function updateVehHud(dt) {
+    var v = P.vehicle, el = $('veh');
+    if (!v) { if (!el.hidden) el.hidden = true; return; }
+    vehHudT -= dt;
+    if (vehHudT > 0) return;
+    vehHudT = 0.15;
+    el.hidden = false;
+    var kmh = Math.round(Math.abs(v.speed) * 3.6);
+    el.children[0].textContent = v.V.name;
+    el.children[1].textContent = kmh + ' км/ч' + (v.speed < -0.3 ? ' · назад' : '');
+    el.children[2].firstChild.style.width = Math.round(v.fuel) + '%';
+    el.children[2].classList.toggle('is-low', v.fuel < 15);
+    el.children[3].firstChild.style.width = Math.max(0, Math.round(v.hp / v.V.hp * 100)) + '%';
+    el.children[4].textContent = v.atPump ? 'Заправка у колонки…' : v.fuel <= 0 ? 'Бак пуст — нужна канистра' : v.V.cannon ? 'Снарядов: ' + (P.creative ? '∞' : P.count(I.TANK_SHELL)) : '';
   }
 
   // ---- Режим зомби-апокалипсиса ---------------------------------------------------------
@@ -657,7 +786,7 @@
 
   // ---- Названия мест: район, особое здание, метро ---------------------------------------------
   var SPECIAL_NOTES = { police: 'оружейная за решёткой на первом этаже', hospital: 'аптечки и бинты, но и пациенты', market: 'много еды и толпа внутри',
-    gas: 'канистры с топливом, бочки взрываются', helipad: 'лестница на крышу — в углу здания' };
+    gas: 'канистры с топливом, бочки взрываются', helipad: 'лестница на крышу — в углу здания', military: 'оружие, боеприпасы и танк' };
   var placeT = 0, lastPlace = '';
   function updatePlace(dt) {
     placeT -= dt;
@@ -676,7 +805,7 @@
 
   // ---- Карта района ---------------------------------------------------------------------------
   var MAP_COL = { downtown: '#4a5160', residential: '#6b5a48', industrial: '#6a6243', suburb: '#8a8a66' };
-  var MAP_ICON = { police: ['П', '#3f6fd8'], hospital: ['Б', '#2fae63'], market: ['С', '#e08a2a'], gas: ['З', '#d0453a'], helipad: ['★', '#f0b545'] };
+  var MAP_ICON = { police: ['П', '#3f6fd8'], hospital: ['Б', '#2fae63'], market: ['С', '#e08a2a'], gas: ['З', '#d0453a'], helipad: ['★', '#f0b545'], military: ['В', '#6b7d3a'] };
   function openMap() {
     if (state !== 'playing') return;
     if (!world || world.type !== 'city' || world.dim !== 'over') { toast('Эта карта — только для города'); return; }
@@ -880,14 +1009,33 @@
     target = raycastBlocks(o, d, P.REACH, false);
     var mh = E.raycast(o[0], o[1], o[2], d, P.ATTACK_REACH);
     targetMob = mh && (!target || mh.t < target.t) ? mh.e : null;
+    var vh = E.raycastVehicles(o, d, P.REACH);
+    targetVeh = vh && (!target || vh.t < target.t) && (!mh || vh.t < mh.t) ? vh.v : null;
+    if (targetVeh) target = null;
   }
 
   // Луч от глаз: первое существо или блок на дистанции maxD (для пистолета)
-  function rayHit(maxD) {
+  // spread — разброс (радианы), pierce — сколько существ подряд пробивает пуля
+  function rayHit(maxD, spread, pierce) {
     var o = eyePos(), d = lookDir();
-    var b = raycastBlocks(o, d, maxD, false);
-    var m = E.raycast(o[0], o[1], o[2], d, b ? b.t : maxD);
-    return { o: o, d: d, block: m ? null : b, mob: m ? m.e : null, t: m ? m.t : b ? b.t : maxD };
+    if (spread) {
+      var a = Math.random() * Math.PI * 2, r = Math.sqrt(Math.random()) * spread;
+      var up = Math.abs(d[1]) > 0.95 ? [1, 0, 0] : [0, 1, 0];
+      var s1 = norm3([d[1] * up[2] - d[2] * up[1], d[2] * up[0] - d[0] * up[2], d[0] * up[1] - d[1] * up[0]]);
+      var s2 = [d[1] * s1[2] - d[2] * s1[1], d[2] * s1[0] - d[0] * s1[2], d[0] * s1[1] - d[1] * s1[0]];
+      d = norm3([d[0] + (s1[0] * Math.cos(a) + s2[0] * Math.sin(a)) * r, d[1] + (s1[1] * Math.cos(a) + s2[1] * Math.sin(a)) * r, d[2] + (s1[2] * Math.cos(a) + s2[2] * Math.sin(a)) * r]);
+    }
+    var b = raycastBlocks(o, d, maxD, false), lim = b ? b.t : maxD;
+    var v = E.raycastVehicles ? E.raycastVehicles(o, d, lim) : null;
+    if (v) lim = v.t;
+    var mobs = [], skip = [], t = lim;
+    for (var i = 0; i < (pierce || 1); i++) {
+      var m = E.raycast(o[0], o[1], o[2], d, lim, skip);
+      if (!m) break;
+      mobs.push(m.e); skip.push(m.e);
+      if (i === 0) t = m.t;
+    }
+    return { o: o, d: d, block: mobs.length || v ? null : b, mob: mobs[0] || null, mobs: mobs, vehicle: mobs.length ? null : v && v.v, t: mobs.length ? t : lim };
   }
 
   // ---- Частицы -----------------------------------------------------------------------
@@ -913,6 +1061,10 @@
       case 'splash': p.col = [0.5, 0.7, 1.2]; p.vy = 3; p.size = 0.05; break;
       case 'spark': p.col = [1.5, 1.2, 0.5]; p.vx *= 2; p.vz *= 2; p.vy = 1 + Math.random() * 2; p.size = 0.035; p.life = 0.3; break;
       case 'tracer': p.col = [1.6, 1.4, 0.8]; p.vx = p.vy = p.vz = 0; p.grav = 0; p.size = 0.025; p.life = 0.07; break;
+      case 'jet':
+        var jd = extra || [0, 0, -1], js = 9 + Math.random() * 3;
+        p.vx = jd[0] * js + (Math.random() - 0.5) * 2; p.vy = jd[1] * js + (Math.random() - 0.5) * 2 + 0.5; p.vz = jd[2] * js + (Math.random() - 0.5) * 2;
+        p.col = Math.random() < 0.5 ? [1.6, 0.8, 0.2] : [1.7, 1.2, 0.4]; p.grav = -1; p.size = 0.08 + Math.random() * 0.12; p.life = 0.45 + Math.random() * 0.25; break;
       case 'smokeRed':
         var sr = Math.random() * 0.25;
         p.col = [1.05 - sr, 0.22 + sr * 0.3, 0.2]; p.grav = -0.6; p.vx = p.vx * 0.5 + 0.35; p.vz = p.vz * 0.5 + 0.15; p.vy = 1.4 + Math.random();
@@ -967,6 +1119,11 @@
   // Урон от взрыва по существам и игроку
   function explosionHit(x, y, z, power) {
     var R = power * 2;
+    E.list.forEach(function (v) {
+      if (v.dead || v.type !== 'vehicle') return;
+      var dv = Math.hypot(v.x - x, v.y + 1 - y, v.z - z);
+      if (dv < R + v.V.len / 3) { var im = 1 - Math.min(1, dv / (R + v.V.len / 3)); E.damageVehicle(v, (im * im + im) / 2 * 14 * power); }
+    });
     E.list.concat([P.e]).forEach(function (e) {
       if (e.dead || (e.type !== 'mob' && e.type !== 'player' && e.type !== 'item')) return;
       var dx = e.x - x, dy = e.y + e.h / 2 - y, dz = e.z - z, d = Math.sqrt(dx * dx + dy * dy + dz * dz);
@@ -975,7 +1132,7 @@
       var kn = [dx / dd * imp * 12, 3 + imp * 6, dz / dd * imp * 12];
       if (e.type === 'item') { e.vx += kn[0]; e.vy += kn[1]; e.vz += kn[2]; return; }
       var dmg = Math.floor((imp * imp + imp) / 2 * 7 * power + 1);
-      if (e.type === 'player') P.hurt(dmg * [0.3, 0.6, 1, 1.3][difficulty], 'Взрыв', null, kn);
+      if (e.type === 'player') { if (P.vehicle) return; P.hurt(dmg * [0.3, 0.6, 1, 1.3][difficulty], 'Взрыв', null, kn); }
       else E.damageMob(e, dmg, 'explosion', kn);
     });
   }
@@ -1063,7 +1220,8 @@
     if (simulate) {
       var inp = state === 'playing' && !sleeping ? input() : { f: 0, s: 0, jump: false, down: false, sprint: false };
       if (!P.dead) {
-        if (world.isLoaded(e.x, e.z)) P.move(dt, inp);
+        if (P.vehicle) driveInput(dt, inp);
+        else if (world.isLoaded(e.x, e.z)) P.move(dt, inp);
         P.stats(dt, difficulty);
       }
       if (state === 'playing' && !P.dead) actions(dt);
@@ -1072,6 +1230,7 @@
       while (tickAcc >= TICK && n < 5) { Sim.tick(); tickAcc -= TICK; n++; }
       if (n === 5) tickAcc = 0;
       E.update(dt);
+      if (P.vehicle && !P.vehicle.dead) seatPlayer(P.vehicle);
       zombieTick(dt);
       if (P.swing > 0) { P.swing += dt * 3.2; if (P.swing >= 1) P.swing = 0; }
     }
@@ -1099,6 +1258,9 @@
 
     var sprintFov = !reduceMotion && state === 'playing' && (P.sprinting || (e.fly && Math.hypot(e.vx, e.vz) > 8));
     var bowZoom = P.using && P.using.kind === 'bow' ? Math.min(1, P.using.t) * 10 : 0;
+    var scope = P.using && P.using.kind === 'aim' ? Math.min(1, P.using.t * 3) : 0;
+    if (scope) bowZoom = scope * 46;
+    $('scope').style.opacity = scope > 0.6 && view === 0 ? 1 : 0;
     fov += (72 + (sprintFov ? 8 : 0) - bowZoom - fov) * Math.min(1, dt * 8);
     var R = settings.dist * CS;
     renderer.setCamera(cam, fov * Math.PI / 180, aspect, Math.max(R * 1.25, 330));
@@ -1112,10 +1274,12 @@
     var fogColor = inLava ? [0.9, 0.3, 0.05] : under ? [0.06 * sky.day + 0.02, 0.2 * sky.day + 0.03, 0.42 * sky.day + 0.05] : sky.hor;
     var DIM = KC.DIMS[world.dim];
 
-    var thirdPerson = view !== 0 && state !== 'title';
-    var ents = E.buildRender(cam, gameTime, thirdPerson && !P.dead ? function (batch) { P.drawBody(batch, E.lightAt(e.x, e.y + 1.4, e.z)); } : null);
+    var driving = !!P.vehicle && state !== 'title';
+    var thirdPerson = view !== 0 && state !== 'title' && !driving;
+    var ents = E.buildRender(cam, gameTime, thirdPerson && !P.dead ? function (batch) { P.drawBody(batch, E.lightAt(e.x, e.y + 1.4, e.z)); } : null,
+      driving && vehCam === 1 ? P.vehicle : null);
     var held = null;
-    if (!thirdPerson && state !== 'title' && placed && !P.dead) held = P.buildHeld(gameTime, E.lightAt(e.x, e.y + 1.4, e.z));
+    if (!thirdPerson && !driving && state !== 'title' && placed && !P.dead) held = P.buildHeld(gameTime, E.lightAt(e.x, e.y + 1.4, e.z));
     var hl = null;
     if (state === 'playing' && target && !targetMob) {
       var sb = target.box || [0, 0, 0, 1, 1, 1];
@@ -1141,6 +1305,7 @@
       UI.renderHud();
       UI.tick();
       if (simulate) { updateNav(dt); updatePlace(dt); }
+      updateVehHud(dt);
     }
     if (settings.debug && state !== 'title') {
       debugT -= dt;
@@ -1174,6 +1339,15 @@
     var e = P.e, eye = eyePos();
     var cam = { x: eye[0], y: eye[1], z: eye[2], yaw: e.yaw, pitch: e.pitch };
     if (P.flash > 0 && !reduceMotion) cam.pitch += Math.sin(P.flash * 40) * 0.01;
+    // за рулём: камера сзади машины (вращается мышью) или из кабины
+    var v = P.vehicle;
+    if (v && !v.dead) {
+      if (vehCam === 1 && v.V.cabin) return cam;
+      var piv = [v.x, v.y + v.V.h + 0.9, v.z], dir = lookDir(), bk = [-dir[0], -dir[1] + 0.25, -dir[2]];
+      var bl = Math.hypot(bk[0], bk[1], bk[2]); bk = [bk[0] / bl, bk[1] / bl, bk[2] / bl];
+      var bh = raycastBlocks(piv, bk, v.V.cam, false), bd = bh ? Math.max(0.5, bh.t - 0.4) : v.V.cam;
+      return { x: piv[0] + bk[0] * bd, y: piv[1] + bk[1] * bd, z: piv[2] + bk[2] * bd, yaw: e.yaw, pitch: e.pitch };
+    }
     if (view !== 0) {
       var d = lookDir(), sign = view === 1 ? -1 : 1;
       var back = [d[0] * sign, d[1] * sign, d[2] * sign];
@@ -1189,18 +1363,31 @@
   function actions(dt) {
     attackT -= dt; useT -= dt;
     var breaking = mouse.l, using = mouse.r;
+    if (P.vehicle) {
+      if (mouse.lPress || (mouse.l && P.vehicle.V.cannon)) vehicleAction();
+      if (mouse.rPress && isTouch) exitVehicle();
+      mouse.lPress = false; mouse.rPress = false;
+      return;
+    }
+    if (targetVeh && mouse.rPress) {
+      if (!refuelVehicle(targetVeh)) enterVehicle(targetVeh);
+      mouse.rPress = false; mouse.r = false;
+      return;
+    }
     if (targetMob && breaking) {
       P.mining = null;
       if (mouse.lPress || attackT <= 0) { P.attack(targetMob); attackT = 0.45; }
     } else {
       P.mine(dt, target, breaking);
     }
+    P.fresh = mouse.rPress;
     if (using) {
       if (mouse.rPress) { P.use(target, targetMob, true); useT = 0.3; P.swing = P.swing || 0.01; }
       else if (!P.using && useT <= 0) { P.use(target, targetMob, true); useT = 0.22; }
       else P.use(target, targetMob, false);
     }
     P.updateUse(dt, using);
+    P.fresh = false;
     mouse.lPress = false; mouse.rPress = false;
   }
 
@@ -1214,7 +1401,7 @@
     var ok = storageSet(SAVE_KEY, {
       v: 3, seed: world.seed, mode: mode, diff: difficulty, time: timeOfDay, tips: tips,
       scenario: scenario, worldType: worldType, dim: world.dim, dims: dims, lastPos: lastPos, backDim: backDim, zombie: zombie,
-      player: { x: e.x, y: e.y, z: e.z, yaw: e.yaw, pitch: e.pitch, fly: e.fly, hp: P.hp, food: P.food, sat: P.sat, air: P.air,
+      player: { x: e.x, y: e.y, z: e.z, yaw: e.yaw, pitch: e.pitch, fly: e.fly, hp: P.hp, food: P.food, sat: P.sat, air: P.air, veh: P.vehicle ? 1 : 0,
         inv: P.inv.map(packStack), armor: P.armor.map(packStack), slot: P.slot, spawn: P.spawnPoint }
     });
     if (ok) {
@@ -1247,6 +1434,13 @@
   function play() {
     Audio.ensure();
     if (!placed) placePlayer();
+    // после загрузки — снова за руль той же машины
+    if (pendingVeh) {
+      pendingVeh = false;
+      var best = null, bd = 4;
+      E.list.forEach(function (v) { if (v.type === 'vehicle' && !v.dead) { var d = Math.hypot(v.x - P.e.x, v.z - P.e.z); if (d < bd) { bd = d; best = v; } } });
+      if (best) enterVehicle(best);
+    }
     state = P.dead ? 'dead' : 'playing';
     saveTimer = 0;
     showScreen(P.dead ? 'death' : null);
@@ -1494,6 +1688,7 @@
   // ---- Управление ------------------------------------------------------------------------
   function look(dx, dy, k) {
     var e = P.e;
+    if (P.using && P.using.kind === 'aim' && P.using.t > 0.3) k *= 0.35;     // в прицеле мышь медленнее
     e.yaw -= dx * k * settings.sens;
     e.pitch = clamp(e.pitch - dy * k * settings.sens, -1.55, 1.55);
   }
@@ -1576,7 +1771,10 @@
         case 'KeyM': if (P.count(I.CITY_MAP) || P.creative) openMap(); else toast('Карты района нет: её можно найти в сундуках или получить от выживших'); return;
         case 'KeyF': if (mode === 'creative') setFly(!P.e.fly); return;
         case 'KeyQ': dropHeld(e.shiftKey); return;
-        case 'F5': view = (view + 1) % 3; return;
+        case 'F5':
+          if (P.vehicle) { vehCam = P.vehicle.V.cabin ? 1 - vehCam : 0; return; }
+          view = (view + 1) % 3; return;
+        case 'ShiftLeft': case 'ShiftRight': if (P.vehicle) { exitVehicle(); return; } break;
         case 'F3':
           settings.debug = !settings.debug; $('set-debug').checked = settings.debug; $('debug').hidden = !settings.debug; saveSettings();
           return;
@@ -1656,7 +1854,7 @@
       el.addEventListener('contextmenu', function (e) { e.preventDefault(); });
     }
     holdBtn('t-jump', function () { touchJump = true; }, function () { touchJump = false; });
-    holdBtn('t-down', function () { touchDown = true; }, function () { touchDown = false; });
+    holdBtn('t-down', function () { if (P.vehicle) { exitVehicle(); return; } touchDown = true; }, function () { touchDown = false; });
     holdBtn('t-break', function () { mouse.l = true; mouse.lPress = true; }, function () { mouse.l = false; });
     holdBtn('t-place', function () { mouse.r = true; mouse.rPress = true; }, function () { mouse.r = false; });
     holdBtn('t-fly', function () { if (mode === 'creative') setFly(!P.e.fly); });
@@ -1684,7 +1882,7 @@
   KC.debug = {
     get world() { return world; }, get player() { return P.e; }, get state() { return state; }, get target() { return target; },
     get zombie() { return zombie; }, get scenario() { return scenario; }, goTo: goTo, travel: travel, zombieDawn: zombieDawn,
-    evac: function () { return evacInfo(); }, openMap: openMap, carHit: carHit, events: { airdrop: airdrop, survivor: survivorEvent, fire: fireEvent }, get heli() { return heli; },
+    evac: function () { return evacInfo(); }, enterVehicle: enterVehicle, exitVehicle: exitVehicle, get vehicle() { return P.vehicle; }, refuel: refuelVehicle, openMap: openMap, carHit: carHit, events: { airdrop: airdrop, survivor: survivorEvent, fire: fireEvent }, get heli() { return heli; },
     P: P, play: play, pause: pause, setTime: function (t) { timeOfDay = t; lastTod = t; }, save: saveGame,
     open: openContainer, close: closeContainer, setMode: function (m) { mode = m; P.setCreative(m === 'creative'); }
   };
