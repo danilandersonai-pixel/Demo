@@ -265,6 +265,7 @@
   // Город делится на районы: от района зависят здания, добыча и число заражённых.
   // =================================================================================
   var CELL_C = 40, GROUND = 31;
+  var OV = 0;                         // сила зарастания в текущей колонке (ставит city перед вызовом участка)
 
   // Сглаженный шум по клеткам квартала (0..1): соседние кварталы похожи
   function cellNoise(seed, x, z, scale, salt) {
@@ -274,6 +275,38 @@
     var c = hash2(x0, z0 + 1, seed + salt), d = hash2(x0 + 1, z0 + 1, seed + salt);
     return (a * (1 - tx) + b * tx) * (1 - tz) + (c * (1 - tx) + d * tx) * tz;
   }
+  // ---- Природа захватывает город --------------------------------------------------------
+  // Сила зарастания 0..1: окраины и спальные районы зеленеют сильнее центра, причём пятнами —
+  // рядом с почти чистой улицей бывает квартал, где плитки уже не видно под травой
+  var OVER_BASE = { downtown: 0.2, residential: 0.5, industrial: 0.34, suburb: 0.7 };
+  function overAt(seed, wx, wz, dist) {
+    return clamp(OVER_BASE[dist] + (cellNoise(seed, wx, wz, 26, 300) - 0.5) * 1.2 + (cellNoise(seed, wx, wz, 6, 301) - 0.5) * 0.35, 0, 1);
+  }
+  // Покрытие тротуара: плитка, замшелая плитка или пробившаяся трава
+  function walkCover(seed, wx, wz, ov) {
+    if (ov > 0.42 && cellNoise(seed, wx, wz, 4, 302) + ov * 0.75 > 1.02) return B.GRASS;
+    return hash2(wx, wz, seed + 303) < ov * 0.6 ? B.MOSSY_SIDEWALK : B.SIDEWALK;
+  }
+  // Мелкая зелень поверх земли: на траве — трава, папоротники, цветы и кусты, на камне — сорняки и мох
+  function greenery(c, x, y, z, wx, wz, ground, ov, seed, bushes) {
+    if (getc(c, x, y, z) !== 0) return;
+    var r = hash2(wx, wz, seed + 304);
+    if (ground === B.GRASS || ground === B.DIRT) {
+      if (bushes && r < ov * 0.05) {
+        put(c, x, y, z, B.LEAVES, 2);
+        if (r < ov * 0.015 && getc(c, x, y + 1, z) === 0) put(c, x, y + 1, z, B.LEAVES, 2);
+        return;
+      }
+      if (r < 0.2 + ov * 0.45) {
+        var f = hash2(wx, wz, seed + 305);
+        put(c, x, y, z, f < 0.06 ? B.DAISY : f < 0.1 ? B.POPPY : f < 0.13 ? B.DANDELION : f < 0.15 ? B.BELLFLOWER : f < 0.26 ? B.FERN : B.TALL_GRASS);
+      }
+      return;
+    }
+    if (r < ov * 0.16) put(c, x, y, z, B.WEEDS);
+    else if (r < ov * 0.3) put(c, x, y, z, B.MOSS, 3);
+  }
+
   // Центр города — в 7–9 кварталах от точки старта; там же площадка эвакуации
   function cityCenter(seed) {
     var ang = hash2(1, 2, seed + 201) * Math.PI * 2, dist = 7 + Math.floor(hash2(3, 4, seed + 202) * 3);
@@ -341,12 +374,16 @@
       if (info.top > H - 6) { info.floors = Math.floor((H - 6 - GROUND) / 4); info.top = GROUND + info.floors * 4; }
     }
     var f = hash2(cxI, czI, seed + 74);
+    // одичавшие участки: чем сильнее зарастание вокруг, тем чаще на месте квартала — молодой лес
+    var wildP = clamp((overAt(seed, info.x0 + 14, info.z0 + 14, dist) - 0.42) * (dist === 'downtown' ? 0.45 : 0.9), 0, 0.32);
+    var wild = !special && Math.abs(cxI) + Math.abs(czI) > 1 && hash2(cxI, czI, seed + 214) < wildP;
     if (special === 'helipad') building('helipad', 10);
     else if (special === 'hospital') building('hospital', 4 + Math.floor(f * 2));
     else if (special === 'police') building('police', 3);
     else if (special === 'market') { info.kind = 'market'; info.bx0 = info.x0 + 1; info.bx1 = info.x0 + 26; info.bz0 = info.z0 + 2; info.bz1 = info.z0 + 25; info.top = GROUND + 6; info.floors = 1; }
     else if (special === 'military') { info.kind = 'military'; info.bx0 = info.x0; info.bx1 = info.x0 + 27; info.bz0 = info.z0; info.bz1 = info.z0 + 27; info.top = GROUND + 6; info.floors = 1; }
     else if (special === 'gas') { info.kind = 'gas'; info.bx0 = info.x0 + 20; info.bx1 = info.x0 + 26; info.bz0 = info.z0 + 3; info.bz1 = info.z0 + 12; info.top = GROUND + 4; info.floors = 1; }
+    else if (wild) { info.kind = 'wild'; info.ruinWalls = hash2(cxI, czI, seed + 215) < 0.6; }
     else if (dist === 'suburb') info.kind = r < 0.1 ? 'park' : r < 0.14 ? 'ruin' : 'houses';
     else if (dist === 'industrial') {
       if (r < 0.1) info.kind = 'parking';
@@ -371,7 +408,18 @@
         else building('apart', 4 + Math.floor(f * 4));
       }
     }
-    // район с высотками: центр чаще разрушен
+    // сад на крыше невысокого дома: трава, кусты и пара деревьев, пробившихся сквозь кровлю
+    if (info.kind === 'building' && info.style !== 'helipad' && info.style !== 'tower' && info.floors <= 7) {
+      var rov = overAt(seed, info.x0 + 14, info.z0 + 14, dist);
+      info.roofGarden = hash2(cxI, czI, seed + 216) < clamp((rov - 0.3) * 1.5, 0, 0.8);
+      if (info.roofGarden) {
+        info.roofTrees = [];
+        var nT = 1 + Math.floor(hash2(cxI, czI, seed + 217) * 2.6);
+        for (var ti = 0; ti < nT; ti++) info.roofTrees.push([
+          info.bx0 + 5 + Math.floor(hash2(cxI + ti * 7, czI, seed + 218) * (info.bx1 - info.bx0 - 8)),
+          info.bz0 + 5 + Math.floor(hash2(cxI, czI + ti * 7, seed + 219) * (info.bz1 - info.bz0 - 9))]);
+      }
+    }
     plotCache.set(ck, info);
     return info;
   }
@@ -447,55 +495,230 @@
       for (y = GROUND - 3; y < GROUND; y++) put(c, x, y, z, B.DIRT);
       var road = lx < 8 || lz < 8;
       var walk = !road && (lx < 10 || lx >= 38 || lz < 10 || lz >= 38);
+      var ov = overAt(seed, wx, wz, dist);
+      OV = ov;
       if (road) {
-        var id = B.ASPHALT, meta = 0, marks = dist !== 'suburb';
-        if (lx < 8 && lz < 8) {
+        var id = B.ASPHALT, meta = 0, marks = dist !== 'suburb', cross = lx < 8 && lz < 8;
+        if (cross) {
           if (marks && (lz === 0 || lz === 7 || lx === 0 || lx === 7)) { id = B.ROAD_LINE; meta = 2; }
         } else if (marks && lx < 8 && (lx === 3 || lx === 4) && mod(wz, 6) < 3) { id = B.ROAD_LINE; meta = 1; }
         else if (marks && lz < 8 && (lz === 3 || lz === 4) && mod(wx, 6) < 3) { id = B.ROAD_LINE; meta = 0; }
         // трещины и воронки на брошенных дорогах; в центре их больше
         if (id === B.ASPHALT && hash2(wx, wz, seed + 75) < (dist === 'downtown' ? 0.03 : 0.012)) id = B.RUBBLE;
+        // трава наползает с тротуаров на крайние полосы
+        if (!cross && id === B.ASPHALT && ov > 0.35) {
+          var lane = lx < 8 ? lx : lz, edgeD = Math.min(lane, 7 - lane);
+          if (edgeD <= 1 && cellNoise(seed, wx, wz, 5, 306) + ov * 0.6 - edgeD * 0.3 > 1.0) id = B.GRASS;
+        }
         put(c, x, GROUND, z, id, meta);
         if (id === B.ASPHALT) {
-          var rr = hash2(wx, wz, seed + 90);
-          if (rr < (dist === 'downtown' ? 0.06 : 0.035)) put(c, x, GROUND + 1, z, B.CRACKS, 3);
-          else if (rr > 0.9975 && !(lx < 8 && lz < 8)) put(c, x, GROUND + 1, z, B.ROAD_BARRIER, lx < 8 ? 0 : 1);
-        }
+          var rr = hash2(wx, wz, seed + 90), crackP = dist === 'downtown' ? 0.06 : 0.035;
+          // из трещин лезут сорняки, на старом асфальте — пятна мха
+          if (rr < crackP) put(c, x, GROUND + 1, z, hash2(wx, wz, seed + 307) < ov * 0.7 ? B.WEEDS : B.CRACKS, hash2(wx, wz, seed + 307) < ov * 0.7 ? 0 : 3);
+          else if (rr < crackP + ov * 0.05) put(c, x, GROUND + 1, z, rr < crackP + ov * 0.02 ? B.WEEDS : B.MOSS, rr < crackP + ov * 0.02 ? 0 : 3);
+          else if (rr > 0.9975 && !cross) put(c, x, GROUND + 1, z, B.ROAD_BARRIER, lx < 8 ? 0 : 1);
+        } else if (id === B.GRASS) greenery(c, x, GROUND + 1, z, wx, wz, id, ov, seed, false);
       } else if (walk) {
-        put(c, x, GROUND, z, dist === 'suburb' ? B.GRASS : B.SIDEWALK);
-        if (dist === 'suburb' && (lx === 9 || lx === 38 || lz === 9 || lz === 38)) put(c, x, GROUND, z, B.SIDEWALK);
+        var inner = lx === 9 || lx === 38 || lz === 9 || lz === 38;
+        var gnd = dist === 'suburb' && !inner ? B.GRASS : walkCover(seed, wx, wz, ov);
+        put(c, x, GROUND, z, gnd);
         // фонари на углах и серединах кварталов
         var lampSpot = (lx === 9 || lx === 38) && (lz === 9 || lz === 38 || lz === 23) || (lz === 9 || lz === 38) && lx === 23;
         if (lampSpot) {
           for (y = GROUND + 1; y <= GROUND + 5; y++) put(c, x, y, z, B.STREET_POLE);
           put(c, x, GROUND + 6, z, hash2(wx, wz, seed + 76) < (dist === 'downtown' ? 0.55 : 0.35) ? B.CONCRETE_DARK : B.STREET_LAMP);
-        } else streetProp(c, x, z, wx, wz, lx, lz, dist, seed);
+        } else {
+          streetProp(c, x, z, wx, wz, lx, lz, dist, seed);
+          greenery(c, x, GROUND + 1, z, wx, wz, gnd, ov, seed, true);
+        }
       } else {
         cityPlotColumn(c, x, z, wx, wz, p, seed);
       }
       metroColumn(c, x, z, wx, wz, seed);
     }
+    // деревья: сквозь асфальт у бордюров, вдоль тротуаров, во дворах, парках, на крышах и в одичавших кварталах
+    cityTrees(c, seed, ox, oz);
     // машины на дорогах: слоты вдоль каждой улицы квартала
     var cells = {};
     for (z = oz - 8; z <= oz + CS + 8; z += 8) for (x = ox - 8; x <= ox + CS + 8; x += 8) cells[Math.floor(x / CELL_C) + ',' + Math.floor(z / CELL_C)] = 1;
     Object.keys(cells).forEach(function (k) {
-      var pp = k.split(',').map(Number), bx = pp[0] * CELL_C, bz = pp[1] * CELL_C;
-      var dens = { downtown: 0.6, residential: 0.4, industrial: 0.3, suburb: 0.2 }[districtOf(seed, pp[0], pp[1])];
+      var pp = k.split(',').map(Number), bx = pp[0] * CELL_C, bz = pp[1] * CELL_C, dname = districtOf(seed, pp[0], pp[1]);
+      var dens = { downtown: 0.6, residential: 0.4, industrial: 0.3, suburb: 0.2 }[dname];
       for (var s = 0; s < 6; s++) {
         var r = hash2(pp[0] * 13 + s, pp[1] * 7 - s, seed + 77);
         if (r > dens) continue;
         var alongX = s % 2 === 0, lane = hash2(pp[0], pp[1] * 3 + s, seed + 78) < 0.5 ? 1 : 5;
         var along = 10 + Math.floor(hash2(pp[0] + s, pp[1], seed + 79) * 24);
         var col = [B.CAR_RED, B.CAR_BLUE, B.CAR_WHITE][Math.floor(r * 7.5) % 3];
+        // брошенная давно машина обросла: кусты на крыше и капоте, мох
+        var carOv = overAt(seed, alongX ? bx + along : bx + lane, alongX ? bz + lane : bz + along, dname);
+        var mossy = hash2(pp[0] * 5 + s, pp[1] * 11 - s, seed + 312) < carOv * 0.8;
         for (var l = 0; l < 4; l++) for (var w = 0; w < 2; w++) {
           var cx2 = alongX ? bx + along + l : bx + lane + w;
           var cz2 = alongX ? bz + lane + w : bz + along + l;
           var llx = cx2 - ox, llz = cz2 - oz;
           put(c, llx, GROUND + 1, llz, (l === 0 || l === 3) && w === (alongX ? 0 : 1) ? B.TIRE : col);
           if (l === 1 || l === 2) put(c, llx, GROUND + 2, llz, B.WINDOW);
+          if (mossy) {
+            var ctop = l === 1 || l === 2 ? GROUND + 3 : GROUND + 2, hr = hash3(cx2, ctop, cz2, seed + 313);
+            if (hr < 0.5) put(c, llx, ctop, llz, B.LEAVES, 2);
+            else if (hr < 0.75) put(c, llx, ctop, llz, B.MOSS, 3);
+          }
         }
       }
     });
+  }
+
+  // ---- Деревья в городе ------------------------------------------------------------------------
+  // treeSpot — чистая функция координат, поэтому крона, переползающая в соседний чанк, строится
+  // по обе стороны границы одинаково. Виды: 0 — дуб, 1 — берёза, 2 — большой дуб, 3 — сухое, 4 — деревце
+  var TREE = { base: 0, kind: 0, h: 0, pit: 0 };
+  function treeKind(r, dist) {
+    if (r < (dist === 'downtown' || dist === 'industrial' ? 0.16 : 0.05)) return 3;
+    return r < 0.32 ? 1 : r < 0.45 ? 2 : 0;
+  }
+  function treeHeight(kind, h) {
+    return kind === 2 ? 8 + Math.floor(h * 2) : kind === 3 ? 4 + Math.floor(h * 3) : kind === 4 ? 3 : kind === 1 ? 6 + Math.floor(h * 3) : 5 + Math.floor(h * 3);
+  }
+  // точка дерева на сетке с «дрожанием»: одна на клетку size×size внутри участка
+  function jitterHit(seed, p, px, pz, size, lo, span, salt) {
+    var i = Math.floor(px / size), j = Math.floor(pz / size);
+    return px === i * size + lo + Math.floor(hash2(p.cx * 8 + i, p.cz * 8 + j, seed + salt) * span) &&
+      pz === j * size + lo + Math.floor(hash2(p.cx * 8 + j, p.cz * 8 - i, seed + salt + 1) * span);
+  }
+  function plotTree(seed, p, px, pz, wx, wz, r, T) {
+    var h = hash2(wz, wx, seed + 312), kind = treeKind(hash2(wx, wz, seed + 311), p.district);
+    switch (p.kind) {
+      case 'building':
+        var rt = p.roofTrees;
+        if (rt) for (var i = 0; i < rt.length; i++) if (rt[i][0] === wx && rt[i][1] === wz) {
+          T.base = p.top; T.kind = h < 0.3 ? 1 : 4; T.h = T.kind === 1 ? 5 : 3; T.pit = 3;
+          return true;
+        }
+        // двор вдоль края участка — если дом стоит не вплотную к тротуару; у входа не растёт
+        if (p.bx0 - p.x0 < 3) return false;
+        var ring = (px === 1 || px === 26) && pz >= 1 && pz <= 26 ? pz : (pz === 1 || pz === 26) && px >= 1 && px <= 26 ? px : -1;
+        if (ring < 0 || mod(ring - 4, 6) !== 0) return false;
+        if (pz === 1 && Math.abs(wx - Math.floor((p.bx0 + p.bx1) / 2)) <= 3) return false;
+        if (r > overAt(seed, wx, wz, p.district) * 0.75) return false;
+        if (kind === 2) kind = 0;
+        break;
+      case 'park':
+        if (px % 9 === 4 && pz % 9 === 4) { if (px === 13 && pz === 13) return false; break; }      // аллея
+        if (!jitterHit(seed, p, px, pz, 7, 1, 5, 320) || Math.hypot(px - 13.5, pz - 13.5) < 5.5) return false;
+        if (Math.abs(px - (4 + 9 * Math.round((px - 4) / 9))) < 3 && Math.abs(pz - (4 + 9 * Math.round((pz - 4) / 9))) < 3) return false;
+        if (r > 0.2 + overAt(seed, wx, wz, p.district) * 0.5) return false;
+        kind = 4;
+        break;
+      case 'wild':
+        if (!jitterHit(seed, p, px, pz, 7, 1, 5, 322) || r > 0.85) return false;
+        if (p.ruinWalls && (px === 5 || px === 22 || pz === 5 || pz === 22)) return false;
+        if (kind === 3 && h < 0.7) kind = 0;
+        if (h > 0.85) kind = 4;
+        break;
+      case 'ruin':
+        if (!jitterHit(seed, p, px, pz, 9, 3, 5, 324)) return false;
+        if (r > 0.3 + overAt(seed, wx, wz, p.district) * 0.45) return false;
+        break;
+      case 'parking':
+        if (px % 9 !== 4 || pz % 9 !== 4 || r > overAt(seed, wx, wz, p.district) * 0.55) return false;
+        break;
+      case 'houses':
+        var qx = px < 14 ? 0 : 1, qz = pz < 14 ? 0 : 1, ux = px - qx * 14, uz = pz - qz * 14;
+        var hs = hash2(p.cx * 2 + qx, p.cz * 2 + qz, seed + 240);
+        if (hs < 0.12) {                                            // заросший пустой участок
+          if (!((ux === 4 && uz === 5) || (ux === 9 && uz === 9) || (ux === 10 && uz === 3)) || r > 0.75) return false;
+        } else if (ux !== 12 || uz !== (qz === 0 ? 11 : 2) || r > 0.35 + overAt(seed, wx, wz, p.district) * 0.5) return false;
+        if (kind === 3) kind = 0;
+        break;
+      default: return false;
+    }
+    T.kind = kind; T.h = treeHeight(kind, h);
+    return true;
+  }
+  function treeSpot(seed, wx, wz, T) {
+    var lx = mod(wx, CELL_C), lz = mod(wz, CELL_C);
+    if (lx < 8 && lz < 8) return false;                                   // перекрёсток
+    var cxI = Math.floor(wx / CELL_C), czI = Math.floor(wz / CELL_C), r = hash2(wx, wz, seed + 310), p, along;
+    T.base = GROUND; T.pit = 0;
+    if (lx < 8 || lz < 8) {
+      // сквозь асфальт у бордюра: полосы 0 и 7 свободны от брошенных машин, фонари далеко
+      var lane = lx < 8 ? lx : lz;
+      along = lx < 8 ? lz : lx;
+      if ((lane !== 0 && lane !== 7) || (along !== 16 && along !== 32)) return false;
+      p = plotInfo(seed, cxI, czI);
+      if (r > (overAt(seed, wx, wz, p.district) - 0.25) * 0.8) return false;
+      T.pit = 2;
+    } else if (lx < 10 || lx >= 38 || lz < 10 || lz >= 38) {
+      // вдоль тротуара у бордюра — между фонарями, скамейками и гидрантами
+      var nsOuter = (lx === 8 || lx === 39) && lz >= 10 && lz < 38, ewOuter = (lz === 8 || lz === 39) && lx >= 10 && lx < 38;
+      if (!nsOuter && !ewOuter) return false;
+      along = nsOuter ? lz : lx;
+      if (along !== 13 && along !== 28) return false;
+      p = plotInfo(seed, cxI, czI);
+      if (r > 0.1 + overAt(seed, wx, wz, p.district) * 0.65) return false;
+      T.pit = 1;
+    } else {
+      p = plotInfo(seed, cxI, czI);
+      return plotTree(seed, p, wx - p.x0, wz - p.z0, wx, wz, r, T);
+    }
+    var h = hash2(wz, wx, seed + 312);
+    T.kind = treeKind(hash2(wx, wz, seed + 311), p.district);
+    T.h = treeHeight(T.kind, h) + (T.kind === 3 ? 0 : 1);                 // у дорог — повыше, чтобы проезжала техника
+    return true;
+  }
+  // листва занимает только пустоту и траву: не ломает стены, фонари и окна
+  function leafAt(c, x, y, z, m) {
+    var cur = getc(c, x, y, z);
+    if (cur === 0 || cur === B.TALL_GRASS || cur === B.WEEDS || cur === B.FERN) put(c, x, y, z, B.LEAVES, m);
+  }
+  var BRANCH_D = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+  function placeTree(c, ox, oz, wx, wz, T, seed) {
+    var lx = wx - ox, lz = wz - oz, base = T.base, th = T.h, kind = T.kind, y, dx, dz, k;
+    var logId = kind === 1 ? B.BIRCH_LOG : B.LOG, lm = kind === 1 ? 3 : 2;     // бит 2 — листва не осыпается
+    // корни: земля под стволом; вокруг — вздыбленный асфальт, трава и сорняки
+    put(c, lx, base, lz, B.DIRT);
+    if (T.pit) for (k = 0; k < 4; k++) {
+      var nx = lx + BRANCH_D[k][0], nz = lz + BRANCH_D[k][1], g = getc(c, nx, base, nz);
+      var hr = hash2(wx * 3 + k, wz * 5 - k, seed + 314);
+      if (T.pit === 2 && hr < 0.6 && g === B.ASPHALT) put(c, nx, base, nz, B.RUBBLE);
+      else if (T.pit !== 2 && hr < 0.6 && (g === B.SIDEWALK || g === B.MOSSY_SIDEWALK || g === B.CONCRETE_DARK || g === B.CONCRETE)) put(c, nx, base, nz, B.GRASS);
+      if (hr > 0.35 && getc(c, nx, base + 1, nz) === 0) put(c, nx, base + 1, nz, getc(c, nx, base, nz) === B.GRASS ? B.TALL_GRASS : B.WEEDS);
+    }
+    if (kind !== 3) {
+      var crown = base + th, lo = crown - (kind === 2 ? 3 : kind === 4 ? 1 : 2);
+      for (y = lo; y <= crown + 1; y++) {
+        var rad = kind === 4 ? 1 : y <= crown - 1 ? (kind === 2 && y <= crown - 2 ? 3 : 2) : 1;
+        for (dz = -rad; dz <= rad; dz++) for (dx = -rad; dx <= rad; dx++) {
+          var corner = Math.abs(dx) === rad && Math.abs(dz) === rad;
+          if (corner && (rad === 1 ? y === crown + 1 : hash3(wx + dx, y, wz + dz, seed + 315) < 0.55)) continue;
+          if (rad === 3 && Math.abs(dx) + Math.abs(dz) > 4) continue;
+          leafAt(c, lx + dx, y, lz + dz, lm);
+        }
+      }
+      // опавшие листья под кроной
+      for (dz = -2; dz <= 2; dz++) for (dx = -2; dx <= 2; dx++) {
+        if ((!dx && !dz) || hash3(wx + dx, base, wz + dz, seed + 316) > 0.2) continue;
+        if (getc(c, lx + dx, base + 1, lz + dz) === 0 && KC.OPAQUE[getc(c, lx + dx, base, lz + dz)] === 1) put(c, lx + dx, base + 1, lz + dz, B.FALLEN_LEAVES, 3);
+      }
+    }
+    for (y = base + 1; y <= base + th - (kind === 4 ? 1 : 0); y++) put(c, lx, y, lz, logId);
+    // толстые ветви у большого дуба и голые сучья у сухого дерева
+    if (kind === 2 || kind === 3) {
+      var d0 = Math.floor(hash2(wx, wz, seed + 317) * 4);
+      for (var bi = 0; bi < 2; bi++) {
+        var bd = BRANCH_D[(d0 + bi * 2) % 4], by = base + th - 1 - bi * 2, len = kind === 3 ? 2 : 2;
+        for (var s = 1; s <= len; s++) {
+          var bxx = lx + bd[0] * s, bzz = lz + bd[1] * s, byy = by + (s === len ? 1 : 0), cur = getc(c, bxx, byy, bzz);
+          if (cur === 0 || cur === B.LEAVES) put(c, bxx, byy, bzz, logId, s === len ? 0 : bd[0] ? 1 : 2);
+        }
+      }
+    }
+  }
+  function cityTrees(c, seed, ox, oz) {
+    for (var wz = oz - 3; wz < oz + CS + 3; wz++) for (var wx = ox - 3; wx < ox + CS + 3; wx++) {
+      if (treeSpot(seed, wx, wz, TREE)) placeTree(c, ox, oz, wx, wz, TREE, seed);
+    }
   }
 
   function lootAt(c, wx, y, wz, table) { (c.loot = c.loot || []).push([wx, y, wz, table]); }
@@ -535,14 +758,21 @@
     var along = d === 0 || d === 1 ? wz : wx, pillar = mod(along, 3) === 0;
     var midX = Math.floor((p.bx0 + p.bx1) / 2);
     if (d === 4 && Math.abs(wx - midX) <= 2) return;                       // у входа ничего
-    var r = hash2(wx * 3 + d, wz * 5 - d, seed + 93), dist = p.district, y;
-    if (pillar && r < (dist === 'residential' || dist === 'suburb' ? 0.35 : 0.12)) {
-      var hIvy = 2 + Math.floor(hash2(wx, wz, seed + 94) * Math.min(14, p.top - GROUND));
-      for (y = GROUND + 1; y <= GROUND + hIvy && y < p.top; y++) put(c, x, y, z, B.IVY, d);
+    var r = hash2(wx * 3 + d, wz * 5 - d, seed + 93), dist = p.district, y, ov = OV;
+    // плющ ползёт по простенкам снизу — чем сильнее зарастание, тем выше, вплоть до крыши
+    if (pillar && r < (dist === 'residential' || dist === 'suburb' ? 0.35 : 0.12) + ov * 0.35) {
+      var hIvy = 2 + Math.floor(hash2(wx, wz, seed + 94) * Math.min(14 + ov * 40, p.top - GROUND));
+      for (y = GROUND + 1; y <= GROUND + hIvy && y <= p.top; y++) put(c, x, y, z, B.IVY, d);
       return;
+    }
+    // ...и свисает с парапета сверху
+    if (pillar && r > 1 - ov * 0.4) {
+      var hang = 3 + Math.floor(hash2(wz, wx, seed + 97) * (p.top - GROUND - 3) * ov);
+      for (y = p.top; y > p.top - hang && y > GROUND + 1; y--) put(c, x, y, z, B.IVY, d);
     }
     if (r < 0.22) put(c, x, GROUND + 1, z, r < 0.09 ? B.POSTER : B.GRAFFITI, d);
     else if (r > 0.95) put(c, x, GROUND + 1, z, r > 0.978 ? B.DUMPSTER : B.TRASH_BAGS, faceAway(d));
+    else if (hash2(wx, wz, seed + 98) < ov * 0.35) put(c, x, GROUND + 1, z, B.MOSS, d);                  // сырой мох у цоколя
     if (!pillar) for (y = GROUND + 5; y < p.top - 1; y += 4) if (hash3(wx, y, wz, seed + 95) < 0.07) put(c, x, y, z, B.AC_UNIT, faceAway(d));
   }
 
@@ -550,14 +780,24 @@
     var y, px = wx - p.x0, pz = wz - p.z0;
     switch (p.kind) {
       case 'park': parkColumn(c, x, z, wx, wz, px, pz, seed); return;
-      case 'parking': put(c, x, GROUND, z, (px % 4 === 0 && pz > 3 && pz < 24) ? B.ROAD_LINE : B.ASPHALT, 1); return;
+      case 'wild': wildColumn(c, x, z, wx, wz, px, pz, p, seed); return;
+      case 'parking':
+        // стоянка: сквозь разметку и трещины лезет трава
+        var pg = OV > 0.35 && cellNoise(seed, wx, wz, 5, 325) + OV * 0.6 > 1.05 ? B.GRASS : 0;
+        put(c, x, GROUND, z, pg || ((px % 4 === 0 && pz > 3 && pz < 24) ? B.ROAD_LINE : B.ASPHALT), 1);
+        greenery(c, x, GROUND + 1, z, wx, wz, pg || B.ASPHALT, OV * 0.8, seed, !!pg);
+        return;
       case 'ruin':
-        put(c, x, GROUND, z, B.RUBBLE);
+        // руины зарастают: земля с травой, мох и сорняки на обломках, плющ по уцелевшим стенам
+        var rg = cellNoise(seed, wx, wz, 4, 326) + OV * 0.7 > 0.95;
+        put(c, x, GROUND, z, rg ? B.GRASS : B.RUBBLE);
         var edge = px === 2 || pz === 2 || px === 25 || pz === 25;
         if (edge && px >= 2 && px <= 25 && pz >= 2 && pz <= 25) {
           var hgt = Math.floor(hash2(wx >> 1, wz >> 1, seed + 82) * 7);
-          for (y = 1; y <= hgt; y++) put(c, x, GROUND + y, z, hash3(wx, y, wz, seed) < 0.2 ? B.RUBBLE : B.CONCRETE);
+          for (y = 1; y <= hgt; y++) put(c, x, GROUND + y, z, hash3(wx, y, wz, seed) < 0.2 ? B.RUBBLE : hash3(wx, y, wz, seed + 1) < OV * 0.5 ? B.MOSSY_COBBLE : B.CONCRETE);
+          if (hgt && hash2(wx, wz, seed + 327) < OV * 0.6) put(c, x, GROUND + hgt + 1, z, hash2(wz, wx, seed + 327) < 0.5 ? B.MOSS : B.WEEDS, 3);
         } else if (hash2(wx, wz, seed + 83) < 0.1) put(c, x, GROUND + 1, z, B.RUBBLE);
+        else greenery(c, x, GROUND + 1, z, wx, wz, rg ? B.GRASS : B.RUBBLE, Math.min(1, OV + 0.2), seed, true);
         return;
       case 'houses': houseColumn(c, x, z, wx, wz, px, pz, p, seed); return;
       case 'warehouse': warehouseColumn(c, x, z, wx, wz, px, pz, p, seed); return;
@@ -573,28 +813,47 @@
     var y;
     put(c, x, GROUND, z, B.GRASS);
     var d = Math.hypot(px - 13.5, pz - 13.5);
-    if (d < 3) { put(c, x, GROUND, z, d < 2 ? B.WATER : B.STONE_BRICK); if (d >= 2) put(c, x, GROUND + 1, z, B.STONE_BRICK); return; }
-    if (px % 9 === 4 && pz % 9 === 4) {                       // дерево
-      for (y = 1; y <= 5; y++) put(c, x, GROUND + y, z, B.LOG);
+    if (d < 3) {
+      // заброшенный фонтан: вода цветёт кувшинками, бортик зарос мхом
+      put(c, x, GROUND, z, d < 2 ? B.WATER : (hash2(wx, wz, seed + 328) < OV ? B.MOSSY_COBBLE : B.STONE_BRICK));
+      if (d >= 2) put(c, x, GROUND + 1, z, hash2(wz, wx, seed + 328) < OV * 0.7 ? B.MOSSY_COBBLE : B.STONE_BRICK);
+      else if (hash2(wx, wz, seed + 329) < 0.2 + OV * 0.4) put(c, x, GROUND + 1, z, B.LILY_PAD, 3);
       return;
     }
-    for (var tx = 4; tx < 28; tx += 9) for (var tz = 4; tz < 28; tz += 9) {
-      var dx = px - tx, dz = pz - tz;
-      if (Math.abs(dx) <= 2 && Math.abs(dz) <= 2 && (dx || dz)) {
-        for (y = 4; y <= 6; y++) if (!(Math.abs(dx) === 2 && Math.abs(dz) === 2) && (y < 6 || Math.abs(dx) + Math.abs(dz) <= 2)) put(c, x, GROUND + y, z, B.LEAVES, 2);
-        return;
-      }
-    }
+    // деревья аллей ставит общий проход по деревьям города (cityTrees)
     if (px % 7 === 1 && (pz === 12 || pz === 15) && px > 2 && px < 26) put(c, x, GROUND + 1, z, B.BENCH, pz === 12 ? 2 : 0);  // скамейки у дорожки
     else if (px % 7 === 2 && pz === 12 && px > 2 && px < 26) put(c, x, GROUND + 1, z, B.TRASH_BIN, 0);
-    else if (hash2(wx, wz, seed + 80) < 0.08) put(c, x, GROUND + 1, z, hash2(wx, wz, seed + 81) < 0.3 ? B.POPPY : B.TALL_GRASS);
+    else greenery(c, x, GROUND + 1, z, wx, wz, B.GRASS, Math.max(OV, 0.45), seed, pz < 11 || pz > 16);
+  }
+
+  // ---- Одичавший участок: дом снесли давно, место заросло молодым лесом -------------------------
+  function wildColumn(c, x, z, wx, wz, px, pz, p, seed) {
+    var y, soil = cellNoise(seed, wx, wz, 5, 331) > 0.74 ? B.DIRT : B.GRASS;
+    put(c, x, GROUND, z, soil);
+    // остатки фундамента: низкие замшелые стены с проломами
+    var onF = (px === 5 || px === 22) && pz >= 5 && pz <= 22 || (pz === 5 || pz === 22) && px >= 5 && px <= 22;
+    if (p.ruinWalls && onF) {
+      var hgt = Math.floor(hash2(wx >> 1, wz >> 1, seed + 332) * 3.4);
+      for (y = 1; y <= hgt; y++) put(c, x, GROUND + y, z, hash3(wx, y, wz, seed + 333) < 0.55 ? B.MOSSY_COBBLE : B.CONCRETE);
+      if (hgt && hash2(wx, wz, seed + 334) < 0.5) put(c, x, GROUND + hgt + 1, z, B.MOSS, 3);
+      return;
+    }
+    if (hash2(wx, wz, seed + 335) < 0.012) { put(c, x, GROUND + 1, z, hash2(wz, wx, seed + 335) < 0.5 ? B.MUSHROOM_BROWN : B.MUSHROOM_RED); return; }
+    greenery(c, x, GROUND + 1, z, wx, wz, soil, Math.max(OV, 0.7), seed, true);
   }
 
   // ---- Высотки, офисы, жилые дома, больница, полиция, башня с площадкой ----------------
   function buildingColumn(c, x, z, wx, wz, p, seed) {
     var y;
+    if (wx < p.bx0 || wx > p.bx1 || wz < p.bz0 || wz > p.bz1) {
+      // двор: плитка, мох и трава; перед входом дорожка остаётся проходимой
+      var yard = walkCover(seed, wx, wz, OV), mid = Math.floor((p.bx0 + p.bx1) / 2);
+      put(c, x, GROUND, z, yard);
+      facadeDetail(c, x, z, wx, wz, p, seed);
+      greenery(c, x, GROUND + 1, z, wx, wz, yard, OV, seed, !(wz < p.bz0 && Math.abs(wx - mid) <= 2));
+      return;
+    }
     put(c, x, GROUND, z, B.SIDEWALK);
-    if (wx < p.bx0 || wx > p.bx1 || wz < p.bz0 || wz > p.bz1) { facadeDetail(c, x, z, wx, wz, p, seed); return; }
     var st = p.style;
     var wallMat = st === 'tower' || st === 'helipad' || st === 'police' ? B.CONCRETE_DARK : st === 'office' || st === 'hospital' ? B.CONCRETE : B.BRICK;
     var onX = wx === p.bx0 || wx === p.bx1, onZ = wz === p.bz0 || wz === p.bz1;
@@ -667,7 +926,21 @@
       var ex = wx - midX, ez = wz - midZ;
       if (Math.abs(ex) === 5 && Math.abs(ez) === 5) put(c, x, p.top + 1, z, B.LANDING_LIGHT);
       if (ex === -7 && ez === 0) put(c, x, p.top + 1, z, B.GENERATOR, 3);
+      return;
     }
+    // крыша зарастает: сад вокруг деревьев, пробившихся сквозь кровлю, или просто мох и сорняки
+    if (onX || onZ || (wx === shaftX && wz === shaftZ)) return;
+    var nearShaft = Math.abs(wx - shaftX) + Math.abs(wz - shaftZ) <= 2;
+    if (p.roofGarden) {
+      var gd = 99, rt = p.roofTrees;
+      for (var ti = 0; ti < rt.length; ti++) gd = Math.min(gd, Math.max(Math.abs(wx - rt[ti][0]), Math.abs(wz - rt[ti][1])));
+      if (gd <= 2 || cellNoise(seed, wx, wz, 4, 336) > 0.6) {
+        put(c, x, p.top, z, B.GRASS);
+        greenery(c, x, p.top + 1, z, wx, wz, B.GRASS, Math.max(OV, 0.55), seed, !nearShaft);
+        return;
+      }
+      greenery(c, x, p.top + 1, z, wx, wz, wallMat, Math.min(1, OV + 0.3), seed, false);
+    } else if (OV > 0.25) greenery(c, x, p.top + 1, z, wx, wz, wallMat, OV * 0.6, seed, false);
   }
 
   // ---- Окраина: четыре частных дома с садиками на участке ----------------------------
@@ -677,8 +950,8 @@
     put(c, x, GROUND, z, B.GRASS);
     var doorSide = qz === 0 ? 2 : 9;                         // дверь смотрит на ближнюю улицу
     if (ux === 6 && (qz === 0 ? uz < 2 : uz > 9)) { put(c, x, GROUND, z, B.SIDEWALK); return; }
-    if (hs < 0.12) {                                         // пустой участок с кустами
-      if (hash2(wx, wz, seed + 241) < 0.06) put(c, x, GROUND + 1, z, B.LEAVES, 2);
+    if (hs < 0.12) {                                         // пустой участок зарос кустами и бурьяном
+      greenery(c, x, GROUND + 1, z, wx, wz, B.GRASS, 0.85, seed, true);
       return;
     }
     var wallMat = hs < 0.45 ? B.PLANKS : hs < 0.8 ? B.BRICK : B.CONCRETE;
@@ -691,8 +964,19 @@
       else if ((ux === 2 || ux === 10) && uz > 2 + k && uz < 9 - k) put(c, x, y, z, wallMat);
     }
     if (!inside) {
-      if ((ux === 13 || uz === 13 || ux === 0) && hash2(wx, wz, seed + 242) < 0.7) put(c, x, GROUND + 1, z, B.LEAVES, 2);   // живая изгородь
-      else if (hash2(wx, wz, seed + 243) < 0.05) put(c, x, GROUND + 1, z, hash2(wx, wz, seed + 244) < 0.5 ? B.POPPY : B.DANDELION);
+      if ((ux === 13 || uz === 13 || ux === 0) && hash2(wx, wz, seed + 242) < 0.7) {           // живая изгородь давно не стрижена
+        put(c, x, GROUND + 1, z, B.LEAVES, 2);
+        if (hash2(wz, wx, seed + 246) < OV * 0.6) put(c, x, GROUND + 2, z, B.LEAVES, 2);
+        return;
+      }
+      // плющ по стенам дома (мимо окон и двери)
+      var iv = ux === 1 && uz >= 3 && uz <= 8 ? 0 : ux === 11 && uz >= 3 && uz <= 8 ? 1 : uz === 1 && ux >= 3 && ux <= 9 ? 4 : uz === 10 && ux >= 3 && ux <= 9 ? 5 : -1;
+      if (iv >= 0 && (iv < 2 ? uz : ux) % 3 !== 1 && ux !== 6 && hash2(wx, wz, seed + 247) < OV * 0.5) {
+        var ih = 2 + Math.floor(hash2(wz, wx, seed + 248) * 6);
+        for (y = GROUND + 1; y <= GROUND + ih; y++) put(c, x, y, z, B.IVY, iv);
+        return;
+      }
+      greenery(c, x, GROUND + 1, z, wx, wz, B.GRASS, Math.min(1, OV + 0.1), seed, ux !== 6);
       return;
     }
     var wallX = ux === 2 || ux === 10, wallZ = uz === 2 || uz === 9;
@@ -717,7 +1001,7 @@
   function warehouseColumn(c, x, z, wx, wz, px, pz, p, seed) {
     var y;
     put(c, x, GROUND, z, B.CONCRETE);
-    if (wx < p.bx0 || wx > p.bx1 || wz < p.bz0 || wz > p.bz1) return;
+    if (wx < p.bx0 || wx > p.bx1 || wz < p.bz0 || wz > p.bz1) { greenery(c, x, GROUND + 1, z, wx, wz, B.CONCRETE, OV, seed, false); return; }
     var onX = wx === p.bx0 || wx === p.bx1, onZ = wz === p.bz0 || wz === p.bz1;
     var midX = Math.floor((p.bx0 + p.bx1) / 2);
     var ix = wx - p.bx0, iz = wz - p.bz0;
@@ -768,6 +1052,7 @@
           else if ((wx - p.bx0) % 4 === 0) put(c, x, y, z, B.STREET_POLE);
         }
       } else if (px < 23 && hash2(wx, wz, seed + 261) < 0.02) put(c, x, GROUND + 1, z, B.CRATE);   // угол справа — стоянка бульдозера
+      else if (px < 23) greenery(c, x, GROUND + 1, z, wx, wz, getc(c, x, GROUND, z), OV, seed, false);
       return;
     }
     var ix = wx - p.bx0, iz = wz - p.bz0;
@@ -797,6 +1082,7 @@
     put(c, x, GROUND, z, B.ASPHALT);
     if (wx < p.bx0 || wx > p.bx1 || wz < p.bz0 || wz > p.bz1) {
       if (wz < p.bz0 && px % 4 === 0 && px > 2 && px < 26) put(c, x, GROUND, z, B.ROAD_LINE, 1);
+      greenery(c, x, GROUND + 1, z, wx, wz, B.ASPHALT, OV * 0.8, seed, false);
       return;
     }
     put(c, x, GROUND, z, B.TILE_FLOOR);
@@ -840,7 +1126,10 @@
       if (hash2(wx, wz, seed + 280) < 0.4) put(c, x, GROUND + 2, z, B.FUEL_BARREL);
       return;
     }
-    if (wx < p.bx0 || wx > p.bx1 || wz < p.bz0 || wz > p.bz1) return;
+    if (wx < p.bx0 || wx > p.bx1 || wz < p.bz0 || wz > p.bz1) {
+      if (!canopy) greenery(c, x, GROUND + 1, z, wx, wz, B.ASPHALT, OV * 0.8, seed, false);
+      return;
+    }
     put(c, x, GROUND, z, B.TILE_FLOOR);
     var onX = wx === p.bx0 || wx === p.bx1, onZ = wz === p.bz0 || wz === p.bz1, iz = wz - p.bz0;
     for (y = GROUND + 1; y <= GROUND + 4; y++) {

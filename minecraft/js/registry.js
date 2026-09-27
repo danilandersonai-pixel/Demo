@@ -39,7 +39,9 @@
     DAISY: 128, BELLFLOWER: 129, DEAD_BUSH: 130, LILY_PAD: 131, PEBBLES: 132, FALLEN_LEAVES: 133,
     BENCH: 134, TRASH_BIN: 135, HYDRANT: 136, TRAFFIC_LIGHT: 137, AC_UNIT: 138, WATER_TANK: 139, VENT: 140,
     TRASH_BAGS: 141, DUMPSTER: 142, ROAD_BARRIER: 143, BOXES: 144,
-    POSTER: 145, GRAFFITI: 146, IVY: 147, CRACKS: 148, LITTER: 149
+    POSTER: 145, GRAFFITI: 146, IVY: 147, CRACKS: 148, LITTER: 149,
+    // Зарастание города
+    MOSS: 150, WEEDS: 151, MOSSY_SIDEWALK: 152
   };
 
   // ---- Идентификаторы предметов -----------------------------------------------
@@ -265,6 +267,11 @@
   blk(B.IVY, 'Плющ', 'ivy', ext(decal, { replaceable: false, climb: true }));
   blk(B.CRACKS, 'Трещины', 'crackDecal', ext(decal, { mat: 'stone', variants: ['crackDecal', 'crackDecal', 'oilStain'], drop: [] }));
   blk(B.LITTER, 'Мусор', 'litter', ext(decal, { mat: 'cloth', drop: [] }));
+  blk(B.MOSS, 'Мох', 'moss1', ext(decal, { variants: ['moss1', 'moss2'], drop: [] }));
+  // сорняки растут из любых трещин: им хватает твёрдой опоры
+  blk(B.WEEDS, 'Сорняки', 'weeds', ext(plant, { support: 'floor', replaceable: true,
+    drop: function (m, r) { return r() < 0.1 ? [[I.SEEDS, 1]] : []; } }));
+  blk(B.MOSSY_SIDEWALK, 'Замшелая плитка', 'mossySidewalk', road);
   // городские объекты из нескольких коробок (единица — 1/16 блока, «лицом» к +Z; meta 0–3 — поворот)
   var prop = { shape: 'model', opaque: false, solid: true, hardness: 1.5, tool: 'pickaxe', mat: 'metal' };
   blk(B.BENCH, 'Скамейка', 'benchWood', ext(prop, { tool: 'axe', mat: 'wood', siege: 4, model: {
@@ -352,7 +359,7 @@
   BLOCK_SPRITES[B.HELL_GATE] = 'hellGate'; BLOCK_SPRITES[B.HEAVEN_GATE] = 'heavenGate'; BLOCK_SPRITES[B.STREET_POLE] = 'pole';
   [[B.FERN, 'fern'], [B.MUSHROOM_RED, 'mushroomRed'], [B.MUSHROOM_BROWN, 'mushroomBrown'], [B.DAISY, 'daisy'], [B.BELLFLOWER, 'bellflower'],
     [B.DEAD_BUSH, 'deadBush'], [B.LILY_PAD, 'lilyPad'], [B.PEBBLES, 'pebbles'], [B.FALLEN_LEAVES, 'fallenLeaves'], [B.POSTER, 'poster1'],
-    [B.GRAFFITI, 'graffiti2'], [B.IVY, 'ivy'], [B.CRACKS, 'crackDecal'], [B.LITTER, 'litter']].forEach(function (p) { BLOCK_SPRITES[p[0]] = p[1]; });
+    [B.GRAFFITI, 'graffiti2'], [B.IVY, 'ivy'], [B.CRACKS, 'crackDecal'], [B.LITTER, 'litter'], [B.MOSS, 'moss1'], [B.WEEDS, 'weeds']].forEach(function (p) { BLOCK_SPRITES[p[0]] = p[1]; });
   var NOT_ITEMS = [B.AIR, B.WATER, B.LAVA, B.WHEAT, B.WIRE, B.PISTON_HEAD, B.FARMLAND, B.FIRE];
   BLOCKS.forEach(function (b, id) {
     if (!b || NOT_ITEMS.indexOf(id) >= 0) return;

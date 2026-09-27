@@ -1555,6 +1555,34 @@
     px(12, 12, [150, 150, 156]); px(13, 12, [190, 190, 196]); px(12, 13, [120, 120, 126]);
   });
 
+  // ---- Зарастание города: мох, сорняки, замшелая плитка -------------------------------
+  function mossSpots(n, rmin, rmax) {
+    clear();
+    for (var k = 0; k < n; k++) {
+      var cx = rnd() * 16, cy = rnd() * 16, r = rmin + rnd() * (rmax - rmin);
+      for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) {
+        var d = Math.hypot(x - cx, y - cy) + (rnd() - 0.5) * 1.2;
+        if (d < r) px(x, y, rnd() < 0.18 ? [110, 150, 60] : rnd() < 0.3 ? [46, 86, 34] : jit([70, 116, 44], 0.2));
+      }
+    }
+  }
+  tile('moss1', function () { mossSpots(4, 2, 4.5); });
+  tile('moss2', function () { mossSpots(7, 1, 3); });
+  tile('weeds', function () {
+    clear();
+    for (var i = 0; i < 8; i++) {
+      var gx = 2 + Math.floor(rnd() * 12), gh = 3 + Math.floor(rnd() * 7), lean = rnd() < 0.5 ? -1 : 1, dry = rnd() < 0.35;
+      for (var y = 0; y < gh; y++) px(gx + (y > gh * 0.6 ? lean : 0), 15 - y, jit(dry ? [150, 150, 80] : y > gh - 3 ? [118, 170, 70] : [80, 126, 48], 0.15));
+    }
+    for (var f = 0; f < 3; f++) { var fx = 2 + Math.floor(rnd() * 12), fy = 6 + Math.floor(rnd() * 5); px(fx, fy, [236, 214, 70]); px(fx + 1, fy, [220, 196, 60]); }
+  });
+  tile('mossySidewalk', function () {
+    for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) {
+      var joint = x % 8 === 7 || y % 8 === 7, moss = joint ? rnd() < 0.75 : rnd() < 0.12;
+      px(x, y, moss ? jit([74, 112, 46], 0.2) : joint ? jit([112, 114, 108], 0.05) : jit([160, 160, 152], 0.07));
+    }
+  });
+
   // ---- Сборка атласа ---------------------------------------------------------------
   function makeAtlas() {
     var cv = document.createElement('canvas');

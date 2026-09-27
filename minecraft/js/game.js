@@ -863,7 +863,7 @@
       var pl = G.plotInfo(world.seed, pcx - 7 + i, pcz - 7 + j), x0 = i * S, y0 = j * S;
       g.fillStyle = MAP_COL[pl.district]; g.fillRect(x0 + 10 * k, y0 + 10 * k, 28 * k, 28 * k);
       if (pl.bx0 !== undefined) { g.fillStyle = 'rgba(0,0,0,0.35)'; g.fillRect(x0 + (pl.bx0 - pl.x0 + 10) * k, y0 + (pl.bz0 - pl.z0 + 10) * k, (pl.bx1 - pl.bx0 + 1) * k, (pl.bz1 - pl.bz0 + 1) * k); }
-      if (pl.kind === 'park') { g.fillStyle = '#3f8a3a'; g.fillRect(x0 + 12 * k, y0 + 12 * k, 24 * k, 24 * k); }
+      if (pl.kind === 'park' || pl.kind === 'wild') { g.fillStyle = pl.kind === 'park' ? '#3f8a3a' : '#2c6a30'; g.fillRect(x0 + 12 * k, y0 + 12 * k, 24 * k, 24 * k); }
       var ic = MAP_ICON[pl.special];
       if (ic && (pl.special !== 'helipad' || zombie.radio)) {
         g.fillStyle = ic[1]; g.beginPath(); g.arc(x0 + 24 * k, y0 + 24 * k, S * 0.34, 0, Math.PI * 2); g.fill();
