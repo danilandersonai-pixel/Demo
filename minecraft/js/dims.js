@@ -346,7 +346,7 @@
     industrial: [['gas', 0.07], ['military', 0.1]],
     suburb: [['gas', 0.02], ['market', 0.035]]
   };
-  var SPECIAL_NAMES = { police: 'Полицейский участок', hospital: 'Больница', market: 'Супермаркет', gas: 'Заправка', helipad: 'Площадка эвакуации', military: 'Военный блокпост' };
+  var SPECIAL_NAMES = { police: 'Полицейский участок', hospital: 'Больница', market: 'Супермаркет', gas: 'Заправка', helipad: 'Площадка эвакуации', military: 'Военный блокпост', cityhall: 'Ратуша' };
 
   var plotCache = new Map();
   function plotInfo(seed, cxI, czI) {
@@ -357,7 +357,7 @@
     var info = { cx: cxI, cz: czI, x0: cxI * CELL_C + 10, z0: czI * CELL_C + 10, size: 28, district: dist };
     var C = cityCenter(seed);
     var r = hash2(cxI, czI, seed + 71), r2 = hash2(cxI, czI, seed + 212);
-    var special = cxI === C.x && czI === C.z ? 'helipad' : forcedKind(seed, cxI, czI);
+    var special = cxI === C.x && czI === C.z ? 'helipad' : cxI === C.x + 1 && czI === C.z ? 'cityhall' : forcedKind(seed, cxI, czI);
     if (!special && Math.abs(cxI) + Math.abs(czI) > 1) {
       var odds = SPECIAL_ODDS[dist] || [];
       for (var i = 0; i < odds.length; i++) if (r2 < odds[i][1]) { special = odds[i][0]; break; }
@@ -382,6 +382,7 @@
     else if (special === 'police') building('police', 3);
     else if (special === 'market') { info.kind = 'market'; info.bx0 = info.x0 + 1; info.bx1 = info.x0 + 26; info.bz0 = info.z0 + 2; info.bz1 = info.z0 + 25; info.top = GROUND + 6; info.floors = 1; }
     else if (special === 'military') { info.kind = 'military'; info.bx0 = info.x0; info.bx1 = info.x0 + 27; info.bz0 = info.z0; info.bz1 = info.z0 + 27; info.top = GROUND + 6; info.floors = 1; }
+    else if (special === 'cityhall') { info.kind = 'cityhall'; info.bx0 = info.x0 + CH.fx0; info.bx1 = info.x0 + CH.fx1; info.bz0 = info.z0 + CH.fz0; info.bz1 = info.z0 + CH.fz1; info.top = GROUND + 12; info.floors = 3; }
     else if (special === 'gas') { info.kind = 'gas'; info.bx0 = info.x0 + 20; info.bx1 = info.x0 + 26; info.bz0 = info.z0 + 3; info.bz1 = info.z0 + 12; info.top = GROUND + 4; info.floors = 1; }
     else if (wild) { info.kind = 'wild'; info.ruinWalls = hash2(cxI, czI, seed + 215) < 0.6; }
     else if (dist === 'suburb') info.kind = r < 0.1 ? 'park' : r < 0.14 ? 'ruin' : 'houses';
@@ -408,8 +409,14 @@
         else building('apart', 4 + Math.floor(f * 4));
       }
     }
+    // пожары и обрушения: чем сильнее разрушения вокруг, тем чаще дом выгорел или рухнул
+    var war = warAt(seed, info.x0 + 14, info.z0 + 14, dist);
+    if (!special && (info.kind === 'building' || info.kind === 'houses' || info.kind === 'warehouse')) {
+      info.burnt = hash2(cxI, czI, seed + 430) < war * 0.5;
+      if (info.kind === 'building' && info.floors >= 6 && hash2(cxI, czI, seed + 431) < war * 0.6) { info.collapsed = true; info.burnt = true; }
+    }
     // сад на крыше невысокого дома: трава, кусты и пара деревьев, пробившихся сквозь кровлю
-    if (info.kind === 'building' && info.style !== 'helipad' && info.style !== 'tower' && info.floors <= 7) {
+    if (info.kind === 'building' && !info.burnt && info.style !== 'helipad' && info.style !== 'tower' && info.floors <= 7) {
       var rov = overAt(seed, info.x0 + 14, info.z0 + 14, dist);
       info.roofGarden = hash2(cxI, czI, seed + 216) < clamp((rov - 0.3) * 1.5, 0, 0.8);
       if (info.roofGarden) {
@@ -518,6 +525,7 @@
           else if (rr < crackP + ov * 0.05) put(c, x, GROUND + 1, z, rr < crackP + ov * 0.02 ? B.WEEDS : B.MOSS, rr < crackP + ov * 0.02 ? 0 : 3);
           else if (rr > 0.9975 && !cross) put(c, x, GROUND + 1, z, B.ROAD_BARRIER, lx < 8 ? 0 : 1);
         } else if (id === B.GRASS) greenery(c, x, GROUND + 1, z, wx, wz, id, ov, seed, false);
+        defenseCell(c, x, z, wx, wz, lx, lz, seed);
       } else if (walk) {
         var inner = lx === 9 || lx === 38 || lz === 9 || lz === 38;
         var gnd = dist === 'suburb' && !inner ? B.GRASS : walkCover(seed, wx, wz, ov);
@@ -536,6 +544,8 @@
       }
       metroColumn(c, x, z, wx, wz, seed);
     }
+    // воронки от бомб; потом деревья (в воронках не растут) и брошенные машины
+    cityCraters(c, seed, ox, oz);
     // деревья: сквозь асфальт у бордюров, вдоль тротуаров, во дворах, парках, на крышах и в одичавших кварталах
     cityTrees(c, seed, ox, oz);
     // машины на дорогах: слоты вдоль каждой улицы квартала
@@ -550,15 +560,20 @@
         var alongX = s % 2 === 0, lane = hash2(pp[0], pp[1] * 3 + s, seed + 78) < 0.5 ? 1 : 5;
         var along = 10 + Math.floor(hash2(pp[0] + s, pp[1], seed + 79) * 24);
         var col = [B.CAR_RED, B.CAR_BLUE, B.CAR_WHITE][Math.floor(r * 7.5) % 3];
-        // брошенная давно машина обросла: кусты на крыше и капоте, мох
+        var ccx = alongX ? bx + along + 2 : bx + lane + 1, ccz = alongX ? bz + lane + 1 : bz + along + 2;
+        if (inCrater(seed, ccx, ccz, 2)) continue;
+        // сгоревшая машина: обугленный остов без стёкол; брошенная давно — обросла кустами и мхом
+        var carWar = warAt(seed, ccx, ccz, dname), burntCar = hash2(pp[0] * 9 - s, pp[1] * 4 + s, seed + 445) < carWar * 1.1;
+        if (burntCar) col = B.CAR_BURNT;
         var carOv = overAt(seed, alongX ? bx + along : bx + lane, alongX ? bz + lane : bz + along, dname);
         var mossy = hash2(pp[0] * 5 + s, pp[1] * 11 - s, seed + 312) < carOv * 0.8;
         for (var l = 0; l < 4; l++) for (var w = 0; w < 2; w++) {
           var cx2 = alongX ? bx + along + l : bx + lane + w;
           var cz2 = alongX ? bz + lane + w : bz + along + l;
           var llx = cx2 - ox, llz = cz2 - oz;
-          put(c, llx, GROUND + 1, llz, (l === 0 || l === 3) && w === (alongX ? 0 : 1) ? B.TIRE : col);
-          if (l === 1 || l === 2) put(c, llx, GROUND + 2, llz, B.WINDOW);
+          put(c, llx, GROUND + 1, llz, (l === 0 || l === 3) && w === (alongX ? 0 : 1) ? (burntCar ? B.CAR_BURNT : B.TIRE) : col);
+          if ((l === 1 || l === 2) && !burntCar) put(c, llx, GROUND + 2, llz, B.WINDOW);
+          if (burntCar && hash3(cx2, GROUND, cz2, seed + 446) < 0.5) { var gl = getc(c, llx, GROUND, llz); if (gl === B.ASPHALT || gl === B.ROAD_LINE) put(c, llx, GROUND, llz, B.SCORCHED); }
           if (mossy) {
             var ctop = l === 1 || l === 2 ? GROUND + 3 : GROUND + 2, hr = hash3(cx2, ctop, cz2, seed + 313);
             if (hr < 0.5) put(c, llx, ctop, llz, B.LEAVES, 2);
@@ -717,7 +732,7 @@
   }
   function cityTrees(c, seed, ox, oz) {
     for (var wz = oz - 3; wz < oz + CS + 3; wz++) for (var wx = ox - 3; wx < ox + CS + 3; wx++) {
-      if (treeSpot(seed, wx, wz, TREE)) placeTree(c, ox, oz, wx, wz, TREE, seed);
+      if (treeSpot(seed, wx, wz, TREE) && !inCrater(seed, wx, wz, 1)) placeTree(c, ox, oz, wx, wz, TREE, seed);
     }
   }
 
@@ -805,6 +820,7 @@
       case 'market': marketColumn(c, x, z, wx, wz, px, pz, p, seed); return;
       case 'gas': gasColumn(c, x, z, wx, wz, px, pz, p, seed); return;
       case 'military': militaryColumn(c, x, z, wx, wz, px, pz, p, seed); return;
+      case 'cityhall': cityhallColumn(c, x, z, wx, wz, px, pz, p, seed); return;
     }
     buildingColumn(c, x, z, wx, wz, p, seed);
   }
@@ -1035,10 +1051,216 @@
     }
   }
 
+  // =================================================================================
+  // Следы войны: воронки, пожарища, обрушенные высотки, линии обороны, сгоревшие машины
+  // =================================================================================
+  // Сила разрушений 0..1: центр пострадал сильнее окраин, у места старта тихо
+  var WAR_BASE = { downtown: 0.62, industrial: 0.38, residential: 0.22, suburb: 0.08 };
+  function warAt(seed, wx, wz, dist) {
+    var cxI = Math.floor(wx / CELL_C), czI = Math.floor(wz / CELL_C);
+    if (Math.abs(cxI) + Math.abs(czI) <= 1) return 0;
+    return clamp(WAR_BASE[dist] + (cellNoise(seed, wx, wz, 34, 410) - 0.5) * 0.9, 0, 1);
+  }
+  // Воронки: одна возможная на клетку сетки 24×24; только на дорогах, тротуарах и открытых участках.
+  // Глубина не больше трёх блоков — туннели метро (потолок на высоте 27) не пробивает
+  var CRATER_CELL = 24, CRATER = { x: 0, z: 0, r: 0, d: 0 }, craterCache = new Map();
+  function craterIn(seed, gx, gz, out) {
+    var ck = seed + ':' + gx + ',' + gz, hit = craterCache.get(ck);
+    if (hit === undefined) {
+      if (craterCache.size > 20000) craterCache.clear();
+      hit = craterFind(seed, gx, gz, {}) ? CRATER_TMP : null;
+      craterCache.set(ck, hit ? { x: hit.x, z: hit.z, r: hit.r, d: hit.d } : null);
+      hit = craterCache.get(ck);
+    }
+    if (!hit) return false;
+    out.x = hit.x; out.z = hit.z; out.r = hit.r; out.d = hit.d;
+    return true;
+  }
+  var CRATER_TMP = { x: 0, z: 0, r: 0, d: 0 };
+  function craterFind(seed, gx, gz) {
+    var out = CRATER_TMP, h = hash2(gx, gz, seed + 420);
+    if (h > 0.62) return false;
+    var wx = gx * CRATER_CELL + 4 + Math.floor(hash2(gx, gz, seed + 421) * 16), wz = gz * CRATER_CELL + 4 + Math.floor(hash2(gz, gx, seed + 422) * 16);
+    var p = plotInfo(seed, Math.floor(wx / CELL_C), Math.floor(wz / CELL_C));
+    if (h > warAt(seed, wx, wz, p.district) * 0.62) return false;
+    var lx = mod(wx, CELL_C), lz = mod(wz, CELL_C), open = lx < 10 || lz < 10 || lx >= 38 || lz >= 38;
+    if (!open && p.kind !== 'park' && p.kind !== 'parking' && p.kind !== 'ruin' && p.kind !== 'wild') return false;
+    out.x = wx + 0.5; out.z = wz + 0.5;
+    out.r = 2.5 + hash2(gx * 3, gz * 5, seed + 423) * 2.6;
+    out.d = Math.min(3, Math.floor(out.r * 0.65));
+    return true;
+  }
+  var CQ = { x: 0, z: 0, r: 0, d: 0 };
+  function inCrater(seed, wx, wz, margin) {
+    var gx = Math.floor(wx / CRATER_CELL), gz = Math.floor(wz / CRATER_CELL);
+    for (var dz = -1; dz <= 1; dz++) for (var dx = -1; dx <= 1; dx++) {
+      if (!craterIn(seed, gx + dx, gz + dz, CQ)) continue;
+      if (Math.hypot(wx + 0.5 - CQ.x, wz + 0.5 - CQ.z) < CQ.r * 1.25 + margin) return true;
+    }
+    return false;
+  }
+  function cityCraters(c, seed, ox, oz) {
+    var gx0 = Math.floor((ox - 9) / CRATER_CELL), gx1 = Math.floor((ox + CS + 9) / CRATER_CELL);
+    var gz0 = Math.floor((oz - 9) / CRATER_CELL), gz1 = Math.floor((oz + CS + 9) / CRATER_CELL);
+    for (var gz = gz0; gz <= gz1; gz++) for (var gx = gx0; gx <= gx1; gx++) {
+      if (!craterIn(seed, gx, gz, CRATER)) continue;
+      var r = CRATER.r, R2 = r * 1.75;
+      for (var wz = Math.floor(CRATER.z - R2); wz <= CRATER.z + R2; wz++) for (var wx = Math.floor(CRATER.x - R2); wx <= CRATER.x + R2; wx++) {
+        var lx = wx - ox, lz = wz - oz;
+        if (lx < 0 || lz < 0 || lx >= CS || lz >= CS) continue;
+        var hh = hash2(wx, wz, seed + 424);
+        var dd = Math.hypot(wx + 0.5 - CRATER.x, wz + 0.5 - CRATER.z) / r + (hh - 0.5) * 0.22, y;
+        if (dd < 1) {
+          // чаша: всё выше дна снесено, на дне гарь, битый асфальт и земля, кое-где тлеют угли
+          var depth = Math.round(CRATER.d * (1 - dd * dd));
+          for (y = GROUND - depth + 1; y <= GROUND + 7; y++) put(c, lx, y, lz, 0);
+          put(c, lx, GROUND - depth, lz, hh < 0.06 ? B.EMBERS : hh < 0.5 ? B.SCORCHED : hh < 0.8 ? B.RUBBLE : B.DIRT);
+        } else if (dd < 1.25) {
+          // вал выброшенного грунта и обломков
+          for (y = GROUND + 1; y <= GROUND + 7; y++) if (getc(c, lx, y, lz) === B.STREET_POLE || y === GROUND + 1) put(c, lx, y, lz, 0);
+          put(c, lx, GROUND, lz, B.SCORCHED);
+          if (hh < 0.7) put(c, lx, GROUND + 1, lz, B.RUBBLE);
+        } else if (dd < 1.75 && hh < (1.75 - dd) * 1.3) {
+          // гарь вокруг, трава выгорела
+          var g = getc(c, lx, GROUND, lz);
+          if (g === B.ASPHALT || g === B.SIDEWALK || g === B.MOSSY_SIDEWALK || g === B.GRASS || g === B.ROAD_LINE || g === B.RUBBLE) put(c, lx, GROUND, lz, B.SCORCHED);
+          var ab = getc(c, lx, GROUND + 1, lz);
+          if (ab > 0 && (KC.BLOCKS[ab].shape === 'cross' || KC.BLOCKS[ab].shape === 'decal')) put(c, lx, GROUND + 1, lz, hh < 0.15 ? B.PEBBLES : 0, 3);
+        }
+      }
+    }
+  }
+  // Линия обороны поперёк улицы у перекрёстка: колючка, противотанковые ежи, мешки с песком
+  function defenseLine(seed, cxI, czI, ns) {
+    var p = plotInfo(seed, cxI, czI), w = warAt(seed, cxI * CELL_C + 4, czI * CELL_C + 38, p.district);
+    return w > 0.3 && hash2(cxI * 7 + (ns ? 1 : 0), czI * 5, seed + 440) < w * 0.45;
+  }
+  function defenseCell(c, x, z, wx, wz, lx, lz, seed) {
+    // N-S дорога: линия у южного конца (lz 37–39), E-W — у восточного (lx 37–39); на машины не наезжает
+    var ns = lx < 8 && lz >= 37, ew = lz < 8 && lx >= 37;
+    if (!ns && !ew) return;
+    var cxI = Math.floor(wx / CELL_C), czI = Math.floor(wz / CELL_C);
+    if (!defenseLine(seed, cxI, czI, ns)) return;
+    var lane = ns ? lx : lz, along = ns ? lz : lx, h = hash2(wx, wz, seed + 441);
+    if (along === 37 && h < 0.8) put(c, x, GROUND + 1, z, B.BARBED_WIRE);
+    else if (along === 38 && lane % 2 === 1 && h < 0.9) put(c, x, GROUND + 1, z, B.HEDGEHOG, Math.floor(h * 40) & 3);
+    else if (along === 39 && (lane === 0 || lane === 7)) { put(c, x, GROUND + 1, z, B.SANDBAG); if (h < 0.6) put(c, x, GROUND + 2, z, B.SANDBAG); }
+  }
+  // Пожарище: копоть на стенах, выбитые окна, провалившиеся перекрытия, тлеющие угли
+  function burntWall(id) { return id === B.BRICK ? B.SOOTED_BRICK : id === B.CONCRETE || id === B.CONCRETE_DARK || id === B.WALLPAPER ? B.SOOTED_CONCRETE : id; }
+  var BURNT_KEEP = {};
+  [B.STAIRS, B.WALLPAPER, B.BATHTUB, B.TOILET, B.SINK, B.STOVE, B.FRIDGE, B.FILE_CABINET, B.MED_CABINET, B.GLASS, B.BARS].forEach(function (id) { BURNT_KEEP[id] = 1; });
+  // Высотка обрушилась: верх рухнул, над каждой колонкой стоит лишь часть этажей с рваным краем
+  function collapseTop(p, wx, wz, seed) {
+    var W = p.bx1 - p.bx0, D = p.bz1 - p.bz0, dir = Math.floor(hash2(p.cx, p.cz, seed + 450) * 4);
+    var t = dir === 0 ? (wx - p.bx0) / W : dir === 1 ? (p.bx1 - wx) / W : dir === 2 ? (wz - p.bz0) / D : (p.bz1 - wz) / D;
+    var base = 4 * (2 + Math.floor(hash2(p.cx, p.cz, seed + 451) * Math.max(1, p.floors * 0.35)));
+    // крутой рваный излом: к высокому краю этажи уцелели, у низкого — обломанные зубцы
+    var jag = hash2(wx >> 1, wz >> 1, seed + 452), spike = hash2(wx >> 2, wz >> 2, seed + 447) < 0.2 ? 6 : 0;
+    return GROUND + base + Math.floor(t * t * 22 + jag * 7 - 3 + spike * t);
+  }
+  // Груда обломков от упавших этажей: во дворе со стороны падения и на первом этаже
+  function rubblePile(p, wx, wz, seed) {
+    var dir = Math.floor(hash2(p.cx, p.cz, seed + 450) * 4);              // падали в сторону низкого края
+    var dist = dir === 0 ? p.bx0 - wx : dir === 1 ? wx - p.bx1 : dir === 2 ? p.bz0 - wz : wz - p.bz1;
+    if (dist < 1) return 0;
+    return Math.max(0, Math.round(5.5 - dist * 1.2 + (hash2(wx, wz, seed + 453) - 0.5) * 2.5));
+  }
+
+  // ---- Ратуша: мраморный фасад с колоннадой и фронтоном, часовая башня, восточное крыло рухнуло ------
+  var CH = { fx0: 2, fx1: 25, fz0: 8, fz1: 24 };
+  function cityhallColumn(c, x, z, wx, wz, px, pz, p, seed) {
+    var y, h = hash2(wx, wz, seed + 460), top = GROUND + 12;
+    // площадь: плитка, воронка от бомбы, гарь; колоннада портика с фронтоном; флагшток с рваным флагом
+    if (pz < CH.fz0) {
+      var cd = Math.hypot(px - 21, pz - 2.5);
+      if (cd < 3.2) {
+        var dep = Math.round(2 * (1 - (cd / 3.2) * (cd / 3.2)));
+        for (y = GROUND - dep + 1; y <= GROUND; y++) put(c, x, y, z, 0);
+        put(c, x, GROUND - dep, z, h < 0.5 ? B.SCORCHED : B.RUBBLE);
+        return;
+      }
+      put(c, x, GROUND, z, cd < 5.5 || h < 0.06 ? B.SCORCHED : B.STONE_BRICK);
+      if (cd < 4.2 && h < 0.6) put(c, x, GROUND + 1, z, B.RUBBLE);
+      if (pz >= 5 && px >= 3 && px <= 24) {
+        if (pz === 6 && (px === 4 || px === 7 || px === 10 || px === 17 || px === 20 || px === 23)) for (y = GROUND + 1; y <= GROUND + 8; y++) put(c, x, y, z, B.STONE_BRICK);
+        put(c, x, GROUND + 9, z, B.MARBLE);
+        for (var k = 1; k <= 4; k++) if (pz >= 6 && px >= 9 + k && px <= 18 - k) put(c, x, GROUND + 9 + k, z, B.MARBLE);
+      }
+      if (px === 3 && pz === 4) for (y = GROUND + 1; y <= GROUND + 7; y++) put(c, x, y, z, B.STREET_POLE);
+      if (pz === 4 && px >= 4 && px <= 6) for (y = GROUND + 5; y <= GROUND + 7; y++) {
+        if (px === 6 && y === GROUND + 5) continue;                       // оборванный угол
+        put(c, x, y, z, (y - GROUND) % 2 ? B.WOOL_GREEN : B.WOOL_WHITE);
+      }
+      return;
+    }
+    if (pz > CH.fz1 || px < CH.fx0 || px > CH.fx1) {                     // задний двор
+      put(c, x, GROUND, z, h < 0.3 ? B.SCORCHED : B.STONE_BRICK);
+      if (h > 0.93) put(c, x, GROUND + 1, z, B.RUBBLE);
+      return;
+    }
+    var east = px >= 18, onX = px === CH.fx0 || px === CH.fx1, onZ = pz === CH.fz0 || pz === CH.fz1;
+    var stand = east ? GROUND + 2 + Math.floor(hash2(wx >> 1, wz >> 1, seed + 461) * 6) : top + 1;
+    var tower = px >= 11 && px <= 16 && pz >= CH.fz0 && pz <= 13, tWall = tower && (px === 11 || px === 16 || pz === CH.fz0 || pz === 13);
+    var shaft = px === 3 && pz === CH.fz1 - 1;
+    put(c, x, GROUND, z, B.MARBLE);
+    for (y = GROUND + 1; y <= GROUND + 25; y++) {
+      var rel = y - GROUND, r4 = rel % 4, id = 0, meta = 0, lt = null, hy = hash3(wx, y, wz, seed + 462);
+      if (y <= top + 1) {
+        if (y > stand) id = 0;
+        else if (onX || onZ) {
+          id = y === top + 1 ? B.STONE_BRICK : hy < 0.12 && px > 12 ? B.SOOTED_CONCRETE : B.MARBLE;
+          var along = onX ? pz : px;
+          if (y <= top && (r4 === 2 || r4 === 3) && along % 3 === 1) id = hy < 0.55 ? 0 : B.WINDOW;
+          if (pz === CH.fz0 && px >= 12 && px <= 15 && rel <= 3) id = 0;                   // вход через башню
+        } else if (r4 === 0) {
+          id = y === top ? B.MARBLE : B.PARQUET;
+          if (shaft || (east && y < top)) id = 0;
+        } else if (shaft && y < top) { id = B.LADDER; meta = 1; }
+        else if (east) {
+          if (rel <= 1 + Math.floor(h * 3)) id = hy < 0.25 ? B.CONCRETE : B.RUBBLE;             // обломки рухнувшего крыла
+        } else if (r4 === 1) {
+          var fl = (rel - 1) / 4;
+          if (fl === 0) {
+            if ((px === 6 || px === 9) && (pz - CH.fz0) % 4 === 2) id = B.STONE_BRICK;           // колонны зала
+            else if (pz === 16 && px >= 5 && px <= 9) { id = B.DESK; meta = 2; lt = px === 7 ? 'office' : null; }
+            else if (px >= 13 && px <= 14 && pz > 13 && pz < CH.fz1) { id = B.CARPET; meta = 3; }                  // ковровая дорожка
+            else if (h < 0.05) { id = B.LITTER; meta = 3; }
+          } else if (fl === 1) {
+            if (pz % 4 === 2 && px % 3 === 1 && px < 16 && pz > 14) { id = B.DESK_PC; meta = 0; lt = h < 0.4 ? 'desk' : null; }
+            else if (px === CH.fx0 + 1 && pz > 14 && pz % 2 === 0) { id = B.FILE_CABINET; meta = 3; lt = h < 0.5 ? 'files' : null; }
+          } else {
+            // кабинет мэра: стол, книжные шкафы, сейф с документами и оружием охраны
+            if (px === 6 && pz === 20) { id = B.DESK_PC; meta = 2; lt = 'desk'; }
+            else if (px === 6 && pz === 19) { id = B.OFFICE_CHAIR; meta = 0; }
+            else if (pz === CH.fz1 - 1 && px >= 4 && px <= 9) { id = px === 8 ? B.CHEST : B.BOOKSHELF; meta = 2; lt = px === 8 ? 'cityhall' : null; }
+            else if (px === 10 && pz === 16) id = B.POT_PLANT;
+            else if (h < 0.06) { id = B.LITTER; meta = 3; }
+          }
+        }
+      } else if (tower && tWall && y <= GROUND + 24 && (px <= 13 || y <= GROUND + 21 + Math.floor(h * 2))) {
+        // часовая башня: верх восточной половины снесён
+        id = y === GROUND + 24 ? B.STONE_BRICK : B.MARBLE;
+        var mid = (px === 13 || px === 14) && (pz === CH.fz0 || pz === 13) || (pz === 10 || pz === 11) && (px === 11 || px === 16);
+        if (mid && (y === GROUND + 18 || y === GROUND + 19)) { id = B.CLOCK; meta = pz === CH.fz0 ? 2 : pz === 13 ? 0 : px === 11 ? 1 : 3; }
+        if (mid && y >= GROUND + 21 && y <= GROUND + 22) id = 0;                               // звонница
+      }
+      if (id) { put(c, x, y, z, id, meta); if (lt) lootAt(c, wx, y, wz, lt); }
+    }
+  }
+
   // ---- Высотки, офисы, жилые дома, больница, полиция, башня с площадкой ----------------
   function buildingColumn(c, x, z, wx, wz, p, seed) {
     var y;
     if (wx < p.bx0 || wx > p.bx1 || wz < p.bz0 || wz > p.bz1) {
+      if (p.burnt) {
+        // двор пожарища: гарь, обломки; у рухнувшей высотки — груда упавших этажей
+        var hb = hash2(wx, wz, seed + 457);
+        put(c, x, GROUND, z, hb < 0.55 ? B.SCORCHED : hb < 0.8 ? B.SIDEWALK : B.RUBBLE);
+        var pile = p.collapsed ? rubblePile(p, wx, wz, seed) : hb > 0.95 ? 1 : 0;
+        for (y = GROUND + 1; y <= GROUND + pile; y++) { var hp = hash3(wx, y, wz, seed + 458); put(c, x, y, z, hp < 0.2 ? B.CONCRETE : hp < 0.26 ? B.BARS : B.RUBBLE); }
+        return;
+      }
       // двор: плитка, мох и трава; перед входом дорожка остаётся проходимой
       var yard = walkCover(seed, wx, wz, OV), mid = Math.floor((p.bx0 + p.bx1) / 2);
       put(c, x, GROUND, z, yard);
@@ -1058,9 +1280,15 @@
     var armoryWall = armory && (wx === p.bx1 - 5 || wz === p.bz1 - 5);
     var plans = [];
     function planAt(L) { return plans[L] || (plans[L] = floorPlan(p, L, seed)); }
+    var cTop = p.collapsed ? collapseTop(p, wx, wz, seed) : 1e9;
     for (y = GROUND; y <= p.top + 1; y++) {
       var rel = y - GROUND, r4 = rel % 4, L = (rel - r4) / 4;
       var id = 0, meta = 0, lt = 0;
+      if (y > cTop) {
+        // выше рваного края ничего нет; из стен торчит арматура
+        if (y === cTop + 1 && (onX || onZ) && hash3(wx, y, wz, seed + 454) < 0.35) put(c, x, y, z, B.BARS);
+        continue;
+      }
       if (y === p.top + 1) { if (onX || onZ) id = wallMat; }               // парапет на крыше
       else if (onX || onZ) {
         id = wallMat;
@@ -1100,12 +1328,30 @@
           // комнаты по плану этажа: стены, двери, мебель и её добыча
           var P2 = planAt(L), k = (ix + iz * P2.W) * 3 + r4 - 1;
           id = P2.id[k]; meta = P2.meta[k]; lt = P2.loot[k];
+          // первый этаж рухнувшей высотки засыпан обломками
+          if (p.collapsed && L === 0 && !stairs && rel <= 1 + Math.floor(hash2(wx, wz, seed + 459) * 2.5) && hash2(wz, wx, seed + 459) < 0.5) { id = B.RUBBLE; lt = 0; }
         }
+      }
+      // у рухнувшей высотки в стенах рваные пробоины
+      if (p.collapsed && (onX || onZ) && rel > 4 && hash3(wx >> 1, y >> 1, wz >> 1, seed + 448) < 0.12) id = 0;
+      if (p.burnt && id) {
+        // пожарище: копоть, выбитые окна, прогоревшие полы и крыша, сгоревшая мебель и двери
+        var bh = hash3(wx, y, wz, seed + 455);
+        if (onX || onZ || y === p.top + 1) id = id === B.WINDOW ? (bh < 0.8 ? 0 : id) : burntWall(id);
+        else if (y === p.top) id = bh < 0.15 ? 0 : burntWall(id);
+        else if (r4 === 0) {
+          if (id === B.CEILING_LAMP) id = B.SOOTED_CONCRETE;
+          else if (id !== B.STAIRS && rel > 0 && !stairs && hash2((wx >> 1) * 3 + L, (wz >> 1) * 5, seed + 456) < 0.16) id = 0;
+          else if (id !== B.STAIRS) id = bh < 0.03 ? B.EMBERS : bh < 0.75 ? B.SCORCHED : id;
+        } else if (id === B.DOOR) id = 0;
+        else if (id === B.WALLPAPER) id = B.SOOTED_CONCRETE;
+        else if (!BURNT_KEEP[id] && id !== B.CHEST && id !== B.CRATE && id !== B.RUBBLE && bh < 0.8) { id = 0; lt = 0; }
       }
       if (id) { put(c, x, y, z, id, meta); if (lt) lootAt(c, wx, y, wz, LOOT_KEYS[lt]); }
     }
     // на крыше: вентиляция, бак с водой у жилых домов, мачты (выход с лестницы не загораживаем)
     var nearExit = ix <= 8 && iz <= 4;
+    if (p.collapsed) return;
     if (st !== 'helipad' && !nearExit && wx > p.bx0 + 1 && wx < p.bx1 - 1 && wz > p.bz0 + 1 && wz < p.bz1 - 1) {
       var rr2 = hash2(wx * 7, wz * 11, seed + 96);
       if (st === 'apart' && wx === p.bx0 + 3 && wz === p.bz1 - 3) put(c, x, p.top + 1, z, B.WATER_TANK, 0);
@@ -1125,7 +1371,7 @@
       return;
     }
     // крыша зарастает: сад вокруг деревьев, пробившихся сквозь кровлю, или просто мох и сорняки
-    if (onX || onZ || nearExit) return;
+    if (onX || onZ || nearExit || p.burnt) return;
     var nearShaft = ix <= 9 && iz <= 5;
     if (p.roofGarden) {
       var gd = 99, rt = p.roofTrees;
@@ -1153,6 +1399,22 @@
     var wallMat = hs < 0.45 ? B.PLANKS : hs < 0.8 ? B.BRICK : B.CONCRETE;
     var inside = ux >= 2 && ux <= 10 && uz >= 2 && uz <= 9;
     var roofRow = function (k) { return (uz === 2 + k || uz === 9 - k) && ux >= 1 && ux <= 11; };
+    // сгоревший дом: крыша прогорела и рухнула, стены в копоти, деревянные почернели и наполовину осыпались
+    var burnt = p.burnt && hs < 0.75;
+    if (burnt) {
+      var hb = hash2(wx, wz, seed + 249);
+      if (!inside) { put(c, x, GROUND, z, hb < 0.5 ? B.SCORCHED : B.GRASS); if (hb > 0.9) put(c, x, GROUND + 1, z, B.DEAD_BUSH); return; }
+      var wx2 = ux === 2 || ux === 10, wz2 = uz === 2 || uz === 9;
+      put(c, x, GROUND, z, hb < 0.04 ? B.EMBERS : B.SCORCHED);
+      var wallTop = GROUND + 2 + Math.floor(hash2(wx >> 1, wz >> 1, seed + 250) * 6);
+      for (y = GROUND + 1; y <= wallTop; y++) if (wx2 || wz2) {
+        if (uz === doorSide && ux === 6 && y <= GROUND + 2) continue;
+        if (wallMat === B.PLANKS && hash3(wx, y, wz, seed + 251) < 0.45) continue;
+        put(c, x, y, z, wallMat === B.PLANKS ? B.SCORCHED : burntWall(wallMat));
+      }
+      if (!wx2 && !wz2 && hb > 0.8) put(c, x, GROUND + 1, z, B.RUBBLE);
+      return;
+    }
     // двускатная крыша
     for (var k = 0; k < 4; k++) {
       y = GROUND + 8 + k;
@@ -1196,6 +1458,22 @@
   // ---- Промзона: склады и стройки --------------------------------------------------------
   function warehouseColumn(c, x, z, wx, wz, px, pz, p, seed) {
     var y;
+    if (p.burnt) {
+      // сгоревший склад: каркас в копоти, крыша провалилась, ящики обуглились
+      put(c, x, GROUND, z, hash2(wx, wz, seed + 255) < 0.6 ? B.SCORCHED : B.CONCRETE);
+      if (wx < p.bx0 || wx > p.bx1 || wz < p.bz0 || wz > p.bz1) return;
+      var onXb = wx === p.bx0 || wx === p.bx1, onZb = wz === p.bz0 || wz === p.bz1, ixb = wx - p.bx0, izb = wz - p.bz0;
+      var wtop = GROUND + 3 + Math.floor(hash2(wx >> 2, wz >> 2, seed + 256) * 5);
+      for (y = GROUND + 1; y <= p.top; y++) {
+        var hb2 = hash3(wx, y, wz, seed + 257), id2 = 0;
+        if (onXb || onZb) { if (y <= wtop && !(wz === p.bz0 && Math.abs(wx - Math.floor((p.bx0 + p.bx1) / 2)) <= 2 && y <= GROUND + 4)) id2 = B.SOOTED_CONCRETE; }
+        else if (y === p.top) id2 = hb2 < 0.35 && ixb % 6 === 0 ? B.SOOTED_CONCRETE : 0;
+        else if (y === GROUND + 1 && hb2 < 0.05) id2 = hb2 < 0.015 ? B.EMBERS : B.RUBBLE;
+        else if (y <= GROUND + 2 && ixb % 5 === 1 && izb % 6 >= 2 && izb % 6 <= 4 && hb2 < 0.3) id2 = B.SCORCHED;
+        if (id2) put(c, x, y, z, id2);
+      }
+      return;
+    }
     put(c, x, GROUND, z, B.CONCRETE);
     if (wx < p.bx0 || wx > p.bx1 || wz < p.bz0 || wz > p.bz1) { greenery(c, x, GROUND + 1, z, wx, wz, B.CONCRETE, OV, seed, false); return; }
     var onX = wx === p.bx0 || wx === p.bx1, onZ = wz === p.bz0 || wz === p.bz1;
@@ -1422,6 +1700,8 @@
     build: [[B.PLANKS, 8, 20, 0.7], [B.BARRICADE, 3, 8, 0.55], [I.IRON_INGOT, 1, 4, 0.4], [330 + 4, 1, 1, 0.15], [306, 1, 1, 0.3], [B.LADDER, 4, 10, 0.4],
       [I.CHAINSAW, 1, 1, 0.14], [I.CROWBAR, 1, 1, 0.3], [I.FUEL_CAN, 1, 1, 0.3]],
     metro: [[I.CANNED_FOOD, 1, 3, 0.45], [B.TORCH, 4, 10, 0.6], [I.BANDAGE, 1, 3, 0.4], [I.AMMO, 4, 10, 0.3], [I.CITY_MAP, 1, 1, 0.25]],
+    cityhall: [[I.CITY_MAP, 1, 1, 0.8], [I.RADIO, 1, 1, 0.35], [I.PISTOL, 1, 1, 0.4], [I.AMMO, 8, 20, 0.7], [I.GOLD_INGOT, 2, 8, 0.6],
+      [I.MEDKIT, 1, 2, 0.5], [I.FLASHLIGHT, 1, 1, 0.4], [I.BOOK, 1, 3, 0.4], [I.BODY_ARMOR, 1, 1, 0.2]],
     // мебель в квартирах и офисах
     fridge: [[I.CANNED_FOOD, 1, 2, 0.35], [I.APPLE, 1, 3, 0.4], [I.BREAD, 1, 2, 0.3], [I.BEEF_COOKED, 1, 2, 0.2], [I.CHICKEN_COOKED, 1, 2, 0.2],
       [I.PORK_COOKED, 1, 2, 0.15], [I.ROTTEN_FLESH, 1, 3, 0.35]],

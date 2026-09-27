@@ -181,6 +181,8 @@
     var canSprint = P.creative || P.food > 6;
     P.sprinting = inp.sprint && canSprint && inp.f > 0.3 && !P.sneak && !e.inWater;
     var speed = e.fly ? (inp.sprint ? 21 : 11) : e.inLava ? 1.2 : e.inWater ? 2.4 : P.sneak ? 1.3 : P.sprinting ? 5.6 : 4.3;
+    // колючая проволока цепляет за одежду
+    if (!e.fly && (world.getBlock(e.x, e.y + 0.3, e.z) === B.BARBED_WIRE || world.getBlock(e.x, e.y + 1.2, e.z) === B.BARBED_WIRE)) speed *= 0.3;
     var grav = E.gravityAt(e.x, e.y + 0.9, e.z), gAcc = 28 * grav, gMax = grav < 0.5 ? -18 : -55;
     if (P.using && P.using.slow) speed *= 0.35;
     var tx = wx * speed, tz = wz * speed, k;
@@ -328,8 +330,13 @@
       var hw = e.w / 2 + 0.06, hurtBy = false;
       for (var x = Math.floor(e.x - hw); x <= Math.floor(e.x + hw) && !hurtBy; x++)
         for (var z = Math.floor(e.z - hw); z <= Math.floor(e.z + hw) && !hurtBy; z++)
-          for (var y = Math.floor(e.y); y <= Math.floor(e.y + e.h); y++) if (world.getBlock(x, y, z) === B.CACTUS) { hurtBy = true; break; }
-      if (hurtBy) { P.hazardT = 0.5; hurt(1, 'Кактус'); }
+          for (var y = Math.floor(e.y); y <= Math.floor(e.y + e.h); y++) {
+            var hb = world.getBlock(x, y, z);
+            if (hb === B.CACTUS || hb === B.BARBED_WIRE) { hurtBy = hb; break; }
+          }
+      var under = world.getBlock(e.x, e.y - 0.1, e.z);
+      if (hurtBy) { P.hazardT = 0.5; hurt(1, hurtBy === B.CACTUS ? 'Кактус' : 'Колючая проволока'); }
+      else if (e.onGround && (under === B.EMBERS || under === B.MAGMA) && !P.creative) { P.hazardT = 0.7; hurt(1, under === B.EMBERS ? 'Угли' : 'Магматит'); }
     }
     // эффекты
     if (P.effects.hunger > 0) { P.effects.hunger -= dt; P.exh += 0.5 * dt; }

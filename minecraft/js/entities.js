@@ -935,7 +935,7 @@
     // лёгкий уличный хлам: мешки, коробки, урны, ограждения — сносит даже легковушка
     if (id === B.TRASH_BAGS || id === B.BOXES || id === B.TRASH_BIN || id === B.ROAD_BARRIER || id === B.BENCH) return true;
     if (level < 2) return false;
-    if (b.siege || id === B.CAR_RED || id === B.CAR_BLUE || id === B.CAR_WHITE || id === B.TIRE || id === B.STREET_POLE ||
+    if (b.siege || id === B.CAR_RED || id === B.CAR_BLUE || id === B.CAR_WHITE || id === B.CAR_BURNT || id === B.TIRE || id === B.STREET_POLE ||
         id === B.STREET_LAMP || id === B.FUEL_BARREL || id === B.CRATE || id === B.SANDBAG || b.shape === 'model') return true;
     if (level < 3) return false;
     return b.hardness <= 3 && id !== B.CHEST && id !== B.GENERATOR;

@@ -1743,6 +1743,69 @@
   tile('tableWood', function () { planks([164, 120, 76]); });
   tile('metalLight', function () { fill([184, 188, 194], 0.05); });
 
+  // ---- Следы войны: гарь, копоть, сгоревшие машины, ежи, колючка, мрамор ратуши, часы ------------
+  tile('scorched', function () {                 // выжженная земля и асфальт: чёрное с пеплом
+    for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) {
+      var r = rnd();
+      px(x, y, r < 0.12 ? [92, 88, 84] : r < 0.2 ? [58, 50, 44] : jit([34, 31, 29], 0.25));
+    }
+  });
+  tile('embers', function () {                    // тлеющие угли: пепел с красными искрами
+    for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) {
+      var r = rnd();
+      px(x, y, r < 0.1 ? [255, 120, 40] : r < 0.16 ? [200, 60, 20] : r < 0.3 ? [90, 84, 78] : jit([40, 34, 30], 0.25));
+    }
+  });
+  function soot(k) {                              // копоть гуще к верху плитки и потёками вниз
+    for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) {
+      var i = ((Math.floor(cur / 16) * TS + y) * ATLAS + (cur % 16) * TS + x) * 4;
+      var dark = k * (0.55 + 0.45 * (1 - y / 15)) * (0.75 + rnd() * 0.5);
+      if ((x * 7 + 3) % 5 === 0) dark *= 1.25;
+      var m = Math.max(0.12, 1 - dark);
+      d[i] = clamp255(d[i] * m); d[i + 1] = clamp255(d[i + 1] * m); d[i + 2] = clamp255(d[i + 2] * m * 0.96);
+    }
+  }
+  tile('sootedBrick', function () {
+    for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) {
+      var row = Math.floor(y / 4), off = row % 2 ? 4 : 0, mortar = y % 4 === 3 || (x + off) % 8 === 7;
+      px(x, y, mortar ? [120, 112, 104] : jit([150, 70, 56], 0.12));
+    }
+    soot(0.7);
+  });
+  tile('sootedConcrete', function () { fill([150, 150, 146], 0.1); soot(0.62); });
+  tile('carBurnt', function () {
+    for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) {
+      var r = rnd();
+      px(x, y, r < 0.25 ? jit([122, 62, 30], 0.2) : r < 0.35 ? [150, 84, 44] : jit([46, 40, 38], 0.3));
+    }
+  });
+  tile('barbedWire', function () {
+    clear();
+    for (var x = 0; x < 16; x++) {
+      var y1 = 4 + Math.round(Math.sin(x * 0.8) * 2), y2 = 10 + Math.round(Math.cos(x * 0.7) * 2);
+      px(x, y1, [150, 150, 154]); px(x, y2, [130, 130, 134]);
+      if (x % 4 === 1) { px(x, y1 - 1, [110, 110, 116]); px(x, y1 + 1, [110, 110, 116]); px(x, y2 - 1, [100, 100, 106]); }
+    }
+    for (var y = 3; y < 16; y++) { px(3, y, [90, 70, 50]); px(12, y, [90, 70, 50]); }
+  });
+  tile('marble', function () {
+    for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) px(x, y, jit([226, 222, 212], 0.03));
+    for (var k = 0; k < 3; k++) {
+      var vx = rnd() * 16, vy = 0, dx = (rnd() - 0.5) * 1.4;
+      for (var s = 0; s < 20; s++) { px(Math.floor(vx), Math.floor(vy), [176, 172, 166]); vx += dx + (rnd() - 0.5) * 0.8; vy += 0.8; }
+    }
+  });
+  tile('clockFace', function () {
+    for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) {
+      var dd = Math.hypot(x - 7.5, y - 7.5);
+      px(x, y, dd > 7.2 ? [140, 120, 70] : dd > 6.4 ? [190, 160, 80] : jit([236, 230, 212], 0.03));
+    }
+    for (var h = 0; h < 12; h++) { var a = h / 12 * Math.PI * 2; px(Math.round(7.5 + Math.cos(a) * 5.4), Math.round(7.5 + Math.sin(a) * 5.4), [40, 36, 30]); }
+    for (var t = 0; t < 4; t++) px(7 + (t < 2 ? 0 : 1), 7 - t, [30, 26, 22]);      // стрелки застыли без десяти двенадцать
+    for (var t2 = 0; t2 < 3; t2++) px(7 - t2, 7 - t2, [30, 26, 22]);
+    for (var cr = 0; cr < 5; cr++) px(9 + cr, 9 + (cr >> 1), [90, 86, 80]);        // трещина по стеклу
+  });
+
   // ---- Сборка атласа ---------------------------------------------------------------
   function makeAtlas() {
     var cv = document.createElement('canvas');

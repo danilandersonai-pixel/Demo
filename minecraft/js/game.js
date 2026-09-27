@@ -823,7 +823,8 @@
 
   // ---- Названия мест: район, особое здание, метро ---------------------------------------------
   var SPECIAL_NOTES = { police: 'оружейная за решёткой на первом этаже', hospital: 'аптечки и бинты, но и пациенты', market: 'много еды и толпа внутри',
-    gas: 'канистры с топливом, бочки взрываются', helipad: 'лестница на крышу — в северо-западном углу', military: 'оружие, боеприпасы и танк' };
+    gas: 'канистры с топливом, бочки взрываются', helipad: 'лестница на крышу — в северо-западном углу', military: 'оружие, боеприпасы и танк',
+    cityhall: 'восточное крыло рухнуло; сейф мэра — на третьем этаже' };
   var placeT = 0, lastPlace = '';
   function updatePlace(dt) {
     placeT -= dt;
@@ -842,7 +843,7 @@
 
   // ---- Карта района ---------------------------------------------------------------------------
   var MAP_COL = { downtown: '#4a5160', residential: '#6b5a48', industrial: '#6a6243', suburb: '#8a8a66' };
-  var MAP_ICON = { police: ['П', '#3f6fd8'], hospital: ['Б', '#2fae63'], market: ['С', '#e08a2a'], gas: ['З', '#d0453a'], helipad: ['★', '#f0b545'], military: ['В', '#6b7d3a'] };
+  var MAP_ICON = { police: ['П', '#3f6fd8'], hospital: ['Б', '#2fae63'], market: ['С', '#e08a2a'], gas: ['З', '#d0453a'], helipad: ['★', '#f0b545'], military: ['В', '#6b7d3a'], cityhall: ['Р', '#a8864a'] };
   function openMap() {
     if (state !== 'playing') return;
     if (!world || world.type !== 'city' || world.dim !== 'over') { toast('Эта карта — только для города'); return; }

@@ -634,7 +634,7 @@
     var tl = b.tiles, key = FACES[f].tile;
     switch (id) {
       case B.FURNACE: if (f === FACING_FACE[meta & 3]) return meta & 4 ? T.furnaceLit : tl.front; break;
-      case B.CHEST: case B.PUMPKIN: case B.JACK: case B.TABLE: case B.CONSOLE:
+      case B.CHEST: case B.PUMPKIN: case B.JACK: case B.TABLE: case B.CONSOLE: case B.CLOCK:
         if (f === FACING_FACE[meta & 3]) return tl.front; break;
       case B.ROAD_LINE: if (f === 2) return meta === 1 ? T.roadLineZ : meta === 2 ? T.crosswalk : T.roadLineX; break;
       case B.LAMP: return meta & 1 ? T.lampOn : T.lampOff;

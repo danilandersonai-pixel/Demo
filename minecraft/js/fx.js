@@ -543,6 +543,9 @@
           if (r < 0.12) emit('ember', x + 0.5, y + 0.6, z + 0.5);
         } else if (id === B.LAVA) {
           if (r < 0.012 && !world.getBlock(x, y + 1, z)) { emit('ember', x + Math.random(), y + 1, z + Math.random()); if (Math.random() < 0.4) emit('smoke', x + 0.5, y + 1.1, z + 0.5); }
+        } else if (id === B.EMBERS) {
+          if (r < 0.1 && !world.getBlock(x, y + 1, z)) emit('smoke', x + Math.random(), y + 1.05, z + Math.random());
+          if (r < 0.03) emit('ember', x + Math.random(), y + 1, z + Math.random());
         } else if (id === B.FIREFLOWER) {
           if (r < 0.06) emit('ember', x + 0.5, y + 0.6, z + 0.5);
         } else if (id === B.HELL_GATE || id === B.HEAVEN_GATE) {

@@ -46,7 +46,9 @@
     PARQUET: 153, OFFICE_CARPET: 154, WALLPAPER: 155, KITCHEN_TILE: 156, STAIRS: 157, SOFA: 158, ARMCHAIR: 159, TV: 160,
     FRIDGE: 161, STOVE: 162, KITCHEN_CABINET: 163, SINK: 164, WARDROBE: 165, DESK: 166, DESK_PC: 167, OFFICE_CHAIR: 168,
     FILE_CABINET: 169, BATHTUB: 170, TOILET: 171, MED_CABINET: 172, POT_PLANT: 173, CARPET: 174, COOLER: 175,
-    DINING_TABLE: 176, CHAIR: 177
+    DINING_TABLE: 176, CHAIR: 177,
+    // Следы войны
+    SCORCHED: 178, EMBERS: 179, SOOTED_BRICK: 180, SOOTED_CONCRETE: 181, CAR_BURNT: 182, HEDGEHOG: 183, BARBED_WIRE: 184, MARBLE: 185, CLOCK: 186
   };
 
   // ---- Идентификаторы предметов -----------------------------------------------
@@ -373,6 +375,21 @@
   blk(B.CHAIR, 'Стул', 'tableWood', ext(prop, ext(wood, { hardness: 1, siege: 3, model: {
     boxes: [[3, 0, 3, 5, 8, 5, 'tableWood'], [11, 0, 3, 13, 8, 5, 'tableWood'], [3, 0, 11, 5, 8, 13, 'tableWood'], [11, 0, 11, 13, 8, 13, 'tableWood'],
       [3, 8, 3, 13, 9.5, 13, 'tableWood'], [3, 9.5, 3, 13, 16, 4.5, 'tableWood']], coll: [3, 0, 3, 13, 9.5, 13], sel: [3, 0, 3, 13, 16, 13] } })));
+  // ---- Следы войны ------------------------------------------------------------------------------
+  blk(B.SCORCHED, 'Гарь', 'scorched', { hardness: 0.6, tool: 'shovel', mat: 'sand' });
+  // тлеющие угли: светятся, дымят и жгут ноги
+  blk(B.EMBERS, 'Тлеющие угли', 'embers', { hardness: 0.4, tool: 'shovel', mat: 'sand', light: 6, glow: true, drop: [[I.COAL, 1]] });
+  blk(B.SOOTED_BRICK, 'Закопчённый кирпич', 'sootedBrick', ext(rockPick, { hardness: 2 }));
+  blk(B.SOOTED_CONCRETE, 'Закопчённый бетон', 'sootedConcrete', ext(rockPick, { hardness: 1.8 }));
+  blk(B.CAR_BURNT, 'Сгоревшая машина', 'carBurnt', { hardness: 3, tool: 'pickaxe', mat: 'metal', siege: 10, drop: [[I.IRON_INGOT, 1]] });
+  blk(B.HEDGEHOG, 'Противотанковый ёж', 'metalDark', ext(prop, { hardness: 4, siege: 30, drop: [[I.IRON_INGOT, 2]], model: {
+    boxes: [[0, 0, 6.5, 16, 3, 9.5, 'metalDark'], [6.5, 0, 0, 9.5, 3, 16, 'metalDark'], [6.5, 3, 6.5, 9.5, 14, 9.5, 'metalDark'],
+      [2, 11, 6.5, 14, 14, 9.5, 'metalDark'], [6.5, 11, 2, 9.5, 14, 14, 'metalDark']], coll: [0, 0, 0, 16, 14, 16] } }));
+  // колючая проволока: колется и замедляет
+  blk(B.BARBED_WIRE, 'Колючая проволока', 'barbedWire', { shape: 'cross', opaque: false, solid: false, hardness: 0.6, tool: 'shears', mat: 'metal',
+    replaceable: false, drop: [[I.IRON_INGOT, 1]] });
+  blk(B.MARBLE, 'Мрамор', 'marble', ext(rockPick, { hardness: 2 }));
+  blk(B.CLOCK, 'Башенные часы', { side: 'marble', front: 'clockFace' }, ext(rockPick, { hardness: 2 }));
   // плитки коробок и вариантов «наклеек» — в индексы атласа
   BLOCKS.forEach(function (b) {
     if (!b) return;
@@ -428,7 +445,7 @@
   BLOCK_SPRITES[B.HELL_GATE] = 'hellGate'; BLOCK_SPRITES[B.HEAVEN_GATE] = 'heavenGate'; BLOCK_SPRITES[B.STREET_POLE] = 'pole';
   [[B.FERN, 'fern'], [B.MUSHROOM_RED, 'mushroomRed'], [B.MUSHROOM_BROWN, 'mushroomBrown'], [B.DAISY, 'daisy'], [B.BELLFLOWER, 'bellflower'],
     [B.DEAD_BUSH, 'deadBush'], [B.LILY_PAD, 'lilyPad'], [B.PEBBLES, 'pebbles'], [B.FALLEN_LEAVES, 'fallenLeaves'], [B.POSTER, 'poster1'],
-    [B.GRAFFITI, 'graffiti2'], [B.IVY, 'ivy'], [B.CRACKS, 'crackDecal'], [B.LITTER, 'litter'], [B.MOSS, 'moss1'], [B.WEEDS, 'weeds']].forEach(function (p) { BLOCK_SPRITES[p[0]] = p[1]; });
+    [B.GRAFFITI, 'graffiti2'], [B.IVY, 'ivy'], [B.CRACKS, 'crackDecal'], [B.LITTER, 'litter'], [B.MOSS, 'moss1'], [B.WEEDS, 'weeds'], [B.BARBED_WIRE, 'barbedWire']].forEach(function (p) { BLOCK_SPRITES[p[0]] = p[1]; });
   var NOT_ITEMS = [B.AIR, B.WATER, B.LAVA, B.WHEAT, B.WIRE, B.PISTON_HEAD, B.FARMLAND, B.FIRE];
   BLOCKS.forEach(function (b, id) {
     if (!b || NOT_ITEMS.indexOf(id) >= 0) return;
