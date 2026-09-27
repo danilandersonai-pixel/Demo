@@ -182,6 +182,10 @@
     '  vec2 l = fract((uv - o) / ts + off);',
     '  return o + clamp(l, 0.004, 0.996) * ts;',
     '}',
+    '#ifdef WATERFX',
+    'uniform sampler2D uRefr; uniform sampler2D uRefrD; uniform vec2 uScreen; uniform vec2 uNF; uniform mat4 uVPF;',
+    'float linZW(float d) { float z = d * 2.0 - 1.0; return 2.0 * uNF.x * uNF.y / (uNF.y + uNF.x - z * (uNF.y - uNF.x)); }',
+    '#endif',
     '#ifdef FANCY',
     'float hash2(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }',
     'float vnoise(vec2 p) {',
@@ -248,8 +252,45 @@
     '    vec3 R = reflect(-V, wn);',
     '    vec3 skyc = mix(uSkyHor, uSkyTop, clamp(R.y, 0.0, 1.0)) * (0.3 + 0.7 * vL.x * vL.x);',
     '    vec3 spec = uSunCol * pow(max(dot(R, uSunDir), 0.0), 220.0) * 7.0 * sh * above;',
+    '#ifdef WATERFX',
+    '    if (above > 0.5) {',
+    // преломление: картинка под водой с искажением от ряби; толща воды поглощает сначала красный
+    '      vec2 suv = gl_FragCoord.xy * uScreen;',
+    '      float zW = 1.0 / gl_FragCoord.w;',
+    '      vec2 ruv = suv + wn.xz * (0.06 / (1.0 + zW * 0.08));',
+    '      float zS = linZW(texture2D(uRefrD, ruv).r);',
+    '      if (zS < zW - 0.05) { ruv = suv; zS = linZW(texture2D(uRefrD, suv).r); }',
+    '      float thick = clamp(zS - zW, 0.0, 60.0);',
+    '      vec3 absorb = exp(-thick * vec3(0.55, 0.19, 0.13));',
+    // толща воды — ровный сине-зелёный цвет, освещённый сверху (без узора текстуры)
+    '      vec3 deep = vec3(0.05, 0.19, 0.25) * (vBase + vSun * sh) * 1.5;',
+    '      vec3 under = texture2D(uRefr, ruv).rgb * absorb + deep * (1.0 - absorb);',
+    // отражение: шагаем по отражённому лучу и ищем, где он уходит за поверхность в буфере глубины
+    '      vec3 refl = skyc;',
+    '      vec3 rp = vW; float sl = 0.3, hit = 0.0; vec2 huv = vec2(0.0);',
+    '      for (int i = 0; i < SSR_STEPS; i++) {',
+    '        rp += R * sl; sl *= 1.25;',
+    '        vec4 cp = uVPF * vec4(rp, 1.0);',
+    '        if (cp.w < 0.1) break;',
+    '        vec2 u2 = cp.xy / cp.w * 0.5 + 0.5;',
+    '        if (u2.x < 0.0 || u2.x > 1.0 || u2.y < 0.0 || u2.y > 1.0) break;',
+    '        float dd = cp.w - linZW(texture2D(uRefrD, u2).r);',
+    '        if (dd > 0.02 && dd < sl * 1.6 + 0.4) { hit = 1.0; huv = u2; break; }',
+    '      }',
+    '      if (hit > 0.5) {',
+    '        vec2 eg = min(huv, 1.0 - huv);',
+    '        refl = mix(refl, texture2D(uRefr, huv).rgb, smoothstep(0.0, 0.08, min(eg.x, eg.y)));',
+    '      }',
+    '      col = mix(under, refl, clamp(fres, 0.0, 1.0)) + spec;',
+    '      alpha = 1.0;',
+    '    } else {',
+    '      col = mix(col, skyc, clamp(fres * 0.85, 0.0, 1.0)) + spec;',
+    '      alpha = mix(0.62, 0.93, fres) * step(uCut, c.a);',
+    '    }',
+    '#else',
     '    col = mix(col, skyc, clamp(fres * 0.85, 0.0, 1.0)) + spec;',
     '    alpha = mix(0.62, 0.93, fres) * step(uCut, c.a);',
+    '#endif',
     '  }',
     '  gl_FragColor = vec4(mix(col, vFog.rgb, vFog.a), alpha);',
     '#else',
@@ -364,21 +405,26 @@
     '  }',
     '  if (uSunVis < 0.5) { gl_FragColor = vec4(col, 0.0); return; }',
     '  if (sd > 0.0 && d.y > -0.01) {',
+    // круглое солнце: тёплый ореол, диск с затемнённым краем
     '    vec2 q = vec2(dot(d, uSunR), dot(d, uSunU)) / sd;',
-    '    float m = max(abs(q.x), abs(q.y));',
-    '    col += vec3(1.0, 0.75, 0.45) * (1.0 - smoothstep(0.07, 0.32, m)) * 0.18;',
-    '    if (m < 0.075) col = mix(vec3(1.0, 0.96, 0.78), vec3(1.0, 1.0, 0.92), step(m, 0.05)) * uSunK;',
+    '    float m = length(q);',
+    '    col += vec3(1.0, 0.76, 0.48) * (exp(-m * 11.0) * 0.26 + exp(-m * 3.5) * 0.06) * uSunK;',
+    '    float disk = 1.0 - smoothstep(0.036, 0.043, m), r = m / 0.043;',
+    '    col = mix(col, vec3(1.0, 0.95, 0.8) * uSunK * 1.2 * (1.0 - 0.4 * r * r), disk);',
     '  } else if (sd < 0.0 && d.y > -0.01) {',
-    // луна с фазами: освещённая часть сдвигается от ночи к ночи
+    // луна-шар с фазами: граница света — эллипс, как у настоящей
     '    vec2 q = vec2(dot(d, uSunR), dot(d, uSunU)) / -sd;',
-    '    float m = max(abs(q.x), abs(q.y));',
-    '    col += vec3(0.5, 0.6, 0.85) * (1.0 - smoothstep(0.05, 0.22, m)) * 0.06 * uNight;',
-    '    if (m < 0.055) {',
-    '      float spot = step(0.6, fract(sin(dot(floor(q * 60.0), vec2(7.1, 3.7))) * 91.3));',
-    '      float k = q.x / 0.055; if (uMoon > 0.5) k = -k;',
-    '      float lit = step(cos(uMoon * 6.2832), k);',
-    '      vec3 mc = mix(vec3(0.9, 0.92, 0.98), vec3(0.72, 0.74, 0.82), spot * 0.6);',
-    '      col = mix(col + vec3(0.03, 0.035, 0.05), mc * (1.0 + uSunK * 0.35), lit);',
+    '    float m = length(q), R0 = 0.034;',
+    '    col += vec3(0.5, 0.6, 0.85) * exp(-m * 13.0) * 0.1 * uNight;',
+    '    if (m < R0) {',
+    '      vec2 n2 = q / R0;',
+    '      vec3 n = vec3(n2, sqrt(max(1.0 - dot(n2, n2), 0.0)));',
+    '      float ang = uMoon * 6.2832;',
+    '      float lit = smoothstep(-0.06, 0.06, dot(n, vec3(sin(ang), 0.0, -cos(ang))));',
+    '      float spot = step(0.62, fract(sin(dot(floor(q * 90.0), vec2(7.1, 3.7))) * 91.3)) + step(0.55, noise3(vec3(n2 * 3.0, 1.0))) * 0.6;',
+    '      vec3 mc = mix(vec3(0.93, 0.94, 0.98), vec3(0.7, 0.72, 0.8), clamp(spot, 0.0, 1.0) * 0.55);',
+    '      float edge = 1.0 - smoothstep(R0 * 0.92, R0, m);',
+    '      col = mix(col, col + vec3(0.02, 0.025, 0.04) + mc * (1.0 + uSunK * 0.35) * lit, edge);',
     '    }',
     '  }',
     // альфа 0 — «здесь небо» (для лучей света в постобработке)
@@ -460,14 +506,183 @@
 
   // ---- Постобработка ----------------------------------------------------------------------------
   var POST_VS = 'attribute vec2 aPos; varying vec2 vUV; void main() { vUV = aPos * 0.5 + 0.5; gl_Position = vec4(aPos, 0.0, 1.0); }';
+  // глубина сцены → расстояние от камеры и точка в пространстве камеры (uProj: ближняя, дальняя, tan по X и Y)
+  var DEPTH_GLSL = [
+    'uniform vec4 uProj;',
+    'float linZ(float d) { float z = d * 2.0 - 1.0; return 2.0 * uProj.x * uProj.y / (uProj.y + uProj.x - z * (uProj.y - uProj.x)); }',
+    'vec3 viewPos(vec2 uv, float d) { float z = linZ(d); return vec3((uv * 2.0 - 1.0) * uProj.zw * z, -z); }',
+    // «переплетённый градиентный шум»: равномерная россыпь сдвигов, которую потом съедает размытие
+    'float ign(vec2 p) { return fract(52.9829189 * fract(dot(p, vec2(0.06711056, 0.00583715)))); }'
+  ].join('\n');
+  // Затенение в углах по глубине (SSAO): полусфера выборок вокруг нормали, восстановленной из соседних глубин
+  var SSAO_FS = [
+    'uniform sampler2D uDepth; uniform vec2 uTexel; uniform vec3 uKernel[SAMPLES]; uniform float uRadius;',
+    'varying vec2 vUV;',
+    'vec3 vpAt(vec2 uv) { return viewPos(uv, texture2D(uDepth, uv).r); }',
+    'void main() {',
+    '  float d = texture2D(uDepth, vUV).r;',
+    '  if (d > 0.99999 || d < 0.0045) { gl_FragColor = vec4(1.0); return; }',
+    '  vec3 P = viewPos(vUV, d);',
+    '  vec3 pr = vpAt(vUV + vec2(uTexel.x, 0.0)), pl = vpAt(vUV - vec2(uTexel.x, 0.0));',
+    '  vec3 pu = vpAt(vUV + vec2(0.0, uTexel.y)), pd = vpAt(vUV - vec2(0.0, uTexel.y));',
+    '  vec3 dx = abs(pr.z - P.z) < abs(P.z - pl.z) ? pr - P : P - pl;',
+    '  vec3 dy = abs(pu.z - P.z) < abs(P.z - pd.z) ? pu - P : P - pd;',
+    '  vec3 N = normalize(cross(dx, dy));',
+    '  float a = ign(gl_FragCoord.xy) * 6.2832;',
+    '  vec3 T = normalize(cross(N, abs(N.y) < 0.9 ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0)));',
+    '  vec3 Bt = cross(N, T);',
+    '  vec3 T2 = T * cos(a) + Bt * sin(a); vec3 B2 = Bt * cos(a) - T * sin(a);',
+    '  float occ = 0.0;',
+    '  for (int i = 0; i < SAMPLES; i++) {',
+    '    vec3 k = uKernel[i];',
+    '    vec3 s = P + (T2 * k.x + B2 * k.y + N * k.z) * uRadius;',
+    '    vec2 suv = s.xy / (-s.z) / uProj.zw * 0.5 + 0.5;',
+    '    float sz = linZ(texture2D(uDepth, suv).r);',
+    '    float range = smoothstep(0.0, 1.0, uRadius / max(abs(-P.z - sz), 1e-3));',
+    '    occ += step(sz, -s.z - 0.03) * range;',
+    '  }',
+    '  float ao = 1.0 - occ / float(SAMPLES);',
+    // вдали затенение слабеет: там оно только шумит
+    '  ao = mix(ao, 1.0, smoothstep(40.0, 90.0, -P.z));',
+    '  gl_FragColor = vec4(ao, ao, ao, 1.0);',
+    '}'
+  ].join('\n');
+  // Размытие по одной оси с учётом глубины: не смазывает туман и тени через края предметов
+  var BLUR_FS = [
+    'uniform sampler2D uSrc; uniform sampler2D uDepth; uniform vec2 uDir; uniform float uSharp;',
+    'varying vec2 vUV;',
+    'void main() {',
+    '  float z0 = linZ(texture2D(uDepth, vUV).r);',
+    '  vec4 acc = texture2D(uSrc, vUV) * 0.227; float ws = 0.227;',
+    '  for (int i = 1; i <= 4; i++) {',
+    '    float wg = i == 1 ? 0.1945 : i == 2 ? 0.1216 : i == 3 ? 0.0541 : 0.0162;',
+    '    vec2 o = uDir * float(i);',
+    '    float za = linZ(texture2D(uDepth, vUV + o).r), zb = linZ(texture2D(uDepth, vUV - o).r);',
+    '    float wa = wg * exp(-abs(za - z0) / max(z0, 1.0) * uSharp), wb = wg * exp(-abs(zb - z0) / max(z0, 1.0) * uSharp);',
+    '    acc += texture2D(uSrc, vUV + o) * wa + texture2D(uSrc, vUV - o) * wb;',
+    '    ws += wa + wb;',
+    '  }',
+    '  gl_FragColor = acc / ws;',
+    '}'
+  ].join('\n');
+  // Атмосфера в половинном разрешении: объёмный свет с тенями (лучи сквозь листву и между домами),
+  // дымка, густеющая к земле, и объёмные облака. Итог: rgb — рассеянный свет, a — пропускание
+  var ATMOS_FS = [
+    'uniform sampler2D uDepth;',
+    'uniform vec3 uCam; uniform vec3 uFwd; uniform vec3 uRight; uniform vec3 uUp;',
+    'uniform vec3 uSunDir; uniform vec3 uSunCol; uniform vec3 uAmbF; uniform vec4 uFogP; uniform float uFogFar;',
+    'uniform float uTime; uniform float uPhaseG; uniform float uShOn;',
+    '#ifdef VOLSH',
+    'uniform sampler2D uShadow; uniform mat4 uLVP;',
+    'float volShadow(vec3 p) {',
+    '  vec3 s = (uLVP * vec4(p, 1.0)).xyz * 0.5 + 0.5;',
+    '  if (s.x < 0.0 || s.x > 1.0 || s.y < 0.0 || s.y > 1.0 || s.z > 1.0) return 1.0;',
+    '  return step(s.z - 0.0015, texture2D(uShadow, s.xy).r);',
+    '}',
+    '#endif',
+    'float hg(float c, float g) { float g2 = g * g; return (1.0 - g2) / (12.566 * pow(max(1.0 + g2 - 2.0 * g * c, 1e-4), 1.5)); }',
+    '#ifdef VCLOUDS',
+    'uniform sampler2D uCloudTex; uniform vec4 uCloudP; uniform vec3 uCloudLit; uniform vec3 uCloudAmb; uniform float uCloudFar; uniform float uCloudK;',
+    'float h21(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }',
+    'float vn(vec2 p) {',
+    '  vec2 i = floor(p); vec2 f = fract(p); f = f * f * (3.0 - 2.0 * f);',
+    '  return mix(mix(h21(i), h21(i + vec2(1.0, 0.0)), f.x), mix(h21(i + vec2(0.0, 1.0)), h21(i + vec2(1.0, 1.0)), f.x), f.y);',
+    '}',
+    // плотность облака: карта облаков (та же, что для их теней на земле) + клубящийся шум по краям
+    'float cdens(vec3 p) {',
+    '  vec2 q = p.xz + vec2(uCloudP.y, 0.0);',
+    '  float cov = texture2D(uCloudTex, q / uCloudP.z).a + uCloudK;',
+    '  if (cov < 0.03) return 0.0;',
+    '  float h = clamp((p.y - uCloudP.x) / uCloudP.w, 0.0, 1.0);',
+    '  float n = vn(q * 0.033 + vec2(uTime * 0.012, h)) * 0.6 + vn(q * 0.091 - vec2(h * 2.3, uTime * 0.02)) * 0.4;',
+    '  float prof = smoothstep(0.0, 0.16, h) * (1.0 - smoothstep(0.3 + min(cov, 1.0) * 0.55, 1.0, h));',
+    '  return clamp((cov * 1.15 - 0.42 + (n - 0.5) * 0.95) * 2.4, 0.0, 1.0) * prof;',
+    '}',
+    '#endif',
+    'varying vec2 vUV;',
+    'void main() {',
+    '  float dz = texture2D(uDepth, vUV).r;',
+    '  vec3 d = normalize(uFwd + (vUV.x * 2.0 - 1.0) * uProj.z * uRight + (vUV.y * 2.0 - 1.0) * uProj.w * uUp);',
+    '  float dist = dz < 0.0045 ? 0.2 : dz > 0.99999 ? 1e5 : linZ(dz) / max(dot(d, uFwd), 0.05);',
+    '  float j = ign(gl_FragCoord.xy);',
+    '  float cosT = dot(d, uSunDir);',
+    // рассеяние: сильный пик вперёд (сияние вокруг солнца, лучи) плюс ровная часть
+    '  float ph = hg(cosT, uPhaseG) * 2.2 + 0.06;',
+    '  vec3 fogS = vec3(0.0); float fogT = 1.0;',
+    '  float fd = min(dist, uFogP.w);',
+    '  float st = fd / float(VSTEPS);',
+    '  for (int i = 0; i < VSTEPS; i++) {',
+    '    vec3 p = uCam + d * ((float(i) + j) * st);',
+    '    float den = uFogP.x * exp(-max(p.y - uFogP.z, 0.0) * uFogP.y);',
+    '    float sh = 1.0;',
+    '#ifdef VOLSH',
+    '    if (uShOn > 0.5) sh = volShadow(p);',
+    '#endif',
+    '    float a = den * st;',
+    '    fogS += fogT * a * (uSunCol * (sh * ph) + uAmbF);',
+    '    fogT *= exp(-a);',
+    '  }',
+    // дальше объёма — дымка без теней до горизонта
+    '  if (dist > fd) {',
+    '    float rest = min(dist, uFogFar) - fd;',
+    '    float hm = uCam.y + d.y * (fd + rest * 0.5);',
+    '    float a = uFogP.x * exp(-max(hm - uFogP.z, 0.0) * uFogP.y) * rest;',
+    '    float tr = exp(-a);',
+    '    fogS += fogT * (1.0 - tr) * (uSunCol * ph * 0.85 + uAmbF);',
+    '    fogT *= tr;',
+    '  }',
+    '  vec3 outS = fogS; float outT = fogT;',
+    '#ifdef VCLOUDS',
+    '  vec3 clS = vec3(0.0); float clT = 1.0;',
+    '  float y0 = uCloudP.x, y1 = uCloudP.x + uCloudP.w, ta = 0.0, tb = -1.0;',
+    '  if (abs(d.y) > 1e-4) { float t0 = (y0 - uCam.y) / d.y, t1 = (y1 - uCam.y) / d.y; ta = max(min(t0, t1), 0.0); tb = max(t0, t1); }',
+    '  else if (uCam.y > y0 && uCam.y < y1) tb = uCloudFar;',
+    '  tb = min(tb, min(dist, uCloudFar));',
+    '  if (tb > ta) {',
+    '    float cst = min(tb - ta, 150.0) / float(CSTEPS);',
+    '    float t = ta + cst * j;',
+    '    float cph = 0.55 + hg(cosT, 0.62) * 2.5;',
+    '    for (int i = 0; i < CSTEPS; i++) {',
+    '      vec3 p = uCam + d * t;',
+    '      float den = cdens(p);',
+    '      if (den > 0.01) {',
+    // свет до солнца: оптическая толща по двум точкам; «пол» из многократного рассеяния не даёт облаку почернеть
+    '        float od = (cdens(p + uSunDir * 4.0) * 4.0 + cdens(p + uSunDir * 11.0) * 7.0) * 0.15;',
+    '        float lit = max(exp(-od), exp(-od * 0.25) * 0.4);',
+    '        float h = clamp((p.y - y0) / uCloudP.w, 0.0, 1.0);',
+    '        vec3 L = uCloudLit * (lit * cph) + uCloudAmb * (0.62 + 0.38 * h);',
+    '        float tr = exp(-den * cst * 0.16);',
+    '        clS += clT * (1.0 - tr) * L;',
+    '        clT *= tr;',
+    '        if (clT < 0.03) break;',
+    '      }',
+    '      t += cst;',
+    '    }',
+    // дальние облака тают в дымке у горизонта
+    '    float fade = smoothstep(uCloudFar * 0.5, uCloudFar, ta);',
+    '    clS *= 1.0 - fade; clT = mix(clT, 1.0, fade);',
+    '  }',
+    '  if (uCam.y < y0) outS = fogS + fogT * clS; else outS = clS + clT * fogS;',
+    '  outT = fogT * clT;',
+    '#endif',
+    '  gl_FragColor = vec4(outS, outT);',
+    '}'
+  ].join('\n');
   // первый шаг свечения: уменьшение вдвое и отбор ярких пикселей с мягким порогом
   var BLOOM_PRE_FS = [
     'uniform sampler2D uSrc; uniform vec2 uTexel; uniform vec2 uThr;',
+    '#ifdef ATMOS',
+    'uniform sampler2D uAtm;',
+    '#endif',
     'varying vec2 vUV;',
     'void main() {',
     '  vec3 c = texture2D(uSrc, vUV + uTexel * vec2(-0.5, -0.5)).rgb + texture2D(uSrc, vUV + uTexel * vec2(0.5, -0.5)).rgb',
     '    + texture2D(uSrc, vUV + uTexel * vec2(-0.5, 0.5)).rgb + texture2D(uSrc, vUV + uTexel * vec2(0.5, 0.5)).rgb;',
     '  c *= 0.25;',
+    // свечение считается уже сквозь облака и дымку: солнце за тучей не слепит
+    '#ifdef ATMOS',
+    '  vec4 at = texture2D(uAtm, vUV); c = c * at.a + at.rgb;',
+    '#endif',
     '  float l = max(c.r, max(c.g, c.b));',
     '  float s = clamp(l - uThr.x + uThr.y, 0.0, 2.0 * uThr.y);',
     '  s = s * s / (4.0 * uThr.y + 1e-4);',
@@ -502,14 +717,32 @@
     'uniform vec3 uLift; uniform vec3 uGain; uniform float uSat; uniform float uContrast; uniform float uVignette;',
     'uniform float uTime; uniform float uWave; uniform vec4 uTint; uniform vec2 uTexel;',
     'uniform vec3 uSunScr; uniform vec3 uRayCol;',
+    '#ifdef SSAO',
+    'uniform sampler2D uAO; uniform float uAOK;',
+    '#endif',
+    '#ifdef ATMOS',
+    'uniform sampler2D uAtm;',
+    '#endif',
     'varying vec2 vUV;',
     'float hash(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }',
+    '#ifdef FILMIC',
+    // киношная кривая (приближение ACES): мягкие тени, плотные полутона, светлое уходит в белое без «ступеньки»
+    'vec3 tone(vec3 x) { x *= 0.92; return clamp((x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14), 0.0, 1.0); }',
+    '#else',
     // мягкое плечо: до 0.72 цвет не трогаем, выше плавно подводим к 1 — привычная картинка без пересветов
     'vec3 tone(vec3 x) { vec3 k = max(x - 0.72, 0.0); return min(x, vec3(0.72)) + 0.28 * (1.0 - exp(-k / 0.28)); }',
+    '#endif',
     'void main() {',
     '  vec2 uv = vUV;',
     '  if (uWave > 0.0) uv += vec2(sin(uv.y * 23.0 + uTime * 2.1), cos(uv.x * 19.0 + uTime * 1.7)) * 0.0035 * uWave;',
     '  vec3 c = texture2D(uScene, uv).rgb;',
+    '#ifdef SSAO',
+    '  c *= mix(1.0, texture2D(uAO, uv).r, uAOK);',
+    '#endif',
+    '#ifdef ATMOS',
+    '  vec4 at = texture2D(uAtm, uv);',
+    '  c = c * at.a + at.rgb;',
+    '#endif',
     '#ifdef BLOOM',
     '  c += texture2D(uBloom, uv).rgb * uBloomK;',
     '#endif',
@@ -572,7 +805,16 @@
     this.canvas = canvas;
     this.caps = detect(gl);
     // качество по умолчанию — «среднее» без теней; game.js задаёт своё через setQuality
-    this.q = { lights: 8, sway: true, fancy: true, shadows: 0, pcf: 1, shadowHalf: 44, post: false, bloom: true, msaa: 0, rays: false, cloudShadows: false, clouds3d: false };
+    this.q = { lights: 8, sway: true, fancy: true, shadows: 0, pcf: 1, shadowHalf: 44, post: false, bloom: true, msaa: 0, rays: false, cloudShadows: false, clouds3d: false,
+      ssao: 0, vol: 0, vclouds: 0, water: 0, filmic: false };
+    this.fx = { ssao: false, atm: false, water: false };
+    // ядро SSAO: точки в полусфере, гуще к центру
+    var kr = KC.mulberry32 ? KC.mulberry32(9127) : Math.random;
+    this.kernel = new Float32Array(16 * 3);
+    for (var ki = 0; ki < 16; ki++) {
+      var kx = kr() * 2 - 1, ky = kr() * 2 - 1, kz = 0.15 + kr() * 0.85, kl = Math.hypot(kx, ky, kz) || 1, ks = 0.12 + 0.88 * Math.pow((ki + 1) / 16, 2);
+      this.kernel[ki * 3] = kx / kl * ks; this.kernel[ki * 3 + 1] = ky / kl * ks; this.kernel[ki * 3 + 2] = kz / kl * ks;
+    }
     this.nl = 1;
     this.w = canvas.width || 1; this.h = canvas.height || 1;
     this.lp = new Float32Array(32); this.lc = new Float32Array(32); this.ld = new Float32Array(32);
@@ -584,7 +826,6 @@
     this.cloud3 = this.program(CLOUD3_VS, HP + CLOUD3_FS, ['aBox', 'aLoc', 'aN']);
     this.part = this.program(PART_VS, HP + PART_FS, ['aPos', 'aUV', 'aCol']);
     this.shadowProg = this.program(SHADOW_VS, HP + SHADOW_FS, ['aPos', 'aUV']);
-    this.bloomPre = this.program(POST_VS, HP + BLOOM_PRE_FS, ['aPos']);
     this.bloomDown = this.program(POST_VS, HP + BLOOM_DOWN_FS, ['aPos']);
     this.bloomUp = this.program(POST_VS, HP + BLOOM_UP_FS, ['aPos']);
     this.build();
@@ -599,6 +840,8 @@
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.ibo);
     gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, idx, gl.STATIC_DRAW);
 
+    this.white = this.pixelTex([255, 255, 255, 255]);
+    this.clearAtm = this.pixelTex([0, 0, 0, 255]);
     this.fsTri = this.staticBuffer(new Float32Array([-1, -1, 3, -1, -1, 3]));
     this.quad = this.staticBuffer(new Float32Array([-1, -1, 1, -1, 1, 1, -1, -1, 1, 1, -1, 1]));
     this.lineBuf = gl.createBuffer();
@@ -645,13 +888,26 @@
     var maxL = caps.fragUniforms >= 128 ? 8 : caps.fragUniforms >= 64 ? 4 : 1;
     this.nl = Math.max(1, Math.min(maxL, q.lights | 0));
     this.shadowsOn = !!(q.shadows && caps.depthTex && q.fancy);
+    // эффекты по буферу глубины: затенение в углах, атмосфера, вода с отражениями (последней нужен WebGL2)
+    var fx = this.fx;
+    fx.ssao = !!(q.post && q.ssao && caps.depthTex);
+    fx.atm = !!(q.post && (q.vol || q.vclouds) && caps.depthTex);
+    fx.water = !!(q.post && q.water && q.fancy && caps.gl2);
     var defs = '#define NL ' + this.nl + '\n' + TILE_DEFS + (q.sway ? '#define SWAY 1\n' : '') + (q.fancy ? '#define FANCY 1\n' : '') +
       (this.shadowsOn ? '#define SHADOWS ' + (q.pcf > 1 ? 2 : 1) + '\n' : '') + (q.cloudShadows && q.fancy ? '#define CLOUDSH 1\n' : '');
-    [this.block, this.ent, this.composite].forEach(function (P) { if (P) gl.deleteProgram(P.p); });
-    this.block = this.program(defs + BLOCK_VS, HP + defs + BLOCK_FS, ['aPos', 'aUV', 'aLight']);
+    var wdefs = fx.water ? '#define WATERFX 1\n#define SSR_STEPS ' + (q.water > 1 ? 22 : 14) + '\n' : '';
+    [this.block, this.ent, this.composite, this.bloomPre, this.ssao, this.blur, this.atmos].forEach(function (P) { if (P) gl.deleteProgram(P.p); });
+    this.block = this.program(defs + BLOCK_VS, HP + defs + wdefs + BLOCK_FS, ['aPos', 'aUV', 'aLight']);
     this.ent = this.program(defs + ENT_VS, HP + defs + ENT_FS, ['aPos', 'aUV', 'aCol']);
-    var pdefs = (q.bloom ? '#define BLOOM 1\n' : '') + (q.rays ? '#define RAYS 1\n' : '');
+    var pdefs = (q.bloom ? '#define BLOOM 1\n' : '') + (q.rays && !fx.atm ? '#define RAYS 1\n' : '') + (fx.ssao ? '#define SSAO 1\n' : '') +
+      (fx.atm ? '#define ATMOS 1\n' : '') + (q.filmic ? '#define FILMIC 1\n' : '');
     this.composite = this.program(POST_VS, HP + pdefs + COMPOSITE_FS, ['aPos']);
+    this.bloomPre = this.program(POST_VS, HP + (fx.atm ? '#define ATMOS 1\n' : '') + BLOOM_PRE_FS, ['aPos']);
+    this.ssao = fx.ssao ? this.program(POST_VS, HP + '#define SAMPLES ' + (q.ssao > 1 ? 16 : 10) + '\n' + DEPTH_GLSL + '\n' + SSAO_FS, ['aPos']) : null;
+    this.blur = fx.ssao || fx.atm ? this.program(POST_VS, HP + DEPTH_GLSL + '\n' + BLUR_FS, ['aPos']) : null;
+    this.atmos = fx.atm ? this.program(POST_VS, HP + '#define VSTEPS ' + (q.vol > 1 ? 16 : q.vol ? 10 : 2) + '\n' +
+      (q.vclouds ? '#define VCLOUDS 1\n#define CSTEPS ' + (q.vclouds > 1 ? 14 : 9) + '\n' : '') + (this.shadowsOn && q.vol ? '#define VOLSH 1\n' : '') +
+      DEPTH_GLSL + '\n' + ATMOS_FS, ['aPos']) : null;
   };
 
   Renderer.prototype.setQuality = function (q) {
@@ -683,7 +939,43 @@
     return t;
   };
 
-  Renderer.prototype.setAtlas = function (canvas) { this.atlas = this.texture(canvas, false); };
+  Renderer.prototype.pixelTex = function (rgba) {
+    var gl = this.gl, t = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, t);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(rgba));
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    return t;
+  };
+
+  // Атлас блоков с мип-уровнями: вдали кирпич и листва не рябят. Уровни считаем сами, по плиткам 16×16,
+  // до уровня 4 (плитка — один пиксель), поэтому соседние плитки не смешиваются. Цвет усредняем по
+  // непрозрачным пикселям (без тёмной каймы), прозрачность чуть завышаем — кроны вдали остаются густыми
+  Renderer.prototype.setAtlas = function (canvas) {
+    var gl = this.gl, t = this.texture(canvas, false), w = canvas.width, h = canvas.height;
+    if ((w & (w - 1)) || (h & (h - 1))) { this.atlas = t; return; }
+    var src = canvas.getContext('2d').getImageData(0, 0, w, h).data, lvl = 0, maxLvl = this.caps.gl2 ? 4 : 99;
+    while ((w > 1 || h > 1) && lvl < maxLvl) {
+      var nw = Math.max(1, w >> 1), nh = Math.max(1, h >> 1), dst = new Uint8Array(nw * nh * 4);
+      for (var y = 0; y < nh; y++) for (var x = 0; x < nw; x++) {
+        var r = 0, g = 0, b = 0, a = 0;
+        for (var k = 0; k < 4; k++) {
+          var sx = Math.min(w - 1, x * 2 + (k & 1)), sy = Math.min(h - 1, y * 2 + (k >> 1)), o = (sx + sy * w) * 4, al = src[o + 3];
+          r += src[o] * al; g += src[o + 1] * al; b += src[o + 2] * al; a += al;
+        }
+        var q = (x + y * nw) * 4;
+        if (a > 0) { dst[q] = r / a; dst[q + 1] = g / a; dst[q + 2] = b / a; }
+        dst[q + 3] = Math.min(255, a / 4 * 1.35);
+      }
+      lvl++;
+      gl.texImage2D(gl.TEXTURE_2D, lvl, gl.RGBA, nw, nh, 0, gl.RGBA, gl.UNSIGNED_BYTE, dst);
+      src = dst; w = nw; h = nh;
+    }
+    if (this.caps.gl2) gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAX_LEVEL, lvl);
+    // без анизотропии: в Direct3D она включает сглаживание и вблизи, а пиксели должны оставаться чёткими
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST_MIPMAP_LINEAR);
+    this.atlas = t;
+  };
   // Атлас частиц: мягкие края, поэтому линейная фильтрация и мипы (не глубже 8 пикселей на клетку)
   Renderer.prototype.setParticleTex = function (canvas) {
     var gl = this.gl, t = this.texture(canvas, false);
@@ -765,11 +1057,24 @@
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
     return t;
   };
-  Renderer.prototype.fboFor = function (tex, depthRb) {
+  // текстура глубины: её читают затенение в углах, атмосфера и вода
+  Renderer.prototype.depthTexture = function (w, h) {
+    var gl = this.gl, t = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, t);
+    if (this.caps.gl2) gl.texImage2D(gl.TEXTURE_2D, 0, gl.DEPTH_COMPONENT24, w, h, 0, gl.DEPTH_COMPONENT, gl.UNSIGNED_INT, null);
+    else gl.texImage2D(gl.TEXTURE_2D, 0, gl.DEPTH_COMPONENT, w, h, 0, gl.DEPTH_COMPONENT, gl.UNSIGNED_INT, null);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    return t;
+  };
+  Renderer.prototype.fboFor = function (tex, depthRb, depthTex) {
     var gl = this.gl, f = gl.createFramebuffer();
     gl.bindFramebuffer(gl.FRAMEBUFFER, f);
     gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
     if (depthRb) gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, depthRb);
+    if (depthTex) gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.TEXTURE_2D, depthTex, 0);
     var ok = gl.checkFramebufferStatus(gl.FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE;
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     return ok ? f : (gl.deleteFramebuffer(f), null);
@@ -789,19 +1094,35 @@
     this.freeTargets();
     this.setupShadow();
     if (!q.post) return;
-    var T = { texs: [], fbos: [], rbs: [], levels: [] };
-    var tryHdr = !!caps.half;
-    for (var attempt = 0; attempt < 2; attempt++) {
-      var hdr = tryHdr && attempt === 0;
-      var depth = gl.createRenderbuffer();
-      gl.bindRenderbuffer(gl.RENDERBUFFER, depth);
-      gl.renderbufferStorage(gl.RENDERBUFFER, caps.gl2 ? gl.DEPTH_COMPONENT24 : gl.DEPTH_COMPONENT16, w, h);
+    var T = { texs: [], fbos: [], rbs: [], levels: [] }, fx = this.fx;
+    var tryHdr = !!caps.half, wantDT = fx.ssao || fx.atm || fx.water;
+    // пробуем: HDR с текстурой глубины → HDR с обычной глубиной → то же без HDR
+    var tries = [[tryHdr, wantDT], [tryHdr, false], [false, wantDT], [false, false]];
+    for (var attempt = 0; attempt < tries.length; attempt++) {
+      var hdr = tries[attempt][0], useDT = tries[attempt][1];
+      if ((hdr && !tryHdr) || (useDT && !wantDT)) continue;
+      var depth = null, dtex = null;
+      if (useDT) dtex = this.depthTexture(w, h);
+      else {
+        depth = gl.createRenderbuffer();
+        gl.bindRenderbuffer(gl.RENDERBUFFER, depth);
+        gl.renderbufferStorage(gl.RENDERBUFFER, caps.gl2 ? gl.DEPTH_COMPONENT24 : gl.DEPTH_COMPONENT16, w, h);
+      }
       var sceneTex = this.colorTex(w, h, hdr);
-      var sceneFbo = this.fboFor(sceneTex, depth);
-      if (sceneFbo) { T.hdr = hdr; T.sceneTex = sceneTex; T.sceneFbo = sceneFbo; T.texs.push(sceneTex); T.fbos.push(sceneFbo); T.rbs.push(depth); break; }
-      gl.deleteTexture(sceneTex); gl.deleteRenderbuffer(depth);
+      var sceneFbo = this.fboFor(sceneTex, depth, dtex);
+      if (sceneFbo) {
+        T.hdr = hdr; T.sceneTex = sceneTex; T.sceneFbo = sceneFbo; T.depthTex = dtex; T.texs.push(sceneTex); T.fbos.push(sceneFbo);
+        if (depth) T.rbs.push(depth);
+        if (dtex) T.texs.push(dtex);
+        break;
+      }
+      gl.deleteTexture(sceneTex); if (depth) gl.deleteRenderbuffer(depth); if (dtex) gl.deleteTexture(dtex);
     }
     if (!T.sceneFbo) { this.T = null; return; }
+    if (wantDT && !T.depthTex) {
+      // глубину в текстуру не дают — эффекты по глубине выключаем
+      caps.depthTex = false; this.build();
+    }
     // сглаживание MSAA: рисуем в многосэмпловый буфер и «сводим» в текстуру сцены
     if (q.msaa && caps.gl2 && caps.msaa) {
       var samples = Math.min(q.msaa, caps.msaa);
@@ -817,6 +1138,22 @@
       if (gl.checkFramebufferStatus(gl.FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE) { T.msFbo = mf; T.fbos.push(mf); T.rbs.push(mc, md); }
       else { gl.deleteFramebuffer(mf); gl.deleteRenderbuffer(mc); gl.deleteRenderbuffer(md); }
       gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    }
+    // половинное разрешение: затенение в углах и атмосфера (по паре буферов для размытия туда-обратно)
+    var self = this, hw = Math.max(1, w >> 1), hh = Math.max(1, h >> 1);
+    var half = function (hdrT) {
+      var tx = self.colorTex(hw, hh, hdrT), fb = self.fboFor(tx, null);
+      if (!fb) { gl.deleteTexture(tx); return null; }
+      T.texs.push(tx); T.fbos.push(fb);
+      return { tex: tx, fbo: fb, w: hw, h: hh };
+    };
+    if (this.fx.ssao && T.depthTex) { T.ao = [half(false), half(false)]; if (!T.ao[0] || !T.ao[1]) T.ao = null; }
+    if (this.fx.atm && T.depthTex) { T.atm = [half(T.hdr), half(T.hdr)]; if (!T.atm[0] || !T.atm[1]) T.atm = null; }
+    // копия сцены перед водой: вода преломляет и отражает то, что уже нарисовано
+    if (this.fx.water) {
+      var rt = this.colorTex(w, h, T.hdr), rd = this.depthTexture(w, h), rf = this.fboFor(rt, null, rd);
+      if (rf) { T.refr = { tex: rt, dtex: rd, fbo: rf }; T.texs.push(rt, rd); T.fbos.push(rf); }
+      else { gl.deleteTexture(rt); gl.deleteTexture(rd); }
     }
     if (q.bloom) {
       var lw = w, lh = h;
@@ -937,6 +1274,7 @@
 
   Renderer.prototype.setCamera = function (cam, fov, aspect, far) {
     perspective(this.proj, fov, aspect, 0.08, far);
+    this.near = 0.08;
     perspective(this.handProj, 70 * Math.PI / 180, aspect, 0.02, 10);
     var cy = Math.cos(cam.yaw), sy = Math.sin(cam.yaw), cp = Math.cos(cam.pitch), sp = Math.sin(cam.pitch);
     var r00 = cy, r01 = 0, r02 = -sy;
@@ -1259,7 +1597,9 @@
     // Облака
     gl.enable(gl.BLEND);
     gl.depthMask(false);
-    if (env.clouds && this.cloudVbo && this.q.clouds3d) {
+    var volClouds = !!(T && T.atm && this.fx.atm && this.q.vclouds && env.atmos);
+    if (volClouds) { /* облака рисует проход атмосферы */ }
+    else if (env.clouds && this.cloudVbo && this.q.clouds3d) {
       var C3 = this.cloud3, span = 64 * CLOUD_CELL;
       gl.useProgram(C3.p);
       gl.enable(gl.CULL_FACE);
@@ -1311,10 +1651,30 @@
     gl.enableVertexAttribArray(2);
     gl.uniform1f(P.u.uAlpha, 0.74);
     gl.uniform1f(P.u.uCut, 0.0);
+    var anyWater = false;
+    for (i = 0; i < visible.length && !anyWater; i++) if (visible[i].m.water) anyWater = true;
+    var waterFx = anyWater && this.fx.water && T && T.refr;
+    if (waterFx) {
+      // снимок цвета и глубины до воды: из него вода берёт преломление и отражения
+      gl.bindFramebuffer(gl.READ_FRAMEBUFFER, target);
+      gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, T.refr.fbo);
+      gl.blitFramebuffer(0, 0, this.w, this.h, 0, 0, this.w, this.h, gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT, gl.NEAREST);
+      gl.bindFramebuffer(gl.FRAMEBUFFER, target);
+      gl.activeTexture(gl.TEXTURE3); gl.bindTexture(gl.TEXTURE_2D, T.refr.tex);
+      gl.activeTexture(gl.TEXTURE4); gl.bindTexture(gl.TEXTURE_2D, T.refr.dtex);
+      gl.activeTexture(gl.TEXTURE0);
+      gl.uniform1i(P.u.uRefr, 3); gl.uniform1i(P.u.uRefrD, 4);
+      gl.uniform2f(P.u.uScreen, 1 / this.w, 1 / this.h);
+      gl.uniform2f(P.u.uNF, this.near, this.far);
+      gl.uniformMatrix4fv(P.u.uVPF, false, this.vp);
+      // поверхность воды пишет глубину — по ней считаются дымка и затенение
+      gl.depthMask(true);
+    }
     for (i = visible.length - 1; i >= 0; i--) {
       var wm = visible[i].m;
       if (wm.water) { this.drawQuads(wm.water, wm.waterQuads); quads += wm.waterQuads; }
     }
+    if (waterFx) gl.depthMask(false);
 
     // Мягкие частицы: сначала полупрозрачные (от дальних к ближним), затем светящиеся
     if (env.soft && env.soft.quads && this.partTex) {
@@ -1366,11 +1726,13 @@
 
     // Предмет в руке: поверх мира, в пространстве камеры
     if (env.held && env.held.quads) {
-      gl.clear(gl.DEPTH_BUFFER_BIT);
+      // глубину мира не стираем (она нужна постобработке): рука живёт в узком слое у самой камеры
+      gl.depthRange(0, 0.004);
       gl.enable(gl.DEPTH_TEST);
       gl.disable(gl.CULL_FACE);
       this.useEnt(env.held.mob ? this.mobAtlas : this.atlas, env, this.handProj, [0, 0, 0], true);
       this.drawDynamic(env.held.data, env.held.quads);
+      gl.depthRange(0, 1);
     }
 
     if (T) this.post(env, T);
@@ -1386,12 +1748,90 @@
     gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
   };
+  // Размытие буфера половинного разрешения туда-обратно (по X, затем по Y) с оглядкой на глубину
+  Renderer.prototype.blurPair = function (pair, T, projU, sharp, step) {
+    var gl = this.gl, Bl = this.blur;
+    gl.useProgram(Bl.p);
+    gl.uniform4fv(Bl.u.uProj, projU);
+    gl.uniform1f(Bl.u.uSharp, sharp);
+    gl.uniform1i(Bl.u.uSrc, 0);
+    gl.uniform1i(Bl.u.uDepth, 1);
+    gl.activeTexture(gl.TEXTURE1);
+    gl.bindTexture(gl.TEXTURE_2D, T.depthTex);
+    gl.activeTexture(gl.TEXTURE0);
+    for (var k = 0; k < 2; k++) {
+      var src = pair[k], dst = pair[1 - k];
+      gl.bindFramebuffer(gl.FRAMEBUFFER, dst.fbo);
+      gl.viewport(0, 0, dst.w, dst.h);
+      gl.bindTexture(gl.TEXTURE_2D, src.tex);
+      gl.uniform2f(Bl.u.uDir, k ? 0 : step / src.w, k ? step / src.h : 0);
+      this.fullscreen();
+    }
+  };
+  // Затенение в углах: половинное разрешение, затем размытие
+  Renderer.prototype.ssaoPass = function (T, projU) {
+    var gl = this.gl, S = this.ssao, a = T.ao[0], n = this.q.ssao > 1 ? 16 : 10;
+    gl.useProgram(S.p);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, a.fbo);
+    gl.viewport(0, 0, a.w, a.h);
+    gl.bindTexture(gl.TEXTURE_2D, T.depthTex);
+    gl.uniform1i(S.u.uDepth, 0);
+    gl.uniform4fv(S.u.uProj, projU);
+    gl.uniform2f(S.u.uTexel, 1 / this.w, 1 / this.h);
+    gl.uniform3fv(S.u.uKernel, this.kernel.subarray(0, n * 3));
+    gl.uniform1f(S.u.uRadius, 0.85);
+    this.fullscreen();
+    this.blurPair(T.ao, T, projU, 6, 1.5);
+  };
+  // Атмосфера: объёмный свет, дымка и облака в половинном разрешении, затем размытие
+  Renderer.prototype.atmosPass = function (env, T, projU) {
+    var gl = this.gl, A = this.atmos, a = T.atm[0], at = env.atmos, L = env.light || KC.Light, cam = env.cam, q = this.q;
+    gl.useProgram(A.p);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, a.fbo);
+    gl.viewport(0, 0, a.w, a.h);
+    gl.bindTexture(gl.TEXTURE_2D, T.depthTex);
+    gl.uniform1i(A.u.uDepth, 0);
+    gl.uniform4fv(A.u.uProj, projU);
+    gl.uniform3f(A.u.uCam, cam.x, cam.y, cam.z);
+    gl.uniform3fv(A.u.uFwd, this.fwd);
+    gl.uniform3fv(A.u.uRight, this.right);
+    gl.uniform3fv(A.u.uUp, this.up);
+    gl.uniform3fv(A.u.uSunDir, L.sunDir);
+    gl.uniform3fv(A.u.uSunCol, at.sun);
+    gl.uniform3fv(A.u.uAmbF, at.amb);
+    gl.uniform4f(A.u.uFogP, at.density, at.falloff, at.base, q.vol > 1 ? 64 : q.vol ? 46 : 12);
+    gl.uniform1f(A.u.uFogFar, at.far || 900);
+    gl.uniform1f(A.u.uTime, env.time || 0);
+    gl.uniform1f(A.u.uPhaseG, at.g === undefined ? 0.7 : at.g);
+    var shOn = this.shadowsOn && this.S && L.shadowK > 0.01 && q.vol;
+    gl.uniform1f(A.u.uShOn, shOn ? 1 : 0);
+    if (A.u.uShadow) {
+      gl.activeTexture(gl.TEXTURE1);
+      gl.bindTexture(gl.TEXTURE_2D, shOn ? this.S.tex : this.white);
+      gl.uniform1i(A.u.uShadow, 1);
+      gl.uniformMatrix4fv(A.u.uLVP, false, this.lvp);
+    }
+    if (A.u.uCloudTex) {
+      var cl = env.clouds;
+      gl.activeTexture(gl.TEXTURE2);
+      gl.bindTexture(gl.TEXTURE_2D, cl && this.cloudSoft ? this.cloudSoft : this.clearAtm);
+      gl.uniform1i(A.u.uCloudTex, 2);
+      gl.uniform4f(A.u.uCloudP, cl ? cl.y : 1e4, cl ? cl.offset : 0, CLOUD_CELL * 64, at.cloudThick || 20);
+      gl.uniform3fv(A.u.uCloudLit, at.cloudLit);
+      gl.uniform3fv(A.u.uCloudAmb, at.cloudAmb);
+      gl.uniform1f(A.u.uCloudFar, at.cloudFar || 1600);
+      gl.uniform1f(A.u.uCloudK, at.cloudK || 0);
+    }
+    gl.activeTexture(gl.TEXTURE0);
+    this.fullscreen();
+    this.blurPair(T.atm, T, projU, 10, 1.0);
+  };
   Renderer.prototype.post = function (env, T) {
     var gl = this.gl, q = this.q, w = this.w, h = this.h, G = env.grade || {};
     if (T.msFbo) {
       gl.bindFramebuffer(gl.READ_FRAMEBUFFER, T.msFbo);
       gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, T.sceneFbo);
-      gl.blitFramebuffer(0, 0, w, h, 0, 0, w, h, gl.COLOR_BUFFER_BIT, gl.NEAREST);
+      gl.blitFramebuffer(0, 0, w, h, 0, 0, w, h, gl.COLOR_BUFFER_BIT | (T.depthTex ? gl.DEPTH_BUFFER_BIT : 0), gl.NEAREST);
       gl.bindFramebuffer(gl.READ_FRAMEBUFFER, null);
       gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, null);
     }
@@ -1403,6 +1843,11 @@
     gl.disableVertexAttribArray(1);
     gl.disableVertexAttribArray(2);
     gl.activeTexture(gl.TEXTURE0);
+    var fx = this.fx, projU = [this.near, this.far, this.tanH * this.aspect, this.tanH];
+    var aoOn = fx.ssao && T.ao && this.ssao && !env.underwater;
+    var atmOn = fx.atm && T.atm && this.atmos && env.atmos && !env.underwater;
+    if (aoOn) this.ssaoPass(T, projU);
+    if (atmOn) this.atmosPass(env, T, projU);
     var lv = T.levels, i;
     var bloomOn = q.bloom && lv.length > 0;
     if (bloomOn) {
@@ -1411,6 +1856,12 @@
       gl.useProgram(B.p);
       gl.bindFramebuffer(gl.FRAMEBUFFER, lv[0].fbo);
       gl.viewport(0, 0, lv[0].w, lv[0].h);
+      if (fx.atm) {
+        gl.activeTexture(gl.TEXTURE1);
+        gl.bindTexture(gl.TEXTURE_2D, atmOn ? T.atm[0].tex : this.clearAtm);
+        gl.uniform1i(B.u.uAtm, 1);
+        gl.activeTexture(gl.TEXTURE0);
+      }
       gl.bindTexture(gl.TEXTURE_2D, T.sceneTex);
       gl.uniform1i(B.u.uSrc, 0);
       gl.uniform2f(B.u.uTexel, 1 / w, 1 / h);
@@ -1453,6 +1904,17 @@
     gl.activeTexture(gl.TEXTURE1);
     gl.bindTexture(gl.TEXTURE_2D, bloomOn ? lv[0].tex : T.sceneTex);
     gl.uniform1i(C.u.uBloom, 1);
+    if (fx.ssao) {
+      gl.activeTexture(gl.TEXTURE2);
+      gl.bindTexture(gl.TEXTURE_2D, aoOn ? T.ao[0].tex : this.white);
+      gl.uniform1i(C.u.uAO, 2);
+      gl.uniform1f(C.u.uAOK, G.ao === undefined ? 0.75 : G.ao);
+    }
+    if (fx.atm) {
+      gl.activeTexture(gl.TEXTURE3);
+      gl.bindTexture(gl.TEXTURE_2D, atmOn ? T.atm[0].tex : this.clearAtm);
+      gl.uniform1i(C.u.uAtm, 3);
+    }
     gl.activeTexture(gl.TEXTURE0);
     gl.uniform1f(C.u.uBloomK, bloomOn ? (G.bloom === undefined ? 0.22 : G.bloom) : 0);
     gl.uniform1f(C.u.uExposure, G.exposure || 1);

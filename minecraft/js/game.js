@@ -28,11 +28,16 @@
   var settings = { dist: isTouch ? 4 : 6, sens: 1, cycle: true, sound: true, autojump: isTouch, debug: false, bright: 0.25, gfx: isTouch ? 1 : 2, gfxAuto: true };
   var GFX_NAMES = ['Низкое', 'Среднее', 'Высокое', 'Ультра'];
   // Пресеты качества графики: что включать в рендерере и сколько частиц рождать
+  // ssao — затенение в углах, vol — объёмный свет и дымка, vclouds — объёмные облака, water — преломление и отражения воды
   var QUALITY = [
-    { lights: 2, sway: false, fancy: false, shadows: 0, pcf: 1, shadowHalf: 40, post: false, bloom: false, msaa: 0, rays: false, cloudShadows: false, clouds3d: false, parts: 0.5 },
-    { lights: 4, sway: true, fancy: true, shadows: 0, pcf: 1, shadowHalf: 40, post: true, bloom: true, msaa: 0, rays: false, cloudShadows: true, clouds3d: true, parts: 0.8 },
-    { lights: 8, sway: true, fancy: true, shadows: 1024, pcf: 1, shadowHalf: 40, post: true, bloom: true, msaa: 0, rays: false, cloudShadows: true, clouds3d: true, parts: 1 },
-    { lights: 8, sway: true, fancy: true, shadows: 2048, pcf: 2, shadowHalf: 56, post: true, bloom: true, msaa: 4, rays: true, cloudShadows: true, clouds3d: true, parts: 1 }
+    { lights: 2, sway: false, fancy: false, shadows: 0, pcf: 1, shadowHalf: 40, post: false, bloom: false, msaa: 0, rays: false, cloudShadows: false, clouds3d: false,
+      ssao: 0, vol: 0, vclouds: 0, water: 0, filmic: false, parts: 0.5 },
+    { lights: 4, sway: true, fancy: true, shadows: 0, pcf: 1, shadowHalf: 40, post: true, bloom: true, msaa: 0, rays: false, cloudShadows: true, clouds3d: true,
+      ssao: 0, vol: 0, vclouds: 0, water: 0, filmic: true, parts: 0.8 },
+    { lights: 8, sway: true, fancy: true, shadows: 1024, pcf: 1, shadowHalf: 40, post: true, bloom: true, msaa: 0, rays: false, cloudShadows: true, clouds3d: true,
+      ssao: 1, vol: 1, vclouds: 1, water: 1, filmic: true, parts: 1 },
+    { lights: 8, sway: true, fancy: true, shadows: 2048, pcf: 2, shadowHalf: 56, post: true, bloom: true, msaa: 4, rays: true, cloudShadows: true, clouds3d: true,
+      ssao: 2, vol: 2, vclouds: 2, water: 2, filmic: true, parts: 1 }
   ];
   function quality() { return QUALITY[clamp(settings.gfx | 0, 0, 3)]; }
   function applyQuality() {
@@ -1139,8 +1144,8 @@
     var sunU = [sun[1] * sunR[2] - sun[2] * sunR[1], sun[2] * sunR[0] - sun[0] * sunR[2], sun[0] * sunR[1] - sun[1] * sunR[0]];
     var day = D.fixedDay !== undefined ? D.fixedDay : smooth(-0.16, 0.24, sun[1]);
     dayFactor = D.dayLight !== undefined ? D.dayLight : 0.26 + 0.74 * day;
-    var top = D.top || mix3([0.012, 0.018, 0.05], [0.33, 0.55, 0.92], day);
-    var hor = D.hor || mix3([0.035, 0.05, 0.11], [0.70, 0.82, 0.96], day);
+    var top = D.top || mix3([0.012, 0.018, 0.05], [0.25, 0.47, 0.9], day);
+    var hor = D.hor || mix3([0.035, 0.05, 0.11], [0.66, 0.79, 0.95], day);
     var dusk = D.top ? 0 : clamp(1 - Math.abs(sun[1]) * 3.4, 0, 1);
     hor = mix3(hor, [0.93, 0.56, 0.34], dusk * 0.5);
     // непогода: небо затягивает серым, вспышка молнии на миг высвечивает его
@@ -1178,9 +1183,9 @@
       col = [0.9, 0.85, 0.76]; top = [0.07, 0.07, 0.09]; bot = [0.11, 0.16, 0.3]; cave = [0.035, 0.035, 0.045];
     } else {
       var sunUp = smooth(-0.03, 0.14, el), moonUp = smooth(-0.03, 0.14, -el), warm = 1 - smooth(0.04, 0.42, el);
-      if (el >= 0) col = mix3([1.02, 0.97, 0.88], [1.05, 0.55, 0.27], warm).map(function (v) { return v * 0.52 * sunUp; });
+      if (el >= 0) col = mix3([1.02, 0.97, 0.88], [1.05, 0.55, 0.27], warm).map(function (v) { return v * 0.58 * sunUp; });
       else { dir = [-sun[0], -sun[1], -sun[2]]; col = [0.3 * 0.36 * moonUp, 0.36 * 0.36 * moonUp, 0.55 * 0.36 * moonUp]; }
-      top = mix3([0.13, 0.155, 0.25], [0.56, 0.61, 0.7], dayK);
+      top = mix3([0.13, 0.155, 0.25], [0.5, 0.56, 0.67], dayK);
       top = mix3(top, [0.62, 0.46, 0.42], dusk * 0.35);
       bot = [top[0] * 0.7, top[1] * 0.68, top[2] * 0.64];
       if (world && world.dim === 'heaven') { col = [0.52, 0.48, 0.38]; top = [0.74, 0.74, 0.8]; bot = [0.64, 0.62, 0.6]; }
@@ -1337,12 +1342,31 @@
       g.rayCol = mix3([1.0, 0.86, 0.62], [1.1, 0.6, 0.3], dusk);
       g.bloom = 0.2 + night * 0.08;
       if (scenario === 'zombie' && worldType === 'city') {
-        // город после катастрофы: выцветшие краски, зеленоватые тени, тяжёлая виньетка
-        g.sat = 0.8; g.contrast = 1.1; g.lift = [0.012, 0.022, 0.014]; g.gain = [g.gain[0] * 0.98, g.gain[1], g.gain[2] * 0.95]; g.vignette = 0.48;
+        // город после катастрофы: краски чуть приглушены, тени с прозеленью, виньетка потяжелее
+        g.sat = 0.94; g.contrast = 1.08; g.lift = [0.004, 0.01, 0.006]; g.gain = [g.gain[0] * 0.99, g.gain[1], g.gain[2] * 0.97]; g.vignette = 0.42;
       }
     }
     if (P.flash > 0 && state !== 'title') g.tint = [0.55, 0.02, 0.0, Math.min(0.35, P.flash)];
     return g;
+  }
+
+  // ---- Атмосфера для постобработки: плотность дымки, свет в ней, облака --------------------------------
+  function atmosFor(sky) {
+    var D = world.dim, Wk = D === 'over' ? KC.FX.weather.k : 0, day = sky.raw;
+    var dusk = clamp(1 - Math.abs(sky.sun[1]) * 3.4, 0, 1), hor = sky.hor;
+    if (D === 'space') return null;
+    if (D === 'hell') return { density: 0.011, falloff: 0.012, base: KC.Gen.HELL_LAVA, sun: [0, 0, 0], amb: [0.4, 0.12, 0.05], g: 0.5, far: 420 };
+    var sunK = 1 - Wk * 0.9, sc = LG.sunCol;
+    var base = D === 'heaven' ? 22 : worldType === 'city' ? KC.Gen.CITY_GROUND : KC.WL;
+    return {
+      density: (D === 'heaven' ? 0.0009 : 0.0024 + dusk * 0.0014 + (1 - day) * 0.0006) + Wk * 0.011,
+      falloff: D === 'heaven' ? 0.015 : 0.028, base: base, g: 0.72, far: 900,
+      sun: [sc[0] * 1.7 * sunK, sc[1] * 1.7 * sunK, sc[2] * 1.7 * sunK],
+      amb: [hor[0] * 0.85, hor[1] * 0.86, hor[2] * 0.9],
+      cloudThick: D === 'heaven' ? 8 : 22, cloudFar: 1700, cloudK: Wk * 0.5,
+      cloudLit: [sc[0] * 3.2 * sunK * (0.3 + 0.7 * day), sc[1] * 3.2 * sunK * (0.3 + 0.7 * day), sc[2] * 3.2 * sunK * (0.3 + 0.7 * day)],
+      cloudAmb: mix3(sky.cloud, hor, 0.35).map(function (v) { return v * (0.95 - Wk * 0.3); })
+    };
   }
 
   function clockText() {
@@ -1466,6 +1490,8 @@
     var inLava = state !== 'title' && world.getBlock(e.x, e.y + P.EYE, e.z) === B.LAVA;
     var fogColor = inLava ? [0.9, 0.3, 0.05] : under ? [0.06 * sky.day + 0.02, 0.2 * sky.day + 0.03, 0.42 * sky.day + 0.05] : sky.hor;
     var DIM = KC.DIMS[world.dim];
+    // дымка постобработки сама даёт ощущение дали — обычный туман остаётся только у края видимости
+    var hazeFx = renderer.fx && renderer.fx.atm && world.dim !== 'space';
 
     var driving = !!P.vehicle && state !== 'title';
     var thirdPerson = view !== 0 && state !== 'title' && !driving;
@@ -1489,11 +1515,11 @@
     }
     renderer.render({
       cam: cam, sky: sky, brightness: settings.bright,
-      fog: { color: fogColor, start: inLava ? 0 : under ? 0 : R * (DIM.fogNear || 0.55) * (1 - Wk * 0.45), end: inLava ? 3 : under ? 16 : (R - 4) * (1 - Wk * 0.3) },
+      fog: { color: fogColor, start: inLava ? 0 : under ? 0 : R * (hazeFx ? Math.max(0.78, DIM.fogNear || 0) : DIM.fogNear || 0.55) * (1 - Wk * 0.45), end: inLava ? 3 : under ? 16 : (R - (hazeFx ? 2 : 4)) * (1 - Wk * 0.3) },
       clouds: DIM.noClouds ? null : { size: Math.max(R * 2, 220), y: DIM.cloudsY || 112, offset: cloudOffset, color: sky.cloud, alpha: 0.8 + Wk * 0.15, shadow: 0.5 * (1 - Wk) },
       chunks: list, mobs: ents.mobs, items: ents.items, particles: fxr.solid, soft: fxr.soft, wet: Wk * (1 - KC.FX.weather.snow),
       crack: buildCrack(), highlight: hl, held: held, underwater: under,
-      light: LG, lights: gatherLights(dt, cam), time: gameTime, grade: gradeFor(sky)
+      light: LG, lights: gatherLights(dt, cam), time: gameTime, grade: gradeFor(sky), atmos: atmosFor(sky)
     });
 
     $('water-tint').hidden = !under;
@@ -2106,6 +2132,7 @@
     get zombie() { return zombie; }, get scenario() { return scenario; }, goTo: goTo, travel: travel, zombieDawn: zombieDawn,
     evac: function () { return evacInfo(); }, enterVehicle: enterVehicle, exitVehicle: exitVehicle, get vehicle() { return P.vehicle; }, refuel: refuelVehicle, openMap: openMap, carHit: carHit, events: { airdrop: airdrop, survivor: survivorEvent, fire: fireEvent }, get heli() { return heli; },
     P: P, play: play, pause: pause, setTime: function (t) { timeOfDay = t; lastTod = t; }, save: saveGame,
+    setGfx: function (g) { settings.gfx = g; settings.gfxAuto = false; applyQuality(); }, get renderer() { return renderer; },
     weather: function (k, instant) { KC.FX.setWeather(k); if (instant) KC.FX.weather.k = k === 'clear' ? 0 : k === 'rain' ? 0.75 : 1; },
     open: openContainer, close: closeContainer, setMode: function (m) { mode = m; P.setCreative(m === 'creative'); }
   };
