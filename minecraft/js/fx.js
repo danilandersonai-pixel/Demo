@@ -441,7 +441,8 @@
     W.wind = 1 + W.k * 1.4;
     W.flash = Math.max(0, W.flash - dt * 2.5);
     // молнии и гром
-    if (W.on && W.kind === 'storm' && W.k > 0.65) {
+    // вспышки молний не показываем тем, кто просил поменьше движения на экране
+    if (W.on && W.kind === 'storm' && W.k > 0.65 && !c.reduce) {
       W.nextBolt -= dt;
       if (W.nextBolt <= 0) { W.nextBolt = 5 + Math.random() * 14; strike(c); }
     }

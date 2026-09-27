@@ -25,7 +25,8 @@
   function storageSet(key, val) { try { window.localStorage.setItem(key, JSON.stringify(val)); return true; } catch (e) { return false; } }
 
   // ---- Состояние ---------------------------------------------------------------------
-  var settings = { dist: isTouch ? 4 : 6, sens: 1, cycle: true, sound: true, autojump: isTouch, debug: false, bright: 0.25, gfx: isTouch ? 1 : 2 };
+  var settings = { dist: isTouch ? 4 : 6, sens: 1, cycle: true, sound: true, autojump: isTouch, debug: false, bright: 0.25, gfx: isTouch ? 1 : 2, gfxAuto: true };
+  var GFX_NAMES = ['Низкое', 'Среднее', 'Высокое', 'Ультра'];
   // Пресеты качества графики: что включать в рендерере и сколько частиц рождать
   var QUALITY = [
     { lights: 2, sway: false, fancy: false, shadows: 0, pcf: 1, shadowHalf: 40, post: false, bloom: false, msaa: 0, rays: false, cloudShadows: false, clouds3d: false, parts: 0.5 },
@@ -1268,6 +1269,24 @@
     return out;
   }
 
+  // ---- Слежение за плавностью: если долго меньше 22 кадров в секунду — снижаем качество ----------
+  var perf = { t: 0, low: 0, cool: 20 };
+  function perfWatch(dt, loading) {
+    if (state !== 'playing' || !settings.gfxAuto || settings.gfx === 0) { perf.low = 0; return; }
+    perf.cool -= dt; perf.t += dt;
+    if (perf.t < 0.5) return;
+    perf.t = 0;
+    if (loading) return;
+    if (fps > 0 && fps < 22) perf.low += 0.5; else perf.low = Math.max(0, perf.low - 1);
+    if (perf.low >= 8 && perf.cool <= 0) {
+      settings.gfx--; perf.low = 0; perf.cool = 30;
+      try { applyQuality(); } catch (err) { settings.gfx = 0; applyQuality(); }
+      $('set-gfx').value = String(settings.gfx);
+      saveSettings();
+      toast('Графика снижена до «' + GFX_NAMES[settings.gfx].toLowerCase() + '» для плавности — вернуть можно в настройках');
+    }
+  }
+
   // ---- Звуковая атмосфера: петли по миру и погоде, редкие звуки вокруг ------------------------
   var ambT = { bird: 3, cricket: 1, far: 12, drip: 4, chime: 8, lava: 5, tick: 0 };
   function ambienceTick(dt, sky) {
@@ -1441,6 +1460,7 @@
     LG.time = gameTime;
     var fxr = KC.FX.update(dt, fxContext(cam, sky));
     ambienceTick(dt, sky);
+    perfWatch(dt, list.progress !== undefined && list.progress < 1);
     var Wk = world.dim === 'over' ? KC.FX.weather.k : 0;
     var under = state !== 'title' && P.headInWater;
     var inLava = state !== 'title' && world.getBlock(e.x, e.y + P.EYE, e.z) === B.LAVA;
@@ -1499,6 +1519,7 @@
           'XYZ   ' + e.x.toFixed(1) + '  ' + e.y.toFixed(1) + '  ' + e.z.toFixed(1) + '\n' +
           'Чанк  ' + Math.floor(e.x / CS) + '  ' + Math.floor(e.z / CS) + '   мобов ' + mobs + '\n' +
           'FPS   ' + fps + '   чанков в кадре ' + renderer.stats.chunks + (renderer.stats.shadowChunks ? ' · в тенях ' + renderer.stats.shadowChunks : '') + '\n' +
+          'Графика ' + GFX_NAMES[settings.gfx].toLowerCase() + '   частиц ' + KC.FX.count + '\n' +
           'Время ' + clockText() + '   ' + (mode === 'creative' ? 'творчество' : 'выживание · ' + DIFF_NAMES[difficulty].toLowerCase()) + (e.fly ? '   полёт' : '') + '\n' +
           'Мир   ' + KC.DIMS[world.dim].name + (worldType === 'city' && world.dim === 'over' ? ' · мегаполис' : '') + (scenario === 'zombie' ? '   день ' + zombie.day : '');
       }
@@ -1857,7 +1878,7 @@
     var gfx = $('set-gfx');
     gfx.value = String(settings.gfx);
     gfx.addEventListener('change', function () {
-      settings.gfx = +gfx.value;
+      settings.gfx = +gfx.value; settings.gfxAuto = false;
       try { applyQuality(); } catch (err) { settings.gfx = 0; gfx.value = '0'; applyQuality(); toast('Видеокарта не справилась — включено низкое качество'); }
       saveSettings();
     });

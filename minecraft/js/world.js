@@ -92,6 +92,8 @@
     this.listener = null;            // (x, y, z, oldId, newId, oldMeta, newMeta) — для симуляции
     this.onChunkGenerated = null;    // (chunk) — для спавна животных
     this._col = { h: 0, biome: 0, forest: 0 };
+    // под тонкими парящими островами Небес свет заходит сбоку — небо не гаснет до нуля
+    this.skyFloor = this.dim === 'heaven' ? 0.55 : 0;
   }
 
   var BIOME_PLAINS = 0, BIOME_DESERT = 1, BIOME_SNOW = 2;
@@ -190,7 +192,7 @@
     var c = this.chunks.get((Math.floor(x) >> 4) + ',' + (Math.floor(z) >> 4));
     if (!c) return 1;
     var hm = c.hmap[(Math.floor(x) & 15) + (Math.floor(z) & 15) * CS];
-    return y >= hm ? 1 : Math.max(0, 1 - (hm - y) * 0.13);
+    return y >= hm ? 1 : Math.max(this.skyFloor || 0, 1 - (hm - y) * 0.13);
   };
 
   // Приближённый свет от блоков (0…15) без учёта стен — для спавна и освещения мобов
@@ -734,7 +736,7 @@
       srcChunk[pc] = nbs[ncx + ncz * 3];
       srcCol[pc] = ((sx + CS) & 15) + ((sz + CS) & 15) * CS;
     }
-    var fillTop = Math.min(PH - 1, topY + 2);
+    var fillTop = Math.min(PH - 1, topY + 2), skyFloor = this.skyFloor || 0;
     for (var pcol = 0; pcol < PA; pcol++) {
       var s2 = srcChunk[pcol], sc = srcCol[pcol];
       var hm = s2 ? s2.hmap[sc] : 0;
@@ -744,7 +746,7 @@
         var wy = py - 1, pidx = pcol + py * PA;
         if (s2 && wy < H) { pad[pidx] = s2.blocks[sc + wy * LAYER]; pmeta[pidx] = s2.meta[sc + wy * LAYER]; }
         else { pad[pidx] = 0; pmeta[pidx] = 0; }
-        psky[pidx] = wy >= hm ? 1 : Math.max(0, 1 - (hm - wy) * 0.13);
+        psky[pidx] = wy >= hm ? 1 : Math.max(skyFloor, 1 - (hm - wy) * 0.13);
         pblk[pidx] = hasBlockLight && wy >= bandLo && wy <= bandHi ? LIGHT_CURVE[rlight[rcol + wy * RA]] : 0;
       }
       for (py = fillTop + 1; py < PH; py++) { pad[pcol + py * PA] = 0; psky[pcol + py * PA] = 1; pblk[pcol + py * PA] = 0; }
