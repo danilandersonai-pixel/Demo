@@ -167,6 +167,7 @@
         case 'cannon': noiseHit(d, t, 300, 0.5, 1.2, 3.2, 'lowpass'); tone(d, t, 'sine', 60, 25, 1.0, 1); break;
         case 'door-car': tone(d, t, 'triangle', 200, 120, 0.12, 0.4); noiseHit(d, t, 600, 1, 0.08, 0.8); break;
         case 'victory': [523, 659, 784, 1047].forEach(function (f, k) { tone(d, t + k * 0.18, 'triangle', f, f, 0.5, 0.3); }); break;
+        case 'discover': [587, 784, 1175].forEach(function (f, k) { tone(d, t + k * 0.13, 'sine', f, f, 0.45, 0.16); }); break;
         case 'eat': for (i = 0; i < 3; i++) noiseHit(d, t + i * 0.12, 900, 1.5, 0.07, 1.2); break;
         case 'burp': tone(d, t, 'sawtooth', 110, 70, 0.3, 0.3, 400); break;
         case 'pickup': tone(d, t, 'sine', 700 + Math.random() * 200, 1300, 0.08, 0.2); break;

@@ -162,6 +162,7 @@
     h.pressPlate = function (x, y, z) { Sim.pressPlate(x, y, z); };
     h.primeTnt = function (x, y, z) { Sim.primeTnt(x, y, z); };
     h.hordeBoost = function () { return scenario === 'zombie' ? Math.min(6, zombie.day - 1) : 0; };
+    h.calm = function () { return scenario === 'abandoned'; };
     h.killed = function (m, source) { if (source === 'player' && m.K.zombie) zombie.kills++; };
     h.worldDay = function () { return zombie.day; };
     h.vehicle = vehicleUpdate;
@@ -248,12 +249,13 @@
     var seed = ok ? save.seed : (opts && opts.seed) || Math.floor(Math.random() * 999999) + 1;
     mode = ok ? (save.mode || 'survival') : (opts && opts.mode) || 'survival';
     scenario = ok ? save.scenario || null : (opts && opts.scenario) || null;
-    worldType = ok ? save.worldType || 'normal' : scenario === 'zombie' ? 'city' : 'normal';
+    worldType = ok ? save.worldType || 'normal' : scenario === 'zombie' || scenario === 'abandoned' ? 'city' : 'normal';
     difficulty = ok && typeof save.diff === 'number' ? save.diff : (opts && typeof opts.diff === 'number' ? opts.diff : 2);
     dimData = ok && save.dims ? save.dims : {};
     lastPos = ok && save.lastPos ? save.lastPos : {};
     backDim = ok && save.backDim ? save.backDim : {};
     zombie = zombieDefaults(ok && save.zombie ? save.zombie : null);
+    explore = exploreDefaults(ok && save.explore ? save.explore : null);
     alarms.length = 0; alarmed = {}; heli = null; evacCache = null; lastPlace = ''; navCache = null;
     P.vehicle = null; pendingVeh = false;
     overSpawn = null;
@@ -296,6 +298,9 @@
       if (scenario === 'zombie') {
         e.yaw = Math.PI / 2;
         [[I.BAT, 1], [I.CANNED_FOOD, 3], [I.MEDKIT, 1], [B.TORCH, 6]].forEach(function (k, i) { P.inv[i] = { id: k[0], n: k[1], d: 0 }; });
+      } else if (scenario === 'abandoned') {
+        e.yaw = Math.PI / 2;
+        [[I.FLASHLIGHT, 1], [I.CANNED_FOOD, 4], [I.BANDAGE, 2], [B.TORCH, 8], [I.CITY_MAP, 1]].forEach(function (k, i) { P.inv[i] = { id: k[0], n: k[1], d: 0 }; });
       }
     }
     e.vx = e.vy = e.vz = 0;
@@ -521,8 +526,13 @@
   function updateZombieHud() {
     var el = $('zday');
     if (!el) return;
-    el.hidden = scenario !== 'zombie';
-    $('nav').hidden = scenario !== 'zombie';
+    el.hidden = scenario !== 'zombie' && scenario !== 'abandoned';
+    $('nav').hidden = el.hidden;
+    if (scenario === 'abandoned') {
+      var nL = world ? KC.Gen.landmarks(world.seed).length : 12;
+      el.textContent = explore.done ? 'Остров исследован · свободная игра' : 'День ' + explore.day + ' · открыто ' + foundCount() + ' из ' + nL + ' мест';
+      return;
+    }
     if (scenario !== 'zombie') return;
     var z = zombie, left = z.heliDay - z.day;
     el.textContent = z.won ? 'Эвакуация состоялась · свободная игра' :
@@ -556,6 +566,7 @@
     Audio.play('victory');
     state = 'won';
     releaseInput();
+    $('victory-h').textContent = 'Эвакуация!';
     $('victory-text').textContent = 'Вертолёт поднял вас с крыши на ' + zombie.day + '-й день апокалипсиса. Повержено заражённых: ' + zombie.kills +
       ', спасено выживших: ' + zombie.rescued + '.';
     showScreen('victory');
@@ -829,6 +840,52 @@
     endIntro();
   }
 
+  // ---- Режим «Заброшенный город»: заражённые ушли, остров можно исследовать -------------------------
+  // Двенадцать достопримечательностей (KC.Gen.landmarks); место открыто, когда игрок подошёл ближе r
+  // (станция метро — только под землёй). Стрелки ведут к двум ближайшим неоткрытым, все — победа
+  var explore = null;
+  function exploreDefaults(x) { x = x || {}; x.found = x.found || {}; x.day = x.day || 1; x.done = !!x.done; return x; }
+  explore = exploreDefaults(null);
+  function calmMode() { return scenario === 'abandoned' && world && world.dim === 'over' && world.type === 'city'; }
+  function foundCount() { var n = 0; for (var k in explore.found) n++; return n; }
+  var exploreT = 0;
+  function exploreTick(dt) {
+    if (!calmMode()) return;
+    exploreT -= dt;
+    if (exploreT > 0) return;
+    exploreT = 0.5;
+    var L = KC.Gen.landmarks(world.seed), e = P.e, under = e.y < KC.Gen.CITY_GROUND - 3;
+    for (var i = 0; i < L.length; i++) {
+      var m = L[i];
+      if (explore.found[m.id] || m.under !== under || Math.hypot(m.x - e.x, m.z - e.z) > m.r) continue;
+      explore.found[m.id] = explore.day;
+      var n = foundCount();
+      Audio.play('discover');
+      message('Новое место: ' + m.name + ' — ' + m.note + '. Открыто ' + n + ' из ' + L.length, 7);
+      updateZombieHud();
+      if (n >= L.length && !explore.done) exploreVictory(L.length);
+      saveGame();
+      break;
+    }
+  }
+  function exploreMarks(e) {
+    var L = KC.Gen.landmarks(world.seed), left = [];
+    L.forEach(function (m) { if (!explore.found[m.id]) left.push({ x: m.x, z: m.z, label: m.name + (m.under ? ' (под землёй)' : ''), d: Math.hypot(m.x - e.x, m.z - e.z) }); });
+    left.sort(function (a, b) { return a.d - b.d; });
+    return left.slice(0, 2);
+  }
+  function exploreVictory(n) {
+    explore.done = true;
+    Audio.play('victory');
+    state = 'won';
+    releaseInput();
+    $('victory-h').textContent = 'Остров исследован!';
+    $('victory-text').textContent = 'Вы обошли все ' + n + ' мест заброшенного острова за ' + explore.day + ' ' + dayWord(explore.day) + '. Город ваш — стройте, обживайтесь, ищите припасы.';
+    showScreen('victory');
+    if (locked && document.exitPointerLock) document.exitPointerLock();
+  }
+  function dayWord(n) { var m10 = n % 10, m100 = n % 100; return m10 === 1 && m100 !== 11 ? 'день' : m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14) ? 'дня' : 'дней'; }
+
   // ---- Сигнализация машин: удар или выстрел по машине собирает заражённых -------------------
   var alarms = [], alarmed = {};
   function carHit(x, y, z) {
@@ -1000,7 +1057,7 @@
       var ev = zombie.ev;
       if (ev.drop && ev.drop.filled) marks.push({ x: ev.drop.x + 0.5, z: ev.drop.z + 0.5, label: 'Груз с припасами', kind: 'drop' });
       if (ev.surv) marks.push({ x: ev.surv.x, z: ev.surv.z, label: 'Выживший на крыше', kind: 'surv' });
-    }
+    } else if (calmMode() && !explore.done) marks = exploreMarks(e);
     for (var i = 0; i < rows.length; i++) {
       var r = rows[i], m = marks[i];
       r.hidden = !m;
@@ -1663,12 +1720,14 @@
       E.update(dt);
       if (P.vehicle && !P.vehicle.dead) seatPlayer(P.vehicle);
       zombieTick(dt);
+      exploreTick(dt);
       if (P.swing > 0) { P.swing += dt * 3.2; if (P.swing >= 1) P.swing = 0; }
     }
     if (settings.cycle && (simulate || state === 'title')) timeOfDay = (timeOfDay + dt / DAY_LENGTH) % 1;
     // рассвет в городе засчитывает пережитую ночь
     if (lastTod > 0.9 && timeOfDay < 0.1) moonDay++;
     if (scenario === 'zombie' && simulate && world.dim === 'over' && lastTod > 0.9 && timeOfDay < 0.1) zombieDawn();
+    if (scenario === 'abandoned' && simulate && world.dim === 'over' && lastTod > 0.9 && timeOfDay < 0.1) { explore.day++; updateZombieHud(); }
     if (scenario === 'zombie' && simulate && world.dim === 'over' && zombie.heliActive && lastTod < 0.5 && timeOfDay >= 0.5) heliMissed();
     lastTod = timeOfDay;
     // провалился сквозь облака — падает в обычный мир, мягко планируя
@@ -1863,7 +1922,7 @@
     dims[world.dim] = snapshotWorld();
     var ok = storageSet(SAVE_KEY, {
       v: 3, seed: world.seed, mode: mode, diff: difficulty, time: timeOfDay, moon: moonDay, tips: tips,
-      scenario: scenario, worldType: worldType, dim: world.dim, dims: dims, lastPos: lastPos, backDim: backDim, zombie: zombie,
+      scenario: scenario, worldType: worldType, dim: world.dim, dims: dims, lastPos: lastPos, backDim: backDim, zombie: zombie, explore: explore,
       player: { x: e.x, y: e.y, z: e.z, yaw: e.yaw, pitch: e.pitch, fly: e.fly, hp: P.hp, food: P.food, sat: P.sat, air: P.air, veh: P.vehicle ? 1 : 0,
         inv: P.inv.map(packStack), armor: P.armor.map(packStack), slot: P.slot, spawn: P.spawnPoint }
     });
@@ -1914,6 +1973,10 @@
     if (scenario === 'zombie' && !tips.start) {
       tips.start = 1;
       message('Цель — эвакуация. Сначала найдите рацию в полицейском участке: стрелка вверху покажет дорогу. Припасы — в сундуках домов и магазинов', 9);
+    }
+    else if (scenario === 'abandoned' && !tips.start) {
+      tips.start = 1;
+      message('Город опустел: заражённые ушли, остались тишина и зелень. Исследуйте остров — стрелки вверху ведут к неоткрытым местам, карта — клавиша M', 10);
     }
     else if (mode === 'survival' && !tips.start) { tips.start = 1; toast('Удерживайте ЛКМ на дереве, чтобы добыть брёвна'); }
     if (world.dim !== 'over') showDimLabel();
@@ -1995,6 +2058,10 @@
     toast('Вы засыпаете… Точка возрождения установлена');
   }
 
+  var NW_NOTES = {
+    zombie: 'Остров-мегаполис, где бродят заражённые: днём их мало, ночью — толпы. Эвакуационный вертолёт сбит — найдите рацию в полицейском участке, узнайте, где площадка эвакуации, и встретьте вертолёт на восьмой день.',
+    abandoned: 'Тот же остров, но заражённые ушли: пустые улицы, зелень, море вокруг. Исследуйте двенадцать мест — от собора до маяка, собирайте припасы, стройте. В тёмном метро по-прежнему опасно.'
+  };
   function newWorld(opts) {
     try { [SAVE_KEY, V2_KEY, OLD_KEY].forEach(function (k) { window.localStorage.removeItem(k); }); } catch (e) { /* ничего */ }
     startWorld(null, opts);
@@ -2062,6 +2129,7 @@
   }
   function updateTitle() {
     var what = scenario === 'zombie' ? 'Зомби-апокалипсис, ' + (zombie.won ? 'эвакуация состоялась' : 'день ' + zombie.day) :
+      scenario === 'abandoned' ? 'Заброшенный город, ' + (explore.done ? 'остров исследован' : 'открыто ' + foundCount() + ' из ' + KC.Gen.landmarks(world.seed).length) :
       mode === 'creative' ? 'Творчество' : 'Выживание, ' + DIFF_NAMES[difficulty].toLowerCase();
     $('seed-label').textContent = 'Сид мира: ' + world.seed + ' · ' + what + (world.dim !== 'over' ? ' · ' + KC.DIMS[world.dim].name : '');
     $('btn-play').textContent = hasSave || placed ? 'Продолжить' : 'Играть';
@@ -2095,14 +2163,18 @@
     $('btn-new-title').addEventListener('click', function () { $('newworld').hidden = false; $('nw-warn').hidden = !(hasSave || placed); $('nw-create').focus(); });
     $('nw-cancel').addEventListener('click', function () { $('newworld').hidden = true; });
     document.querySelectorAll('[name="nw-mode"]').forEach(function (r) {
-      r.addEventListener('change', function () { $('nw-note').hidden = document.querySelector('[name="nw-mode"]:checked').value !== 'zombie'; });
+      r.addEventListener('change', function () {
+        var v = document.querySelector('[name="nw-mode"]:checked').value;
+        $('nw-note').hidden = !NW_NOTES[v];
+        if (NW_NOTES[v]) $('nw-note').textContent = NW_NOTES[v];
+      });
     });
     $('nw-create').addEventListener('click', function () {
       var m = document.querySelector('[name="nw-mode"]:checked').value;
       var seedTxt = $('nw-seed').value.trim(), seed = 0;
       if (seedTxt) { seed = parseInt(seedTxt, 10); if (!isFinite(seed) || String(seed) !== seedTxt) seed = Math.abs(hashStr(seedTxt)) % 999999 + 1; }
-      var zm = m === 'zombie';
-      newWorld({ mode: zm ? 'survival' : m, scenario: zm ? 'zombie' : null, diff: Math.max(zm ? 1 : 0, +$('nw-diff').value), seed: seed || 0 });
+      var zm = m === 'zombie', ab = m === 'abandoned';
+      newWorld({ mode: zm || ab ? 'survival' : m, scenario: zm ? 'zombie' : ab ? 'abandoned' : null, diff: Math.max(zm ? 1 : 0, +$('nw-diff').value), seed: seed || 0 });
       $('newworld').hidden = true;
       updateTitle();
       play();
@@ -2358,7 +2430,7 @@
   KC.debug = {
     get world() { return world; }, get player() { return P.e; }, get state() { return state; }, get target() { return target; },
     get zombie() { return zombie; }, get scenario() { return scenario; }, goTo: goTo, travel: travel, zombieDawn: zombieDawn,
-    evac: function () { return evacInfo(); }, skipIntro: skipIntro, get intro() { return intro; }, enterVehicle: enterVehicle, exitVehicle: exitVehicle, get vehicle() { return P.vehicle; }, refuel: refuelVehicle, openMap: openMap, carHit: carHit, events: { airdrop: airdrop, survivor: survivorEvent, fire: fireEvent }, get heli() { return heli; },
+    evac: function () { return evacInfo(); }, skipIntro: skipIntro, get intro() { return intro; }, get explore() { return explore; }, enterVehicle: enterVehicle, exitVehicle: exitVehicle, get vehicle() { return P.vehicle; }, refuel: refuelVehicle, openMap: openMap, carHit: carHit, events: { airdrop: airdrop, survivor: survivorEvent, fire: fireEvent }, get heli() { return heli; },
     P: P, play: play, pause: pause, setTime: function (t) { timeOfDay = t; lastTod = t; }, save: saveGame,
     setGfx: function (g) { settings.gfx = g; settings.gfxAuto = false; applyQuality(); }, get renderer() { return renderer; },
     weather: function (k, instant) { KC.FX.setWeather(k); if (instant) KC.FX.weather.k = k === 'clear' ? 0 : k === 'rain' ? 0.75 : 1; },

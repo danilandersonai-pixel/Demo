@@ -2783,6 +2783,44 @@
     return { x: x0 + 0.5, y: py, z: z0 + 0.5 };
   }
 
+  // ---- Достопримечательности острова (режим «Заброшенный город»): ближайшие к старту ---------------
+  var landmarkCache = new Map();
+  function landmarks(seed) {
+    var hit = landmarkCache.get(seed);
+    if (hit) return hit;
+    var C = cityCenter(seed), best = {}, out = [], cx, cz;
+    function mid(p) {
+      var bx0 = p.bx0 !== undefined ? p.bx0 : p.x0, bx1 = p.bx1 !== undefined ? p.bx1 : p.x0 + 27;
+      var bz0 = p.bz0 !== undefined ? p.bz0 : p.z0, bz1 = p.bz1 !== undefined ? p.bz1 : p.z0 + 27;
+      return { x: (bx0 + bx1) / 2 + 0.5, z: (bz0 + bz1) / 2 + 0.5 };
+    }
+    function consider(key, p, d) { if (!best[key] || d < best[key].d) best[key] = { p: p, d: d }; }
+    var st = null, sd = 1e9;
+    for (cz = C.z - 20; cz <= C.z + 20; cz++) for (cx = C.x - 20; cx <= C.x + 20; cx++) {
+      if (seaCell(seed, cx, cz)) continue;
+      var p = plotInfo(seed, cx, cz), d = Math.hypot(cx, cz);
+      if (p.kind === 'square' || p.kind === 'plaza' || p.kind === 'docks' || p.kind === 'beach') consider(p.kind, p, d);
+      if (p.special === 'military' || p.special === 'hospital') consider(p.special, p, d);
+      if (mod(cx, 4) === 2 && mod(cz, 4) === 2 && !stationBySea(seed, cx, cz) && d < sd) { sd = d; st = { x: cx * CELL_C + 4, z: cz * CELL_C + 4 }; }
+    }
+    function add(id, name, note, pos, r, under) { if (pos) out.push({ id: id, name: name, note: note, x: pos.x, z: pos.z, r: r || 22, under: !!under }); }
+    function from(key) { return best[key] ? mid(best[key].p) : null; }
+    var ev = evacPoint(seed), ch = churchSite(seed), pw = powerSite(seed), lh = lighthouseSite(seed);
+    add('tower', 'Башня в центре', 'на крыше — вертолётная площадка', { x: ev.x, z: ev.z }, 26);
+    add('cityhall', 'Ратуша', 'часы застыли без десяти двенадцать', mid(plotInfo(seed, C.x + 1, C.z)), 24);
+    add('plaza', 'Площадь с обелиском', 'вечный огонь едва тлеет', from('plaza'), 22);
+    add('church', 'Собор', 'колокольня со шпилем и витражи', ch ? mid(plotInfo(seed, ch.x, ch.z)) : null, 24);
+    add('square', 'Рыночная площадь', 'фонтан со стелой и торговые ряды', from('square'), 22);
+    add('hospital', 'Больница', 'зелёные кресты на фасаде', from('hospital'), 22);
+    add('military', 'Военный блокпост', 'брошенная техника за мешками с песком', from('military'), 24);
+    add('metro', 'Станция метро', 'поезда больше не ходят', st, 14, true);
+    add('port', 'Порт', 'портальные краны и суда у причалов', from('docks'), 30);
+    add('beach', 'Пляж', 'зонтики и вышка спасателей', best.beach ? { x: best.beach.p.cx * CELL_C + 20, z: best.beach.p.cz * CELL_C + 20 } : null, 26);
+    add('power', 'Электростанция', 'градирня и полосатые трубы', pw ? mid(plotInfo(seed, pw.x, pw.z)) : null, 30);
+    add('lighthouse', 'Маяк', 'ночью его луч обходит весь остров', lh ? mid(plotInfo(seed, lh.x, lh.z)) : null, 24);
+    landmarkCache.set(seed, out);
+    return out;
+  }
   // Центр фонаря маяка (для вращающегося луча ночью) или null
   function lighthouseLamp(seed) {
     var s = lighthouseSite(seed);
@@ -2798,7 +2836,7 @@
     hell: hell, heaven: heaven, space: space, city: city,
     rollLoot: rollLoot, arrival: arrival, inStation: inStation, citySpawn: citySpawn,
     cityInfo: cityInfo, plotInfo: plotInfo, districtOf: districtOf, cityCenter: cityCenter, findNearest: findNearest,
-    evacPoint: evacPoint, plotEntrance: plotEntrance, DISTRICTS: DISTRICTS, SPECIAL_NAMES: SPECIAL_NAMES, lighthouseLamp: lighthouseLamp,
+    evacPoint: evacPoint, plotEntrance: plotEntrance, DISTRICTS: DISTRICTS, SPECIAL_NAMES: SPECIAL_NAMES, lighthouseLamp: lighthouseLamp, landmarks: landmarks,
     CITY_GROUND: GROUND, CELL: CELL_C, METRO_FLOOR: M_FLOOR, STATION_Y: SY, HELL_LAVA: HELL_LAVA
   };
 })(window.KC = window.KC || {});

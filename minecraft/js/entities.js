@@ -1313,6 +1313,11 @@
     if (world.dim === 'hell') return { cap: 12, every: 0.7, kinds: [['imp', 0.62], ['wisp', 1]], anyLight: true, cave: true };
     if (world.dim === 'heaven') return null;
     if (world.dim === 'space') return { cap: 5, every: 2.5, kinds: [['drone', 1]], air: true };
+    if (world.type === 'city' && hooks.calm && hooks.calm()) {
+      // заброшенный город: заражённые ушли, лишь в тёмном метро бродят слепые
+      if (p && p.y < KC.Gen.CITY_GROUND - 3) return { cap: 3, every: 3, kinds: [['blind', 1]], anyLight: true, metro: true };
+      return null;
+    }
     if (world.type === 'city') {
       var night = day < 0.45, boost = hooks.hordeBoost ? hooks.hordeBoost() : 0;
       if (p && p.y < KC.Gen.CITY_GROUND - 3) return { cap: 6, every: 1.2, kinds: [['blind', 0.7], ['infected', 1]], anyLight: true, metro: true };
@@ -1405,7 +1410,7 @@
     popT -= dt;
     if (popT > 0) return;
     popT = 1;
-    if (world.type !== 'city' || world.dim !== 'over') return;
+    if (world.type !== 'city' || world.dim !== 'over' || (hooks.calm && hooks.calm())) return;
     var p = hooks.player && hooks.player();
     if (!p || p.dead || !(hooks.difficulty && hooks.difficulty() > 0)) return;
     var G = KC.Gen, cell = G.CELL, day = hooks.worldDay ? hooks.worldDay() : 0;
@@ -1461,7 +1466,7 @@
     }
     world.animalChunks[key] = 1;
     if (world.dim === 'heaven') { heavenHerd(c); return; }
-    if (world.dim === 'over' && world.type === 'city') { cityVehicles(c); return; }
+    if (world.dim === 'over' && world.type === 'city') { cityVehicles(c); if (hooks.calm && hooks.calm()) cityAnimals(c); return; }
     if (world.dim === 'space') { stationRobots(c); return; }
     if (world.dim !== 'over' || !info) return;
     var hs = info.hs, G = info.G, P = info.P;
@@ -1526,6 +1531,19 @@
       var back = KC.hash2(wz, wx, seed + 304) < 0.5;
       if (clx < 8 && clz >= 10 && clz <= 36) tryVehicle(kind, Math.floor(wx / cell) * cell + (back ? 2.5 : 5.5), gy, wz + 0.5, back ? Math.PI : 0);
       else if (clz < 8 && clx >= 10 && clx <= 36) tryVehicle(kind, wx + 0.5, gy, Math.floor(wz / cell) * cell + (back ? 2.5 : 5.5), back ? -Math.PI / 2 : Math.PI / 2);
+    }
+  }
+
+  // Заброшенный город: на траве парков, дворов и пустырей пасутся одичавшие животные
+  function cityAnimals(c) {
+    if (KC.hash2(c.cx, c.cz, world.seed + 95) > 0.16) return;
+    var kinds = ['pig', 'cow', 'sheep', 'chicken'], kind = kinds[Math.floor(KC.hash2(c.cx, c.cz, world.seed + 94) * 4)];
+    var n = 2 + Math.floor(KC.hash2(c.cx, c.cz, world.seed + 93) * 3), gy = KC.Gen.CITY_GROUND;
+    for (var i = 0; i < n; i++) {
+      var lx = 2 + Math.floor(KC.hash2(c.cx * 7 + i, c.cz, world.seed + 92) * 12), lz = 2 + Math.floor(KC.hash2(c.cx, c.cz * 7 + i, world.seed + 96) * 12);
+      var col = lx + lz * 16, above = c.blocks[col + (gy + 1) * 256];
+      if (c.blocks[col + gy * 256] !== B.GRASS || (above && !KC.REPLACEABLE[above]) || c.blocks[col + (gy + 2) * 256]) continue;
+      spawnMob(kind, c.cx * 16 + lx + 0.5, gy + 1, c.cz * 16 + lz + 0.5);
     }
   }
 
