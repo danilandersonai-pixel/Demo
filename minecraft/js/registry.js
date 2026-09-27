@@ -16,7 +16,20 @@
     TABLE: 40, FURNACE: 41, CHEST: 42, TORCH: 43, FARMLAND: 44, WHEAT: 45, SAPLING: 46, LADDER: 47,
     DOOR: 48, BED: 49, IRON_BLOCK: 50, DIAMOND_BLOCK: 51, TNT: 52, WIRE: 53, LEVER: 54, BUTTON: 55,
     PLATE: 56, SPARK_TORCH: 57, LAMP: 58, SPARK_BLOCK: 59, PISTON: 60, PISTON_HEAD: 61, PUMPKIN: 62,
-    JACK: 63
+    JACK: 63,
+    // Пекло
+    ASHSTONE: 64, ASH_BRICK: 65, MAGMA: 66, SULFUR_ORE: 67, BLOOD_ORE: 68, GLOWROOT: 69, FIREFLOWER: 70,
+    ASH_BLOCK: 71, HELL_GATE: 72,
+    // Небеса
+    CLOUD: 73, SKYSTONE: 74, GOLDEN_GRASS: 75, LIGHT_SOIL: 76, SKY_LOG: 77, BLOSSOM: 78, SKY_CRYSTAL: 79,
+    HALO_FLOWER: 80, HEAVEN_GATE: 81,
+    // Станция
+    HULL: 82, HULL_DARK: 83, GRATE: 84, LIGHT_PANEL: 85, SOLAR: 86, CONSOLE: 87, TELEPORTER: 88,
+    ASTEROID: 89, METEOR_ORE: 90, WINDOW: 91,
+    // Город
+    ASPHALT: 92, ROAD_LINE: 93, SIDEWALK: 94, CONCRETE: 95, CONCRETE_DARK: 96, TILE_FLOOR: 97,
+    CEILING_LAMP: 98, STREET_POLE: 99, STREET_LAMP: 100, CAR_RED: 101, CAR_BLUE: 102, CAR_WHITE: 103,
+    TIRE: 104, RUBBLE: 105, CRATE: 106
   };
 
   // ---- Идентификаторы предметов -----------------------------------------------
@@ -27,7 +40,10 @@
     GOLDEN_APPLE: 277, PORK_RAW: 278, PORK_COOKED: 279, BEEF_RAW: 280, BEEF_COOKED: 281, MUTTON_RAW: 282,
     MUTTON_COOKED: 283, CHICKEN_RAW: 284, CHICKEN_COOKED: 285, ROTTEN_FLESH: 286, SPIDER_EYE: 287,
     BUCKET: 288, WATER_BUCKET: 289, LAVA_BUCKET: 290, BOW: 291, ARROW: 292, SHEARS: 293, FLINT_STEEL: 294,
-    DYE_RED: 295, DYE_YELLOW: 296, DYE_BLUE: 297, DYE_GREEN: 298
+    DYE_RED: 295, DYE_YELLOW: 296, DYE_BLUE: 297, DYE_GREEN: 298,
+    SULFUR: 346, BLOOD_CRYSTAL: 347, SKY_SHARD: 348, METEOR_IRON: 349, SPACE_RATION: 350, CANNED_FOOD: 351,
+    MEDKIT: 352, PISTOL: 353, AMMO: 354, BAT: 355, MACHETE: 356, HELL_BLADE: 357, SPACE_HELMET: 358,
+    LASER_CUTTER: 359
   };
   // Инструменты 300–324 (материал × вид), броня 330–345 (материал × слот)
   var TOOL_MATS = ['wood', 'stone', 'iron', 'gold', 'diamond'];
@@ -138,12 +154,67 @@
   blk(B.PUMPKIN, 'Тыква', { top: 'pumpkinTop', side: 'pumpkinSide', front: 'pumpkinFace' }, { hardness: 1, tool: 'axe', mat: 'wood' });
   blk(B.JACK, 'Тыква-светильник', { top: 'pumpkinTop', side: 'pumpkinSide', front: 'jackFace' }, { hardness: 1, tool: 'axe', mat: 'wood', light: 15 });
 
+  // ---- Пекло -------------------------------------------------------------------------
+  blk(B.ASHSTONE, 'Пепельный камень', 'ashstone', ext(rockPick, { hardness: 0.8 }));
+  blk(B.ASH_BRICK, 'Пепельный кирпич', 'ashBrick', ext(rockPick, { hardness: 2 }));
+  blk(B.MAGMA, 'Магматит', 'magma', ext(rockPick, { hardness: 0.5, light: 4, glow: true, hurtsFeet: 1 }));
+  blk(B.SULFUR_ORE, 'Серная руда', 'sulfurOre', ext(rockPick, { hardness: 2,
+    drop: function (m, r) { return [[I.SULFUR, 1 + Math.floor(r() * 3)]]; } }));
+  blk(B.BLOOD_ORE, 'Кровавая руда', 'bloodOre', ext(rockPick, { hardness: 3, tier: 3, drop: [[I.BLOOD_CRYSTAL, 1]] }));
+  blk(B.GLOWROOT, 'Светокорень', 'glowroot', ext(plant, { support: 'ceiling', light: 13 }));
+  blk(B.FIREFLOWER, 'Огнецвет', 'fireflower', ext(plant, { support: 'ash', light: 8 }));
+  blk(B.ASH_BLOCK, 'Пепел', 'ashBlock', { hardness: 0.5, tool: 'shovel', mat: 'sand', falls: true });
+  blk(B.HELL_GATE, 'Врата пекла', 'hellGate', { shape: 'portal', opaque: false, solid: false, hardness: 2, tool: 'pickaxe', mat: 'glass',
+    light: 11, support: 'gate', portal: 'hell' });
+  // ---- Небеса ------------------------------------------------------------------------
+  blk(B.CLOUD, 'Облако', 'cloud', { hardness: 0.3, tool: 'shovel', mat: 'cloth', soft: true });
+  blk(B.SKYSTONE, 'Небесный мрамор', 'skystone', ext(rockPick, { hardness: 1.5 }));
+  blk(B.GOLDEN_GRASS, 'Золотая трава', { top: 'goldenGrassTop', bottom: 'lightSoil', side: 'goldenGrassSide' }, { hardness: 0.6, tool: 'shovel', mat: 'grass', drop: [[B.LIGHT_SOIL, 1]] });
+  blk(B.LIGHT_SOIL, 'Светлая почва', 'lightSoil', { hardness: 0.5, tool: 'shovel', mat: 'dirt' });
+  blk(B.SKY_LOG, 'Небесное бревно', { top: 'skyLogTop', side: 'skyLogSide' }, { hardness: 2, tool: 'axe', mat: 'wood', fuel: 300 });
+  blk(B.BLOSSOM, 'Цветущая листва', 'blossom', { opaque: false, leaves: true, hardness: 0.2, tool: 'shears', mat: 'plant' });
+  blk(B.SKY_CRYSTAL, 'Небесный кристалл', 'skyCrystal', ext(rockPick, { hardness: 2, tier: 2, light: 12, glow: true,
+    drop: function (m, r) { return [[I.SKY_SHARD, 1 + Math.floor(r() * 2)]]; } }));
+  blk(B.HALO_FLOWER, 'Лучецвет', 'haloFlower', ext(plant, { light: 6 }));
+  blk(B.HEAVEN_GATE, 'Небесные врата', 'heavenGate', { shape: 'portal', opaque: false, solid: false, hardness: 2, tool: 'pickaxe', mat: 'glass',
+    light: 11, support: 'gate', portal: 'heaven' });
+  // ---- Космическая станция -------------------------------------------------------------
+  var metal = ext(rockPick, { hardness: 4, mat: 'metal' });
+  blk(B.HULL, 'Обшивка', 'hull', metal);
+  blk(B.HULL_DARK, 'Тёмная обшивка', 'hullDark', metal);
+  blk(B.GRATE, 'Решётчатый пол', 'grate', ext(metal, { hardness: 3 }));
+  blk(B.LIGHT_PANEL, 'Световая панель', 'lightPanel', { hardness: 1, mat: 'glass', light: 15, glow: true });
+  blk(B.SOLAR, 'Солнечная панель', 'solar', { hardness: 1, mat: 'glass' });
+  blk(B.CONSOLE, 'Пульт', { top: 'hullDark', side: 'consoleSide', front: 'consoleFront' }, ext(metal, { hardness: 2 }));
+  blk(B.TELEPORTER, 'Телепорт', { top: 'teleporterTop', bottom: 'hullDark', side: 'teleporterSide' }, ext(metal, { hardness: 3, light: 9, use: 'teleport' }));
+  blk(B.ASTEROID, 'Астероидный камень', 'asteroid', ext(rockPick, { hardness: 2 }));
+  blk(B.METEOR_ORE, 'Метеоритная руда', 'meteorOre', ext(rockPick, { hardness: 3, tier: 2 }));
+  blk(B.WINDOW, 'Тонированное стекло', 'tintedGlass', { opaque: false, glass: true, hardness: 0.3, mat: 'glass', drop: [] });
+  // ---- Город ----------------------------------------------------------------------------
+  var road = { hardness: 1.5, tool: 'pickaxe', mat: 'stone' };
+  blk(B.ASPHALT, 'Асфальт', 'asphalt', road);
+  blk(B.ROAD_LINE, 'Дорожная разметка', { top: 'roadLineX', bottom: 'asphalt', side: 'asphalt' }, ext(road, { drop: [[B.ASPHALT, 1]] }));
+  blk(B.SIDEWALK, 'Тротуарная плитка', 'sidewalk', road);
+  blk(B.CONCRETE, 'Бетон', 'concrete', ext(rockPick, { hardness: 1.8 }));
+  blk(B.CONCRETE_DARK, 'Тёмный бетон', 'concreteDark', ext(rockPick, { hardness: 1.8 }));
+  blk(B.TILE_FLOOR, 'Кафель', 'tileFloor', ext(road, { hardness: 1.2 }));
+  blk(B.CEILING_LAMP, 'Потолочный светильник', 'ceilingLamp', { hardness: 0.5, mat: 'glass', light: 14, glow: true });
+  blk(B.STREET_POLE, 'Фонарный столб', 'pole', { shape: 'pole', opaque: false, hardness: 2, tool: 'pickaxe', mat: 'metal' });
+  blk(B.STREET_LAMP, 'Уличный фонарь', 'streetLamp', { hardness: 0.5, mat: 'glass', light: 15, glow: true });
+  blk(B.CAR_RED, 'Кузов машины (красный)', 'carRed', ext(metal, { hardness: 3 }));
+  blk(B.CAR_BLUE, 'Кузов машины (синий)', 'carBlue', ext(metal, { hardness: 3 }));
+  blk(B.CAR_WHITE, 'Кузов машины (белый)', 'carWhite', ext(metal, { hardness: 3 }));
+  blk(B.TIRE, 'Колесо', 'tire', { hardness: 1, mat: 'cloth' });
+  blk(B.RUBBLE, 'Обломки', 'rubble', { hardness: 0.6, tool: 'shovel', mat: 'sand', falls: true });
+  blk(B.CRATE, 'Ящик', 'crate', { hardness: 1.5, tool: 'axe', mat: 'wood', fuel: 300, drop: [[B.PLANKS, 2]] });
+
   // ---- Флаги ------------------------------------------------------------------------
   BLOCKS.forEach(function (b, id) {
     if (!b) return;
     OPAQUE[id] = b.opaque && b.shape === 'cube' ? 1 : 0;
     SOLID[id] = b.solid ? 1 : 0;
     OCCLUDE[id] = (OPAQUE[id] || b.leaves) ? 1 : 0;
+    if (b.shape === 'pole') SOLID[id] = 1;
     LIGHTBLOCK[id] = (OPAQUE[id] || b.leaves) ? 1 : 0;
     REPLACEABLE[id] = (id === B.AIR || b.liquid || b.replaceable) ? 1 : 0;
     LIQUID[id] = b.liquid ? 1 : 0;
@@ -172,6 +243,8 @@
   BLOCK_SPRITES[B.TORCH] = 'torch'; BLOCK_SPRITES[B.LADDER] = 'ladder'; BLOCK_SPRITES[B.DOOR] = 'doorItem';
   BLOCK_SPRITES[B.BED] = 'bedItem'; BLOCK_SPRITES[B.LEVER] = 'leverItem'; BLOCK_SPRITES[B.BUTTON] = 'buttonItem';
   BLOCK_SPRITES[B.PLATE] = 'plateItem'; BLOCK_SPRITES[B.SPARK_TORCH] = 'sparkTorchOn';
+  BLOCK_SPRITES[B.GLOWROOT] = 'glowroot'; BLOCK_SPRITES[B.FIREFLOWER] = 'fireflower'; BLOCK_SPRITES[B.HALO_FLOWER] = 'haloFlower';
+  BLOCK_SPRITES[B.HELL_GATE] = 'hellGate'; BLOCK_SPRITES[B.HEAVEN_GATE] = 'heavenGate'; BLOCK_SPRITES[B.STREET_POLE] = 'pole';
   var NOT_ITEMS = [B.AIR, B.WATER, B.LAVA, B.WHEAT, B.WIRE, B.PISTON_HEAD, B.FARMLAND];
   BLOCKS.forEach(function (b, id) {
     if (!b || NOT_ITEMS.indexOf(id) >= 0) return;
@@ -224,6 +297,20 @@
   item(I.DYE_YELLOW, 'Жёлтый краситель', 'dyeYellow');
   item(I.DYE_BLUE, 'Синий краситель', 'dyeBlue');
   item(I.DYE_GREEN, 'Зелёный краситель', 'dyeGreen');
+  item(I.SULFUR, 'Сера', 'sulfur');
+  item(I.BLOOD_CRYSTAL, 'Кровавый кристалл', 'bloodCrystal');
+  item(I.SKY_SHARD, 'Небесный осколок', 'skyShard');
+  item(I.METEOR_IRON, 'Метеоритное железо', 'meteorIron');
+  item(I.SPACE_RATION, 'Космический паёк', 'spaceRation', { food: { h: 8, s: 10 } });
+  item(I.CANNED_FOOD, 'Консервы', 'cannedFood', { food: { h: 6, s: 7.2 } });
+  item(I.MEDKIT, 'Аптечка', 'medkit', { stack: 8, heal: 8 });
+  item(I.PISTOL, 'Пистолет', 'pistol', { stack: 1, dur: 600, gun: { dmg: 8, range: 48, cd: 0.45 } });
+  item(I.AMMO, 'Патроны', 'ammo');
+  item(I.BAT, 'Бита', 'bat', { stack: 1, dur: 180, fuel: 200, tool: { kind: 'sword', tier: 1, speed: 1, dmg: 5, mat: 'wood' } });
+  item(I.MACHETE, 'Мачете', 'machete', { stack: 1, dur: 450, tool: { kind: 'sword', tier: 3, speed: 1.5, dmg: 7, mat: 'iron' } });
+  item(I.HELL_BLADE, 'Адский клинок', 'hellBlade', { stack: 1, dur: 1200, tool: { kind: 'sword', tier: 4, speed: 1.5, dmg: 9, mat: 'blood', ignite: true } });
+  item(I.SPACE_HELMET, 'Космический шлем', 'spaceHelmet', { stack: 1, dur: 400, armor: { slot: 0, points: 2, mat: 'space', vacuum: true } });
+  item(I.LASER_CUTTER, 'Лазерный резак', 'laserCutter', { stack: 1, dur: 900, tool: { kind: 'pickaxe', tier: 4, speed: 14, dmg: 4, mat: 'laser' } });
 
   var MAT_RU = { wood: 'Деревянн', stone: 'Каменн', iron: 'Железн', gold: 'Золот', diamond: 'Алмазн', leather: 'Кожан' };
   var TOOL_RU = { pickaxe: ['ая', 'кирка'], axe: ['ый', 'топор'], shovel: ['ая', 'лопата'], sword: ['ый', 'меч'], hoe: ['ая', 'мотыга'] };
@@ -281,6 +368,10 @@
     var b = BLOCKS[id];
     if (!b || !canHarvest(b, it)) return [];
     var t = it && it.tool;
+    if (id === B.BLOSSOM) {
+      if (t && t.kind === 'shears') return [[B.BLOSSOM, 1]];
+      return rnd() < 0.03 ? [[I.APPLE, 1]] : [];
+    }
     if (b.leaves) {
       if (t && t.kind === 'shears') return [[B.LEAVES, 1]];
       var out = [];
@@ -374,6 +465,25 @@
   shaped(B.LAMP, 1, [' R ', 'RGR', ' R '], { R: I.SPARK_DUST, G: B.GLASS });
   shaped(B.PISTON, 1, ['PPP', 'CIC', 'CRC'], { P: B.PLANKS, C: B.COBBLE, I: I.IRON_INGOT, R: I.SPARK_DUST });
 
+  // Путешествия и новые вещи
+  shaped(B.HELL_GATE, 1, ['OOO', 'OFO', 'OOO'], { O: B.OBSIDIAN, F: I.FLINT_STEEL });
+  shaped(B.HEAVEN_GATE, 1, ['GFG', 'FDF', 'GFG'], { G: B.GOLD_BLOCK, F: I.FEATHER, D: I.DIAMOND });
+  shaped(B.TELEPORTER, 1, ['IRI', 'RDR', 'IRI'], { I: B.IRON_BLOCK, R: I.SPARK_DUST, D: I.DIAMOND });
+  shaped(B.ASH_BRICK, 4, ['AA', 'AA'], { A: B.ASHSTONE });
+  shapeless(I.GUNPOWDER, 3, [I.SULFUR, [I.COAL, I.CHARCOAL]]);
+  shaped(I.HELL_BLADE, 1, ['B', 'B', 'S'], { B: I.BLOOD_CRYSTAL, S: I.STICK });
+  shaped(I.SPACE_HELMET, 1, ['IGI', 'I I'], { I: I.IRON_INGOT, G: B.GLASS });
+  shaped(I.LASER_CUTTER, 1, ['MMM', ' R ', ' S '], { M: I.METEOR_IRON, R: I.SPARK_DUST, S: I.STICK });
+  shaped(I.BAT, 1, ['  P', ' P ', 'S  '], { P: B.PLANKS, S: I.STICK });
+  shaped(I.MACHETE, 1, ['  I', ' I ', 'S  '], { I: I.IRON_INGOT, S: I.STICK });
+  shapeless(I.MEDKIT, 1, [I.PAPER, B.WOOL_WHITE, I.APPLE]);
+  shapeless(I.CANNED_FOOD, 2, [I.IRON_INGOT, [I.BEEF_COOKED, I.PORK_COOKED, I.MUTTON_COOKED, I.CHICKEN_COOKED]]);
+  shapeless(I.AMMO, 8, [I.GUNPOWDER, I.IRON_INGOT]);
+  shaped(I.PISTOL, 1, ['III', 'R  '], { I: I.IRON_INGOT, R: I.SPARK_DUST });
+  shaped(B.CRATE, 1, ['PPP', 'PSP', 'PPP'], { P: B.PLANKS, S: I.STICK });
+  shapeless(B.CONCRETE, 4, [B.SAND, B.GRAVEL, I.WATER_BUCKET]);
+  shaped(B.LIGHT_PANEL, 4, ['GGG', 'GRG', 'GGG'], { G: B.GLASS, R: I.SPARK_DUST });
+
   // Плавка: вход → выход
   var SMELT = {};
   SMELT[B.IRON_ORE] = I.IRON_INGOT; SMELT[B.GOLD_ORE] = I.GOLD_INGOT; SMELT[B.SAND] = B.GLASS;
@@ -381,6 +491,7 @@
   SMELT[I.CLAY_BALL] = I.BRICK_ITEM; SMELT[B.CACTUS] = I.DYE_GREEN; SMELT[I.PORK_RAW] = I.PORK_COOKED;
   SMELT[I.BEEF_RAW] = I.BEEF_COOKED; SMELT[I.MUTTON_RAW] = I.MUTTON_COOKED; SMELT[I.CHICKEN_RAW] = I.CHICKEN_COOKED;
   SMELT[B.CLAY] = B.BRICK;
+  SMELT[B.METEOR_ORE] = I.METEOR_IRON; SMELT[B.ASH_BLOCK] = B.GLASS; SMELT[B.SKY_LOG] = I.CHARCOAL;
 
   // Подбор рецепта по сетке ids (w×h), пустые — 0
   function matchRecipe(grid, w, h) {

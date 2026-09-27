@@ -62,7 +62,7 @@
   var SKY_FS = HP + [
     'uniform vec3 uFwd; uniform vec3 uRight; uniform vec3 uUp; uniform vec2 uScale;',
     'uniform vec3 uTop; uniform vec3 uHor; uniform vec3 uSun; uniform vec3 uSunR; uniform vec3 uSunU;',
-    'uniform vec3 uGlow; uniform float uNight;',
+    'uniform vec3 uGlow; uniform float uNight; uniform float uSunVis; uniform float uPlanet;',
     'varying vec2 vP;',
     'float hash(vec3 p) { return fract(sin(dot(p, vec3(12.9898, 78.233, 37.719))) * 43758.5453); }',
     'void main() {',
@@ -72,10 +72,31 @@
     '  if (d.y < 0.0) col = mix(uHor, uHor * 0.8, clamp(-d.y * 4.0, 0.0, 1.0));',
     '  float sd = dot(d, uSun);',
     '  col += uGlow * pow(max(sd, 0.0), 8.0) * (1.0 - t * 0.7);',
-    '  if (uNight > 0.01 && d.y > 0.0) {',
+    '  if (uNight > 0.01 && (d.y > 0.0 || uPlanet > 0.5)) {',
     '    float h = hash(floor(d * 220.0));',
-    '    if (h > 0.9972) col += vec3(0.9, 0.92, 1.0) * uNight * (h - 0.9972) * 357.0 * t;',
+    '    if (h > 0.9972) col += vec3(0.9, 0.92, 1.0) * uNight * (h - 0.9972) * 357.0 * max(t, uPlanet);',
     '  }',
+    '  if (uPlanet > 0.5) {',
+    // планета: освещённый солнцем шар с океанами, материками и облаками
+    '    vec3 pc = normalize(vec3(0.55, -0.3, -0.78));',
+    '    vec3 pr = normalize(cross(pc, vec3(0.0, 1.0, 0.0))); vec3 pu = cross(pr, pc);',
+    '    float pd = dot(d, pc);',
+    '    if (pd > 0.85) {',
+    '      vec2 q = vec2(dot(d, pr), dot(d, pu)) / 0.46;',
+    '      float r2 = dot(q, q);',
+    '      if (r2 < 1.0) {',
+    '        vec3 n = normalize(q.x * pr + q.y * pu - sqrt(1.0 - r2) * pc);',
+    '        vec2 g = floor(q * 16.0);',
+    '        float land = step(0.58, hash(vec3(floor(g / 3.0), 1.0)) * 0.7 + hash(vec3(g, 2.0)) * 0.3);',
+    '        vec3 base = mix(vec3(0.1, 0.28, 0.62), vec3(0.22, 0.46, 0.2), land);',
+    '        float cl = step(0.78, hash(vec3(floor(q * 26.0 + vec2(uSun.x * 3.0, 0.0)), 3.0)));',
+    '        base = mix(base, vec3(0.94, 0.95, 0.97), cl * 0.85);',
+    '        float lit = clamp(dot(n, uSun) * 1.1 + 0.06, 0.03, 1.0);',
+    '        col = base * lit + vec3(0.25, 0.45, 1.0) * pow(1.0 - sqrt(1.0 - r2), 3.0) * 0.7;',
+    '      } else if (r2 < 1.12) col += vec3(0.25, 0.45, 1.0) * (1.12 - r2) * 2.2;',
+    '    }',
+    '  }',
+    '  if (uSunVis < 0.5) { gl_FragColor = vec4(col, 1.0); return; }',
     '  if (sd > 0.0 && d.y > -0.01) {',
     '    vec2 q = vec2(dot(d, uSunR), dot(d, uSunU)) / sd;',
     '    float m = max(abs(q.x), abs(q.y));',
@@ -129,7 +150,7 @@
     this.ent = this.program(ENT_VS, ENT_FS, ['aPos', 'aUV', 'aCol'],
       ['uVP', 'uCam', 'uTex', 'uFog', 'uFogR', 'uAlpha', 'uCut']);
     this.sky = this.program(SKY_VS, SKY_FS, ['aPos'],
-      ['uFwd', 'uRight', 'uUp', 'uScale', 'uTop', 'uHor', 'uSun', 'uSunR', 'uSunU', 'uGlow', 'uNight']);
+      ['uFwd', 'uRight', 'uUp', 'uScale', 'uTop', 'uHor', 'uSun', 'uSunR', 'uSunU', 'uGlow', 'uNight', 'uSunVis', 'uPlanet']);
     this.cloud = this.program(CLOUD_VS, CLOUD_FS, ['aPos'],
       ['uVP', 'uCam', 'uSize', 'uY', 'uTex', 'uOff', 'uCell', 'uCol', 'uFog', 'uFar']);
     this.line = this.program(LINE_VS, LINE_FS, ['aPos'], ['uVP', 'uColor']);
@@ -377,6 +398,8 @@
     gl.uniform3fv(S.u.uSunU, sky.sunU);
     gl.uniform3fv(S.u.uGlow, env.underwater ? [0, 0, 0] : sky.glow);
     gl.uniform1f(S.u.uNight, env.underwater ? 0 : sky.night);
+    gl.uniform1f(S.u.uSunVis, sky.sunVis === undefined ? 1 : sky.sunVis);
+    gl.uniform1f(S.u.uPlanet, env.underwater ? 0 : sky.planet || 0);
     gl.bindBuffer(gl.ARRAY_BUFFER, this.fsTri);
     gl.enableVertexAttribArray(0);
     gl.disableVertexAttribArray(1);

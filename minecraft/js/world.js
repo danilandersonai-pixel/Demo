@@ -12,7 +12,8 @@
 
   // Блоки, которые хотя бы в каком-то состоянии светятся
   var EMITTER = new Uint8Array(256);
-  [B.TORCH, B.LAVA, B.FURNACE, B.LAMP, B.SPARK_TORCH, B.JACK].forEach(function (id) { EMITTER[id] = 1; });
+  for (var em = 0; em < 256; em++) if (EMIT[em]) EMITTER[em] = 1;
+  [B.FURNACE, B.LAMP, B.SPARK_TORCH].forEach(function (id) { EMITTER[id] = 1; });
 
   function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
   function smooth(a, b, x) { var t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); }
@@ -53,18 +54,37 @@
     this.emitList = null;
   };
 
+  // Светящиеся блоки чанка. У лавы берём только «поверхность» — клетки, рядом с которыми
+  // есть воздух: свет изнутри лавового моря всё равно перекрыт соседней лавой.
   Chunk.prototype.emitterIndices = function () {
     if (!this.emitList) {
       var b = this.blocks, list = [];
-      if (this.emitters) for (var i = 0; i < b.length; i++) if (EMITTER[b[i]]) list.push(i);
+      if (this.emitters) for (var i = 0; i < b.length; i++) {
+        var id = b[i];
+        if (!EMITTER[id]) continue;
+        if (id === B.LAVA) {
+          var x = i & 15, z = (i >> 4) & 15, y = i >> 8, open = false;
+          if (y + 1 >= H || !(b[i + LAYER] === B.LAVA || OPAQUE[b[i + LAYER]])) open = true;
+          else if (x === 0 || x === 15 || z === 0 || z === 15) open = true;
+          else {
+            var n1 = b[i + 1], n2 = b[i - 1], n3 = b[i + CS], n4 = b[i - CS];
+            open = !(n1 === B.LAVA || OPAQUE[n1]) || !(n2 === B.LAVA || OPAQUE[n2]) || !(n3 === B.LAVA || OPAQUE[n3]) || !(n4 === B.LAVA || OPAQUE[n4]);
+          }
+          if (!open) continue;
+        }
+        list.push(i);
+      }
       this.emitList = list;
     }
     return this.emitList;
   };
 
   // ---- Мир ------------------------------------------------------------------------
-  function World(seed, edits) {
+  // dim — измерение (over, hell, heaven, space), type — вид обычного мира (city для зомби-режима)
+  function World(seed, edits, dim, type) {
     this.seed = seed | 0;
+    this.dim = dim || 'over';
+    this.type = type || 'normal';
     this.noise = new KC.Noise(seed);
     this.caveNoise = new KC.Noise(seed + 1013);
     this.chunks = new Map();
@@ -235,6 +255,12 @@
   };
 
   World.prototype.generate = function (cx, cz) {
+    var gen = this.dim !== 'over' ? KC.Gen[this.dim] : (this.type === 'city' ? KC.Gen.city : null);
+    if (gen) {
+      var gc = new Chunk(cx, cz);
+      gen(this, gc);
+      return this._finish(gc, null);
+    }
     var c = new Chunk(cx, cz);
     var b = c.blocks, m = c.meta, seed = this.seed, self = this;
     var ox = cx * CS, oz = cz * CS;
@@ -362,17 +388,22 @@
       else if (pr < grassy + 0.0215) { b[above] = B.PUMPKIN; m[above] = Math.floor(hash2(ox + x, oz + z, seed + 17) * 4); }
     }
 
-    // 4. Правки игрока
-    var ed = this.edits[cx + ',' + cz];
-    if (ed) for (var key in ed) { var v = ed[key]; b[+key] = v & 255; m[+key] = v >> 8; }
+    return this._finish(c, { hs: hs, bio: bio, G: G, P: P });
+  };
 
+  // Правки игрока поверх генерации, пересчёт карт и регистрация чанка
+  World.prototype._finish = function (c, info) {
+    var b = c.blocks, m = c.meta;
+    var ed = this.edits[c.cx + ',' + c.cz];
+    if (ed) for (var key in ed) { var v = ed[key]; b[+key] = v & 255; m[+key] = v >> 8; }
     c.recalcAll();
-    this.chunks.set(cx + ',' + cz, c);
-    if (this.onChunkGenerated) this.onChunkGenerated(c, hs, bio, G, P);
+    this.chunks.set(c.cx + ',' + c.cz, c);
+    if (this.onChunkGenerated) this.onChunkGenerated(c, info);
     return c;
   };
 
   World.prototype.findSpawn = function () {
+    if (this.type === 'city' && this.dim === 'over') return KC.Gen.citySpawn();
     var col = { h: 0, biome: 0, forest: 0 };
     for (var r = 0; r < 400; r += 4) {
       for (var a = 0; a < 16; a++) {
@@ -413,10 +444,13 @@
     }
   }
 
+  var POLE = [6 / 16, 0, 6 / 16, 10 / 16, 1, 10 / 16];
+  function portalBox(meta) { return (meta & 1) ? [6 / 16, 0, 0, 10 / 16, 1, 1] : [0, 0, 6 / 16, 1, 1, 10 / 16]; }
   function collisionBox(id, meta) {
     var b = BLOCKS[id];
-    if (!b || !b.solid) return null;
+    if (!b || !KC.SOLID[id]) return null;
     switch (b.shape) {
+      case 'pole': return POLE;
       case 'bed': return [0, 0, 0, 1, 9 / 16, 1];
       case 'chest': return [1 / 16, 0, 1 / 16, 15 / 16, 14 / 16, 15 / 16];
       case 'cactus': return [1 / 16, 0, 1 / 16, 15 / 16, 1, 15 / 16];
@@ -440,6 +474,8 @@
       case 'plate': return [1 / 16, 0, 1 / 16, 15 / 16, 1 / 16, 15 / 16];
       case 'lever': return attachedBox(meta & 7, 8, 8, 8);
       case 'button': return attachedBox(meta & 7, 6, 4, 2);
+      case 'portal': return portalBox(meta);
+      case 'pole': return POLE;
       default: return collisionBox(id, meta) || FULL;
     }
   }
@@ -501,8 +537,9 @@
     var tl = b.tiles, key = FACES[f].tile;
     switch (id) {
       case B.FURNACE: if (f === FACING_FACE[meta & 3]) return meta & 4 ? T.furnaceLit : tl.front; break;
-      case B.CHEST: case B.PUMPKIN: case B.JACK: case B.TABLE:
+      case B.CHEST: case B.PUMPKIN: case B.JACK: case B.TABLE: case B.CONSOLE:
         if (f === FACING_FACE[meta & 3]) return tl.front; break;
+      case B.ROAD_LINE: if (f === 2) return meta === 1 ? T.roadLineZ : meta === 2 ? T.crosswalk : T.roadLineX; break;
       case B.LAMP: return meta & 1 ? T.lampOn : T.lampOff;
       case B.FARMLAND: if (f === 2) return meta & 1 ? T.farmlandWet : T.farmland; break;
       case B.PISTON:
@@ -613,7 +650,7 @@
       switch (bd.shape) {
         case 'cube': case 'cactus':
           // Сами светильники горят ровно, без теней (печь светит только наружу)
-          var glow = id === B.JACK || (id === B.LAMP && (meta & 1)) ? 1 : 0;
+          var glow = bd.glow || id === B.JACK || (id === B.LAMP && (meta & 1)) ? 1 : 0;
           for (var f = 0; f < 6; f++) {
             var face = FACES[f], nid = pad[p + face.no];
             if (bd.glass) { if (OPAQUE[nid] || nid === id) continue; }
@@ -816,6 +853,12 @@
         tiles = [];
         for (var f = 0; f < 6; f++) tiles[f] = f === 2 || f === 3 ? tl.top : (f === FACING_FACE[meta & 3] ? tl.front : tl.side);
         emitBox(buf, wx, wy, wz, [1 / 16, 0, 1 / 16, 15 / 16, 14 / 16, 15 / 16], ALL, tiles, p);
+        break;
+      case 'portal':
+        emitBox(buf, wx, wy, wz, portalBox(meta), ALL, tl.side, p, 1.3);
+        break;
+      case 'pole':
+        emitBox(buf, wx, wy, wz, POLE, ALL, tl.side, p);
         break;
       case 'pistonHead':
         var hd = DIRS[dir], pb = [0, 0, 0, 1, 1, 1], arm = [6 / 16, 6 / 16, 6 / 16, 10 / 16, 10 / 16, 10 / 16];

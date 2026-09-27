@@ -25,7 +25,32 @@
     archer: { name: 'Костяной лучник', model: 'archer', hp: 20, w: 0.6, h: 1.95, eye: 1.7, speed: 2.1, dmg: 3, hostile: true, burns: true, ranged: true,
       drops: function () { return [[I.BONE, rint(0, 2)], [I.ARROW, rint(0, 2)]]; } },
     spider: { name: 'Лесной паук', model: 'spider', hp: 16, w: 1.3, h: 0.9, eye: 0.6, speed: 3.0, dmg: 2, hostile: true, climbs: true, neutralDay: true,
-      drops: function () { var d = [[I.STRING, rint(0, 2)]]; if (Math.random() < 0.33) d.push([I.SPIDER_EYE, 1]); return d; } }
+      drops: function () { var d = [[I.STRING, rint(0, 2)]]; if (Math.random() < 0.33) d.push([I.SPIDER_EYE, 1]); return d; } },
+    // Мегаполис: заражённые (не горят на солнце, зовут друг друга, видят дальше)
+    infected: { name: 'Заражённый', model: 'infected', hp: 20, w: 0.6, h: 1.95, eye: 1.7, speed: 2.0, dmg: 3, hostile: true, zombie: true,
+      drops: function () { var d = [[I.ROTTEN_FLESH, rint(0, 2)]]; if (Math.random() < 0.12) d.push([I.CANNED_FOOD, 1]); if (Math.random() < 0.1) d.push([I.AMMO, rint(2, 5)]); return d; } },
+    runner: { name: 'Бегун', model: 'runner', hp: 14, w: 0.6, h: 1.95, eye: 1.7, speed: 4.1, dmg: 2, hostile: true, zombie: true,
+      drops: function () { var d = [[I.ROTTEN_FLESH, rint(0, 1)]]; if (Math.random() < 0.15) d.push([I.AMMO, rint(2, 6)]); return d; } },
+    brute: { name: 'Громила', model: 'brute', hp: 44, w: 0.85, h: 2.6, eye: 2.3, speed: 1.6, dmg: 7, knock: 11, scale: 1.35, hostile: true, zombie: true,
+      drops: function () { var d = [[I.ROTTEN_FLESH, rint(1, 3)], [I.IRON_INGOT, rint(0, 1)]]; if (Math.random() < 0.3) d.push([I.MEDKIT, 1]); return d; } },
+    // Пекло
+    imp: { name: 'Бес', model: 'imp', hp: 14, w: 0.5, h: 1.5, eye: 1.2, speed: 3.2, dmg: 3, hostile: true, fireImmune: true, ignite: 4,
+      drops: function () { var d = [[I.SULFUR, rint(0, 2)]]; if (Math.random() < 0.2) d.push([I.BLOOD_CRYSTAL, 1]); return d; } },
+    wisp: { name: 'Огненный дух', model: 'wisp', hp: 12, w: 0.7, h: 0.8, eye: 0.4, speed: 3.0, dmg: 5, hostile: true, fireImmune: true,
+      flies: true, hover: [3, 8], ranged: 'fireball', keep: 8, cd: 2.4, glow: true,
+      drops: function () { return [[I.SULFUR, rint(1, 2)], [I.GUNPOWDER, rint(0, 1)]]; } },
+    // Небеса
+    pegasus: { name: 'Пегас', model: 'pegasus', hp: 16, w: 1.2, h: 2.0, eye: 1.9, speed: 1.8, panic: 4.2, food: [I.APPLE, I.GOLDEN_APPLE], passive: true, slowFall: true,
+      drops: function () { return [[I.FEATHER, rint(1, 3)], [I.LEATHER, rint(0, 1)]]; } },
+    cloudling: { name: 'Облачник', model: 'cloudling', hp: 6, w: 0.8, h: 0.75, eye: 0.5, speed: 1.6, panic: 3.5, food: [I.SKY_SHARD], passive: true,
+      flies: true, hover: [2, 6],
+      drops: function () { return [[B.CLOUD, rint(1, 2)]]; } },
+    // Космическая станция
+    drone: { name: 'Сбойный дрон', model: 'drone', hp: 16, w: 0.8, h: 0.65, eye: 0.35, speed: 3.6, dmg: 4, hostile: true, fireImmune: true, machine: true,
+      flies: true, hover: [2, 6], ranged: 'laser', keep: 9, cd: 1.7,
+      drops: function () { var d = [[I.SPARK_DUST, rint(1, 3)]]; if (Math.random() < 0.4) d.push([I.METEOR_IRON, 1]); return d; } },
+    robot: { name: 'Робот-уборщик', model: 'robot', hp: 12, w: 0.65, h: 0.85, eye: 0.7, speed: 1.0, panic: 2.2, food: [], passive: true, fireImmune: true, machine: true,
+      drops: function () { return [[I.IRON_INGOT, rint(1, 2)], [I.SPARK_DUST, rint(0, 2)]]; } }
   };
 
   // ---- Базовая сущность --------------------------------------------------------
@@ -124,10 +149,18 @@
   }
 
   // Шаг физики с гравитацией; ctrl — желаемая горизонтальная скорость
+  // Сила тяжести измерения; внутри станции — искусственная, как на Земле
+  function gravityAt(x, y, z) {
+    var D = KC.DIMS && world && KC.DIMS[world.dim];
+    if (!D) return 1;
+    if (D.vacuum && KC.Gen.inStation(x, y, z)) return 1;
+    return D.gravity;
+  }
+
   function physics(e, dt, opts) {
     opts = opts || {};
     senseLiquids(e);
-    var g = opts.gravity === undefined ? 28 : opts.gravity;
+    var g = (opts.gravity === undefined ? 28 : opts.gravity) * (opts.gravity === 0 ? 1 : gravityAt(e.x, e.y + 0.5, e.z));
     if (e.inWater || e.inLava) {
       e.vy -= g * 0.3 * dt;
       e.vy *= Math.max(0, 1 - dt * 2.5);
@@ -237,6 +270,7 @@
     e.hurt = 0; e.invul = 0; e.attackCd = 0; e.attackAnim = 0; e.panic = 0;
     e.love = 0; e.breedCd = 0; e.grow = 0; e.sheared = false; e.deathT = 0; e.provoked = 0;
     e.soundT = 5 + Math.random() * 10;
+    e.homeY = y;
     if (opts) { if (opts.baby) e.grow = 240; if (opts.sheared) e.sheared = true; if (opts.hp) e.hp = opts.hp; if (opts.yaw !== undefined) e.yaw = opts.yaw; }
     if (e.grow > 0) { e.w = K.w * 0.55; e.h = K.h * 0.55; }
     list.push(e);
@@ -247,15 +281,17 @@
 
   function damageMob(e, amount, source, knock) {
     if (e.dead || e.deathT > 0 || e.invul > 0) return false;
+    if (e.K.fireImmune && source === 'fire') { e.fire = 0; return false; }
     e.hp -= amount;
     e.hurt = 0.35;
     e.invul = 0.45;
     if (knock) { e.vx += knock[0]; e.vz += knock[2]; e.vy = Math.max(e.vy, knock[1]); }
     if (e.K.passive) { e.panic = 4; e.ai.state = 'panic'; e.love = 0; }
-    if (source === 'player') e.provoked = 20;
+    if (source === 'player') { e.provoked = 20; if (e.K.zombie) alertHorde(e, 14); }
     if (hooks.sound) hooks.sound('hurt-' + e.kind, e.x, e.y, e.z);
     if (e.hp <= 0) {
       e.deathT = 0.8;
+      if (hooks.killed) hooks.killed(e, source);
       e.vx *= 0.3; e.vz *= 0.3;
       dropDrops(e.x, e.y + 0.4, e.z, e.K.drops(e));
     }
@@ -376,25 +412,54 @@
     wander(e, dt, K.speed);
   }
 
-  function updateHostile(e, dt) {
+  // Поиск цели: игрок в радиусе, в прямой видимости (память на 6 с)
+  function acquire(e, dt) {
     var K = e.K, a = e.ai, p = hooks.player && hooks.player();
+    if (!p || p.dead || p.creative || (hooks.difficulty ? hooks.difficulty() : 2) === 0) return null;
+    var range = K.zombie ? 30 : 20;
+    var dx = p.x - e.x, dy = p.y - e.y, dz = p.z - e.z, d = Math.sqrt(dx * dx + dy * dy + dz * dz);
+    if (d > range) return null;
+    if (K.neutralDay) {
+      var l = e.light ? Math.max(e.light[0], e.light[1]) : 0;
+      if (e.provoked <= 0 && l >= 0.45) return null;
+    }
+    a.losT -= dt;
+    if (a.losT <= 0) {
+      a.losT = 0.4;
+      a.los = lineOfSight(e.x, e.y + K.eye, e.z, p.x, p.y + 1.6, p.z);
+      if (a.los) { if (K.zombie && !(a.memory > 0)) alertHorde(e, 12); a.memory = K.zombie ? 10 : 6; }
+    }
+    a.memory = (a.memory || 0) - dt;
+    return a.memory > 0 ? p : null;
+  }
+
+  // Заражённый, заметивший игрока, зовёт соседей
+  function alertHorde(e, r) {
+    for (var i = 0; i < list.length; i++) {
+      var o = list[i];
+      if (o === e || o.dead || o.type !== 'mob' || !o.K.zombie) continue;
+      if (Math.abs(o.x - e.x) < r && Math.abs(o.z - e.z) < r && !(o.ai.memory > 0)) o.ai.memory = 8;
+    }
+    if (hooks.sound && e.K.zombie) hooks.sound('say-' + e.kind, e.x, e.y, e.z);
+  }
+
+  function meleeHit(e, target) {
+    var K = e.K;
+    e.attackCd = e.kind === 'brute' ? 1.6 : 1;
+    e.attackAnim = 0.45;
+    var knock = null;
+    if (K.knock) {
+      var dx = target.x - e.x, dz = target.z - e.z, d = Math.hypot(dx, dz) || 1;
+      knock = [dx / d * K.knock, 6, dz / d * K.knock];
+    }
+    hooks.hurtPlayer(K.dmg * diffMul(), K.name, e, knock, K.ignite || 0);
+  }
+
+  function updateHostile(e, dt) {
+    var K = e.K, a = e.ai;
     e.attackCd -= dt;
     e.provoked -= dt;
-    var target = null;
-    if (p && !p.dead && !p.creative && (hooks.difficulty ? hooks.difficulty() : 2) > 0) {
-      var dx = p.x - e.x, dy = p.y - e.y, dz = p.z - e.z, d = Math.sqrt(dx * dx + dy * dy + dz * dz);
-      var aggressive = true;
-      if (K.neutralDay) {
-        var l = e.light ? Math.max(e.light[0], e.light[1]) : 0;
-        aggressive = e.provoked > 0 || l < 0.45;
-      }
-      if (aggressive && d < 20) {
-        a.losT -= dt;
-        if (a.losT <= 0) { a.losT = 0.4; a.los = lineOfSight(e.x, e.y + K.eye, e.z, p.x, p.y + 1.6, p.z); if (a.los) a.memory = 6; }
-        a.memory = (a.memory || 0) - dt;
-        if (a.memory > 0 && d < 20) target = p;
-      }
-    }
+    var target = acquire(e, dt);
     if (target) {
       var tdx = target.x - e.x, tdz = target.z - e.z, hd = Math.hypot(tdx, tdz);
       e.headYaw = 0;
@@ -416,20 +481,88 @@
           e.vy = 5.5; e.vx += tdx / hd * 4; e.vz += tdz / hd * 4;
         }
         var reach = 0.9 + K.w / 2;
-        if (hd < reach + 0.3 && Math.abs(target.y - e.y) < 1.8 && e.attackCd <= 0) {
-          e.attackCd = 1;
-          e.attackAnim = 0.45;
-          hooks.hurtPlayer(K.dmg * diffMul(), K.name, e);
-        }
+        if (hd < reach + 0.3 && Math.abs(target.y - e.y) < 1.8 && e.attackCd <= 0) meleeHit(e, target);
       }
     } else {
       e.aiming = false;
-      wander(e, dt, K.speed * 0.45);
+      wander(e, dt, K.speed * (K.zombie ? 0.3 : 0.45));
     }
     // Нечисть горит на солнце
     if (K.burns && hooks.day && hooks.day() > 0.6 && !e.inWater && world.skyAt(e.x, e.y + e.h, e.z) >= 1) {
       e.fire = Math.max(e.fire, 3);
     }
+  }
+
+  // ---- Летуны: духи, облачники, дроны ----------------------------------------------
+  // Высота поверхности под точкой (null — внизу пустота, undefined — точка внутри породы)
+  function floorBelow(x, y, z, max) {
+    if (KC.SOLID[world.getBlock(x, y, z)]) return undefined;
+    for (var d = 1; d < max; d++) if (KC.SOLID[world.getBlock(x, y - d, z)]) return Math.floor(y - d) + 1;
+    return null;
+  }
+  function ceilingAbove(x, y, z, max) {
+    for (var d = 1; d < max; d++) if (KC.SOLID[world.getBlock(x, y + d, z)]) return Math.floor(y + d);
+    return null;
+  }
+  function flyToward(e, tx, ty, tz, speed, dt) {
+    var dx = tx - e.x, dy = ty - e.y, dz = tz - e.z, d = Math.sqrt(dx * dx + dy * dy + dz * dz);
+    var k = Math.min(1, dt * 3);
+    if (d < 0.3) { e.vx -= e.vx * k; e.vy -= e.vy * k; e.vz -= e.vz * k; return d; }
+    e.vx += (dx / d * speed - e.vx) * k;
+    e.vy += (dy / d * speed - e.vy) * k;
+    e.vz += (dz / d * speed - e.vz) * k;
+    if (Math.abs(dx) + Math.abs(dz) > 0.2) faceTo(e, tx, tz, dt);
+    if (e.hitH) e.vy = Math.max(e.vy, 3);
+    return d;
+  }
+  function pickFlyTarget(e, r0, r1) {
+    var a = e.ai, K = e.K;
+    var ang = Math.random() * Math.PI * 2, r = r0 + Math.random() * (r1 - r0);
+    a.tx = e.x + Math.cos(ang) * r; a.tz = e.z + Math.sin(ang) * r;
+    var g = floorBelow(a.tx, e.y + 0.3, a.tz, 28);
+    if (g === undefined || !world.isLoaded(a.tx, a.tz)) { a.tx = e.x; a.tz = e.z; g = floorBelow(e.x, e.y + 0.3, e.z, 28); }
+    var base = g === null || g === undefined ? e.homeY : g;
+    a.ty = Math.min(KC.H - 3, base + K.hover[0] + Math.random() * (K.hover[1] - K.hover[0]));
+    var ceil = ceilingAbove(a.tx, e.y + 0.3, a.tz, 16);
+    if (ceil !== null) a.ty = Math.max(Math.min(a.ty, ceil - e.h - 0.6), Math.min(e.y, base + 0.5));
+    a.state = 'fly'; a.timer = 3 + Math.random() * 4;
+  }
+
+  function updateFlyer(e, dt) {
+    var K = e.K, a = e.ai, p = hooks.player && hooks.player();
+    e.attackCd -= dt; e.provoked -= dt;
+    a.timer -= dt;
+    if (K.passive) {
+      if (e.panic > 0) {
+        e.panic -= dt;
+        if (a.state !== 'flee' || a.timer <= 0) {
+          var fx = p ? e.x - p.x : 1, fz = p ? e.z - p.z : 0, fd = Math.hypot(fx, fz) || 1;
+          a.tx = e.x + fx / fd * 10; a.tz = e.z + fz / fd * 10; a.ty = e.y + 3; a.state = 'flee'; a.timer = 1.5;
+        }
+        flyToward(e, a.tx, a.ty, a.tz, K.panic, dt);
+        if (e.panic <= 0) a.state = 'idle';
+        return;
+      }
+    } else {
+      var target = acquire(e, dt);
+      if (target) {
+        var tdx = target.x - e.x, tdz = target.z - e.z, hd = Math.hypot(tdx, tdz) || 0.01;
+        var ty = target.y + 3 + Math.sin(e.age * 1.3 + e.id) * 1.2;
+        if (hd > K.keep + 3) flyToward(e, target.x, ty, target.z, K.speed, dt);
+        else if (hd < K.keep - 3) flyToward(e, e.x - tdx, ty, e.z - tdz, K.speed, dt);
+        else flyToward(e, e.x + tdz / hd * 3, ty, e.z - tdx / hd * 3, K.speed * 0.6, dt);
+        faceTo(e, target.x, target.z, dt, 8);
+        e.headPitch = Math.atan2(target.y + 1.2 - e.y, hd);
+        a.shootCd -= dt;
+        if (a.shootCd <= 0 && a.los && hd < 24) {
+          a.shootCd = K.cd + Math.random() * 1.2;
+          shootBolt(e, target.x, target.y + 1.1, target.z, K.ranged, K.dmg * diffMul());
+        }
+        return;
+      }
+    }
+    if (a.state !== 'fly' || a.timer <= 0) pickFlyTarget(e, 3, 9);
+    if (flyToward(e, a.tx, a.ty, a.tz, K.speed * 0.45, dt) < 0.8) a.timer = Math.min(a.timer, 0.8);
   }
 
   function updateMob(e, dt) {
@@ -445,9 +578,12 @@
       return;
     }
     refreshLight(e, dt);
-    if (K.passive) updatePassive(e, dt); else updateHostile(e, dt);
+    if (K.flies) updateFlyer(e, dt);
+    else if (K.passive) updatePassive(e, dt); else updateHostile(e, dt);
+    if (K.fireImmune && e.inLava) e.vy = Math.max(e.vy, 2);
     var px = e.x, pz = e.z;
-    physics(e, dt, {
+    if (K.flies) physics(e, dt, { gravity: 0, climb: false });
+    else physics(e, dt, {
       slowFall: K.slowFall,
       climb: true,
       onLand: function (dist) { if (!K.slowFall && dist > 3.5) damageMob(e, Math.floor(dist - 3), 'fall'); }
@@ -456,8 +592,9 @@
     e.walkAmp += ((moved > 0.3 ? Math.min(1, moved / 3) : 0) - e.walkAmp) * Math.min(1, dt * 8);
     e.walk += moved * dt * 3.2;
     // огонь, лава, вода
-    if (e.inLava) { e.fire = 8; if (e.invul <= 0) damageMob(e, 4, 'fire'); }
-    if (e.inWater) e.fire = 0;
+    if (e.inLava && !K.fireImmune) { e.fire = 8; if (e.invul <= 0) damageMob(e, 4, 'fire'); }
+    if (e.inWater || K.fireImmune) e.fire = 0;
+    if (K.glow && hooks.particles && Math.random() < dt * 5) hooks.particles('flame', e.x + (Math.random() - 0.5) * 0.5, e.y + 0.3 + Math.random() * 0.4, e.z + (Math.random() - 0.5) * 0.5);
     if (e.fire > 0) {
       e.fire -= dt; e.fireT -= dt;
       if (e.fireT <= 0) { e.fireT = 1; damageMob(e, 1, 'fire'); }
@@ -491,6 +628,25 @@
     list.push(e);
     return e;
   }
+  // Снаряды без тяжести: огненный шар духа и лазер дрона
+  var BOLTS = {
+    fireball: { speed: 11, cause: 'Огненный шар', fire: 5, sound: 'fireball' },
+    laser: { speed: 26, cause: 'Лазер', fire: 0, sound: 'laser' }
+  };
+  function shootBolt(from, tx, ty, tz, kind, dmg) {
+    var B0 = BOLTS[kind];
+    var sx = from.x, sy = from.y + from.h * 0.5, sz = from.z;
+    var dx = tx - sx, dy = ty - sy, dz = tz - sz, d = Math.sqrt(dx * dx + dy * dy + dz * dz) || 1;
+    var e = new Ent('arrow', sx + dx / d * 0.6, sy + dy / d * 0.6, sz + dz / d * 0.6, 0.3, 0.3);
+    var sp = B0.speed, j = kind === 'laser' ? 0.4 : 1.2;
+    e.vx = dx / d * sp + (Math.random() - 0.5) * j; e.vy = dy / d * sp + (Math.random() - 0.5) * j; e.vz = dz / d * sp + (Math.random() - 0.5) * j;
+    e.dmg = dmg; e.owner = 'mob'; e.shooter = from; e.stuck = false; e.proj = kind;
+    e.dir = [dx / d, dy / d, dz / d];
+    list.push(e);
+    if (hooks.sound) hooks.sound(B0.sound, sx, sy, sz);
+    return e;
+  }
+
   function launchArrow(x, y, z, vx, vy, vz, dmg, owner, shooter) {
     var e = new Ent('arrow', x, y, z, 0.1, 0.1);
     e.vx = vx; e.vy = vy; e.vz = vz; e.dmg = dmg; e.owner = owner; e.shooter = shooter; e.stuck = false;
@@ -520,11 +676,16 @@
       }
       return;
     }
-    if (e.age > 60) { e.dead = true; return; }
+    if (e.age > (e.proj ? 6 : 60)) { e.dead = true; return; }
     var inW = world.getBlock(e.x, e.y, e.z) === B.WATER;
-    e.vy -= 20 * dt;
-    var drag = Math.max(0, 1 - dt * (inW ? 3 : 0.1));
-    e.vx *= drag; e.vy *= drag; e.vz *= drag;
+    if (e.proj) {
+      if (inW && e.proj === 'fireball') { e.dead = true; if (hooks.sound) hooks.sound('fizz', e.x, e.y, e.z); return; }
+      if (e.proj === 'fireball' && hooks.particles && Math.random() < dt * 20) hooks.particles('flame', e.x, e.y, e.z);
+    } else {
+      e.vy -= 20 * dt * gravityAt(e.x, e.y, e.z);
+      var drag = Math.max(0, 1 - dt * (inW ? 3 : 0.1));
+      e.vx *= drag; e.vy *= drag; e.vz *= drag;
+    }
     var sp = Math.sqrt(e.vx * e.vx + e.vy * e.vy + e.vz * e.vz);
     var steps = Math.max(1, Math.ceil(sp * dt / 0.25)), sdt = dt / steps;
     for (var s = 0; s < steps; s++) {
@@ -537,11 +698,16 @@
         if (v === e.shooter && e.age < 0.4) continue;
         var hw = v.w / 2 + 0.1;
         if (!segHitsBox(e.x, e.y, e.z, nx, ny, nz, [v.x - hw, v.y, v.z - hw, v.x + hw, v.y + v.h, v.z + hw])) continue;
-        var dmg = Math.max(1, Math.round(e.dmg * Math.min(1.5, sp / 20)));
+        if (e.proj && v === e.shooter) continue;
+        var B0 = e.proj && BOLTS[e.proj];
+        var dmg = B0 ? Math.max(1, Math.round(e.dmg)) : Math.max(1, Math.round(e.dmg * Math.min(1.5, sp / 20)));
         var kn = [e.vx / sp * 3, 3, e.vz / sp * 3];
-        if (v.type === 'player') hooks.hurtPlayer(dmg, 'Стрела', e.shooter, kn);
-        else damageMob(v, dmg, e.owner === 'player' ? 'player' : 'arrow', kn);
-        if (hooks.sound) hooks.sound('arrow-hit', nx, ny, nz);
+        if (v.type === 'player') hooks.hurtPlayer(dmg, B0 ? B0.cause : 'Стрела', e.shooter, kn, B0 ? B0.fire : 0);
+        else {
+          damageMob(v, dmg, e.owner === 'player' ? 'player' : 'arrow', kn);
+          if (B0 && B0.fire && !v.K.fireImmune) v.fire = Math.max(v.fire, B0.fire);
+        }
+        if (hooks.sound) hooks.sound(B0 ? 'fizz' : 'arrow-hit', nx, ny, nz);
         e.dead = true;
         return;
       }
@@ -550,6 +716,12 @@
         var cb = KC.collisionBox(id, world.getMeta(nx, ny, nz));
         var fx = nx - Math.floor(nx), fy = ny - Math.floor(ny), fz = nz - Math.floor(nz);
         if (cb && fx >= cb[0] && fx <= cb[3] && fy >= cb[1] && fy <= cb[4] && fz >= cb[2] && fz <= cb[5]) {
+          if (e.proj) {
+            e.dead = true;
+            if (hooks.sound) hooks.sound('fizz', nx, ny, nz);
+            if (hooks.particles) for (var q = 0; q < 6; q++) hooks.particles(e.proj === 'fireball' ? 'flame' : 'spark', e.x, e.y, e.z);
+            return;
+          }
           e.stuck = true; e.age = 0;
           e.dir = [e.vx / sp, e.vy / sp, e.vz / sp];
           e.vx = e.vy = e.vz = 0;
@@ -597,35 +769,67 @@
 
   // ---- Появление мобов -------------------------------------------------------------
   function hostileCount() { var n = 0; for (var i = 0; i < list.length; i++) if (list[i].type === 'mob' && list[i].K.hostile) n++; return n; }
+
+  // Кто и как появляется: зависит от измерения и типа мира
+  function spawnRules() {
+    var day = hooks.day ? hooks.day() : 1;
+    if (world.dim === 'hell') return { cap: 12, every: 0.7, kinds: [['imp', 0.62], ['wisp', 1]], anyLight: true, cave: true };
+    if (world.dim === 'heaven') return null;
+    if (world.dim === 'space') return { cap: 5, every: 2.5, kinds: [['drone', 1]], air: true };
+    if (world.type === 'city') {
+      var night = day < 0.45, boost = hooks.hordeBoost ? hooks.hordeBoost() : 0;
+      return { cap: night ? 16 + boost * 2 : 6 + boost, every: night ? 0.35 : 1.4, kinds: [['infected', 0.58], ['runner', 0.84], ['brute', 1]], anyLight: true, street: true };
+    }
+    return { cap: 14, every: 0.5, kinds: [['upyr', 0.45], ['archer', 0.75], ['spider', 1]] };
+  }
+  function pickKind(kinds) {
+    var r = Math.random();
+    for (var i = 0; i < kinds.length; i++) if (r < kinds[i][1]) return kinds[i][0];
+    return kinds[kinds.length - 1][0];
+  }
+
   var spawnT = 0;
   function trySpawnHostile(dt) {
     spawnT -= dt;
     if (spawnT > 0) return;
-    spawnT = 0.5;
+    var R = spawnRules();
+    spawnT = R ? R.every : 2;
     var diff = hooks.difficulty ? hooks.difficulty() : 2;
     var p = hooks.player && hooks.player();
-    if (!diff || !p || p.dead) return;
-    if (hostileCount() >= 14) return;
+    if (!R || !diff || !p || p.dead) return;
+    if (hostileCount() >= R.cap) return;
     for (var attempt = 0; attempt < 3; attempt++) {
       var ang = Math.random() * Math.PI * 2, r = 24 + Math.random() * 20;
-      var x = Math.floor(p.x + Math.cos(ang) * r), z = Math.floor(p.z + Math.sin(ang) * r);
+      var x = Math.floor(p.x + Math.cos(ang) * r), z = Math.floor(p.z + Math.sin(ang) * r), y;
       var c = world.getChunk(x >> 4, z >> 4);
       if (!c || !c.mesh) continue;
+      var kind = pickKind(R.kinds);
+      if (R.air) {
+        // дроны кружат в открытом космосе вокруг станции
+        y = Math.floor(p.y + (Math.random() - 0.3) * 14);
+        if (y < 2 || y > KC.H - 3 || world.getBlock(x, y, z) || world.getBlock(x, y + 1, z) || KC.Gen.inStation(x, y, z)) continue;
+        spawnMob(kind, x + 0.5, y, z + 0.5);
+        return;
+      }
       var top = c.hmap[(x & 15) + (z & 15) * 16];
-      var y = Math.random() < 0.5 ? top : 3 + Math.floor(Math.random() * Math.max(1, top - 6));
+      if (R.cave) y = KC.Gen.HELL_LAVA + 2 + Math.floor(Math.random() * (KC.H - 10 - KC.Gen.HELL_LAVA));
+      else if (R.street && Math.random() < 0.6) y = KC.Gen.CITY_GROUND + 2;
+      else y = Math.random() < 0.5 ? top : 3 + Math.floor(Math.random() * Math.max(1, top - 6));
+      y = Math.min(y, KC.H - 3);
       // ищем пол: твёрдый блок снизу, два блока воздуха сверху
       var ok = false;
       for (var k = 0; k < 8 && y > 1; k++, y--) {
         if (KC.OPAQUE[world.getBlock(x, y - 1, z)] && !world.getBlock(x, y, z) && !world.getBlock(x, y + 1, z)) { ok = true; break; }
       }
       if (!ok) continue;
-      // листва не спасает от солнца только для расчёта теней; днём под кронами чудовища не появляются
-      var sky = (openSky(x, y, z) ? 1 : world.skyAt(x, y, z)) * 15 * (hooks.day ? hooks.day() : 1);
-      if (sky > 6) continue;
-      if (world.blockLightAt(x, y, z) > 6) continue;
-      var roll = Math.random();
-      var kind = roll < 0.45 ? 'upyr' : roll < 0.75 ? 'archer' : 'spider';
+      if (!R.anyLight) {
+        // днём под кронами чудовища не появляются: листва не спасает от солнца
+        var sky = (openSky(x, y, z) ? 1 : world.skyAt(x, y, z)) * 15 * (hooks.day ? hooks.day() : 1);
+        if (sky > 6) continue;
+        if (world.blockLightAt(x, y, z) > 6) continue;
+      }
       if (kind === 'spider' && (world.getBlock(x + 1, y, z) || world.getBlock(x - 1, y, z) || world.getBlock(x, y, z + 1) || world.getBlock(x, y, z - 1))) kind = 'upyr';
+      if (kind === 'brute' && (world.getBlock(x, y + 2, z) || world.getBlock(x + 1, y, z) || world.getBlock(x - 1, y, z))) kind = 'infected';
       spawnMob(kind, x + 0.5, y, z + 0.5);
       return;
     }
@@ -636,8 +840,9 @@
     return true;
   }
 
-  // Животные при первом создании чанка (и восстановление сохранённых при повторной загрузке)
-  function onChunkGenerated(c, hs, bio, G, P) {
+  // Животные при первом создании чанка (и восстановление сохранённых при повторной загрузке).
+  // info есть только у обычного мира: карта высот с запасной зоной G.
+  function onChunkGenerated(c, info) {
     var key = c.cx + ',' + c.cz;
     world.animalChunks = world.animalChunks || {};
     world.storedMobs = world.storedMobs || {};
@@ -647,6 +852,10 @@
       return;
     }
     world.animalChunks[key] = 1;
+    if (world.dim === 'heaven') { heavenHerd(c); return; }
+    if (world.dim === 'space') { stationRobots(c); return; }
+    if (world.dim !== 'over' || !info) return;
+    var hs = info.hs, G = info.G, P = info.P;
     var r = KC.hash2(c.cx, c.cz, world.seed + 99);
     if (r > 0.14) return;
     var kinds = ['pig', 'cow', 'sheep', 'chicken'];
@@ -660,6 +869,40 @@
       if (top !== B.GRASS && top !== B.SNOW_GRASS) continue;
       if (c.blocks[lx + lz * 16 + (h + 1) * 256] && c.blocks[lx + lz * 16 + (h + 1) * 256] !== B.TALL_GRASS) continue;
       spawnMob(kind, c.cx * 16 + lx + 0.5, h + 1, c.cz * 16 + lz + 0.5);
+    }
+  }
+
+  // Небеса: пегасы пасутся на золотой траве, облачники парят над островами
+  function heavenHerd(c) {
+    var r = KC.hash2(c.cx, c.cz, world.seed + 199);
+    if (r > 0.24) return;
+    var kind = r < 0.11 ? 'pegasus' : 'cloudling';
+    var n = (kind === 'pegasus' ? 1 : 2) + Math.floor(KC.hash2(c.cx, c.cz, world.seed + 197) * 2);
+    for (var i = 0; i < n; i++) {
+      var lx = 2 + Math.floor(KC.hash2(c.cx * 7 + i, c.cz, world.seed + 190) * 12);
+      var lz = 2 + Math.floor(KC.hash2(c.cx, c.cz * 7 + i, world.seed + 191) * 12);
+      var h = c.hmap[lx + lz * 16];
+      if (!h || h >= KC.H - 8) continue;
+      var col = lx + lz * 16, top = c.blocks[col + (h - 1) * 256];
+      var y = kind === 'pegasus' ? h : h + 2 + Math.floor(KC.hash2(c.cx + i, c.cz - i, world.seed + 192) * 4);
+      if (kind === 'pegasus' && top !== B.GOLDEN_GRASS) continue;
+      if (kind === 'cloudling' && top === B.CLOUD) continue;
+      if (c.blocks[col + y * 256] || c.blocks[col + (y + 1) * 256]) continue;
+      spawnMob(kind, c.cx * 16 + lx + 0.5, y, c.cz * 16 + lz + 0.5);
+    }
+  }
+
+  // Станция: роботы-уборщики катаются по отсекам
+  function stationRobots(c) {
+    var SY = KC.Gen.STATION_Y;
+    for (var i = 0; i < 2; i++) {
+      if (KC.hash2(c.cx * 3 + i, c.cz, world.seed + 290) > 0.3) continue;
+      var lx = 1 + Math.floor(KC.hash2(c.cx, c.cz * 3 + i, world.seed + 291) * 14);
+      var lz = 1 + Math.floor(KC.hash2(c.cx + i, c.cz, world.seed + 292) * 14);
+      var wx = c.cx * 16 + lx, wz = c.cz * 16 + lz, col = lx + lz * 16;
+      if (!KC.Gen.inStation(wx, SY + 1, wz)) continue;
+      if (!KC.SOLID[c.blocks[col + SY * 256]] || c.blocks[col + (SY + 1) * 256] || c.blocks[col + (SY + 2) * 256]) continue;
+      spawnMob('robot', wx + 0.5, SY + 1, wz + 0.5);
     }
   }
 
@@ -764,6 +1007,23 @@
       if (e.attackAnim > 0) { var a = Math.sin(e.attackAnim / 0.45 * Math.PI) * 1.4; pose.armR[1] += a; pose.armL[1] += a; }
     }
     if (e.kind === 'archer' && e.aiming) { pose.armL = [0.2, 1.45]; pose.armR = [-0.3, 1.35]; pose.bow = [0, 0]; }
+    if (e.kind === 'infected') {
+      // ковыляет, склонив голову набок; одна рука тянется вперёд
+      pose.head = [0.15, 0.2, 0.3];
+      pose.armR = [0, 1.1 + Math.sin(t * 2.3 + e.id) * 0.15, 0.1]; pose.armL = [0, -sw * 0.4, -0.2];
+      if (e.attackAnim > 0) { pose.armR[1] += Math.sin(e.attackAnim / 0.45 * Math.PI) * 0.8; pose.armL = [0, 1.2, -0.1]; }
+    }
+    if (e.kind === 'runner') {
+      var sw2 = Math.sin(e.walk * 1.2) * 1.25 * e.walkAmp;
+      pose.legR = [0, sw2]; pose.legL = [0, -sw2];
+      pose.armR = [0, -sw2 * 1.1, 0.15]; pose.armL = [0, sw2 * 1.1, -0.15];
+      pose.head = [0, -0.25];
+      if (e.attackAnim > 0) { var ra = Math.sin(e.attackAnim / 0.45 * Math.PI) * 1.6; pose.armR[1] += ra; pose.armL[1] += ra; }
+    }
+    if (e.kind === 'brute') {
+      pose.armR = [0, -sw * 0.35, 0.18]; pose.armL = [0, sw * 0.35, -0.18];
+      if (e.attackAnim > 0) { var ba = Math.sin(e.attackAnim / 0.45 * Math.PI) * 2.6; pose.armR = [0, ba, 0.1]; pose.armL = [0, ba, -0.1]; }
+    }
   }
 
   function buildRender(cam, t, playerView) {
@@ -780,12 +1040,45 @@
         var col = [L[0], L[1], L[2]];
         if (e.hurt > 0 || e.deathT > 0) { col[1] *= 0.4; col[2] *= 0.4; col[0] = Math.min(1.2, col[0] * 1.3); }
         if (e.fire > 0) { col[0] = Math.min(1.3, col[0] + 0.3); col[1] *= 0.85; col[2] *= 0.6; }
-        var scale = e.grow > 0 ? 0.55 : 1;
+        var scale = (e.grow > 0 ? 0.55 : 1) * (e.K.scale || 1);
+        var oy = 0;
+        if (e.K.glow) col = [1.25, 1.1, 0.95];
         var roll = e.deathT > 0 ? (1 - e.deathT / 0.8) * Math.PI / 2 : 0;
         var hidden = null;
         var sw = Math.sin(e.walk) * 0.7 * e.walkAmp;
         switch (e.K.model) {
-          case 'upyr': case 'archer': humanPose(e, pose, t); break;
+          case 'upyr': case 'archer': case 'infected': case 'runner': case 'brute': humanPose(e, pose, t); break;
+          case 'imp':
+            pose.legR = [0, sw * 1.2]; pose.legL = [0, -sw * 1.2];
+            pose.armR = [0, -sw, 0.2]; pose.armL = [0, sw, -0.2];
+            pose.tail = [Math.sin(t * 3 + e.id) * 0.5, -0.3];
+            if (e.attackAnim > 0) { var ia = Math.sin(e.attackAnim / 0.45 * Math.PI) * 2; pose.armR[1] += ia; pose.armL[1] += ia; }
+            break;
+          case 'wisp':
+            oy = Math.sin(t * 2.2 + e.id) * 0.1;
+            pose.shell = [t * 1.3, 0, 0]; pose.core = [-t * 2, 0, 0];
+            pose.ember0 = [t * 3.1, 0, 0]; pose.ember1 = [t * 2.6 + 2, 0, 0.3]; pose.ember2 = [-t * 3.4, 0, 0];
+            break;
+          case 'pegasus':
+            pose.legFR = [0, sw]; pose.legBL = [0, sw]; pose.legFL = [0, -sw]; pose.legBR = [0, -sw];
+            var wf = e.onGround ? -0.75 + Math.sin(t * 1.4 + e.id) * 0.08 : -0.25 + Math.sin(t * 9 + e.id) * 0.75;
+            pose.wingR = [0, 0, wf]; pose.wingL = [0, 0, -wf];
+            pose.tail = [Math.sin(t * 1.7 + e.id) * 0.25, -0.45 - e.walkAmp * 0.3];
+            break;
+          case 'cloudling':
+            oy = Math.sin(t * 1.6 + e.id) * 0.12;
+            pose.puffA = [0, 0, Math.sin(t * 2.1 + e.id) * 0.15]; pose.puffB = [0, 0, -Math.sin(t * 2.1 + e.id) * 0.15];
+            pose.puffC = [t * 0.5, 0, 0];
+            break;
+          case 'drone':
+            oy = Math.sin(t * 3 + e.id) * 0.06;
+            for (var ri = 0; ri < 4; ri++) pose['rotor' + ri] = [t * 40 + ri, 0, 0];
+            pose.body = [0, Math.max(-0.4, Math.min(0.4, -(e.headPitch || 0) * 0.5)), 0];
+            break;
+          case 'robot':
+            pose.wheelR = pose.wheelL = pose.wheelR2 = pose.wheelL2 = [0, e.walk * 2, 0];
+            pose.antenna = [0, Math.sin(t * 5 + e.id) * 0.15 * (0.3 + e.walkAmp), 0];
+            break;
           case 'spider':
             for (var li = 0; li < 4; li++) {
               var ph = Math.sin(e.walk * 1.3 + li * 1.6) * 0.35 * (e.walkAmp + 0.1);
@@ -805,7 +1098,7 @@
             pose.head = [e.headYaw || 0, e.kind === 'sheep' && e.walkAmp < 0.1 ? Math.sin(t * 0.6 + e.id) * 0.3 - 0.2 : 0];
         }
         if (e.kind === 'sheep') hidden = e.sheared ? { wool: true } : { skin: true };
-        M.drawModel(mobBatch, e.K.model, [e.x, e.y, e.z], e.yaw, scale, pose, hidden, col, roll);
+        M.drawModel(mobBatch, e.K.model, [e.x, e.y + oy, e.z], e.yaw, scale, pose, hidden, col, roll);
       } else if (e.type === 'item') {
         if (e.age % 1 < 0.02 || !e.light) e.light = lightAt(e.x, e.y + 0.3, e.z);
         var bob = Math.sin(e.age * 2.5 + e.spin) * 0.07 + 0.2;
@@ -816,8 +1109,11 @@
           if (it && it.sprite === undefined && it.block !== undefined) M.drawBlockCube(itemBatch, it.block, 0, e.x + ox, e.y + bob + oy, e.z + ox, 0.26, e.age * 1.4 + e.spin, L);
           else if (it) M.drawSprite(itemBatch, it.sprite, e.x + ox, e.y + bob + 0.05 + oy, e.z, 0.42, e.age * 1.4 + e.spin, L);
         }
+      } else if (e.type === 'arrow' && e.proj === 'fireball') {
+        var fs = 0.55 + Math.sin(e.age * 20) * 0.05;
+        M.drawSprite(itemBatch, KC.TILE.fireball, e.x, e.y, e.z, fs, Math.atan2(cam.x - e.x, cam.z - e.z), [1.4, 1.25, 1.1]);
       } else if (e.type === 'arrow') {
-        drawArrow(e, L);
+        drawArrow(e, e.proj === 'laser' ? [1.5, 1.5, 1.5] : L);
       } else if (e.type === 'tnt') {
         var fl = Math.floor(e.fuse * 5) % 2 === 0 ? 1.8 : 1;
         M.drawBlockCube(itemBatch, B.TNT, 0, e.x, e.y + 0.49, e.z, 0.98 * (1 + (e.fuse < 0.4 ? (0.4 - e.fuse) * 0.3 : 0)), 0, [L[0] * fl, L[1] * fl, L[2] * fl]);
@@ -830,7 +1126,7 @@
   }
 
   function drawArrow(e, L) {
-    var d = e.dir || [1, 0, 0], uv = KC.tileUV(KC.TILE.arrow), s = 0.36;
+    var d = e.dir || [1, 0, 0], uv = KC.tileUV(e.proj === 'laser' ? KC.TILE.laserBolt : KC.TILE.arrow), s = e.proj === 'laser' ? 0.5 : 0.36;
     var up = Math.abs(d[1]) > 0.9 ? [1, 0, 0] : [0, 1, 0];
     var s1 = norm(cross(d, up)), s2 = norm(cross(d, s1));
     [s1, s2].forEach(function (sd) {
@@ -843,7 +1139,7 @@
       itemBatch.v(l[0], l[1], l[2], uv[0], uv[1], L[0], L[1], L[2]);
       itemBatch.quads++;
     });
-    if (e.stuck || e.age % 0.5 < 0.02) e.light = lightAt(e.x, e.y, e.z);
+    if (!e.proj && (e.stuck || e.age % 0.5 < 0.02)) e.light = lightAt(e.x, e.y, e.z);
   }
   function cross(a, b) { return [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]]; }
   function norm(v) { var l = Math.hypot(v[0], v[1], v[2]) || 1; return [v[0] / l, v[1] / l, v[2] / l]; }
@@ -877,7 +1173,7 @@
     init: init, update: update, list: list, KINDS: KINDS,
     physics: physics, move: move, boxHits: boxHits, senseLiquids: senseLiquids, lightAt: lightAt,
     dropItem: dropItem, dropDrops: dropDrops, spawnMob: spawnMob, damageMob: damageMob,
-    shootArrow: shootArrow, launchArrow: launchArrow, spawnTnt: spawnTnt, spawnFalling: spawnFalling,
+    shootArrow: shootArrow, launchArrow: launchArrow, shootBolt: shootBolt, gravityAt: gravityAt, alertHorde: alertHorde, spawnTnt: spawnTnt, spawnFalling: spawnFalling,
     raycast: raycast, buildRender: buildRender, onChunkUnload: onChunkUnload,
     serialize: serialize, restore: restore, Ent: Ent, plateCheck: plateCheck
   };

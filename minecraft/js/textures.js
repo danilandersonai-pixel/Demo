@@ -5,7 +5,7 @@
   'use strict';
 
   var TILE = {}, PAINTERS = [];
-  var ATLAS = 256, TS = 16;
+  var ATLAS = 256, ATLAS_H = 512, TS = 16;   // 16 колонок × 32 ряда плиток
 
   function tile(name, fn) { TILE[name] = PAINTERS.length; PAINTERS.push(fn); }
 
@@ -763,12 +763,309 @@
     { a: [70, 70, 72], b: [150, 150, 152], c: [110, 110, 112] });
   });
 
+
+  // =================================================================================
+  // Пекло
+  // =================================================================================
+  function ash(base, dark) {
+    for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) {
+      var r = rnd();
+      px(x, y, r < 0.12 ? dark : r < 0.2 ? mul(base, 1.18) : jit(base, 0.16));
+    }
+  }
+  tile('ashstone', function () {
+    ash([92, 58, 54], [60, 34, 32]);
+    for (var i = 0; i < 5; i++) { var sx = Math.floor(rnd() * 14), sy = Math.floor(rnd() * 16); px(sx, sy, [128, 72, 60]); px(sx + 1, sy, [118, 66, 56]); }
+  });
+  tile('ashBrick', function () {
+    for (var y = 0; y < 16; y++) {
+      var row = Math.floor(y / 4);
+      for (var x = 0; x < 16; x++) {
+        var mortar = y % 4 === 3 || (x + (row % 2) * 4) % 8 === 7;
+        px(x, y, mortar ? jit([40, 22, 22], 0.1) : jit([108, 52, 46], 0.14));
+      }
+    }
+  });
+  tile('magma', function () {
+    for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) {
+      var crack = (Math.abs(Math.sin(x * 1.3 + y * 0.7)) < 0.18) || (Math.abs(Math.sin(x * 0.4 - y * 1.1)) < 0.12);
+      px(x, y, crack ? pick([[255, 170, 50], [240, 110, 30]]) : jit([70, 26, 18], 0.25));
+    }
+  });
+  tile('sulfurOre', function () {
+    ash([92, 58, 54], [60, 34, 32]);
+    for (var k = 0; k < 5; k++) {
+      var cx = 2 + rnd() * 12, cy = 2 + rnd() * 12;
+      for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) if ((x - cx) * (x - cx) + (y - cy) * (y - cy) < 2 && rnd() < 0.8) px(x, y, rnd() < 0.4 ? [255, 236, 90] : [214, 190, 40]);
+    }
+  });
+  tile('bloodOre', function () {
+    ash([92, 58, 54], [60, 34, 32]);
+    for (var k = 0; k < 3; k++) {
+      var cx = 3 + rnd() * 10, cy = 3 + rnd() * 10;
+      for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) {
+        var d = Math.abs(x - cx) + Math.abs(y - cy);
+        if (d < 2.5) px(x, y, d < 1 ? [255, 120, 140] : [190, 20, 50]);
+      }
+    }
+  });
+  tile('glowroot', function () {
+    clear();
+    [3, 7, 11].forEach(function (sx, n) {
+      var len = 9 + n * 2;
+      for (var y = 0; y < len; y++) px(sx + (y % 5 === 4 ? 1 : 0), y, jit([150, 70, 40], 0.1));
+      px(sx, len, [255, 210, 110]); px(sx + 1, len, [255, 180, 80]); px(sx, len + 1, [255, 236, 170]);
+    });
+  });
+  tile('fireflower', function () { flower([255, 110, 30], [220, 50, 20], [255, 230, 120]); for (var y = 8; y < 16; y++) px(7, y, [90, 40, 30]); });
+  tile('ashBlock', function () { ash([120, 112, 110], [86, 80, 80]); });
+  function gate(c1, c2, c3) {
+    for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) {
+      var dx = x - 7.5, dy = y - 7.5, a = Math.atan2(dy, dx), r = Math.sqrt(dx * dx + dy * dy);
+      var swirl = Math.sin(a * 3 + r * 0.9);
+      px(x, y, swirl > 0.4 ? c1 : swirl > -0.3 ? c2 : c3, 235);
+    }
+  }
+  tile('hellGate', function () { gate([255, 200, 90], [230, 80, 30], [130, 20, 20]); });
+
+  // =================================================================================
+  // Небеса
+  // =================================================================================
+  tile('cloud', function () {
+    for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) {
+      var r = Math.sin(x * 0.9) * Math.cos(y * 0.8);
+      px(x, y, jit(r > 0.3 ? [255, 255, 255] : [236, 240, 250], 0.03));
+    }
+  });
+  tile('skystone', function () {
+    for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) px(x, y, jit([236, 232, 222], 0.05));
+    var vx = 2 + rnd() * 4;
+    for (y = 0; y < 16; y++) { vx += (rnd() - 0.5) * 1.6; px(Math.floor(vx), y, [200, 186, 150]); px(Math.floor(vx) + 1, y, [220, 206, 170]); }
+  });
+  tile('goldenGrassTop', function () {
+    for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) {
+      var r = rnd();
+      px(x, y, r < 0.12 ? [250, 236, 140] : r < 0.24 ? [170, 170, 70] : jit([214, 206, 100], 0.15));
+    }
+  });
+  function lightSoil() { for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) px(x, y, jit(rnd() < 0.12 ? [200, 180, 150] : [226, 208, 176], 0.08)); }
+  tile('goldenGrassSide', function () {
+    lightSoil();
+    for (var x = 0; x < 16; x++) { var d = 3 + (rnd() < 0.5 ? 1 : 0); for (var y = 0; y < d; y++) px(x, y, jit([214, 206, 100], 0.12)); }
+  });
+  tile('lightSoil', lightSoil);
+  tile('skyLogSide', function () {
+    for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) px(x, y, jit(x % 5 === 2 ? [226, 196, 120] : [246, 238, 222], 0.06));
+  });
+  tile('skyLogTop', function () { rings([250, 236, 200], [232, 212, 170], [246, 238, 222]); });
+  tile('blossom', function () {
+    for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) {
+      if (rnd() < 0.14) { px(x, y, [0, 0, 0], 0); continue; }
+      var r = rnd();
+      px(x, y, r < 0.2 ? [255, 250, 252] : r < 0.45 ? [250, 190, 214] : jit([242, 160, 196], 0.12));
+    }
+  });
+  tile('skyCrystal', function () {
+    for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) px(x, y, jit([236, 232, 222], 0.05));
+    [[4, 12, 5], [9, 13, 7], [12, 11, 4]].forEach(function (c) {
+      for (var h = 0; h < c[2]; h++) { px(c[0], c[1] - h, [160, 230, 255]); px(c[0] + 1, c[1] - h, h === c[2] - 1 ? [255, 255, 255] : [110, 200, 250]); }
+    });
+  });
+  tile('haloFlower', function () { flower([255, 250, 200], [240, 210, 110], [255, 255, 255]); });
+  tile('heavenGate', function () { gate([255, 255, 255], [250, 226, 140], [150, 200, 255]); });
+
+  // =================================================================================
+  // Космическая станция
+  // =================================================================================
+  function plates(base, line) {
+    for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) {
+      var seam = x === 0 || y === 0 || x === 8 || y === 8;
+      px(x, y, jit(seam ? line : base, 0.04));
+    }
+    [[2, 2], [13, 2], [2, 13], [13, 13], [10, 5], [5, 10]].forEach(function (p) { px(p[0], p[1], mul(base, 0.75)); });
+  }
+  tile('hull', function () { plates([196, 200, 206], [150, 154, 160]); });
+  tile('hullDark', function () { plates([90, 96, 106], [60, 64, 72]); });
+  tile('grate', function () {
+    for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) px(x, y, (x % 4 === 0 || y % 4 === 0) ? jit([150, 156, 164], 0.05) : [40, 44, 50]);
+  });
+  tile('lightPanel', function () {
+    for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) {
+      var edge = x <= 1 || y <= 1 || x >= 14 || y >= 14;
+      px(x, y, edge ? [170, 176, 184] : jit([236, 250, 255], 0.02));
+    }
+  });
+  tile('solar', function () {
+    for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) {
+      var line = x % 4 === 0 || y % 8 === 0;
+      px(x, y, line ? [180, 186, 196] : jit((x + y) % 7 === 0 ? [60, 90, 170] : [30, 50, 120], 0.08));
+    }
+  });
+  tile('consoleSide', function () { plates([120, 126, 136], [90, 96, 104]); });
+  tile('consoleFront', function () {
+    plates([120, 126, 136], [90, 96, 104]);
+    rect(2, 2, 13, 8, [14, 24, 30]);
+    for (var i = 0; i < 6; i++) rect(3, 3 + i, 3 + Math.floor(rnd() * 9), 3 + i, [60, 220, 160]);
+    [[3, 11, [230, 60, 50]], [6, 11, [240, 200, 40]], [9, 11, [60, 200, 90]], [12, 11, [60, 140, 240]]].forEach(function (b) { rect(b[0], b[1], b[0] + 1, b[1] + 1, b[2]); });
+  });
+  tile('teleporterTop', function () {
+    for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) {
+      var d = Math.max(Math.abs(x - 7.5), Math.abs(y - 7.5));
+      px(x, y, d > 6.5 ? [150, 156, 164] : Math.floor(d) % 2 ? [80, 230, 255] : [30, 90, 140]);
+    }
+  });
+  tile('teleporterSide', function () { plates([150, 156, 164], [110, 116, 124]); rect(0, 4, 15, 5, [80, 230, 255]); });
+  tile('asteroid', function () {
+    for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) px(x, y, jit(pick([[92, 86, 84], [70, 66, 66], [110, 102, 96]]), 0.1));
+    for (var i = 0; i < 3; i++) { var cx = 2 + Math.floor(rnd() * 12), cy = 2 + Math.floor(rnd() * 12); px(cx, cy, [50, 46, 46]); px(cx + 1, cy, [130, 124, 118]); }
+  });
+  tile('meteorOre', function () {
+    for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) px(x, y, jit(pick([[92, 86, 84], [70, 66, 66], [110, 102, 96]]), 0.1));
+    for (var k = 0; k < 4; k++) {
+      var cx = 2 + rnd() * 12, cy = 2 + rnd() * 12;
+      for (y = 0; y < 16; y++) for (x = 0; x < 16; x++) if ((x - cx) * (x - cx) + (y - cy) * (y - cy) < 2.2) px(x, y, rnd() < 0.5 ? [120, 200, 220] : [180, 230, 240]);
+    }
+  });
+  tile('tintedGlass', function () {
+    // тонировка «сеточкой»: сквозь окно видно, а издали оно голубоватое
+    for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) {
+      var edge = x === 0 || y === 0 || x === 15 || y === 15;
+      if (edge) px(x, y, [120, 140, 160]);
+      else if ((x + y) % 2 === 0 && (x % 4 < 2)) px(x, y, [70, 120, 160]);
+      else px(x, y, [0, 0, 0], 0);
+    }
+    [[3, 6], [4, 5], [5, 4]].forEach(function (p) { px(p[0], p[1], [190, 225, 245], 220); });
+  });
+
+  // =================================================================================
+  // Город
+  // =================================================================================
+  function asphalt() { for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) px(x, y, jit(rnd() < 0.15 ? [70, 70, 74] : [48, 48, 52], 0.1)); }
+  tile('asphalt', asphalt);
+  tile('roadLineX', function () { asphalt(); for (var x = 2; x < 12; x++) { px(x, 7, [236, 206, 60]); px(x, 8, [236, 206, 60]); } });
+  tile('roadLineZ', function () { asphalt(); for (var y = 2; y < 12; y++) { px(7, y, [236, 206, 60]); px(8, y, [236, 206, 60]); } });
+  tile('crosswalk', function () { asphalt(); for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) if (x % 6 < 3) px(x, y, jit([226, 226, 222], 0.04)); });
+  tile('sidewalk', function () {
+    for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) px(x, y, (x % 8 === 7 || y % 8 === 7) ? jit([120, 120, 118], 0.05) : jit([168, 166, 160], 0.06));
+  });
+  tile('concrete', function () { for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) px(x, y, jit(rnd() < 0.06 ? [130, 130, 128] : [164, 162, 158], 0.05)); });
+  tile('concreteDark', function () { for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) px(x, y, jit(rnd() < 0.06 ? [66, 70, 76] : [88, 92, 98], 0.05)); });
+  tile('tileFloor', function () {
+    for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) px(x, y, (x % 8 === 0 || y % 8 === 0) ? [150, 150, 146] : ((Math.floor(x / 8) + Math.floor(y / 8)) % 2 ? jit([220, 218, 210], 0.03) : jit([200, 198, 190], 0.03)));
+  });
+  tile('ceilingLamp', function () {
+    for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) {
+      var tube = (y >= 3 && y <= 5) || (y >= 10 && y <= 12);
+      px(x, y, tube && x > 1 && x < 14 ? [255, 252, 236] : jit([190, 190, 186], 0.04));
+    }
+  });
+  tile('pole', function () { for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) px(x, y, jit(x % 4 === 1 ? [90, 96, 100] : [60, 66, 70], 0.06)); });
+  tile('streetLamp', function () {
+    for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) {
+      var edge = x <= 1 || x >= 14 || y <= 1 || y >= 14;
+      px(x, y, edge ? [60, 66, 70] : jit([255, 236, 170], 0.04));
+    }
+  });
+  function carBody(c) {
+    for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) {
+      var line = y === 5 || y === 12;
+      px(x, y, line ? mul(c, 0.6) : jit(mul(c, y < 5 ? 1.12 : 1), 0.05));
+    }
+    rect(12, 7, 14, 8, [230, 230, 230]);
+  }
+  tile('carRed', function () { carBody([190, 36, 34]); });
+  tile('carBlue', function () { carBody([40, 80, 170]); });
+  tile('carWhite', function () { carBody([226, 228, 230]); });
+  tile('tire', function () {
+    for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) {
+      var d = Math.max(Math.abs(x - 7.5), Math.abs(y - 7.5));
+      px(x, y, d < 3 ? [150, 150, 156] : d < 6.5 ? jit([28, 28, 30], 0.2) : [44, 44, 46]);
+    }
+  });
+  tile('rubble', function () {
+    for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) px(x, y, jit(pick([[140, 138, 132], [110, 108, 104], [164, 162, 158], [96, 70, 50]]), 0.1));
+  });
+  tile('crate', function () {
+    planks([164, 120, 68]);
+    for (var i = 0; i < 16; i++) { px(i, 0, [96, 66, 36]); px(i, 15, [96, 66, 36]); px(0, i, [96, 66, 36]); px(15, i, [96, 66, 36]); px(i, i, [120, 84, 46]); }
+  });
+
+  // ---- Новые предметы ----------------------------------------------------------------
+  tile('sulfur', function () { sprite(DUST, { a: [150, 120, 20], b: [230, 200, 40], c: [255, 240, 120] }); });
+  tile('bloodCrystal', function () {
+    sprite(['................', '................', '................', '.....aaaaaa.....', '....acccccca....', '...acbcccbcca...',
+      '..acbbbcccbbca..', '..abbbbbbbbbba..', '...abbbbbbbba...', '....abbbbbba....', '.....abbbba.....', '......abba......', '.......aa.......'],
+    { a: [100, 10, 30], b: [200, 30, 60], c: [255, 150, 170] });
+  });
+  tile('skyShard', function () {
+    sprite(['................', '.......a........', '......aba.......', '......aba.......', '.....abcba......', '.....abcba......', '....abccba......',
+      '....abccbba.....', '...abcccbba.....', '....abccba......', '.....abba.......', '......aa........'],
+    { a: [90, 170, 220], b: [170, 230, 255], c: [255, 255, 255] });
+  });
+  tile('meteorIron', function () { sprite(INGOT, { a: [60, 110, 130], b: [120, 200, 220], c: [200, 245, 255] }); });
+  tile('spaceRation', function () {
+    sprite(['................', '................', '................', '....aaaaaaaa....', '...abbbbbbbba...', '...abccccccba...', '...abcddddcba...',
+      '...abccccccba...', '...abcddddcba...', '...abccccccba...', '...abbbbbbbba...', '....aaaaaaaa....'],
+    { a: [120, 126, 136], b: [210, 214, 220], c: [240, 240, 244], d: [60, 140, 200] });
+  });
+  tile('cannedFood', function () {
+    sprite(['................', '................', '.....aaaaaa.....', '....abbbbbba....', '....acccccca....', '....adddddda....', '....adeeeeda....',
+      '....adeeeeda....', '....adddddda....', '....acccccca....', '....abbbbbba....', '.....aaaaaa.....'],
+    { a: [80, 84, 90], b: [200, 204, 210], c: [150, 154, 160], d: [190, 40, 40], e: [240, 220, 150] });
+  });
+  tile('medkit', function () {
+    sprite(['................', '................', '......aaaa......', '......a..a......', '..aaaaaaaaaaaa..', '..abbbbbbbbbba..', '..abbbbccbbbba..',
+      '..abbbccccbba...', '..abbbbccbbbba..', '..abbbbbbbbbba..', '..aaaaaaaaaaaa..'],
+    { a: [120, 120, 124], b: [240, 240, 236], c: [210, 30, 30] });
+  });
+  tile('pistol', function () {
+    sprite(['................', '................', '................', '................', '..aaaaaaaaaaa...', '..abbbbbbbbba...', '..aaaaaaaaaaa...',
+      '.......acca.....', '.......acca.....', '......acca......', '......acca......', '.....aaaa.......'],
+    { a: [30, 30, 34], b: [80, 84, 90], c: [100, 70, 44] });
+  });
+  tile('ammo', function () {
+    sprite(['................', '................', '................', '...a...a...a....', '..aba.aba.aba...', '..aba.aba.aba...', '..cdc.cdc.cdc...',
+      '..cdc.cdc.cdc...', '..cdc.cdc.cdc...', '..ccc.ccc.ccc...'],
+    { a: [150, 100, 40], b: [210, 150, 70], c: [180, 140, 40], d: [230, 200, 90] });
+  });
+  var DIAG = ['................', '............aa..', '...........abba.', '..........abba..', '.........abba...', '........abba....', '.......abba.....',
+    '......abba......', '.....abba.......', '....cab.........', '...ccc..........', '..cc............', '.cc.............'];
+  tile('bat', function () { sprite(['................', '.............aa.', '............abba', '...........abbba', '..........abbba.', '.........abbba..', '........abbba...',
+    '.......abbba....', '......abba......', '.....aba........', '....aba.........', '...ccc..........', '..cc............', '.cc.............'],
+  { a: [110, 76, 40], b: [176, 130, 76], c: [50, 50, 60] }); });
+  tile('machete', function () { sprite(DIAG, { a: [120, 124, 130], b: [220, 224, 230], c: [40, 40, 44] }); });
+  tile('hellBlade', function () { sprite(DIAG, { a: [120, 10, 30], b: [230, 60, 70], c: [60, 30, 30] }); });
+  tile('spaceHelmet', function () {
+    sprite(['................', '................', '....aaaaaaaa....', '...abbbbbbbba...', '..abbccccccbba..', '..abccddddccba..', '..abcddddddcba..',
+      '..abcddddddcba..', '..abccddddccba..', '..abbccccccbba..', '...abbbbbbbba...', '...aaaaaaaaaa...'],
+    { a: [120, 126, 136], b: [236, 238, 242], c: [180, 186, 196], d: [60, 120, 180] });
+  });
+  tile('laserCutter', function () {
+    sprite(['................', '................', '..........dd....', '.........dcd....', '........acca....', '.......abbba....', '......abbba.....',
+      '.....abbba......', '....abbba.......', '...eaaba........', '..eee...........', '.ee.............'],
+    { a: [90, 96, 106], b: [180, 186, 196], c: [120, 220, 255], d: [255, 60, 60], e: [50, 50, 56] });
+  });
+  tile('fireball', function () {
+    clear();
+    for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) {
+      var d = Math.hypot(x - 7.5, y - 7.5);
+      if (d < 7) px(x, y, d < 3 ? [255, 250, 200] : d < 5 ? [255, 190, 60] : [230, 80, 20]);
+    }
+  });
+  tile('laserBolt', function () {
+    clear();
+    for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) {
+      var d = Math.abs(x + y - 15);   // по диагонали, как у стрелы: от хвоста к острию
+      if (d <= 1) px(x, y, d === 0 ? [255, 255, 255] : [255, 70, 80]);
+    }
+  });
+
   // ---- Сборка атласа ---------------------------------------------------------------
   function makeAtlas() {
     var cv = document.createElement('canvas');
-    cv.width = ATLAS; cv.height = ATLAS;
+    cv.width = ATLAS; cv.height = ATLAS_H;
     var ctx = cv.getContext('2d');
-    var img = ctx.createImageData(ATLAS, ATLAS);
+    var img = ctx.createImageData(ATLAS, ATLAS_H);
     d = img.data;
     for (var i = 0; i < PAINTERS.length; i++) {
       cur = i;
@@ -781,8 +1078,8 @@
   }
 
   function tileUV(t) {
-    var tx = t % 16, ty = Math.floor(t / 16), e = 0.02 / ATLAS;
-    return [tx * TS / ATLAS + e, ty * TS / ATLAS + e, (tx + 1) * TS / ATLAS - e, (ty + 1) * TS / ATLAS - e];
+    var tx = t % 16, ty = Math.floor(t / 16), e = 0.02 / ATLAS, eh = 0.02 / ATLAS_H;
+    return [tx * TS / ATLAS + e, ty * TS / ATLAS_H + eh, (tx + 1) * TS / ATLAS - e, (ty + 1) * TS / ATLAS_H - eh];
   }
 
   // ---- Иконки HUD (9×9) ---------------------------------------------------------
@@ -869,6 +1166,8 @@
 
   KC.TILE = TILE;
   KC.ATLAS_SIZE = ATLAS;
+  KC.ATLAS_W = ATLAS;
+  KC.ATLAS_H = ATLAS_H;
   KC.makeAtlas = makeAtlas;
   KC.tileUV = tileUV;
   KC.makeIcon = makeIcon;

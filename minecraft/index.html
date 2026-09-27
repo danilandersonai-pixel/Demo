@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 <title>Кубокрафт</title>
-<meta name="description" content="Бесконечный мир из кубиков в браузере: выживание и творчество, крафт, мобы, механизмы. Воксельная песочница на чистом WebGL.">
+<meta name="description" content="Бесконечный мир из кубиков в браузере: выживание, творчество и зомби-апокалипсис, Пекло, Небеса и космическая станция, крафт, мобы, механизмы. Воксельная песочница на чистом WebGL.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600;700&family=Press+Start+2P&display=swap">
@@ -19,11 +19,15 @@
   <div class="crosshair" aria-hidden="true"></div>
   <div id="water-tint" hidden></div>
   <div id="fire-tint" hidden></div>
+  <div id="portal-tint" aria-hidden="true"></div>
+  <div id="fade" aria-hidden="true"></div>
   <div id="vignette" aria-hidden="true"></div>
   <div id="sleep" aria-hidden="true"></div>
   <pre id="debug" hidden></pre>
   <p id="hint" hidden></p>
   <p id="toast" aria-live="polite"></p>
+  <p id="dim-label" aria-live="polite"></p>
+  <p id="zday" hidden></p>
   <div id="bars" aria-label="Здоровье и сытость">
     <div id="armor-row" class="icons" hidden></div>
     <div class="bars-row">
@@ -95,7 +99,9 @@
         <legend class="set-name">Режим</legend>
         <label><input type="radio" name="nw-mode" value="survival" checked> <span>Выживание</span></label>
         <label><input type="radio" name="nw-mode" value="creative"> <span>Творчество</span></label>
+        <label><input type="radio" name="nw-mode" value="zombie"> <span>Зомби-апокалипсис</span></label>
       </fieldset>
+      <p class="nw-note" id="nw-note" hidden>Бесконечный мегаполис, где бродят заражённые. Днём их мало, ночью — толпы. Ищите припасы в домах и продержитесь 7 ночей до эвакуации.</p>
       <label class="set-row" for="nw-diff">
         <span class="set-name">Сложность</span>
         <select id="nw-diff">
@@ -234,6 +240,18 @@
   </div>
 </section>
 
+<!-- Победа в режиме зомби-апокалипсиса -->
+<section id="victory" class="screen screen--victory" aria-labelledby="victory-h" hidden>
+  <div class="death-box">
+    <h2 id="victory-h" class="victory-h">Эвакуация!</h2>
+    <p id="victory-text" class="death-cause"></p>
+    <div class="title-actions">
+      <button type="button" class="btn btn--primary" id="btn-victory-go">Остаться в городе</button>
+      <button type="button" class="btn" id="btn-victory-title">В главное меню</button>
+    </div>
+  </div>
+</section>
+
 <div id="fatal" class="screen screen--center" hidden>
   <div class="sheet">
     <h2 class="sheet-h">Не получилось запустить</h2>
@@ -245,6 +263,7 @@
 <script src="js/textures.js"></script>
 <script src="js/registry.js"></script>
 <script src="js/world.js"></script>
+<script src="js/dims.js"></script>
 <script src="js/renderer.js"></script>
 <script src="js/models.js"></script>
 <script src="js/entities.js"></script>

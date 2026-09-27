@@ -4,7 +4,7 @@
 (function (KC) {
   'use strict';
 
-  var ATLAS = 256;
+  var ATLAS = 512;
   var cv, ctx, img, data;
   var shelfX = 0, shelfY = 0, shelfH = 0;
   var rnd = KC.mulberry32(777);
@@ -22,7 +22,7 @@
   function put(r, x, y, c) {
     if (x < 0 || y < 0 || x >= r.w || y >= r.h) return;
     var i = ((r.y + y) * ATLAS + r.x + x) * 4;
-    data[i] = clamp255(c[0]); data[i + 1] = clamp255(c[1]); data[i + 2] = clamp255(c[2]); data[i + 3] = 255;
+    data[i] = clamp255(c[0]); data[i + 1] = clamp255(c[1]); data[i + 2] = clamp255(c[2]); data[i + 3] = c[3] === 0 ? 0 : 255;
   }
 
   // Грань коробки: w×h пикселей; paint(face, x, y, w, h) → цвет или null (базовый)
@@ -34,6 +34,7 @@
       var r = alloc(dims[f][0], dims[f][1]);
       for (var y = 0; y < r.h; y++) for (var x = 0; x < r.w; x++) {
         var c = painter ? painter(FACE_NAMES[f], x, y, r.w, r.h) : null;
+        if (c && c[3] === 0) { put(r, x, y, c); continue; }
         put(r, x, y, c ? jit(c, noise * 0.5) : jit(base, noise));
       }
       faces.push(r);
@@ -261,6 +262,148 @@
       spider.push(part('legL' + li, [14, 2, 2], [3, 9, lz], [0, -1, -1], [40, 42, 28], 0.1));
     }
     MODELS.spider = { parts: spider };
+
+    // ---- Заражённые (режим зомби-апокалипсиса) ----------------------------------
+    var SICK = [186, 176, 138], SHIRT = [228, 224, 212], STAIN = [118, 40, 30];
+    function sickFace(f, x, y) {
+      if (f === 'top' || ((f === 'back' || f === 'left' || f === 'right') && y <= 2)) return (x * 3 + y) % 4 === 0 ? [40, 32, 26] : [60, 48, 36];
+      if (f === 'front') {
+        if (y <= 1) return [60, 48, 36];
+        if (y === 3 && (x === 1 || x === 2 || x === 5 || x === 6)) return x === 2 || x === 5 ? [160, 20, 20] : [90, 70, 60];
+        if (y === 4 && (x === 1 || x === 6)) return [120, 96, 80];
+        if (y === 6 && x >= 2 && x <= 5) return x % 2 ? [40, 20, 20] : [200, 190, 160];
+      }
+      return null;
+    }
+    MODELS.infected = { parts: humanoid({
+      head: SICK, headNoise: 0.12, headPaint: sickFace,
+      body: SHIRT,
+      bodyPaint: function (f, x, y) {
+        if (f === 'front' && (x === 3 || x === 4) && y >= 1 && y <= 7) return [70, 34, 80];            // галстук
+        if ((x * 5 + y * 3) % 13 === 0 || (f === 'front' && y > 8 && x < 3)) return STAIN;
+        if (y >= 11 && x % 3 === 0) return [0, 0, 0, 0];                                             // рваный низ
+        return null;
+      },
+      arm: SICK, armPaint: function (f, x, y) { return y <= 3 ? SHIRT : (y === 4 && x % 2 ? STAIN : null); },
+      leg: [54, 54, 60], legPaint: function (f, x, y, w, h) { return y >= h - 2 ? (x % 2 ? [40, 34, 30] : SICK) : null; }
+    }) };
+    var HOOD = [214, 110, 40];
+    MODELS.runner = { parts: humanoid({
+      head: [176, 168, 136], headNoise: 0.12,
+      headPaint: function (f, x, y, w) {
+        if (f === 'top' || f === 'back') return HOOD;
+        if ((f === 'left' || f === 'right') && (y <= 5 || x >= 4)) return HOOD;
+        if (f === 'front' && (y === 0 || x === 0 || x === w - 1)) return HOOD;
+        return sickFace(f, x, y);
+      },
+      body: HOOD, bodyPaint: function (f, x, y) { if (f === 'front' && y >= 6 && y <= 8 && x >= 2 && x <= 5) return [180, 90, 30]; if ((x + y * 7) % 11 === 0) return STAIN; return null; },
+      arm: HOOD, armW: 3, armPaint: function (f, x, y, w, h) { return y >= h - 2 ? [176, 168, 136] : null; },
+      leg: [110, 110, 118], legW: 3, legPaint: function (f, x, y, w, h) { return y >= h - 2 ? [230, 230, 230] : null; }
+    }) };
+    var VEST = [242, 120, 30];
+    MODELS.brute = { parts: humanoid({
+      head: [170, 160, 126], headNoise: 0.1,
+      headPaint: function (f, x, y) {
+        if (f === 'top' || y <= 1) return [238, 190, 40];                                          // каска
+        if (f === 'front' && y === 2) return [210, 160, 30];
+        if (f === 'front' && y === 5 && x >= 1 && x <= 3) return x % 2 ? [60, 30, 30] : [200, 170, 150];   // шов
+        return sickFace(f, x, y);
+      },
+      body: VEST, bodyPaint: function (f, x, y) { if (y === 5 || y === 9) return [226, 226, 214]; if (f === 'front' && (x === 3 || x === 4)) return [60, 60, 70]; return null; },
+      arm: [170, 160, 126], armW: 5, armPaint: function (f, x, y) { return y <= 2 ? [60, 60, 70] : null; },
+      leg: [84, 72, 56], legW: 4, legPaint: function (f, x, y, w, h) { return y >= h - 3 ? [50, 40, 30] : null; }
+    }) };
+
+    // ---- Пекло: бес и огненный дух ---------------------------------------------------
+    var IMP = [152, 52, 36];
+    MODELS.imp = { parts: [
+      part('head', [7, 7, 7], [0, 16, 0], [-3.5, 0, -3.5], IMP, 0.1, function (f, x, y) {
+        if (f === 'front' && y === 3 && (x === 1 || x === 5)) return [255, 220, 60];
+        if (f === 'front' && y === 5 && x >= 2 && x <= 4) return x === 3 ? [255, 240, 220] : [40, 10, 10];
+        return null;
+      }),
+      part('hornR', [1, 3, 1], [-3, 23, -1], [-0.5, 0, -0.5], [230, 220, 190], 0.05),
+      part('hornL', [1, 3, 1], [3, 23, -1], [-0.5, 0, -0.5], [230, 220, 190], 0.05),
+      part('body', [6, 8, 4], [0, 8, 0], [-3, 0, -2], [130, 40, 30], 0.1),
+      part('armR', [2, 8, 2], [-4, 15, 0], [-1, -7, -1], IMP, 0.1),
+      part('armL', [2, 8, 2], [4, 15, 0], [-1, -7, -1], IMP, 0.1),
+      part('legR', [3, 8, 3], [-1.5, 8, 0], [-1.5, -8, -1.5], [70, 30, 24], 0.1),
+      part('legL', [3, 8, 3], [1.5, 8, 0], [-1.5, -8, -1.5], [70, 30, 24], 0.1),
+      part('tail', [1, 1, 8], [0, 9, 2], [-0.5, -0.5, 0], [110, 30, 24], 0.1, function (f, x, y, w, h) { return x >= w - 2 || y >= h - 2 ? [60, 10, 10] : null; })
+    ] };
+    MODELS.wisp = { parts: [
+      part('core', [6, 6, 6], [0, 6, 0], [-3, -3, -3], [255, 214, 90], 0.1, function (f, x, y) { return (x + y) % 3 === 0 ? [255, 250, 200] : null; }),
+      part('shell', [10, 10, 10], [0, 6, 0], [-5, -5, -5], [240, 110, 30], 0.2, function (f, x, y) {
+        var r = rnd();
+        return r < 0.55 ? [0, 0, 0, 0] : r < 0.75 ? [255, 170, 50] : [90, 60, 50];
+      }),
+      part('ember0', [2, 2, 2], [0, 6, 0], [6, -1, -1], [255, 200, 70], 0.1),
+      part('ember1', [2, 2, 2], [0, 6, 0], [-8, -1, -1], [255, 150, 40], 0.1),
+      part('ember2', [2, 2, 2], [0, 6, 0], [-1, 3, 6], [255, 230, 120], 0.1)
+    ] };
+
+    // ---- Небеса: пегас и облачник -------------------------------------------------
+    var WHITE_H = [242, 240, 234], MANE = [232, 196, 110];
+    MODELS.pegasus = { parts: [
+      part('body', [10, 10, 20], [0, 17, 0], [-5, -5, -10], WHITE_H, 0.05),
+      part('neck', [4, 10, 5], [0, 20, -9], [-2, 0, -4], WHITE_H, 0.05, function (f, x, y) { return f === 'back' || f === 'top' ? MANE : null; }),
+      part('head', [5, 5, 10], [0, 29, -11], [-2.5, -2, -9], WHITE_H, 0.05, function (f, x, y) {
+        if ((f === 'left' || f === 'right') && y === 1 && x === 4) return [40, 50, 90];
+        if (f === 'front' && y === 3) return [200, 190, 190];
+        return null;
+      }),
+      part('mane', [1, 6, 7], [0, 30, -9], [-0.5, -3, 0], MANE, 0.1),
+      part('tail', [2, 12, 2], [0, 19, 10], [-1, -12, -1], MANE, 0.1),
+      part('wingR', [16, 1, 10], [-5, 20, -2], [-16, 0, -5], [250, 250, 246], 0.04, function (f, x, y) { return f === 'top' && x % 4 === 0 ? [214, 214, 222] : null; }),
+      part('wingL', [16, 1, 10], [5, 20, -2], [0, 0, -5], [250, 250, 246], 0.04, function (f, x, y) { return f === 'top' && x % 4 === 3 ? [214, 214, 222] : null; }),
+      part('legFR', [3, 12, 3], [-3, 12, -7], [-1.5, -12, -1.5], WHITE_H, 0.05, goldHoof),
+      part('legFL', [3, 12, 3], [3, 12, -7], [-1.5, -12, -1.5], WHITE_H, 0.05, goldHoof),
+      part('legBR', [3, 12, 3], [-3, 12, 7], [-1.5, -12, -1.5], WHITE_H, 0.05, goldHoof),
+      part('legBL', [3, 12, 3], [3, 12, 7], [-1.5, -12, -1.5], WHITE_H, 0.05, goldHoof)
+    ] };
+    function goldHoof(f, x, y, w, h) { return y >= h - 2 ? [236, 190, 60] : null; }
+    MODELS.pegasus.byNameParents = { mane: 'head' };
+    MODELS.cloudling = { parts: [
+      part('body', [8, 6, 8], [0, 6, 0], [-4, -3, -4], [248, 250, 255], 0.03, function (f, x, y) {
+        if (f === 'front' && y === 2 && (x === 2 || x === 5)) return [40, 50, 80];
+        if (f === 'front' && y === 3 && (x === 1 || x === 6)) return [250, 180, 200];
+        if (f === 'front' && y === 4 && (x === 3 || x === 4)) return [60, 70, 100];
+        return null;
+      }),
+      part('puffA', [5, 4, 5], [0, 6, 0], [-7, -1, -2], [236, 240, 250], 0.03),
+      part('puffB', [5, 4, 5], [0, 6, 0], [2, -1, -2], [236, 240, 250], 0.03),
+      part('puffC', [6, 3, 6], [0, 6, 0], [-3, 3, -3], [240, 244, 252], 0.03)
+    ] };
+
+    // ---- Станция: сбойный дрон и робот-уборщик ----------------------------------------
+    var METAL = [72, 78, 88];
+    MODELS.drone = { parts: [
+      part('body', [8, 6, 8], [0, 6, 0], [-4, -3, -4], METAL, 0.06, function (f, x, y) {
+        if (f === 'front' && y >= 2 && y <= 3 && x >= 3 && x <= 4) return [255, 40, 40];
+        if (f === 'front' && y === 1) return [40, 44, 50];
+        if (f === 'top' && (x === 0 || x === 7 || y === 0 || y === 7)) return [230, 180, 40];
+        return null;
+      }),
+      part('rotor0', [5, 1, 5], [6, 9, 6], [-2.5, 0, -2.5], [200, 206, 214], 0.05),
+      part('rotor1', [5, 1, 5], [-6, 9, 6], [-2.5, 0, -2.5], [200, 206, 214], 0.05),
+      part('rotor2', [5, 1, 5], [6, 9, -6], [-2.5, 0, -2.5], [200, 206, 214], 0.05),
+      part('rotor3', [5, 1, 5], [-6, 9, -6], [-2.5, 0, -2.5], [200, 206, 214], 0.05),
+      part('armA', [14, 1, 1], [0, 8, 0], [-7, 0, -0.5], [50, 54, 60], 0.05),
+      part('armB', [1, 1, 14], [0, 8, 0], [-0.5, 0, -7], [50, 54, 60], 0.05)
+    ] };
+    MODELS.robot = { parts: [
+      part('body', [8, 6, 10], [0, 3, 0], [-4, 0, -5], [230, 236, 238], 0.05, function (f, x, y) {
+        if (f === 'front' && y >= 1 && y <= 2 && x >= 1 && x <= 6) return [40, 190, 190];
+        if (y === 5) return [60, 170, 170];
+        return null;
+      }),
+      part('antenna', [1, 4, 1], [0, 9, 3], [-0.5, 0, -0.5], [120, 126, 136], 0.05),
+      part('light', [2, 1, 2], [0, 13, 3], [-1, 0, -1], [255, 200, 40], 0.05),
+      part('wheelR', [1, 3, 3], [-4.5, 1.5, -3], [-0.5, -1.5, -1.5], [40, 40, 44], 0.1),
+      part('wheelL', [1, 3, 3], [4.5, 1.5, -3], [-0.5, -1.5, -1.5], [40, 40, 44], 0.1),
+      part('wheelR2', [1, 3, 3], [-4.5, 1.5, 3], [-0.5, -1.5, -1.5], [40, 40, 44], 0.1),
+      part('wheelL2', [1, 3, 3], [4.5, 1.5, 3], [-0.5, -1.5, -1.5], [40, 40, 44], 0.1)
+    ] };
   }
 
   function init() {
@@ -409,7 +552,7 @@
   }
 
   KC.Models = {
-    init: init, MODELS: MODELS, drawModel: drawModel, drawBlockCube: drawBlockCube, drawSprite: drawSprite,
+    ATLAS: ATLAS, init: init, MODELS: MODELS, drawModel: drawModel, drawBlockCube: drawBlockCube, drawSprite: drawSprite,
     Batch: Batch, rot: rot, apply: apply
   };
 })(window.KC = window.KC || {});

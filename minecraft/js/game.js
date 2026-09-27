@@ -7,7 +7,7 @@
   var B = KC.B, I = KC.I, BLOCKS = KC.BLOCKS, CS = KC.CS, H = KC.H, WL = KC.WL;
   var P = KC.Player, E = KC.Entities, Sim = KC.Sim, UI = KC.UI, Audio = KC.Audio;
 
-  var SAVE_KEY = 'kubocraft.world.v2', OLD_KEY = 'kubocraft.world.v1', SET_KEY = 'kubocraft.settings.v1';
+  var SAVE_KEY = 'kubocraft.world.v3', V2_KEY = 'kubocraft.world.v2', OLD_KEY = 'kubocraft.world.v1', SET_KEY = 'kubocraft.settings.v1';
   var DAY_LENGTH = 1200, TICK = 1 / 20;
   var DIFF_NAMES = ['Мирная', 'Лёгкая', 'Обычная', 'Сложная'];
 
@@ -29,6 +29,9 @@
   var state = 'title';            // title | playing | paused | container | dead
   var world, renderer, atlas, spawn, placed = false, hasSave = false;
   var mode = 'survival', difficulty = 2;
+  // Измерения: текущее — в world, остальные лежат в dimData; lastPos — где игрок был в каждом
+  var scenario = null, worldType = 'normal', dimData = {}, lastPos = {}, backDim = {}, overSpawn = null;
+  var zombie = { day: 1, won: false, kills: 0 }, lastTod = 0;
   var titleCam = { x: 0, y: 0, z: 0, yaw: 0.6, pitch: -0.3 };
   var timeOfDay = 0.3, cloudOffset = 0, view = 0;
   var keys = {}, mouse = { l: false, r: false, lPress: false, rPress: false };
@@ -95,11 +98,19 @@
     state = 'fatal';
   }
 
+  // Сохранение v3: у каждого измерения свои правки, блок-сущности и мобы.
+  // v2 (один мир) переносится как «обычный мир», v1 — как творчество.
   function loadSave() {
     var s = storageGet(SAVE_KEY);
     if (s && typeof s.seed === 'number') return s;
+    var v2 = storageGet(V2_KEY);
+    if (v2 && typeof v2.seed === 'number') {
+      v2.dims = { over: { edits: v2.edits, bents: v2.bents, entities: v2.entities, animalChunks: v2.animalChunks, storedMobs: v2.storedMobs } };
+      v2.dim = 'over';
+      return v2;
+    }
     var old = storageGet(OLD_KEY);
-    if (old && typeof old.seed === 'number') { old.migrated = true; old.mode = 'creative'; return old; }
+    if (old && typeof old.seed === 'number') { old.migrated = true; old.mode = 'creative'; old.dims = { over: { edits: old.edits } }; return old; }
     return null;
   }
 
@@ -113,31 +124,23 @@
     };
   }
 
-  function startWorld(save, opts) {
-    if (world) world.chunks.forEach(function (c) { renderer.deleteMesh(c); });
-    var ok = !!(save && typeof save.seed === 'number');
-    hasSave = ok;
-    var seed = ok ? save.seed : (opts && opts.seed) || Math.floor(Math.random() * 999999) + 1;
-    mode = ok ? (save.mode || 'survival') : (opts && opts.mode) || 'survival';
-    difficulty = ok && typeof save.diff === 'number' ? save.diff : (opts && typeof opts.diff === 'number' ? opts.diff : 2);
-    world = new KC.World(seed, ok && save.edits ? save.edits : {});
-    world.animalChunks = ok && save.animalChunks ? save.animalChunks : {};
-    world.storedMobs = ok && save.storedMobs ? save.storedMobs : {};
-
-    var h = hooksCommon();
-    h.hurtPlayer = function (amt, cause, src, knock) { P.hurt(amt, cause, src, knock); };
+  // Хуки создаются один раз на игру и переживают смену измерений
+  var hooksE = null, hooksS = null, hooksP = null;
+  function buildHooks() {
+    var h = hooksE = hooksCommon();
+    h.hurtPlayer = function (amt, cause, src, knock, fire) { P.hurt(amt, cause, src, knock, fire); };
     h.give = function (st) { return P.give(st); };
     h.heldId = function () { return P.heldId(); };
     h.explode = function (x, y, z, pw) { Sim.explode(x, y, z, pw); };
     h.pressPlate = function (x, y, z) { Sim.pressPlate(x, y, z); };
     h.primeTnt = function (x, y, z) { Sim.primeTnt(x, y, z); };
-    E.init(world, h);
+    h.hordeBoost = function () { return scenario === 'zombie' ? Math.min(6, zombie.day - 1) : 0; };
+    h.killed = function (m, source) { if (source === 'player' && m.K.zombie) zombie.kills++; };
 
-    var hs = hooksCommon();
-    hs.explosionHit = explosionHit;
-    Sim.init(world, hs);
+    hooksS = hooksCommon();
+    hooksS.explosionHit = explosionHit;
 
-    var hp = hooksCommon();
+    var hp = hooksP = hooksCommon();
     hp.toast = toast;
     hp.sound = function (n, x, y, z) { Audio.play(n, x === undefined ? P.e.x : x, y === undefined ? P.e.y + 1 : y, z === undefined ? P.e.z : z); };
     hp.open = openContainer;
@@ -147,32 +150,73 @@
     hp.sleep = startSleep;
     hp.pressPlate = function (x, y, z) { Sim.pressPlate(x, y, z); };
     hp.liquidTarget = function () { return raycastBlocks(eyePos(), lookDir(), P.REACH, true); };
+    hp.rayHit = rayHit;
+    hp.travel = travel;
+    hp.teleport = teleportUse;
     hp.blockBroken = function (x, y, z, id) {
       Audio.play('break:' + BLOCKS[id].mat, x + 0.5, y + 0.5, z + 0.5);
       for (var i = 0; i < 12; i++) particles('block', x + 0.5, y + 0.5, z + 0.5, id);
       if ((id === B.LOG || id === B.BIRCH_LOG) && !tips.log && mode === 'survival') { tips.log = 1; setTimeout(function () { toast('Нажмите E → «Рецепты»: из брёвен выйдут доски и верстак'); }, 1200); }
     };
-    P.init(world, hp);
+  }
+
+  // Мир измерения dim из сохранённых данных; подключает к нему сущности, симуляцию и игрока
+  function makeWorld(seed, dim, data) {
+    data = data || {};
+    world = new KC.World(seed, data.edits || {}, dim, dim === 'over' ? worldType : 'normal');
+    world.animalChunks = data.animalChunks || {};
+    world.storedMobs = data.storedMobs || {};
+    E.init(world, hooksE);
+    Sim.init(world, hooksS);
+    P.init(world, hooksP);
+    P.setWorld(world);
+    Sim.restore(data.bents);
+    E.restore(data.entities);
+    if (dim === 'over') overSpawn = world.findSpawn();
+    spawn = overSpawn || world.findSpawn();
+  }
+  function snapshotWorld() {
+    return { edits: world.edits, bents: Sim.serialize(), entities: E.serialize(), animalChunks: world.animalChunks, storedMobs: world.storedMobs };
+  }
+
+  function startWorld(save, opts) {
+    if (world) world.chunks.forEach(function (c) { renderer.deleteMesh(c); });
+    var ok = !!(save && typeof save.seed === 'number');
+    hasSave = ok;
+    var seed = ok ? save.seed : (opts && opts.seed) || Math.floor(Math.random() * 999999) + 1;
+    mode = ok ? (save.mode || 'survival') : (opts && opts.mode) || 'survival';
+    scenario = ok ? save.scenario || null : (opts && opts.scenario) || null;
+    worldType = ok ? save.worldType || 'normal' : scenario === 'zombie' ? 'city' : 'normal';
+    difficulty = ok && typeof save.diff === 'number' ? save.diff : (opts && typeof opts.diff === 'number' ? opts.diff : 2);
+    dimData = ok && save.dims ? save.dims : {};
+    lastPos = ok && save.lastPos ? save.lastPos : {};
+    backDim = ok && save.backDim ? save.backDim : {};
+    zombie = ok && save.zombie ? save.zombie : { day: 1, won: false, kills: 0 };
+    zombie.kills = zombie.kills || 0;
+    overSpawn = null;
+    var dim = ok && save.dim && KC.DIMS[save.dim] ? save.dim : 'over';
+
+    buildHooks();
+    if (dim !== 'over') overSpawn = new KC.World(seed, {}, 'over', worldType).findSpawn();
+    var cur = dimData[dim];
+    delete dimData[dim];
+    makeWorld(seed, dim, cur);
     P.reset(mode === 'creative');
 
-    if (ok) {
-      Sim.restore(save.bents);
-      E.restore(save.entities);
-    }
-    spawn = world.findSpawn();
     renderer.makeClouds(seed);
     timeOfDay = ok && typeof save.time === 'number' ? save.time % 1 : 0.28;
     if (!settings.cycle) timeOfDay = 0.28;
+    lastTod = timeOfDay;
 
     var sp = ok && save.player, e = P.e;
     placed = false;
     if (sp && isFinite(sp.x)) {
       e.x = sp.x; e.y = sp.y; e.z = sp.z; e.yaw = sp.yaw || 0; e.pitch = sp.pitch || 0; e.fly = !!sp.fly && mode === 'creative';
-      if (save.v === 2) {
+      if (save.v >= 2) {
         P.inv = (sp.inv || []).map(unpackStack); while (P.inv.length < 36) P.inv.push(null);
         P.armor = (sp.armor || [0, 0, 0, 0]).map(unpackStack);
         P.slot = sp.slot | 0;
-        P.hp = sp.hp || 20; P.food = sp.food === undefined ? 20 : sp.food; P.sat = sp.sat || 0; P.air = 15;
+        P.hp = sp.hp || 20; P.food = sp.food === undefined ? 20 : sp.food; P.sat = sp.sat || 0; P.air = sp.air === undefined ? 15 : sp.air;
         P.spawnPoint = sp.spawn || null;
         tips = save.tips || {};
       } else if (Array.isArray(save.hotbar)) {
@@ -184,17 +228,119 @@
       e.x = spawn.x; e.y = spawn.h + 1; e.z = spawn.z; e.yaw = 0.8; e.pitch = -0.1; e.fly = false;
       placedSaved = false;
       tips = {};
+      if (scenario === 'zombie') {
+        e.yaw = Math.PI / 2;
+        [[I.BAT, 1], [I.CANNED_FOOD, 3], [I.MEDKIT, 1], [B.TORCH, 6]].forEach(function (k, i) { P.inv[i] = { id: k[0], n: k[1], d: 0 }; });
+      }
     }
     e.vx = e.vy = e.vz = 0;
+    P.portalT = -1;
     titleCam.x = e.x; titleCam.z = e.z;
     titleCam.y = (placedSaved ? e.y : Math.max(spawn.h, WL)) + 16;
     titleCam.yaw = e.yaw + 0.6;
     particlesList.length = 0;
     target = null; targetMob = null;
     UI.forceHud();
+    updateZombieHud();
     if ($('seed-label')) updateTitle();
   }
   var placedSaved = false;
+
+  // ---- Путешествия между мирами ----------------------------------------------------------
+  // Врата типа kind ведут в своё измерение, а из него — туда, откуда пришли
+  function travel(kind) {
+    var to = world.dim === kind ? (backDim[kind] || 'over') : kind;
+    goTo(to, kind);
+  }
+  function teleportUse() {
+    goTo(world.dim === 'space' ? (backDim.space || 'over') : 'space', 'teleport');
+  }
+
+  function goTo(dim, via, forcePos) {
+    if (!KC.DIMS[dim] || dim === world.dim) return;
+    var e = P.e, from = world.dim, fx = e.x, fz = e.z;
+    lastPos[from] = { x: e.x, y: e.y, z: e.z, yaw: e.yaw };
+    if (dim !== 'over' && via !== 'fall') backDim[dim] = from;
+    dimData[from] = snapshotWorld();
+    world.chunks.forEach(function (c) { renderer.deleteMesh(c); });
+    var data = dimData[dim];
+    delete dimData[dim];
+    makeWorld(world.seed, dim, data);
+
+    var pos = forcePos || lastPos[dim], fresh = !pos;
+    var gx = pos ? pos.x : dim === 'space' ? 0 : fx, gz = pos ? pos.z : dim === 'space' ? -36 : fz;
+    var pcx = Math.floor(gx / CS), pcz = Math.floor(gz / CS), dx, dz;
+    for (dz = -2; dz <= 2; dz++) for (dx = -2; dx <= 2; dx++) world.generate(pcx + dx, pcz + dz);
+    if (fresh) {
+      pos = KC.Gen.arrival(world, dim, fx, fz);
+      if (via === 'hell' || via === 'heaven') buildGate(pos, via === 'hell' ? B.HELL_GATE : B.HEAVEN_GATE, dim);
+    }
+    for (dz = -1; dz <= 1; dz++) for (dx = -1; dx <= 1; dx++) remesh(world.getChunk(pcx + dx, pcz + dz));
+    e.x = pos.x; e.y = pos.y; e.z = pos.z;
+    if (pos.yaw !== undefined) e.yaw = pos.yaw;
+    e.vx = e.vy = e.vz = 0; e.fallDist = 0; e.fire = 0;
+    var guard = 0;
+    while (guard++ < H && E.boxHits(e.x, e.y, e.z, e.w, e.h)) e.y += 1;
+    P.portalT = -1;
+    placed = true; placedSaved = true;
+    particlesList.length = 0; target = null; targetMob = null;
+    $('fade').classList.remove('is-on'); void $('fade').offsetWidth; $('fade').classList.add('is-on');
+    Audio.play('teleport');
+    showDimLabel();
+    if (dim === 'space' && !tips.space) { tips.space = 1; setTimeout(function () { toast('За пределами станции нет воздуха: наденьте космический шлем'); }, 2600); }
+    if (dim === 'hell' && !tips.hell) { tips.hell = 1; setTimeout(function () { toast('Врата рядом — через них можно вернуться'); }, 2600); }
+    saveGame();
+  }
+
+  // Обратные врата рядом с точкой прибытия, на твёрдом полу
+  function buildGate(pos, id, dim) {
+    var x = Math.floor(pos.x) + 2, y = Math.floor(pos.y), z = Math.floor(pos.z);
+    var floor = dim === 'hell' ? B.ASH_BRICK : dim === 'heaven' ? B.SKYSTONE : B.COBBLE;
+    if (!KC.OPAQUE[world.getBlock(x, y - 1, z)]) world.setBlock(x, y - 1, z, floor, 0);
+    world.setBlock(x, y, z, id, 1);
+    world.setBlock(x, y + 1, z, id, 9);
+    if (KC.SOLID[world.getBlock(x, y + 2, z)] && world.getBlock(x, y + 2, z) !== B.BEDROCK) world.setBlock(x, y + 2, z, 0, 0);
+  }
+
+  var dimLabelT = 0;
+  function showDimLabel() {
+    var el = $('dim-label');
+    el.textContent = KC.DIMS[world.dim].name;
+    el.classList.add('is-on');
+    clearTimeout(dimLabelT);
+    dimLabelT = setTimeout(function () { el.classList.remove('is-on'); }, 2600);
+  }
+
+  // ---- Режим зомби-апокалипсиса ---------------------------------------------------------
+  var ZOMBIE_NIGHTS = 7;
+  function updateZombieHud() {
+    var el = $('zday');
+    if (!el) return;
+    el.hidden = scenario !== 'zombie';
+    if (scenario !== 'zombie') return;
+    el.textContent = zombie.won ? 'Эвакуация состоялась · свободная игра' : 'День ' + zombie.day + ' из ' + ZOMBIE_NIGHTS + ' · до эвакуации ' + (ZOMBIE_NIGHTS - zombie.day + 1) + ' ' + nightWord(ZOMBIE_NIGHTS - zombie.day + 1);
+  }
+  function nightWord(n) { var m10 = n % 10, m100 = n % 100; return m10 === 1 && m100 !== 11 ? 'ночь' : m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14) ? 'ночи' : 'ночей'; }
+  // Рассвет: новый день; после седьмой ночи прилетает эвакуация
+  function zombieDawn() {
+    if (zombie.won) return;
+    zombie.day++;
+    if (zombie.day > ZOMBIE_NIGHTS) { victory(); return; }
+    updateZombieHud();
+    toast(zombie.day === ZOMBIE_NIGHTS ? 'Последний день! Продержитесь ещё одну ночь' : 'Рассвет. День ' + zombie.day + ': заражённых всё больше');
+    saveGame();
+  }
+  function victory() {
+    zombie.won = true;
+    updateZombieHud();
+    Audio.play('victory');
+    state = 'won';
+    releaseInput();
+    $('victory-text').textContent = 'Вы продержались ' + ZOMBIE_NIGHTS + ' ночей в заражённом городе — за вами прилетел эвакуационный вертолёт. Повержено заражённых: ' + zombie.kills + '.';
+    showScreen('victory');
+    if (locked && document.exitPointerLock) document.exitPointerLock();
+    saveGame();
+  }
 
   function packStack(s) { return s ? [s.id, s.n, s.d || 0] : 0; }
   function unpackStack(a) { return a && KC.ITEMS[a[0]] ? { id: a[0], n: a[1], d: a[2] || 0 } : null; }
@@ -337,6 +483,14 @@
     targetMob = mh && (!target || mh.t < target.t) ? mh.e : null;
   }
 
+  // Луч от глаз: первое существо или блок на дистанции maxD (для пистолета)
+  function rayHit(maxD) {
+    var o = eyePos(), d = lookDir();
+    var b = raycastBlocks(o, d, maxD, false);
+    var m = E.raycast(o[0], o[1], o[2], d, b ? b.t : maxD);
+    return { o: o, d: d, block: m ? null : b, mob: m ? m.e : null, t: m ? m.t : b ? b.t : maxD };
+  }
+
   // ---- Частицы -----------------------------------------------------------------------
   var particlesList = [];
   var WHITE_UV = null;
@@ -348,8 +502,8 @@
     switch (kind) {
       case 'block':
         var tl = KC.tileUV(BLOCKS[extra].tiles.side), ou = Math.floor(Math.random() * 13), ov = Math.floor(Math.random() * 13);
-        var S = KC.ATLAS_SIZE;
-        p.uv = [tl[0] + ou / S, tl[1] + ov / S, tl[0] + (ou + 3) / S, tl[1] + (ov + 3) / S];
+        var SW = KC.ATLAS_W, SH = KC.ATLAS_H;
+        p.uv = [tl[0] + ou / SW, tl[1] + ov / SH, tl[0] + (ou + 3) / SW, tl[1] + (ov + 3) / SH];
         p.x += (Math.random() - 0.5) * 0.8; p.y += (Math.random() - 0.5) * 0.8; p.z += (Math.random() - 0.5) * 0.8;
         p.vx *= 1.6; p.vz *= 1.6; p.vy = 1 + Math.random() * 3; p.size = 0.05 + Math.random() * 0.05; p.grav = 18;
         break;
@@ -358,6 +512,9 @@
       case 'heart': p.col = [1.3, 0.25, 0.35]; p.grav = -1; p.vx *= 0.3; p.vz *= 0.3; p.vy = 0.8; p.size = 0.1; p.life = 1; break;
       case 'crit': p.col = [1.3, 1.2, 0.6]; p.vx *= 2.5; p.vz *= 2.5; p.vy = 2 + Math.random() * 2; p.size = 0.05; p.life = 0.5; break;
       case 'splash': p.col = [0.5, 0.7, 1.2]; p.vy = 3; p.size = 0.05; break;
+      case 'spark': p.col = [1.5, 1.2, 0.5]; p.vx *= 2; p.vz *= 2; p.vy = 1 + Math.random() * 2; p.size = 0.035; p.life = 0.3; break;
+      case 'tracer': p.col = [1.6, 1.4, 0.8]; p.vx = p.vy = p.vz = 0; p.grav = 0; p.size = 0.025; p.life = 0.07; break;
+      case 'portal': p.col = [1.3, 0.9, 1.5]; p.grav = -1.2; p.vx *= 0.4; p.vz *= 0.4; p.vy = 0.3; p.size = 0.05; p.life = 0.9; break;
       case 'explosion':
         for (var i = 0; i < 40; i++) {
           particlesList.push({ x: x + (Math.random() - 0.5) * 3, y: y + (Math.random() - 0.5) * 3, z: z + (Math.random() - 0.5) * 3,
@@ -418,20 +575,23 @@
 
   // ---- Небо --------------------------------------------------------------------------------
   function skyState() {
-    var a = timeOfDay * Math.PI * 2;
+    var D = KC.DIMS[world ? world.dim : 'over'] || KC.DIMS.over;
+    var tod = D.fixedTime !== undefined ? D.fixedTime : timeOfDay;
+    var a = tod * Math.PI * 2;
     var sun = norm3([Math.cos(a), Math.sin(a), 0.28]);
     var sunR = norm3([-sun[1], sun[0], 0]);
     var sunU = [sun[1] * sunR[2] - sun[2] * sunR[1], sun[2] * sunR[0] - sun[0] * sunR[2], sun[0] * sunR[1] - sun[1] * sunR[0]];
-    var day = smooth(-0.16, 0.24, sun[1]);
-    dayFactor = 0.26 + 0.74 * day;
-    var top = mix3([0.012, 0.018, 0.05], [0.33, 0.55, 0.92], day);
-    var hor = mix3([0.035, 0.05, 0.11], [0.70, 0.82, 0.96], day);
-    var dusk = clamp(1 - Math.abs(sun[1]) * 3.4, 0, 1);
+    var day = D.fixedDay !== undefined ? D.fixedDay : smooth(-0.16, 0.24, sun[1]);
+    dayFactor = D.dayLight !== undefined ? D.dayLight : 0.26 + 0.74 * day;
+    var top = D.top || mix3([0.012, 0.018, 0.05], [0.33, 0.55, 0.92], day);
+    var hor = D.hor || mix3([0.035, 0.05, 0.11], [0.70, 0.82, 0.96], day);
+    var dusk = D.top ? 0 : clamp(1 - Math.abs(sun[1]) * 3.4, 0, 1);
     hor = mix3(hor, [0.93, 0.56, 0.34], dusk * 0.5);
     return {
       top: top, hor: hor, sun: sun, sunR: sunR, sunU: sunU,
-      glow: [dusk * 0.55 + day * 0.12, dusk * 0.3 + day * 0.1, dusk * 0.12 + day * 0.06],
-      night: 1 - day, day: dayFactor, raw: day,
+      glow: D.noSun ? [0, 0, 0] : [dusk * 0.55 + day * 0.12, dusk * 0.3 + day * 0.1, dusk * 0.12 + day * 0.06],
+      night: D.stars !== undefined ? D.stars : D.noSun ? 0 : 1 - day, day: dayFactor, raw: day,
+      sunVis: D.noSun ? 0 : 1, planet: D.planet ? 1 : 0,
       cloud: mix3([0.16, 0.18, 0.25], [1, 1, 1], Math.max(day, dusk * 0.6))
     };
   }
@@ -508,6 +668,15 @@
       if (P.swing > 0) { P.swing += dt * 3.2; if (P.swing >= 1) P.swing = 0; }
     }
     if (settings.cycle && (simulate || state === 'title')) timeOfDay = (timeOfDay + dt / DAY_LENGTH) % 1;
+    // рассвет в городе засчитывает пережитую ночь
+    if (scenario === 'zombie' && simulate && world.dim === 'over' && lastTod > 0.9 && timeOfDay < 0.1) zombieDawn();
+    lastTod = timeOfDay;
+    // провалился сквозь облака — падает в обычный мир, мягко планируя
+    if (simulate && world.dim === 'heaven' && e.y < 2 && !P.dead) {
+      goTo('over', 'fall', { x: e.x, y: H - 3, z: e.z, yaw: e.yaw });
+      P.feather = 40;
+      toast('Вы сорвались с небес… Небесный ветер замедляет падение');
+    }
     if (sleeping > 0) {
       sleeping -= dt;
       if (sleeping <= 0) { timeOfDay = 0.02; $('sleep').classList.remove('is-on'); toast('Доброе утро'); saveGame(); }
@@ -532,6 +701,7 @@
     var under = state !== 'title' && P.headInWater;
     var inLava = state !== 'title' && world.getBlock(e.x, e.y + P.EYE, e.z) === B.LAVA;
     var fogColor = inLava ? [0.9, 0.3, 0.05] : under ? [0.06 * sky.day + 0.02, 0.2 * sky.day + 0.03, 0.42 * sky.day + 0.05] : sky.hor;
+    var DIM = KC.DIMS[world.dim];
 
     var thirdPerson = view !== 0 && state !== 'title';
     var ents = E.buildRender(cam, gameTime, thirdPerson && !P.dead ? function (batch) { P.drawBody(batch, E.lightAt(e.x, e.y + 1.4, e.z)); } : null);
@@ -544,8 +714,8 @@
     }
     renderer.render({
       cam: cam, sky: sky, brightness: settings.bright,
-      fog: { color: fogColor, start: inLava ? 0 : under ? 0 : R * 0.55, end: inLava ? 3 : under ? 16 : R - 4 },
-      clouds: { size: Math.max(R * 2, 220), y: 112, offset: cloudOffset, color: sky.cloud },
+      fog: { color: fogColor, start: inLava ? 0 : under ? 0 : R * (DIM.fogNear || 0.55), end: inLava ? 3 : under ? 16 : R - 4 },
+      clouds: DIM.noClouds ? null : { size: Math.max(R * 2, 220), y: DIM.cloudsY || 112, offset: cloudOffset, color: sky.cloud },
       chunks: list, mobs: ents.mobs, items: ents.items, particles: parts,
       crack: buildCrack(), highlight: hl, held: held, underwater: under
     });
@@ -553,6 +723,7 @@
     $('water-tint').hidden = !under;
     $('vignette').style.opacity = P.flash > 0 ? Math.min(1, P.flash * 3) : (P.hp <= 4 && !P.creative && state !== 'title' ? 0.35 + Math.sin(gameTime * 4) * 0.1 : 0);
     $('fire-tint').hidden = !(e.fire > 0 && !P.creative && state !== 'title');
+    $('portal-tint').style.opacity = P.portalT > 0 && state !== 'title' ? Math.min(0.85, P.portalT / 1.5) : 0;
 
     if (state === 'title') {
       progressT -= dt;
@@ -570,13 +741,17 @@
           'XYZ   ' + e.x.toFixed(1) + '  ' + e.y.toFixed(1) + '  ' + e.z.toFixed(1) + '\n' +
           'Чанк  ' + Math.floor(e.x / CS) + '  ' + Math.floor(e.z / CS) + '   мобов ' + mobs + '\n' +
           'FPS   ' + fps + '   чанков в кадре ' + renderer.stats.chunks + '\n' +
-          'Время ' + clockText() + '   ' + (mode === 'creative' ? 'творчество' : 'выживание · ' + DIFF_NAMES[difficulty].toLowerCase()) + (e.fly ? '   полёт' : '');
+          'Время ' + clockText() + '   ' + (mode === 'creative' ? 'творчество' : 'выживание · ' + DIFF_NAMES[difficulty].toLowerCase()) + (e.fly ? '   полёт' : '') + '\n' +
+          'Мир   ' + KC.DIMS[world.dim].name + (worldType === 'city' && world.dim === 'over' ? ' · мегаполис' : '') + (scenario === 'zombie' ? '   день ' + zombie.day : '');
       }
     }
     if (state === 'playing') {
       saveTimer += dt;
       if (saveTimer > 15) { saveTimer = 0; saveGame(); }
-      if (mode === 'survival' && !tips.night && sky.raw < 0.3 && placed) { tips.night = 1; toast('Смеркается: ночью бродят упыри. Сделайте факелы и укрытие'); }
+      if (mode === 'survival' && !tips.night && sky.raw < 0.3 && placed && world.dim === 'over') {
+        tips.night = 1;
+        toast(scenario === 'zombie' ? 'Темнеет: заражённых станет гораздо больше. Найдите укрытие' : 'Смеркается: ночью бродят упыри. Сделайте факелы и укрытие');
+      }
     }
   }
 
@@ -623,13 +798,19 @@
   function saveGame() {
     if (!world || !placed) return true;
     var e = P.e;
+    var dims = {};
+    for (var k in dimData) dims[k] = dimData[k];
+    dims[world.dim] = snapshotWorld();
     var ok = storageSet(SAVE_KEY, {
-      v: 2, seed: world.seed, mode: mode, diff: difficulty, edits: world.edits, time: timeOfDay, tips: tips,
-      player: { x: e.x, y: e.y, z: e.z, yaw: e.yaw, pitch: e.pitch, fly: e.fly, hp: P.hp, food: P.food, sat: P.sat,
-        inv: P.inv.map(packStack), armor: P.armor.map(packStack), slot: P.slot, spawn: P.spawnPoint },
-      bents: Sim.serialize(), entities: E.serialize(), animalChunks: world.animalChunks, storedMobs: world.storedMobs
+      v: 3, seed: world.seed, mode: mode, diff: difficulty, time: timeOfDay, tips: tips,
+      scenario: scenario, worldType: worldType, dim: world.dim, dims: dims, lastPos: lastPos, backDim: backDim, zombie: zombie,
+      player: { x: e.x, y: e.y, z: e.z, yaw: e.yaw, pitch: e.pitch, fly: e.fly, hp: P.hp, food: P.food, sat: P.sat, air: P.air,
+        inv: P.inv.map(packStack), armor: P.armor.map(packStack), slot: P.slot, spawn: P.spawnPoint }
     });
-    if (ok) { hasSave = true; try { window.localStorage.removeItem(OLD_KEY); } catch (err) { /* ничего */ } }
+    if (ok) {
+      hasSave = true;
+      try { window.localStorage.removeItem(OLD_KEY); window.localStorage.removeItem(V2_KEY); } catch (err) { /* ничего */ }
+    }
     var note = $('save-note');
     note.textContent = ok ? 'Мир сохранён в этом браузере.' : 'Сохранить не удалось: хранилище браузера недоступно или переполнено.';
     note.classList.toggle('is-error', !ok);
@@ -643,6 +824,7 @@
     $('title').hidden = name !== 'title';
     $('pause').hidden = name !== 'pause';
     $('death').hidden = name !== 'death';
+    $('victory').hidden = name !== 'victory';
     if (name !== 'container') $('container').hidden = true;
     $('hud').hidden = name === 'title';
     $('touch').hidden = !(isTouch && state === 'playing');
@@ -659,7 +841,9 @@
     showScreen(P.dead ? 'death' : null);
     UI.forceHud();
     if (!isTouch && state === 'playing') lockPointer();
-    if (mode === 'survival' && !tips.start) { tips.start = 1; toast('Удерживайте ЛКМ на дереве, чтобы добыть брёвна'); }
+    if (scenario === 'zombie' && !tips.start) { tips.start = 1; toast('Продержитесь ' + ZOMBIE_NIGHTS + ' ночей до эвакуации. Припасы — в сундуках домов'); }
+    else if (mode === 'survival' && !tips.start) { tips.start = 1; toast('Удерживайте ЛКМ на дереве, чтобы добыть брёвна'); }
+    if (world.dim !== 'over') showDimLabel();
   }
   function pause() {
     if (state !== 'playing') return;
@@ -709,7 +893,16 @@
     if (locked && document.exitPointerLock) document.exitPointerLock();
     saveGame();
   }
+  // Возрождение всегда в обычном мире: у кровати или на точке появления
+  function backToOverworld() {
+    if (world.dim === 'over') return;
+    var from = world.dim;
+    goTo('over', 'respawn', { x: spawn.x, y: spawn.h + 1, z: spawn.z });
+    delete lastPos[from];
+    $('fade').classList.remove('is-on');
+  }
   function doRespawn() {
+    backToOverworld();
     var bed = P.respawn(spawn);
     if (!bed) { placedSaved = false; placePlayer(); }
     state = 'playing';
@@ -719,13 +912,14 @@
     saveGame();
   }
   function startSleep() {
+    if (scenario === 'zombie') { toast('Точка возрождения установлена. Но уснуть не выйдет: город кишит заражёнными'); return; }
     sleeping = 2.2;
     $('sleep').classList.add('is-on');
     toast('Вы засыпаете… Точка возрождения установлена');
   }
 
   function newWorld(opts) {
-    try { window.localStorage.removeItem(SAVE_KEY); window.localStorage.removeItem(OLD_KEY); } catch (e) { /* ничего */ }
+    try { [SAVE_KEY, V2_KEY, OLD_KEY].forEach(function (k) { window.localStorage.removeItem(k); }); } catch (e) { /* ничего */ }
     startWorld(null, opts);
   }
 
@@ -790,7 +984,9 @@
     return 'чанков';
   }
   function updateTitle() {
-    $('seed-label').textContent = 'Сид мира: ' + world.seed + ' · ' + (mode === 'creative' ? 'Творчество' : 'Выживание, ' + DIFF_NAMES[difficulty].toLowerCase());
+    var what = scenario === 'zombie' ? 'Зомби-апокалипсис, ' + (zombie.won ? 'эвакуация состоялась' : 'день ' + zombie.day) :
+      mode === 'creative' ? 'Творчество' : 'Выживание, ' + DIFF_NAMES[difficulty].toLowerCase();
+    $('seed-label').textContent = 'Сид мира: ' + world.seed + ' · ' + what + (world.dim !== 'over' ? ' · ' + KC.DIMS[world.dim].name : '');
     $('btn-play').textContent = hasSave || placed ? 'Продолжить' : 'Играть';
   }
   function updateProgress(p) {
@@ -821,11 +1017,15 @@
     $('btn-play').addEventListener('click', play);
     $('btn-new-title').addEventListener('click', function () { $('newworld').hidden = false; $('nw-warn').hidden = !(hasSave || placed); $('nw-create').focus(); });
     $('nw-cancel').addEventListener('click', function () { $('newworld').hidden = true; });
+    document.querySelectorAll('[name="nw-mode"]').forEach(function (r) {
+      r.addEventListener('change', function () { $('nw-note').hidden = document.querySelector('[name="nw-mode"]:checked').value !== 'zombie'; });
+    });
     $('nw-create').addEventListener('click', function () {
       var m = document.querySelector('[name="nw-mode"]:checked').value;
       var seedTxt = $('nw-seed').value.trim(), seed = 0;
       if (seedTxt) { seed = parseInt(seedTxt, 10); if (!isFinite(seed) || String(seed) !== seedTxt) seed = Math.abs(hashStr(seedTxt)) % 999999 + 1; }
-      newWorld({ mode: m, diff: +$('nw-diff').value, seed: seed || 0 });
+      var zm = m === 'zombie';
+      newWorld({ mode: zm ? 'survival' : m, scenario: zm ? 'zombie' : null, diff: Math.max(zm ? 1 : 0, +$('nw-diff').value), seed: seed || 0 });
       $('newworld').hidden = true;
       updateTitle();
       play();
@@ -833,7 +1033,9 @@
     $('btn-resume').addEventListener('click', resume);
     $('btn-title').addEventListener('click', toTitle);
     $('btn-respawn').addEventListener('click', doRespawn);
-    $('btn-death-title').addEventListener('click', function () { P.respawn(spawn); placedSaved = false; placed = false; toTitle(); });
+    $('btn-death-title').addEventListener('click', function () { backToOverworld(); P.respawn(spawn); placedSaved = false; placed = false; toTitle(); });
+    $('btn-victory-go').addEventListener('click', function () { state = 'playing'; showScreen(null); UI.forceHud(); if (!isTouch) lockPointer(); });
+    $('btn-victory-title').addEventListener('click', function () { state = 'playing'; toTitle(); });
 
     document.querySelectorAll('[name="set-mode"]').forEach(function (r) {
       r.addEventListener('change', function () {
@@ -1062,7 +1264,8 @@
   // Доступ из консоли для отладки и тестов
   KC.debug = {
     get world() { return world; }, get player() { return P.e; }, get state() { return state; }, get target() { return target; },
-    P: P, play: play, pause: pause, setTime: function (t) { timeOfDay = t; }, save: saveGame,
+    get zombie() { return zombie; }, get scenario() { return scenario; }, goTo: goTo, travel: travel, zombieDawn: zombieDawn,
+    P: P, play: play, pause: pause, setTime: function (t) { timeOfDay = t; lastTod = t; }, save: saveGame,
     open: openContainer, close: closeContainer, setMode: function (m) { mode = m; P.setCreative(m === 'creative'); }
   };
 

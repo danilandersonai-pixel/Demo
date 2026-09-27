@@ -130,7 +130,12 @@
     if (!b || !b.support) return true;
     var below = get(x, y - 1, z);
     switch (b.support) {
-      case 'soil': return below === B.GRASS || below === B.DIRT || below === B.FARMLAND || below === B.SNOW_GRASS;
+      case 'soil': return below === B.GRASS || below === B.DIRT || below === B.FARMLAND || below === B.SNOW_GRASS || below === B.GOLDEN_GRASS || below === B.LIGHT_SOIL;
+      case 'ceiling': return OPAQUE[get(x, y + 1, z)] === 1;
+      case 'ash': return below === B.ASHSTONE || below === B.ASH_BLOCK || below === B.MAGMA;
+      case 'gate':
+        if (m & 8) return below === id;
+        return OPAQUE[below] === 1 && get(x, y + 1, z) === id;
       case 'cane': return below === B.SUGAR_CANE || below === B.GRASS || below === B.DIRT || below === B.SAND;
       case 'cactus': return below === B.CACTUS || below === B.SAND;
       case 'farmland': return below === B.FARMLAND;
@@ -163,10 +168,31 @@
   }
 
   // ---- Ломание блока с дропом и содержимым -------------------------------------------
+  // Блок-сущность для сундука или печи; у сгенерированных сундуков добыча выдаётся лениво
+  function chestBent(x, y, z) {
+    var k = key(x, y, z), be = bents.get(k);
+    if (be) return be;
+    var id = get(x, y, z), nb = BLOCKS[id];
+    if (!nb || !nb.entity) return null;
+    if (nb.entity === 'furnace') be = { type: 'furnace', x: x, y: y, z: z, slots: [null, null, null], burn: 0, burnMax: 0, cook: 0 };
+    else {
+      var slots = new Array(27).fill(null);
+      var c = world.getChunk(x >> 4, z >> 4);
+      if (c && c.loot) for (var i = 0; i < c.loot.length; i++) {
+        var l = c.loot[i];
+        if (l[0] === x && l[1] === y && l[2] === z) { slots = KC.Gen.rollLoot(l[3], x, y, z, world.seed); break; }
+      }
+      be = { type: 'chest', x: x, y: y, z: z, slots: slots };
+    }
+    bents.set(k, be);
+    return be;
+  }
+
   function breakBlock(x, y, z, drop, tool) {
     var id = get(x, y, z);
     if (!id) return 0;
     var m = meta(x, y, z);
+    if (BLOCKS[id].entity) chestBent(x, y, z);
     if (drop) KC.Entities.dropDrops(x + 0.5, y + 0.3, z + 0.5, KC.drops(id, m, tool || null, Math.random));
     var be = bents.get(key(x, y, z));
     if (be) {
@@ -174,9 +200,9 @@
       bents.delete(key(x, y, z));
     }
     world.setBlock(x, y, z, 0, 0);
-    if (id === B.DOOR) {
+    if (id === B.DOOR || (BLOCKS[id] && BLOCKS[id].portal)) {
       var oy = (m & 8) ? y - 1 : y + 1;
-      if (get(x, oy, z) === B.DOOR) world.setBlock(x, oy, z, 0, 0, true);
+      if (get(x, oy, z) === id) world.setBlock(x, oy, z, 0, 0, true);
     }
     if (id === B.PISTON_HEAD) {
       var bd = DIRS[m & 7], px = x - bd[0], py = y - bd[1], pz = z - bd[2];
@@ -718,7 +744,7 @@
 
   KC.Sim = {
     init: init, tick: tick, breakBlock: breakBlock, supported: supported,
-    getBent: function (x, y, z) { return bents.get(key(x, y, z)); },
+    getBent: function (x, y, z) { return chestBent(x, y, z); },
     toggleLever: toggleLever, pressButton: pressButton, toggleDoor: toggleDoor, pressPlate: pressPlate,
     primeTnt: primeTnt, explode: explode, serialize: serialize, restore: restore,
     markRedstone: function (x, y, z) { rsDirty.push([x, y, z]); },

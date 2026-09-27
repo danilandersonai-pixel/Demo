@@ -112,11 +112,31 @@
         case 'say-upyr': tone(d, t, 'sawtooth', 92, 68, 1.0, 0.32, 380); noiseHit(d, t, 300, 0.8, 0.9, 0.3, 'lowpass'); break;
         case 'say-archer': for (i = 0; i < 5; i++) noiseHit(d, t + i * 0.05, 2600, 4, 0.03, 0.6, 'highpass'); break;
         case 'say-spider': noiseHit(d, t, 3200, 0.8, 0.45, 0.5, 'highpass'); break;
+        case 'say-infected': tone(d, t, 'sawtooth', 130, 80, 0.9, 0.3, 520); noiseHit(d, t + 0.1, 450, 0.7, 0.7, 0.35, 'lowpass'); break;
+        case 'say-runner': for (i = 0; i < 3; i++) tone(d, t + i * 0.13, 'sawtooth', 240, 150, 0.1, 0.25, 900); break;
+        case 'say-brute': tone(d, t, 'sawtooth', 62, 44, 1.2, 0.45, 300); noiseHit(d, t, 180, 0.6, 1.1, 0.5, 'lowpass'); break;
+        case 'say-imp': for (i = 0; i < 4; i++) tone(d, t + i * 0.07, 'square', 700 + i * 90, 520, 0.06, 0.16, 2200); break;
+        case 'say-wisp': case 'fireball': noiseHit(d, t, 600, 0.5, 0.6, 1.0, 'lowpass'); tone(d, t, 'sine', 180, 90, 0.5, 0.25); break;
+        case 'say-pegasus': var ph = tone(d, t, 'sawtooth', 520, 300, 0.7, 0.2, 1800);
+          var plfo = ctx.createOscillator(), plg = ctx.createGain(); plfo.frequency.value = 14; plg.gain.value = 40;
+          plfo.connect(plg); plg.connect(ph.frequency); plfo.start(t); plfo.stop(t + 0.75); break;
+        case 'say-cloudling': tone(d, t, 'sine', 620, 880, 0.25, 0.18); tone(d, t + 0.18, 'sine', 880, 660, 0.25, 0.14); break;
+        case 'say-drone': tone(d, t, 'sawtooth', 210, 230, 0.6, 0.1, 1200); tone(d, t + 0.2, 'square', 1400, 900, 0.08, 0.1); break;
+        case 'say-robot': for (i = 0; i < 3; i++) tone(d, t + i * 0.1, 'square', 900 + Math.random() * 700, 900, 0.06, 0.12, 3000); break;
         case 'hurt-player': tone(d, t, 'square', 320, 150, 0.16, 0.3, 1400); break;
-        case 'hurt-pig': case 'hurt-cow': case 'hurt-sheep': case 'hurt-chicken':
+        case 'hurt-pig': case 'hurt-cow': case 'hurt-sheep': case 'hurt-chicken': case 'hurt-pegasus': case 'hurt-cloudling':
           tone(d, t, 'square', 420, 220, 0.14, 0.25, 1600); break;
-        case 'hurt-upyr': case 'hurt-archer': case 'hurt-spider':
+        case 'hurt-upyr': case 'hurt-archer': case 'hurt-spider': case 'hurt-infected': case 'hurt-runner': case 'hurt-brute': case 'hurt-imp':
           tone(d, t, 'sawtooth', 160, 90, 0.2, 0.3, 700); break;
+        case 'hurt-wisp': noiseHit(d, t, 1800, 1, 0.2, 0.8); break;
+        case 'hurt-drone': case 'hurt-robot': noiseHit(d, t, 2600, 6, 0.12, 1.0); tone(d, t, 'square', 700, 300, 0.1, 0.2); break;
+        case 'laser': tone(d, t, 'sawtooth', 1800, 300, 0.22, 0.25, 4000); break;
+        case 'gunshot': noiseHit(d, t, 1400, 0.5, 0.25, 2.4, 'lowpass'); tone(d, t, 'square', 180, 50, 0.12, 0.6); break;
+        case 'gun-empty': tone(d, t, 'square', 2400, 2000, 0.02, 0.2); break;
+        case 'heal': for (i = 0; i < 3; i++) tone(d, t + i * 0.09, 'sine', 520 + i * 180, 700 + i * 180, 0.14, 0.2); break;
+        case 'portal': tone(d, t, 'sine', 180, 720, 1.4, 0.35); tone(d, t, 'triangle', 240, 960, 1.4, 0.2); noiseHit(d, t, 900, 0.5, 1.2, 0.4); break;
+        case 'teleport': for (i = 0; i < 6; i++) tone(d, t + i * 0.05, 'sine', 400 + i * 220, 900 + i * 220, 0.12, 0.18); break;
+        case 'victory': [523, 659, 784, 1047].forEach(function (f, k) { tone(d, t + k * 0.18, 'triangle', f, f, 0.5, 0.3); }); break;
         case 'eat': for (i = 0; i < 3; i++) noiseHit(d, t + i * 0.12, 900, 1.5, 0.07, 1.2); break;
         case 'burp': tone(d, t, 'sawtooth', 110, 70, 0.3, 0.3, 400); break;
         case 'pickup': tone(d, t, 'sine', 700 + Math.random() * 200, 1300, 0.08, 0.2); break;

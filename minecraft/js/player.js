@@ -15,6 +15,7 @@
     hp: 20, food: 20, sat: 5, exh: 0, air: 15,
     effects: { hunger: 0, poison: 0, regen: 0 },
     regenT: 0, starveT: 0, drownT: 0, fireT: 0, hazardT: 0, poisonT: 0, invul: 0, flash: 0,
+    portalT: 0, gunCd: 0, feather: 0, vacuum: false,
     dead: false, deathCause: '', spawnPoint: null,
     mining: null, miningCd: 0, using: null, swing: 0, walkDist: 0, stepDist: 0,
     creative: false, sneak: false, sprinting: false
@@ -99,7 +100,7 @@
   }
 
   // ---- Урон, лечение, смерть -------------------------------------------------------
-  function hurt(amount, cause, source, knock) {
+  function hurt(amount, cause, source, knock, fire) {
     if (P.creative || P.dead || amount <= 0) return false;
     if (P.invul > 0) return false;
     var armored = cause !== 'Голод' && cause !== 'Удушье' && cause !== 'Отравление' && cause !== 'Падение';
@@ -123,6 +124,7 @@
       knock = [dx / d * 5, 4, dz / d * 5];
     }
     if (knock) { P.e.vx += knock[0]; P.e.vz += knock[2]; P.e.vy = Math.max(P.e.vy, knock[1]); }
+    if (fire && !P.e.inWater) P.e.fire = Math.max(P.e.fire, fire);
     if (P.hp <= 0) die(source && source.K ? source.K.name : cause);
     if (hooks.hudChanged) hooks.hudChanged();
     return true;
@@ -133,7 +135,8 @@
     'Падение': 'Вы разбились, упав с высоты', 'Утонул': 'Вы утонули', 'Лава': 'Вы сгорели в лаве',
     'Огонь': 'Вы сгорели', 'Голод': 'Вы умерли от голода', 'Кактус': 'Вы укололись о кактус насмерть',
     'Взрыв': 'Вас разорвало взрывом', 'Стрела': 'Вас застрелили', 'Бездна': 'Вы упали в бездну',
-    'Отравление': 'Вас доконал яд'
+    'Отравление': 'Вас доконал яд', 'Огненный шар': 'Вас испепелил огненный шар', 'Лазер': 'Вас подстрелил лазер',
+    'Вакуум': 'Вам не хватило воздуха в открытом космосе', 'Магматит': 'Вы обожгли ноги о магматит'
   };
   function die(cause) {
     if (P.dead) return;
@@ -177,6 +180,7 @@
     var canSprint = P.creative || P.food > 6;
     P.sprinting = inp.sprint && canSprint && inp.f > 0.3 && !P.sneak && !e.inWater;
     var speed = e.fly ? (inp.sprint ? 21 : 11) : e.inLava ? 1.2 : e.inWater ? 2.4 : P.sneak ? 1.3 : P.sprinting ? 5.6 : 4.3;
+    var grav = E.gravityAt(e.x, e.y + 0.9, e.z), gAcc = 28 * grav, gMax = grav < 0.5 ? -18 : -55;
     if (P.using && P.using.slow) speed *= 0.35;
     var tx = wx * speed, tz = wz * speed, k;
 
@@ -196,8 +200,8 @@
       if (e.onLadder) {
         if (inp.jump || (inp.f > 0 && e.hitH)) e.vy = 2.6;
         else if (P.sneak) e.vy = 0;
-        else e.vy = Math.max(e.vy - 28 * dt, -2.4);
-      } else e.vy = Math.max(e.vy - 28 * dt, -55);
+        else e.vy = Math.max(e.vy - gAcc * dt, -2.4);
+      } else e.vy = Math.max(e.vy - gAcc * dt, P.feather > 0 ? -3 : gMax);
       if (inp.jump && e.onGround && !e.onLadder) {
         e.vy = 8.6; e.onGround = false;
         P.exh += P.sprinting ? 0.2 : 0.05;
@@ -224,9 +228,14 @@
       else if (e.y < before) e.fallDist += before - e.y;
     }
     e.hitH = hitH;
-    if (e.fly || e.inWater || e.onLadder) e.fallDist = 0;
+    if (e.fly || e.inWater || e.onLadder || P.feather > 0) e.fallDist = 0;
     if (landed) {
-      if (e.fallDist > 3.2 && !P.creative) hurt(Math.ceil(e.fallDist - 3), 'Падение');
+      // облако мягкое, а при слабой тяжести и падать не больно
+      var soft = BLOCKS[world.getBlock(e.x, e.y - 0.2, e.z)];
+      var fall = e.fallDist * grav;
+      if (soft && soft.soft) fall = 0;
+      if (fall > 3.2 && !P.creative) hurt(Math.ceil(fall - 3), 'Падение');
+      P.feather = 0;
       e.fallDist = 0;
       if (e.fly && !P.creative) e.fly = false;
       if (e.fly && inp.down) e.fly = false;
@@ -260,15 +269,29 @@
   // ---- Выживание: голод, воздух, огонь, эффекты --------------------------------------
   function stats(dt, difficulty) {
     var e = P.e;
-    P.invul -= dt; P.flash -= dt;
-    if (P.creative) { P.hp = 20; P.food = 20; P.air = 15; e.fire = 0; return; }
+    P.invul -= dt; P.flash -= dt; P.gunCd -= dt;
+    if (P.recoil > 0) P.recoil = Math.max(0, P.recoil - dt);
+    if (P.feather > 0) P.feather -= dt;
+    portalCheck(dt);
+    if (P.creative) { P.hp = 20; P.food = 20; P.air = 15; e.fire = 0; P.vacuum = false; return; }
     var ey = e.y + EYE, head = world.getBlock(e.x, ey, e.z);
     var under = head === B.WATER && (ey - Math.floor(ey) < 0.86 || world.getBlock(e.x, ey + 1, e.z) === B.WATER);
     P.headInWater = under;
-    if (under) {
-      P.air -= dt;
-      if (P.air <= 0) { P.air = 0; P.drownT -= dt; if (P.drownT <= 0) { P.drownT = 1; hurt(2, 'Утонул'); } }
+    // открытый космос: без шлема воздух кончается
+    var D = KC.DIMS && KC.DIMS[world.dim];
+    P.vacuum = !!(D && D.vacuum) && !KC.Gen.inStation(e.x, ey, e.z) && !helmetSealed();
+    if (under || P.vacuum) {
+      P.air -= dt * (P.vacuum ? 1.5 : 1);
+      if (P.air <= 0) {
+        P.air = 0; P.drownT -= dt;
+        if (P.drownT <= 0) { P.drownT = 1; hurt(2, P.vacuum ? 'Вакуум' : 'Утонул'); }
+      }
     } else P.air = Math.min(15, P.air + dt * 5);
+    // магматит жжёт ноги, если не красться
+    if (!P.sneak && e.onGround && world.getBlock(e.x, e.y - 0.2, e.z) === B.MAGMA && !P.e.fly) {
+      P.magmaT = (P.magmaT || 0) - dt;
+      if (P.magmaT <= 0) { P.magmaT = 0.5; hurt(1, 'Магматит'); }
+    }
 
     if (e.inLava) {
       e.fire = 8;
@@ -317,6 +340,24 @@
     if (e.y < -30) { P.invul = 0; hurt(40, 'Бездна'); }
   }
 
+  function helmetSealed() {
+    var h = P.armor[0], it = h && ITEMS[h.id];
+    return !!(it && it.armor && it.armor.vacuum);
+  }
+
+  // Врата: постоять внутри полторы секунды. После перехода — сначала выйти из врат.
+  function portalCheck(dt) {
+    var e = P.e;
+    var id = world.getBlock(e.x, e.y + 0.3, e.z), id2 = world.getBlock(e.x, e.y + 1.2, e.z);
+    var b = BLOCKS[id] && BLOCKS[id].portal ? BLOCKS[id] : BLOCKS[id2] && BLOCKS[id2].portal ? BLOCKS[id2] : null;
+    if (!b || P.dead) { P.portalT = 0; return; }
+    if (P.portalT < 0) return;
+    if (P.portalT === 0 && hooks.sound) hooks.sound('portal');
+    P.portalT += dt;
+    if (hooks.particles && Math.random() < dt * 12) hooks.particles('portal', e.x + (Math.random() - 0.5), e.y + Math.random() * 2, e.z + (Math.random() - 0.5));
+    if (P.portalT >= 1.5) { P.portalT = -1; if (hooks.travel) hooks.travel(b.portal); }
+  }
+
   // ---- Добыча -------------------------------------------------------------------------
   function mine(dt, target, active) {
     P.miningCd -= dt;
@@ -360,6 +401,7 @@
     if (crit) dmg *= 1.5;
     var dx = mob.x - e.x, dz = mob.z - e.z, d = Math.hypot(dx, dz) || 1, kb = P.sprinting ? 7 : 4.5;
     if (E.damageMob(mob, dmg, 'player', [dx / d * kb, 3.6, dz / d * kb])) {
+      if (it && it.tool && it.tool.ignite && !mob.K.fireImmune) mob.fire = Math.max(mob.fire, 5);
       if (crit && hooks.particles) for (var i = 0; i < 6; i++) hooks.particles('crit', mob.x, mob.y + mob.h * 0.7, mob.z);
       if (it && it.tool) wearHeld(it.tool.kind === 'sword' ? 1 : 2);
       P.exh += 0.1;
@@ -422,6 +464,13 @@
       case B.LADDER:
         if (n === 2 || n === 3) return false;
         meta = n ^ 1; break;
+      case B.HELL_GATE: case B.HEAVEN_GATE:
+        if (!cellFree(x, y + 1, z, false)) return false;
+        if (!KC.OPAQUE[world.getBlock(x, y - 1, z)]) { toast('Вратам нужен твёрдый пол'); return false; }
+        meta = Math.abs(Math.sin(e.yaw)) > Math.abs(Math.cos(e.yaw)) ? 1 : 0;
+        world.setBlock(x, y, z, id, meta);
+        world.setBlock(x, y + 1, z, id, meta | 8);
+        return true;
       case B.DOOR:
         if (!cellFree(x, y + 1, z, true)) return false;
         meta = facingFromYaw(e.yaw);
@@ -471,6 +520,7 @@
         case 'lever': KC.Sim.toggleLever(t.x, t.y, t.z); return true;
         case 'button': KC.Sim.pressButton(t.x, t.y, t.z); return true;
         case 'bed': sleep(t); return true;
+        case 'teleport': if (hooks.teleport) hooks.teleport(t); return true;
         case 'tnt':
           if (st && st.id === I.FLINT_STEEL) { KC.Sim.primeTnt(t.x, t.y, t.z); wearHeld(1); return true; }
           break;
@@ -488,7 +538,29 @@
       if (!P.using || P.using.kind !== 'bow') P.using = { kind: 'bow', t: 0, slot: P.slot, slow: true };
       return true;
     }
+    if (it.gun) {
+      if (P.gunCd > 0) return true;
+      if (!P.creative && !count(I.AMMO)) {
+        if (begin) { toast('Нет патронов'); if (hooks.sound) hooks.sound('gun-empty'); }
+        P.gunCd = 0.4;
+        return false;
+      }
+      P.gunCd = it.gun.cd;
+      shoot(it.gun);
+      if (!P.creative) consume(I.AMMO, 1);
+      wearHeld(1);
+      return true;
+    }
     if (!begin) return false;
+    if (it.heal) {
+      if (P.hp >= 20 && !P.creative) { toast('Вы и так здоровы'); return false; }
+      heal(it.heal);
+      P.effects.poison = 0;
+      if (!P.creative) useOne();
+      if (hooks.sound) hooks.sound('heal');
+      toast('Раны перевязаны');
+      return true;
+    }
     // вёдра
     if (st.id === I.BUCKET) {
       var src = hooks.liquidTarget && hooks.liquidTarget();
@@ -577,8 +649,26 @@
     }
   }
 
+  // Выстрел: мгновенный луч до первого существа или блока
+  function shoot(gun) {
+    var e = P.e, hit = hooks.rayHit ? hooks.rayHit(gun.range) : null;
+    P.recoil = 0.2;
+    if (hooks.sound) hooks.sound('gunshot');
+    if (!hit) return;
+    var o = hit.o, d = hit.d, t = hit.t;
+    if (hooks.particles) {
+      for (var k = 1; k < Math.min(t, 24); k += 1.5) hooks.particles('tracer', o[0] + d[0] * k, o[1] + d[1] * k - 0.05, o[2] + d[2] * k);
+      for (var j = 0; j < 5; j++) hooks.particles(hit.mob ? 'crit' : 'spark', o[0] + d[0] * (t - 0.05), o[1] + d[1] * (t - 0.05), o[2] + d[2] * (t - 0.05));
+    }
+    if (hit.mob) E.damageMob(hit.mob, gun.dmg, 'player', [d[0] * 4, 2.5, d[2] * 4]);
+    else if (hit.block && hit.block.id === B.TNT) KC.Sim.primeTnt(hit.block.x, hit.block.y, hit.block.z);
+    else if (hit.block && BLOCKS[hit.block.id].mat === 'glass' && BLOCKS[hit.block.id].hardness < 1) KC.Sim.breakBlock(hit.block.x, hit.block.y, hit.block.z, false);
+    void e;
+  }
+
   function sleep(t) {
     var e = P.e;
+    if (world.dim !== 'over') { toast('Здесь кровать не работает: точка возрождения — в обычном мире'); return; }
     P.spawnPoint = { x: t.x, y: t.y, z: t.z };
     var night = hooks.day && hooks.day() < 0.35;
     if (!night) { toast('Точка возрождения установлена. Спать можно только ночью'); return; }
@@ -619,7 +709,8 @@
   function buildHeld(t, L) {
     heldBatch.reset();
     var st = held(), it = st ? ITEMS[st.id] : null;
-    var sw = P.swing > 0 ? Math.sin(Math.min(1, P.swing) * Math.PI) : 0;
+    var sw = P.swing > 0 && !(it && it.gun) ? Math.sin(Math.min(1, P.swing) * Math.PI) : 0;
+    var rc = P.recoil > 0 ? P.recoil : 0;
     var bob = Math.sin(P.walkDist * 2.2) * 0.02 * (P.walkAmp || 0), bobY = Math.abs(Math.cos(P.walkDist * 2.2)) * 0.025 * (P.walkAmp || 0);
     var eat = P.using && P.using.kind === 'eat' ? Math.min(1, P.using.t * 3) : 0;
     var draw = P.using && P.using.kind === 'bow' ? Math.min(1, P.using.t) : 0;
@@ -629,7 +720,8 @@
       var R0 = M.rot(-0.25 + sw * 0.4, 1.35 - sw * 0.9, 0.2);
       var uvFor = function (f) {
         var r = arm.faces[f];
-        return [(r.x + 0.02) / 256, (r.y + 0.02) / 256, (r.x + r.w - 0.02) / 256, (r.y + r.h - 0.02) / 256];
+        var A = M.ATLAS;
+        return [(r.x + 0.02) / A, (r.y + 0.02) / A, (r.x + r.w - 0.02) / A, (r.y + r.h - 0.02) / A];
       };
       boxView(heldBatch, [-0.09, -0.62, -0.09], [0.09, 0.0, 0.09], uvFor, R0, [0.42 + bob - sw * 0.15, -0.5 + bobY, -0.35 - sw * 0.2], L);
       return { data: heldBatch.view().data, quads: heldBatch.quads, mob: true };
@@ -644,7 +736,7 @@
     } else {
       var uv = KC.tileUV(it.sprite), s = 0.25;
       var tool = it.tool || st.id === I.BOW || st.id === I.STICK;
-      var R2 = M.rot(-0.55 + draw * 0.4, -sw * 1.1, tool ? 0.1 : 0);
+      var R2 = M.rot(-0.55 + draw * 0.4, -sw * 1.1 + rc * 2.2, tool ? 0.1 : 0);
       var pts = [[-s, -s, 0], [s, -s, 0], [s, s, 0], [-s, s, 0]];
       var uvs = tool ? [[uv[2], uv[3]], [uv[0], uv[3]], [uv[0], uv[1]], [uv[2], uv[1]]] : [[uv[0], uv[3]], [uv[2], uv[3]], [uv[2], uv[1]], [uv[0], uv[1]]];
       var cc = [c[0] + 0.06 - draw * 0.3, c[1] + 0.1 + draw * 0.1, c[2] + draw * 0.2];
@@ -674,8 +766,9 @@
   }
 
   function init(w, h) { world = w; hooks = h || {}; if (!P.e) P.e = newEnt(); }
+  function setWorld(w) { world = w; P.mining = null; P.using = null; }
 
-  P.init = init; P.reset = reset; P.setCreative = setCreative;
+  P.init = init; P.reset = reset; P.setCreative = setCreative; P.setWorld = setWorld;
   P.give = give; P.count = count; P.consume = consume; P.held = held; P.heldId = heldId; P.heldItem = heldItem;
   P.useOne = useOne; P.wearHeld = wearHeld; P.armorPoints = armorPoints;
   P.hurt = hurt; P.heal = heal; P.die = die; P.respawn = respawn;
