@@ -477,16 +477,55 @@ select, input[type="text"] {
   text-shadow: 0 3px 0 rgba(0, 0, 0, 0.8); opacity: 0; transition: opacity 0.5s; pointer-events: none;
 }
 #dim-label.is-on { opacity: 1; }
-#zday {
+#ztop {
   position: absolute; left: 50%; top: max(10px, env(safe-area-inset-top, 0px)); transform: translateX(-50%);
+  display: flex; flex-direction: column; align-items: center; gap: 4px; pointer-events: none;
+}
+#zday {
   margin: 0; padding: 5px 12px; font: 600 14px/1.3 var(--body); color: #ffd9c2; white-space: nowrap;
   background: rgba(60, 10, 8, 0.6); border: 2px solid rgba(255, 120, 90, 0.35);
 }
-/* на сенсоре верхний правый угол занят кнопками — счётчик уходит влево */
-body.is-touch #zday {
-  left: max(12px, env(safe-area-inset-left, 0px)); transform: none;
-  max-width: calc(100vw - 290px); min-width: 130px; white-space: normal; font-size: 12px;
+#nav { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.nav-row {
+  display: flex; align-items: center; gap: 8px; padding: 3px 10px;
+  font: 600 13px/1.3 var(--body); color: var(--ink); background: rgba(0, 0, 0, 0.5); white-space: nowrap;
 }
+.nav-row[hidden] { display: none; }
+.nav-arr { display: inline-block; width: 16px; text-align: center; color: var(--accent); transition: transform 0.2s; }
+.nav-row--drop .nav-arr { color: #ff6a5a; }
+.nav-row--surv .nav-arr { color: #ffffff; }
+.nav-d { color: var(--ink-2); font-variant-numeric: tabular-nums; }
+#dim-sub { display: block; margin-top: 6px; font: 500 14px/1.3 var(--body); color: var(--ink); text-align: center; }
+#dim-sub:empty { display: none; }
+#msg {
+  position: absolute; left: 50%; bottom: calc(var(--slot) + 104px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%);
+  margin: 0; max-width: min(640px, calc(100vw - 32px)); padding: 8px 14px;
+  font: 500 15px/1.4 var(--body); text-align: center; color: var(--ink);
+  background: rgba(10, 14, 12, 0.72); border-left: 3px solid var(--accent);
+  opacity: 0; transition: opacity 0.3s; pointer-events: none;
+}
+#msg.is-on { opacity: 1; }
+.map-panel { display: flex; flex-direction: column; align-items: center; gap: 12px; max-width: calc(100vw - 32px); }
+#map-canvas { width: min(450px, calc(100vw - 64px), calc(100vh - 220px)); height: auto; aspect-ratio: 1; image-rendering: pixelated; border: 2px solid var(--edge-hi); }
+.map-body, .map-side { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+.map-legend { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 12px; margin: 0; padding: 0; list-style: none; font-size: 13px; color: var(--ink-2); max-width: 450px; }
+/* низкий экран (телефон лёжа): легенда справа от карты */
+@media (max-height: 560px) {
+  .map-panel { gap: 6px; }
+  .map-body { flex-direction: row; align-items: center; }
+  #map-canvas { width: min(calc(100vh - 90px), calc(100vw - 260px)); }
+  .map-legend { flex-direction: column; flex-wrap: nowrap; gap: 2px; max-width: 170px; }
+}
+.map-legend li { display: flex; align-items: center; gap: 5px; }
+.map-legend i, .map-legend b { display: inline-grid; place-items: center; width: 16px; height: 16px; border-radius: 50%; font: 700 10px/1 var(--body); font-style: normal; color: #fff; }
+.map-legend b { border-radius: 2px; }
+/* на сенсоре верхний правый угол занят кнопками — счётчик уходит влево */
+body.is-touch #ztop {
+  left: max(12px, env(safe-area-inset-left, 0px)); transform: none; align-items: flex-start;
+  max-width: calc(100vw - 290px); min-width: 150px;
+}
+body.is-touch #zday { white-space: normal; font-size: 12px; }
+body.is-touch .nav-row { white-space: normal; font-size: 12px; }
 .nw-note { margin: 0; font-size: 13px; line-height: 1.45; color: #ffd9c2; }
 .screen--victory {
   align-items: center;
@@ -582,6 +621,6 @@ body[data-state="dead"] #bars { display: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .btn, #toast, #sleep, #dim-label { transition: none; }
+  .btn, #toast, #sleep, #dim-label, #msg, .nav-arr { transition: none; }
   #fade.is-on { animation: none; }
 }

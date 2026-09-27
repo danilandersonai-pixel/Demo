@@ -261,6 +261,8 @@
       }
     }
     P.walkDist += moved;
+    // насколько игрок шумит шагами: 0 — стоит или крадётся, 1 — идёт, 2 — бежит
+    e.loud = e.fly || P.sneak || moved / Math.max(dt, 1e-3) < 0.5 ? 0 : P.sprinting ? 2 : 1;
     P.walkAmp = Math.min(1, moved / Math.max(dt, 1e-3) / 4.3);
     if (hooks.pressPlate && world.getBlock(e.x, e.y + 0.05, e.z) === B.PLATE) hooks.pressPlate(Math.floor(e.x), Math.floor(e.y + 0.05), Math.floor(e.z));
     void sy0;
@@ -303,6 +305,8 @@
       P.fireT -= dt;
       if (P.fireT <= 0) { P.fireT = 1; hurt(1, 'Огонь'); }
     }
+    // огонь поджигает
+    if (world.getBlock(e.x, e.y + 0.2, e.z) === B.FIRE || world.getBlock(e.x, e.y + 1.2, e.z) === B.FIRE) e.fire = Math.max(e.fire, 4);
     // кактус колется
     P.hazardT -= dt;
     if (P.hazardT <= 0) {
@@ -368,6 +372,7 @@
     if (!m || m.x !== target.x || m.y !== target.y || m.z !== target.z || m.id !== id) {
       if (P.miningCd > 0) return null;
       m = P.mining = { x: target.x, y: target.y, z: target.z, id: id, p: 0, soundT: 0 };
+      if (isCar(id) && hooks.carHit) hooks.carHit(target.x, target.y, target.z);
     }
     var b = BLOCKS[id];
     if (b.hardness < 0) { if (hooks.toast && m.p === 0) hooks.toast(b.name + ' не ломается'); m.p = 0.0001; return m; }
@@ -451,7 +456,7 @@
     var meta = 0, n = normalDir(t.nx, t.ny, t.nz);
     var look = [-Math.sin(e.yaw) * Math.cos(e.pitch), Math.sin(e.pitch), -Math.cos(e.yaw) * Math.cos(e.pitch)];
     switch (id) {
-      case B.FURNACE: case B.CHEST: case B.PUMPKIN: case B.JACK: case B.TABLE: case B.BED:
+      case B.FURNACE: case B.CHEST: case B.PUMPKIN: case B.JACK: case B.TABLE: case B.BED: case B.GENERATOR:
         meta = facingFromYaw(e.yaw); break;
       case B.PISTON: meta = dirToward([-look[0], -look[1], -look[2]]); break;
       case B.LEAVES: meta = 2; break;
@@ -494,6 +499,7 @@
     // существа
     if (mob && begin) {
       var K = mob.K;
+      if (K.npc && !K.vehicle && hooks.talkTo) { hooks.talkTo(mob); return true; }
       if (K.passive && it && K.food.indexOf(st.id) >= 0) {
         if (mob.grow > 0) { mob.grow = Math.max(1, mob.grow - 20); useOne(); return true; }
         if (mob.breedCd <= 0 && mob.love <= 0) {
@@ -521,6 +527,17 @@
         case 'button': KC.Sim.pressButton(t.x, t.y, t.z); return true;
         case 'bed': sleep(t); return true;
         case 'teleport': if (hooks.teleport) hooks.teleport(t); return true;
+        case 'generator':
+          var gen = KC.Sim.getBent(t.x, t.y, t.z);
+          if (st && st.id === I.FUEL_CAN) {
+            var left = KC.Sim.fuelGenerator(t.x, t.y, t.z, 24000);
+            if (!P.creative) useOne();
+            toast('Генератор заправлен: топлива на ' + fuelHours(left));
+            if (hooks.generatorFueled) hooks.generatorFueled(t.x, t.y, t.z);
+            return true;
+          }
+          toast(gen && gen.fuel > 0 ? 'Генератор работает: топлива на ' + fuelHours(gen.fuel) : 'Генератор стоит: заправьте его канистрой с топливом');
+          return true;
         case 'tnt':
           if (st && st.id === I.FLINT_STEEL) { KC.Sim.primeTnt(t.x, t.y, t.z); wearHeld(1); return true; }
           break;
@@ -552,6 +569,8 @@
       return true;
     }
     if (!begin) return false;
+    if (st.id === I.CITY_MAP && hooks.openMap) { hooks.openMap(); return true; }
+    if (st.id === I.RADIO && hooks.useRadio) { hooks.useRadio(); return true; }
     if (it.heal) {
       if (P.hp >= 20 && !P.creative) { toast('Вы и так здоровы'); return false; }
       heal(it.heal);
@@ -660,11 +679,16 @@
       for (var k = 1; k < Math.min(t, 24); k += 1.5) hooks.particles('tracer', o[0] + d[0] * k, o[1] + d[1] * k - 0.05, o[2] + d[2] * k);
       for (var j = 0; j < 5; j++) hooks.particles(hit.mob ? 'crit' : 'spark', o[0] + d[0] * (t - 0.05), o[1] + d[1] * (t - 0.05), o[2] + d[2] * (t - 0.05));
     }
-    if (hit.mob) E.damageMob(hit.mob, gun.dmg, 'player', [d[0] * 4, 2.5, d[2] * 4]);
+    E.noise(e.x, e.y, e.z, 40);
+    if (hit.mob) E.damageMob(hit.mob, gun.dmg * (1 - (hit.mob.K.bulletproof || 0)), 'player', [d[0] * 4, 2.5, d[2] * 4]);
+    else if (hit.block && BLOCKS[hit.block.id].explosive) { KC.Sim.breakBlock(hit.block.x, hit.block.y, hit.block.z, false); KC.Sim.explode(hit.block.x + 0.5, hit.block.y + 0.5, hit.block.z + 0.5, BLOCKS[hit.block.id].explosive); }
+    else if (hit.block && hooks.carHit && isCar(hit.block.id)) hooks.carHit(hit.block.x, hit.block.y, hit.block.z);
     else if (hit.block && hit.block.id === B.TNT) KC.Sim.primeTnt(hit.block.x, hit.block.y, hit.block.z);
     else if (hit.block && BLOCKS[hit.block.id].mat === 'glass' && BLOCKS[hit.block.id].hardness < 1) KC.Sim.breakBlock(hit.block.x, hit.block.y, hit.block.z, false);
-    void e;
   }
+  // Сутки — 24 000 тиков, игровой час — 1000
+  function fuelHours(ticks) { var h = Math.max(1, Math.round(ticks / 1000)); return h + ' ч'; }
+  function isCar(id) { return id === B.CAR_RED || id === B.CAR_BLUE || id === B.CAR_WHITE || id === B.TIRE; }
 
   function sleep(t) {
     var e = P.e;

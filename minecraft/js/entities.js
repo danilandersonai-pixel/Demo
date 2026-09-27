@@ -29,10 +29,21 @@
     // Мегаполис: заражённые (не горят на солнце, зовут друг друга, видят дальше)
     infected: { name: 'Заражённый', model: 'infected', hp: 20, w: 0.6, h: 1.95, eye: 1.7, speed: 2.0, dmg: 3, hostile: true, zombie: true,
       drops: function () { var d = [[I.ROTTEN_FLESH, rint(0, 2)]]; if (Math.random() < 0.12) d.push([I.CANNED_FOOD, 1]); if (Math.random() < 0.1) d.push([I.AMMO, rint(2, 5)]); return d; } },
-    runner: { name: 'Бегун', model: 'runner', hp: 14, w: 0.6, h: 1.95, eye: 1.7, speed: 4.1, dmg: 2, hostile: true, zombie: true,
+    runner: { name: 'Бегун', model: 'runner', hp: 14, w: 0.6, h: 1.95, eye: 1.7, speed: 4.1, dmg: 2, hostile: true, zombie: true, lightShy: true,
       drops: function () { var d = [[I.ROTTEN_FLESH, rint(0, 1)]]; if (Math.random() < 0.15) d.push([I.AMMO, rint(2, 6)]); return d; } },
-    brute: { name: 'Громила', model: 'brute', hp: 44, w: 0.85, h: 2.6, eye: 2.3, speed: 1.6, dmg: 7, knock: 11, scale: 1.35, hostile: true, zombie: true,
+    brute: { name: 'Громила', model: 'brute', hp: 44, w: 0.85, h: 2.6, eye: 2.3, speed: 1.6, dmg: 7, knock: 11, scale: 1.35, hostile: true, zombie: true, breaker: 3,
       drops: function () { var d = [[I.ROTTEN_FLESH, rint(1, 3)], [I.IRON_INGOT, rint(0, 1)]]; if (Math.random() < 0.3) d.push([I.MEDKIT, 1]); return d; } },
+    // особые места мегаполиса
+    patient: { name: 'Пациент', model: 'patient', hp: 16, w: 0.6, h: 1.95, eye: 1.7, speed: 1.8, dmg: 3, hostile: true, zombie: true,
+      drops: function () { var d = [[I.ROTTEN_FLESH, rint(0, 1)]]; if (Math.random() < 0.3) d.push([I.BANDAGE, rint(1, 2)]); if (Math.random() < 0.06) d.push([I.MEDKIT, 1]); return d; } },
+    cop: { name: 'Заражённый полицейский', model: 'cop', hp: 26, w: 0.6, h: 1.95, eye: 1.7, speed: 2.1, dmg: 4, hostile: true, zombie: true, bulletproof: 0.6,
+      drops: function () { var d = [[I.ROTTEN_FLESH, rint(0, 1)], [I.AMMO, rint(1, 5)]]; if (Math.random() < 0.05) d.push([I.BODY_ARMOR, 1]); return d; } },
+    blind: { name: 'Слепой', model: 'blind', hp: 22, w: 0.6, h: 1.95, eye: 1.7, speed: 3.6, dmg: 4, hostile: true, zombie: true, blind: true,
+      drops: function () { var d = [[I.ROTTEN_FLESH, rint(1, 2)]]; if (Math.random() < 0.25) d.push([B.TORCH, rint(1, 3)]); return d; } },
+    survivor: { name: 'Выживший', model: 'survivor', hp: 20, w: 0.6, h: 1.8, eye: 1.62, speed: 0, panic: 0, food: [], passive: true, npc: true,
+      drops: function () { return []; } },
+    heli: { name: 'Вертолёт', model: 'helicopter', hp: 1000, w: 3.5, h: 3.5, eye: 1, speed: 0, panic: 0, food: [], passive: true, npc: true, vehicle: true, scale: 2,
+      drops: function () { return []; } },
     // Пекло
     imp: { name: 'Бес', model: 'imp', hp: 14, w: 0.5, h: 1.5, eye: 1.2, speed: 3.2, dmg: 3, hostile: true, fireImmune: true, ignite: 4,
       drops: function () { var d = [[I.SULFUR, rint(0, 2)]]; if (Math.random() < 0.2) d.push([I.BLOOD_CRYSTAL, 1]); return d; } },
@@ -280,7 +291,7 @@
   function diffMul() { var d = hooks.difficulty ? hooks.difficulty() : 2; return [0, 0.5, 1, 1.5][d]; }
 
   function damageMob(e, amount, source, knock) {
-    if (e.dead || e.deathT > 0 || e.invul > 0) return false;
+    if (e.dead || e.deathT > 0 || e.invul > 0 || e.K.npc) return false;
     if (e.K.fireImmune && source === 'fire') { e.fire = 0; return false; }
     e.hp -= amount;
     e.hurt = 0.35;
@@ -412,7 +423,8 @@
     wander(e, dt, K.speed);
   }
 
-  // Поиск цели: игрок в радиусе, в прямой видимости (память на 6 с)
+  // Поиск цели: игрок в радиусе, в прямой видимости (память на 6 с).
+  // Слепые не видят — они слышат шаги: бег слышно далеко, крадущегося почти нет.
   function acquire(e, dt) {
     var K = e.K, a = e.ai, p = hooks.player && hooks.player();
     if (!p || p.dead || p.creative || (hooks.difficulty ? hooks.difficulty() : 2) === 0) return null;
@@ -423,12 +435,21 @@
       var l = e.light ? Math.max(e.light[0], e.light[1]) : 0;
       if (e.provoked <= 0 && l >= 0.45) return null;
     }
+    if (K.blind) {
+      var hear = [1.8, 7, 14][p.loud || 0];
+      if (d < hear || e.provoked > 0) a.memory = 3;
+      a.memory = (a.memory || 0) - dt;
+      a.los = d < 16;
+      return a.memory > 0 ? p : null;
+    }
     a.losT -= dt;
     if (a.losT <= 0) {
       a.losT = 0.4;
       a.los = lineOfSight(e.x, e.y + K.eye, e.z, p.x, p.y + 1.6, p.z);
       if (a.los) { if (K.zombie && !(a.memory > 0)) alertHorde(e, 12); a.memory = K.zombie ? 10 : 6; }
     }
+    // топот бегущего игрока заражённые слышат и без прямой видимости
+    if (K.zombie && !(a.memory > 0) && (p.loud || 0) === 2 && d < 10) hearAt(e, p.x, p.y, p.z, 6);
     a.memory = (a.memory || 0) - dt;
     return a.memory > 0 ? p : null;
   }
@@ -443,6 +464,26 @@
     if (hooks.sound && e.K.zombie) hooks.sound('say-' + e.kind, e.x, e.y, e.z);
   }
 
+  // ---- Шум: заражённые идут на звук ---------------------------------------------------
+  function hearAt(e, x, y, z, t) {
+    var h = e.ai.heard;
+    if (h && h.t > 0 && Math.hypot(h.x - e.x, h.z - e.z) < Math.hypot(x - e.x, z - e.z) - 4) return;
+    e.ai.heard = { x: x, y: y, z: z, t: t || 14 };
+  }
+  // Громкий звук в точке: все заражённые в радиусе r идут проверить
+  function noise(x, y, z, r) {
+    var n = 0;
+    for (var i = 0; i < list.length; i++) {
+      var e = list[i];
+      if (e.dead || e.type !== 'mob' || !e.K.zombie || e.deathT > 0) continue;
+      var dd = Math.hypot(e.x - x, (e.y - y) * 2, e.z - z);
+      if (dd > r) continue;
+      hearAt(e, x + (Math.random() - 0.5) * 3, y, z + (Math.random() - 0.5) * 3, 10 + Math.random() * 8);
+      n++;
+    }
+    return n;
+  }
+
   function meleeHit(e, target) {
     var K = e.K;
     e.attackCd = e.kind === 'brute' ? 1.6 : 1;
@@ -455,15 +496,56 @@
     hooks.hurtPlayer(K.dmg * diffMul(), K.name, e, knock, K.ignite || 0);
   }
 
+  // ---- Осада: заражённые ломают двери, окна и баррикады на пути ------------------------
+  var siege = new Map();          // "x,y,z" → накопленные секунды ударов
+  function siegeBlock(e, dx, dz, dt) {
+    var fx = Math.floor(e.x + dx * (e.w / 2 + 0.45)), fz = Math.floor(e.z + dz * (e.w / 2 + 0.45));
+    var y0 = Math.floor(e.y + 0.1);
+    for (var yy = y0; yy <= y0 + 1; yy++) {
+      var id = world.getBlock(fx, yy, fz), bd = KC.BLOCKS[id];
+      if (!bd || !bd.siege) continue;
+      var k = fx + ',' + yy + ',' + fz, cur = (siege.get(k) || 0) + dt * (e.K.breaker || 1);
+      e.attackAnim = Math.max(e.attackAnim, 0.3);
+      e.breakT = (e.breakT || 0) - dt;
+      if (e.breakT <= 0) {
+        e.breakT = 0.7;
+        if (hooks.sound) hooks.sound('siege-hit', fx + 0.5, yy + 0.5, fz + 0.5);
+        if (hooks.particles) for (var q = 0; q < 3; q++) hooks.particles('block', fx + 0.5, yy + 0.5, fz + 0.5, id);
+        noise(fx + 0.5, yy, fz + 0.5, 12);
+      }
+      if (cur >= bd.siege) {
+        siege.delete(k);
+        KC.Sim.breakBlock(fx, yy, fz, false);
+        if (hooks.sound) hooks.sound('break:' + (bd.mat || 'wood'), fx + 0.5, yy + 0.5, fz + 0.5);
+        if (hooks.siegeBroke) hooks.siegeBroke(fx, yy, fz, id);
+      } else siege.set(k, cur);
+      return true;
+    }
+    return false;
+  }
+
+  // Лестница поблизости на том же уровне — чтобы добраться до игрока этажом выше
+  function findLadder(e) {
+    var bx = Math.floor(e.x), by = Math.floor(e.y + 0.1), bz = Math.floor(e.z), best = null, bd = 99;
+    for (var dz = -8; dz <= 8; dz++) for (var dx = -8; dx <= 8; dx++) {
+      if (world.getBlock(bx + dx, by, bz + dz) !== B.LADDER) continue;
+      var d = Math.abs(dx) + Math.abs(dz);
+      if (d < bd) { bd = d; best = { x: bx + dx + 0.5, z: bz + dz + 0.5 }; }
+    }
+    return best;
+  }
+
   function updateHostile(e, dt) {
     var K = e.K, a = e.ai;
     e.attackCd -= dt;
     e.provoked -= dt;
     var target = acquire(e, dt);
-    if (target) {
-      var tdx = target.x - e.x, tdz = target.z - e.z, hd = Math.hypot(tdx, tdz);
+    var goal = target ? { x: target.x, y: target.y, z: target.z } : a.heard && a.heard.t > 0 ? a.heard : null;
+    if (a.heard) { a.heard.t -= dt; if (target || Math.hypot(a.heard.x - e.x, a.heard.z - e.z) < 1.5) a.heard = null; }
+    if (goal) {
+      var tdx = goal.x - e.x, tdz = goal.z - e.z, hd = Math.hypot(tdx, tdz) || 0.01;
       e.headYaw = 0;
-      if (K.ranged) {
+      if (K.ranged && target) {
         if (hd < 5) steer(e, e.x - tdx, e.z - tdz, K.speed, dt);
         else if (hd > 11) steer(e, target.x, target.z, K.speed, dt);
         else { brake(e, dt); faceTo(e, target.x, target.z, dt, 8); }
@@ -476,12 +558,42 @@
           if (hooks.sound) hooks.sound('bow', e.x, e.y, e.z);
         }
       } else {
-        steer(e, target.x, target.z, K.speed, dt);
-        if (K.climbs && e.onGround && hd < 3.5 && hd > 1.5 && Math.random() < dt * 1.5) {
+        var gx = goal.x, gz = goal.z, spd = target ? K.speed : K.speed * 0.75;
+        // бегуны боятся яркого света: у генератора и ламп не суются дальше
+        if (K.lightShy) {
+          a.fear = (a.fear || 0) - dt;
+          if (a.fear <= 0 && world.blockLightAt(e.x, e.y + 1, e.z) >= 11) a.fear = 1.4;
+          if (a.fear > 0) { gx = e.x - tdx; gz = e.z - tdz; }
+        }
+        // игрок этажом выше: ищем лестницу и лезем
+        if (K.zombie && goal.y - e.y > 2.5) {
+          a.ladderT = (a.ladderT || 0) - dt;
+          if (a.ladderT <= 0) { a.ladderT = 1.5; a.ladder = findLadder(e); }
+          if (a.ladder && !e.onLadder) { gx = a.ladder.x; gz = a.ladder.z; }
+        } else a.ladder = null;
+        if (e.onLadder && goal.y > e.y - 0.4) {
+          e.vy = 2.4;
+          if (goal.y - e.y > 1) { gx = Math.floor(e.x) + 0.5; gz = Math.floor(e.z) + 0.5; }   // держится за лестницу
+        }
+        // упёрся в стену: ломает, что можно сломать, иначе обходит вдоль стены
+        if (a.sideT > 0) {
+          a.sideT -= dt;
+          var sx = -tdz / hd * a.side, sz = tdx / hd * a.side;
+          gx = e.x + sx * 3 + tdx / hd * 0.5; gz = e.z + sz * 3 + tdz / hd * 0.5;
+        }
+        steer(e, gx, gz, spd, dt);
+        if (K.climbs && target && e.onGround && hd < 3.5 && hd > 1.5 && Math.random() < dt * 1.5) {
           e.vy = 5.5; e.vx += tdx / hd * 4; e.vz += tdz / hd * 4;
         }
+        if (K.zombie && e.hitH && hd > 1.2 && !(a.sideT > 0)) {
+          var mdx = gx - e.x, mdz = gz - e.z, md = Math.hypot(mdx, mdz) || 1;
+          if (!siegeBlock(e, mdx / md, mdz / md, dt)) {
+            a.stuckT = (a.stuckT || 0) + dt;
+            if (a.stuckT > 1.2) { a.stuckT = 0; a.sideT = 1.5 + Math.random() * 1.5; a.side = Math.random() < 0.5 ? -1 : 1; }
+          }
+        } else a.stuckT = Math.max(0, (a.stuckT || 0) - dt);
         var reach = 0.9 + K.w / 2;
-        if (hd < reach + 0.3 && Math.abs(target.y - e.y) < 1.8 && e.attackCd <= 0) meleeHit(e, target);
+        if (target && hd < reach + 0.3 && Math.abs(target.y - e.y) < 1.8 && e.attackCd <= 0) meleeHit(e, target);
       }
     } else {
       e.aiming = false;
@@ -578,6 +690,15 @@
       return;
     }
     refreshLight(e, dt);
+    if (K.vehicle) { if (hooks.vehicle) hooks.vehicle(e, dt); return; }
+    if (K.npc) {
+      // выживший машет рукой и смотрит на игрока
+      var pp = hooks.player && hooks.player();
+      brake(e, dt);
+      if (pp && Math.hypot(pp.x - e.x, pp.z - e.z) < 24) faceTo(e, pp.x, pp.z, dt, 4);
+      physics(e, dt, { climb: true });
+      return;
+    }
     if (K.flies) updateFlyer(e, dt);
     else if (K.passive) updatePassive(e, dt); else updateHostile(e, dt);
     if (K.fireImmune && e.inLava) e.vy = Math.max(e.vy, 2);
@@ -593,6 +714,7 @@
     e.walk += moved * dt * 3.2;
     // огонь, лава, вода
     if (e.inLava && !K.fireImmune) { e.fire = 8; if (e.invul <= 0) damageMob(e, 4, 'fire'); }
+    if (!K.fireImmune && world.getBlock(e.x, e.y + 0.2, e.z) === B.FIRE) e.fire = Math.max(e.fire, 4);
     if (e.inWater || K.fireImmune) e.fire = 0;
     if (K.glow && hooks.particles && Math.random() < dt * 5) hooks.particles('flame', e.x + (Math.random() - 0.5) * 0.5, e.y + 0.3 + Math.random() * 0.4, e.z + (Math.random() - 0.5) * 0.5);
     if (e.fire > 0) {
@@ -770,15 +892,25 @@
   // ---- Появление мобов -------------------------------------------------------------
   function hostileCount() { var n = 0; for (var i = 0; i < list.length; i++) if (list[i].type === 'mob' && list[i].K.hostile) n++; return n; }
 
-  // Кто и как появляется: зависит от измерения и типа мира
-  function spawnRules() {
+  // Кто и как появляется: зависит от измерения, типа мира и района
+  var CITY_KINDS = {
+    downtown: [['infected', 0.45], ['runner', 0.8], ['brute', 1]],
+    residential: [['infected', 0.62], ['runner', 0.86], ['brute', 1]],
+    industrial: [['infected', 0.5], ['runner', 0.68], ['brute', 1]],
+    suburb: [['infected', 0.8], ['runner', 0.96], ['brute', 1]]
+  };
+  var BUILDING_KINDS = { hospital: 'patient', police: 'cop' };
+  function spawnRules(p) {
     var day = hooks.day ? hooks.day() : 1;
     if (world.dim === 'hell') return { cap: 12, every: 0.7, kinds: [['imp', 0.62], ['wisp', 1]], anyLight: true, cave: true };
     if (world.dim === 'heaven') return null;
     if (world.dim === 'space') return { cap: 5, every: 2.5, kinds: [['drone', 1]], air: true };
     if (world.type === 'city') {
       var night = day < 0.45, boost = hooks.hordeBoost ? hooks.hordeBoost() : 0;
-      return { cap: night ? 16 + boost * 2 : 6 + boost, every: night ? 0.35 : 1.4, kinds: [['infected', 0.58], ['runner', 0.84], ['brute', 1]], anyLight: true, street: true };
+      if (p && p.y < KC.Gen.CITY_GROUND - 3) return { cap: 6, every: 1.2, kinds: [['blind', 0.7], ['infected', 1]], anyLight: true, metro: true };
+      var dist = p ? KC.Gen.cityInfo(world.seed, p.x, p.z).district : 'residential';
+      var k = KC.Gen.DISTRICTS[dist].danger;
+      return { cap: Math.round((night ? 16 + boost * 2 : 6 + boost) * k), every: (night ? 0.35 : 1.4) / k, kinds: CITY_KINDS[dist], anyLight: true, street: true };
     }
     return { cap: 14, every: 0.5, kinds: [['upyr', 0.45], ['archer', 0.75], ['spider', 1]] };
   }
@@ -787,19 +919,22 @@
     for (var i = 0; i < kinds.length; i++) if (r < kinds[i][1]) return kinds[i][0];
     return kinds[kinds.length - 1][0];
   }
+  function standable(x, y, z) {
+    return KC.SOLID[world.getBlock(x, y - 1, z)] && !world.getBlock(x, y, z) && !world.getBlock(x, y + 1, z);
+  }
 
   var spawnT = 0;
   function trySpawnHostile(dt) {
     spawnT -= dt;
     if (spawnT > 0) return;
-    var R = spawnRules();
+    var p = hooks.player && hooks.player();
+    var R = spawnRules(p);
     spawnT = R ? R.every : 2;
     var diff = hooks.difficulty ? hooks.difficulty() : 2;
-    var p = hooks.player && hooks.player();
     if (!R || !diff || !p || p.dead) return;
     if (hostileCount() >= R.cap) return;
     for (var attempt = 0; attempt < 3; attempt++) {
-      var ang = Math.random() * Math.PI * 2, r = 24 + Math.random() * 20;
+      var ang = Math.random() * Math.PI * 2, r = (R.metro ? 14 : 24) + Math.random() * (R.metro ? 16 : 20);
       var x = Math.floor(p.x + Math.cos(ang) * r), z = Math.floor(p.z + Math.sin(ang) * r), y;
       var c = world.getChunk(x >> 4, z >> 4);
       if (!c || !c.mesh) continue;
@@ -808,6 +943,16 @@
         // дроны кружат в открытом космосе вокруг станции
         y = Math.floor(p.y + (Math.random() - 0.3) * 14);
         if (y < 2 || y > KC.H - 3 || world.getBlock(x, y, z) || world.getBlock(x, y + 1, z) || KC.Gen.inStation(x, y, z)) continue;
+        spawnMob(kind, x + 0.5, y, z + 0.5);
+        return;
+      }
+      if (R.metro) {
+        // в туннелях и на станциях метро: туннели прямые, поэтому ищем вдоль осей
+        var ax = Math.floor(Math.random() * 4), sgn = ax < 2 ? 1 : -1;
+        x = Math.floor(p.x + (ax % 2 === 0 ? sgn * r : (Math.random() - 0.5) * 3));
+        z = Math.floor(p.z + (ax % 2 === 1 ? sgn * r : (Math.random() - 0.5) * 3));
+        y = KC.Gen.METRO_FLOOR + 1;
+        if (!world.getChunk(x >> 4, z >> 4) || !standable(x, y, z)) continue;
         spawnMob(kind, x + 0.5, y, z + 0.5);
         return;
       }
@@ -822,16 +967,70 @@
         if (KC.OPAQUE[world.getBlock(x, y - 1, z)] && !world.getBlock(x, y, z) && !world.getBlock(x, y + 1, z)) { ok = true; break; }
       }
       if (!ok) continue;
+      if (R.street && y < KC.Gen.CITY_GROUND) continue;                  // метро заселяется отдельно
       if (!R.anyLight) {
         // днём под кронами чудовища не появляются: листва не спасает от солнца
         var sky = (openSky(x, y, z) ? 1 : world.skyAt(x, y, z)) * 15 * (hooks.day ? hooks.day() : 1);
         if (sky > 6) continue;
         if (world.blockLightAt(x, y, z) > 6) continue;
       }
+      if (R.street) {
+        var info = KC.Gen.cityInfo(world.seed, x, z), pl = info.plot;
+        if (info.inPlot && BUILDING_KINDS[pl.special] && x >= pl.bx0 && x <= pl.bx1 && z >= pl.bz0 && z <= pl.bz1) kind = BUILDING_KINDS[pl.special];
+      }
       if (kind === 'spider' && (world.getBlock(x + 1, y, z) || world.getBlock(x - 1, y, z) || world.getBlock(x, y, z + 1) || world.getBlock(x, y, z - 1))) kind = 'upyr';
       if (kind === 'brute' && (world.getBlock(x, y + 2, z) || world.getBlock(x + 1, y, z) || world.getBlock(x - 1, y, z))) kind = 'infected';
       spawnMob(kind, x + 0.5, y, z + 0.5);
       return;
+    }
+  }
+
+  // Особые здания заселяются, когда игрок подходит: толпа в супермаркете, пациенты в больнице,
+  // полицейские в участке. Зачищенное здание пустует до следующего дня.
+  var POPULATION = {
+    market: [['infected', 9], ['runner', 2]], hospital: [['patient', 7]], police: [['cop', 5]],
+    gas: [['infected', 3]], helipad: [['infected', 5], ['runner', 2], ['brute', 1]]
+  };
+  var popT = 0;
+  function populateSpecials(dt) {
+    popT -= dt;
+    if (popT > 0) return;
+    popT = 1;
+    if (world.type !== 'city' || world.dim !== 'over') return;
+    var p = hooks.player && hooks.player();
+    if (!p || p.dead || !(hooks.difficulty && hooks.difficulty() > 0)) return;
+    var G = KC.Gen, cell = G.CELL, day = hooks.worldDay ? hooks.worldDay() : 0;
+    world.cityPop = world.cityPop || {};
+    var cx0 = Math.floor(p.x / cell), cz0 = Math.floor(p.z / cell);
+    for (var dz = -1; dz <= 1; dz++) for (var dx = -1; dx <= 1; dx++) {
+      var pl = G.plotInfo(world.seed, cx0 + dx, cz0 + dz), crowd = POPULATION[pl.special];
+      if (!crowd) continue;
+      var key = pl.cx + ',' + pl.cz;
+      if (world.cityPop[key] !== undefined && day - world.cityPop[key] < 1) continue;
+      var en = G.plotEntrance(pl);
+      if (Math.hypot(en.x - p.x, en.z - p.z) > 42) continue;
+      var bx0 = pl.bx0 !== undefined ? pl.bx0 : pl.x0, bx1 = pl.bx1 !== undefined ? pl.bx1 : pl.x0 + 27;
+      var bz0 = pl.bz0 !== undefined ? pl.bz0 : pl.z0, bz1 = pl.bz1 !== undefined ? pl.bz1 : pl.z0 + 27;
+      var loaded = true;
+      for (var cx = bx0 >> 4; cx <= bx1 >> 4 && loaded; cx++) for (var cz = bz0 >> 4; cz <= bz1 >> 4; cz++) {
+        var ch = world.getChunk(cx, cz);
+        if (!ch || !ch.mesh) { loaded = false; break; }
+      }
+      if (!loaded) continue;
+      world.cityPop[key] = day;
+      var floors = pl.special === 'gas' || pl.special === 'market' ? 1 : pl.floors || 1;
+      crowd.forEach(function (grp) {
+        for (var n = 0, tries = 0; n < grp[1] && tries < 60; tries++) {
+          var x = bx0 + 1 + Math.floor(Math.random() * (bx1 - bx0 - 1));
+          var z = bz0 + 1 + Math.floor(Math.random() * (bz1 - bz0 - 1));
+          var y = G.CITY_GROUND + 1 + 4 * Math.floor(Math.random() * floors);
+          if (pl.special === 'gas') { x = pl.x0 + 3 + Math.floor(Math.random() * 16); z = pl.z0 + 5 + Math.floor(Math.random() * 12); y = G.CITY_GROUND + 1; }
+          if (!standable(x, y, z)) continue;
+          var m = spawnMob(grp[0], x + 0.5, y, z + 0.5);
+          if (m) m.yaw = Math.random() * Math.PI * 2;
+          n++;
+        }
+      });
     }
   }
 
@@ -921,7 +1120,7 @@
     for (var i = 0; i < list.length; i++) {
       var e = list[i];
       if (e.dead || (Math.floor(e.x) >> 4) !== c.cx || (Math.floor(e.z) >> 4) !== c.cz) continue;
-      if (e.type === 'mob' && e.K.passive) {
+      if (e.type === 'mob' && e.K.passive && !e.K.vehicle) {
         (world.storedMobs[key] = world.storedMobs[key] || []).push(serializeMob(e));
       }
       e.dead = true;
@@ -953,6 +1152,7 @@
     separate();
     for (i = list.length - 1; i >= 0; i--) if (list[i].dead) list.splice(i, 1);
     trySpawnHostile(dt);
+    populateSpecials(dt);
   }
 
   // Мягкое расталкивание мобов между собой и с игроком
@@ -1020,6 +1220,19 @@
       pose.head = [0, -0.25];
       if (e.attackAnim > 0) { var ra = Math.sin(e.attackAnim / 0.45 * Math.PI) * 1.6; pose.armR[1] += ra; pose.armL[1] += ra; }
     }
+    if (e.kind === 'patient' || e.kind === 'cop') {
+      pose.head = [0, e.kind === 'patient' ? 0.35 : 0.1, e.kind === 'patient' ? -0.2 : 0];
+      var reachA = e.kind === 'patient' ? 1.25 : 0.5;
+      pose.armR = [0, reachA - sw * 0.2, 0.12]; pose.armL = [0, reachA + sw * 0.2, -0.12];
+      if (e.attackAnim > 0) { var pa = Math.sin(e.attackAnim / 0.45 * Math.PI) * 1.2; pose.armR[1] += pa; pose.armL[1] += pa; }
+    }
+    if (e.kind === 'blind') {
+      // сутулится, «слушает» воздух головой, длинные руки висят
+      pose.head = [Math.sin(t * 1.3 + e.id) * 0.4, 0.45, 0];
+      pose.armR = [0, -sw * 0.3 + 0.2, 0.25]; pose.armL = [0, sw * 0.3 + 0.2, -0.25];
+      if (e.attackAnim > 0) { var la = Math.sin(e.attackAnim / 0.45 * Math.PI) * 1.8; pose.armR[1] += la; pose.armL[1] += la; }
+    }
+    if (e.kind === 'survivor') pose.armR = [0, Math.PI - 0.3, 0.3 + Math.sin(t * 6 + e.id) * 0.35];
     if (e.kind === 'brute') {
       pose.armR = [0, -sw * 0.35, 0.18]; pose.armL = [0, sw * 0.35, -0.18];
       if (e.attackAnim > 0) { var ba = Math.sin(e.attackAnim / 0.45 * Math.PI) * 2.6; pose.armR = [0, ba, 0.1]; pose.armL = [0, ba, -0.1]; }
@@ -1047,7 +1260,13 @@
         var hidden = null;
         var sw = Math.sin(e.walk) * 0.7 * e.walkAmp;
         switch (e.K.model) {
-          case 'upyr': case 'archer': case 'infected': case 'runner': case 'brute': humanPose(e, pose, t); break;
+          case 'upyr': case 'archer': case 'infected': case 'runner': case 'brute':
+          case 'patient': case 'cop': case 'blind': case 'survivor': humanPose(e, pose, t); break;
+          case 'helicopter':
+            pose.rotorA = pose.rotorB = [t * (e.rotor === undefined ? 14 : e.rotor), 0, 0];
+            pose.tailRotor = [0, t * 30, 0];
+            roll = e.bank || 0;
+            break;
           case 'imp':
             pose.legR = [0, sw * 1.2]; pose.legL = [0, -sw * 1.2];
             pose.armR = [0, -sw, 0.2]; pose.armL = [0, sw, -0.2];
@@ -1149,7 +1368,7 @@
     var out = { mobs: [], items: [] };
     list.forEach(function (e) {
       if (e.dead) return;
-      if (e.type === 'mob' && e.K.passive && e.deathT <= 0) out.mobs.push(serializeMob(e));
+      if (e.type === 'mob' && e.K.passive && !e.K.vehicle && e.deathT <= 0) out.mobs.push(serializeMob(e));
       if (e.type === 'item') out.items.push({ i: e.stack.id, n: e.stack.n, d: e.stack.d, x: +e.x.toFixed(2), y: +e.y.toFixed(2), z: +e.z.toFixed(2), a: Math.round(e.age) });
     });
     return out;
@@ -1166,6 +1385,7 @@
   function init(w, h) {
     world = w; hooks = h || {};
     list.length = 0;
+    siege.clear();
     world.onChunkGenerated = onChunkGenerated;
   }
 
@@ -1174,7 +1394,7 @@
     physics: physics, move: move, boxHits: boxHits, senseLiquids: senseLiquids, lightAt: lightAt,
     dropItem: dropItem, dropDrops: dropDrops, spawnMob: spawnMob, damageMob: damageMob,
     shootArrow: shootArrow, launchArrow: launchArrow, shootBolt: shootBolt, gravityAt: gravityAt, alertHorde: alertHorde, spawnTnt: spawnTnt, spawnFalling: spawnFalling,
-    raycast: raycast, buildRender: buildRender, onChunkUnload: onChunkUnload,
+    raycast: raycast, buildRender: buildRender, onChunkUnload: onChunkUnload, noise: noise,
     serialize: serialize, restore: restore, Ent: Ent, plateCheck: plateCheck
   };
 })(window.KC = window.KC || {});

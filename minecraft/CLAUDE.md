@@ -14,7 +14,8 @@ GLSL ES 1.0). Сборки, npm и
 
 **Персонажи и мобы собственные.** Странник, упырь, костяной лучник, лесной паук,
 свинья, бурёнка, овца и курица, а в новых мирах — заражённый, бегун, громила,
-бес, огненный дух, пегас, облачник, сбойный дрон и робот-уборщик. Не копировать внешний вид
+пациент, заражённый полицейский, слепой, выживший, бес, огненный дух, пегас,
+облачник, сбойный дрон и робот-уборщик. Не копировать внешний вид
 и имена персонажей Minecraft: Стива, Крипера, Эндермена, зомби в голубой
 рубашке и так далее. Механики (крафт, руды, редстоун-подобная схемотехника)
 брать можно, названия даём свои («искровая пыль», а не «редстоун»).
@@ -41,7 +42,8 @@ for f in minecraft/js/*.js; do node --check "$f"; done   # проверка си
   реального: ждите события через `waitForFunction`, а не таймером. Из консоли
   доступен `KC.debug` (`world`, `player`, `P`, `state`, `play`, `pause`,
   `open`, `close`, `setTime`, `setMode`, `save`, `goTo(dim, via)`, `travel`,
-  `zombie`, `scenario`, `zombieDawn`).
+  `zombie`, `scenario`, `zombieDawn`, `evac()`, `heli`, `openMap`, `carHit`,
+  `events.airdrop/survivor/fire`).
 
 ## Архитектура
 
@@ -53,7 +55,7 @@ for f in minecraft/js/*.js; do node --check "$f"; done   # проверка си
 | `textures.js` | `KC.TILE` (имя → индекс плитки), `makeAtlas` 256×512 (`KC.ATLAS_W`/`ATLAS_H`), `makeIcon`, `makeHudIcons`, трещины |
 | `registry.js` | `KC.B`/`KC.I`, `BLOCKS`/`ITEMS`, флаги (`OPAQUE`, `SOLID`, `REPLACEABLE`…), `breakTime`, `drops`, `RECIPES`, `SMELT`, `matchRecipe` |
 | `world.js` | `Chunk` (blocks + meta), `World(seed, edits, dim, type)` (генерация, `setBlock` с метаданными и правками, `collide`, `skyAt`, `blockLightAt`), мешер |
-| `dims.js` | `KC.DIMS` (имя, тяжесть, цвета неба, фиксированное время, туман, облака, вакуум) и `KC.Gen`: генераторы `hell`, `heaven`, `space`, `city`, `arrival`, `inStation`, `rollLoot`, `citySpawn` |
+| `dims.js` | `KC.DIMS` (имя, тяжесть, цвета неба, фиксированное время, туман, облака, вакуум) и `KC.Gen`: генераторы `hell`, `heaven`, `space`, `city`, `arrival`, `inStation`, `rollLoot`, `citySpawn`; город — `plotInfo`, `districtOf`, `cityInfo`, `findNearest`, `evacPoint`, `plotEntrance` |
 | `renderer.js` | программы блоков, сущностей, неба (солнце, звёзды, планета), облаков и линий; `render(env)`, отдельный проход для руки |
 | `models.js` | коробочные модели с позами (атлас 512×512, шкурки с прозрачностью), `drawModel`, `drawBlockCube`, `drawSprite`, `Batch` |
 | `entities.js` | `Ent`, физика (`move` со ступенькой 0,6, `gravityAt`), предметы, мобы (`KINDS`), ИИ ходячих и летающих, стрелы, огненные шары и лазеры, динамит, падающие блоки, появление по измерениям |
@@ -130,16 +132,45 @@ for f in minecraft/js/*.js; do node --check "$f"; done   # проверка си
 - **Тяжесть** берётся из `E.gravityAt(x, y, z)`: множитель из `KC.DIMS`, а внутри
   станции всегда 1. Она же масштабирует урон от падения.
 - **Режим зомби** — это `scenario: 'zombie'` поверх выживания с миром
-  `type: 'city'`. Пережитая ночь засчитывается на рассвете (переход
-  `timeOfDay` через 0) только в обычном мире; после 7-й — экран победы.
-  `hooks.hordeBoost` увеличивает лимит заражённых с каждым днём.
+  `type: 'city'`. День засчитывается на рассвете (переход `timeOfDay` через 0)
+  только в обычном мире. `hooks.hordeBoost` увеличивает лимит заражённых с
+  каждым днём.
+- **Город** строится кварталами 40×40 (`CELL`): дорога 8, тротуары, участок
+  28×28. `plotInfo(seed, cx, cz)` — чистая функция с кешем: район
+  (`districtOf`: центр в 7–9 кварталах от старта, окраина далеко, промзона по
+  шуму), вид участка (`building` со стилем `tower/office/apart/hospital/police/
+  helipad`, `houses`, `warehouse`, `construction`, `market`, `gas`, `park`,
+  `parking`, `ruin`) и `special`. Полиция, больница, супермаркет и заправка
+  рядом со стартом заданы жёстко (`FORCED`), площадка эвакуации — в клетке
+  `cityCenter`. Метро — под дорогами клеток с номером ≡ 2 (mod 4): туннели на
+  высоте `METRO_FLOOR`, станции на пересечениях, спуск вдоль тротуара.
+- **Сценарий эвакуации** (`game.js`): рация (`I.RADIO`, сундук `armory` в
+  полиции) → `zombie.radio` → стрелка на `evacPoint` → генератор на крыше
+  (`B.GENERATOR`, топливо в блок-сущности, `Sim.fuelGenerator`) зажигает
+  `LANDING_LIGHT` → в день `zombie.heliDay` вертолёт (моб `heli` с `vehicle`,
+  им управляет `vehicleUpdate`) кружит, садится при горящих огнях и игроке на
+  площадке → победа. На закате без эвакуации `heliDay += 3`.
+- **ИИ заражённых:** цель по зрению (`acquire`), слух (`E.noise(x, y, z, r)`
+  ставит `ai.heard`), слепые (`blind`) только слышат по `player.loud` (0 — стоит
+  или крадётся, 1 — идёт, 2 — бежит). Упёршись, ломают блоки с полем `siege`
+  (секунды на блок, `breaker` ускоряет), иначе обходят стену; ищут лестницу
+  (`findLadder`), если игрок выше. `lightShy` (бегун) отступает от света ≥ 11.
+  Особые здания заселяются толпой при подходе (`populateSpecials`,
+  `world.cityPop` — день заселения).
+- **События** (`cityEvents`): груз (`B.AIRDROP` падает сущностью, добыча
+  `airdrop` кладётся при приземлении), выживший на крыше (`talkTo` дарит карту),
+  пожар (`B.FIRE` гаснет по случайным тикам). Сигнализация машин — `carHit`.
+- **Атлас блоков** 16×32 плиток (`KC.ATLAS_W`×`ATLAS_H`); таблица UV в
+  мешере (`UVS`) рассчитана на все 512 плиток.
 
 ## Сохранение
 
 Ключ `kubocraft.world.v3`. Внутри: `seed`, `mode`, `diff`, `time`, `tips`,
 `scenario` (`null` или `'zombie'`), `worldType`, `dim` (где игрок сейчас),
 `dims` (по измерению: `edits`, `bents`, `entities`, `animalChunks`,
-`storedMobs`), `lastPos`, `backDim`, `zombie` (`day`, `won`, `kills`) и
+`storedMobs`, `cityPop`), `lastPos`, `backDim`, `zombie` (`day`, `won`, `kills`,
+`rescued`, `radio`, `heliDay`, `heliActive`, `genFueled`, `ev` — события;
+недостающие поля дополняет `zombieDefaults`) и
 `player` (позиция, здоровье, сытость, воздух, `inv`/`armor` как
 `[id, n, износ]`, `spawn`). Сохранение v2 (`kubocraft.world.v2`, один мир)
 переносится в `dims.over`, v1 — загружается как мир творчества. Настройки лежат
@@ -162,3 +193,9 @@ for f in minecraft/js/*.js; do node --check "$f"; done   # проверка си
   `zombie`, `knock`, `scale`, `glow`.
 - **Новое измерение:** запись в `KC.DIMS`, генератор в `KC.Gen[dim]`, ветка в
   `arrival`, способ попасть (флаг `portal` у блока врат или `use`).
+- **Новое особое здание города:** шанс в `SPECIAL_ODDS`, ветка в `plotInfo` и
+  функция колонки (`…Column`), таблица `LOOT`, жители в `POPULATION` и
+  `BUILDING_KINDS` (`entities.js`), подпись в `SPECIAL_NAMES`/`SPECIAL_NOTES` и
+  значок на карте (`MAP_ICON`).
+- **Медицинский крест — зелёный.** Красный крест на белом — охраняемая
+  эмблема, её не используем ни в текстурах, ни в интерфейсе.

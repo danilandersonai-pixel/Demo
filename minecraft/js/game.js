@@ -136,6 +136,8 @@
     h.primeTnt = function (x, y, z) { Sim.primeTnt(x, y, z); };
     h.hordeBoost = function () { return scenario === 'zombie' ? Math.min(6, zombie.day - 1) : 0; };
     h.killed = function (m, source) { if (source === 'player' && m.K.zombie) zombie.kills++; };
+    h.worldDay = function () { return zombie.day; };
+    h.vehicle = vehicleUpdate;
 
     hooksS = hooksCommon();
     hooksS.explosionHit = explosionHit;
@@ -153,6 +155,11 @@
     hp.rayHit = rayHit;
     hp.travel = travel;
     hp.teleport = teleportUse;
+    hp.carHit = carHit;
+    hp.talkTo = talkTo;
+    hp.openMap = openMap;
+    hp.useRadio = useRadio;
+    hp.generatorFueled = generatorFueled;
     hp.blockBroken = function (x, y, z, id) {
       Audio.play('break:' + BLOCKS[id].mat, x + 0.5, y + 0.5, z + 0.5);
       for (var i = 0; i < 12; i++) particles('block', x + 0.5, y + 0.5, z + 0.5, id);
@@ -166,6 +173,8 @@
     world = new KC.World(seed, data.edits || {}, dim, dim === 'over' ? worldType : 'normal');
     world.animalChunks = data.animalChunks || {};
     world.storedMobs = data.storedMobs || {};
+    world.cityPop = data.cityPop || {};
+    heli = null; alarms.length = 0;
     E.init(world, hooksE);
     Sim.init(world, hooksS);
     P.init(world, hooksP);
@@ -176,7 +185,7 @@
     spawn = overSpawn || world.findSpawn();
   }
   function snapshotWorld() {
-    return { edits: world.edits, bents: Sim.serialize(), entities: E.serialize(), animalChunks: world.animalChunks, storedMobs: world.storedMobs };
+    return { edits: world.edits, bents: Sim.serialize(), entities: E.serialize(), animalChunks: world.animalChunks, storedMobs: world.storedMobs, cityPop: world.cityPop };
   }
 
   function startWorld(save, opts) {
@@ -191,8 +200,8 @@
     dimData = ok && save.dims ? save.dims : {};
     lastPos = ok && save.lastPos ? save.lastPos : {};
     backDim = ok && save.backDim ? save.backDim : {};
-    zombie = ok && save.zombie ? save.zombie : { day: 1, won: false, kills: 0 };
-    zombie.kills = zombie.kills || 0;
+    zombie = zombieDefaults(ok && save.zombie ? save.zombie : null);
+    alarms.length = 0; alarmed = {}; heli = null; evacCache = null; lastPlace = ''; navCache = null;
     overSpawn = null;
     var dim = ok && save.dim && KC.DIMS[save.dim] ? save.dim : 'over';
 
@@ -303,43 +312,433 @@
   }
 
   var dimLabelT = 0;
-  function showDimLabel() {
+  function showDimLabel() { showLabel(KC.DIMS[world.dim].name, ''); }
+  function showLabel(name, sub) {
     var el = $('dim-label');
-    el.textContent = KC.DIMS[world.dim].name;
+    el.firstChild.textContent = name;
+    $('dim-sub').textContent = sub || '';
     el.classList.add('is-on');
     clearTimeout(dimLabelT);
     dimLabelT = setTimeout(function () { el.classList.remove('is-on'); }, 2600);
   }
 
   // ---- Режим зомби-апокалипсиса ---------------------------------------------------------
-  var ZOMBIE_NIGHTS = 7;
+  // Сценарий: найти рацию в полицейском участке → узнать, где площадка эвакуации (крыша башни
+  // в центре) → заправить там генератор, чтобы горели посадочные огни → встретить вертолёт
+  // на рассвете 8-го дня. Не успели — следующий прилетит через три дня.
+  var HELI_FIRST = 8, HELI_AGAIN = 3, NIGHTS = HELI_FIRST - 1;
+  function zombieDefaults(z) {
+    z = z || {};
+    z.day = z.day || 1; z.kills = z.kills || 0; z.won = !!z.won; z.rescued = z.rescued || 0;
+    z.radio = !!z.radio; z.heliDay = z.heliDay || HELI_FIRST; z.heliActive = !!z.heliActive;
+    z.ev = z.ev || {};
+    return z;
+  }
+  var evacCache = null;
+  function evacInfo() {
+    if (!evacCache || evacCache.seed !== world.seed) { evacCache = KC.Gen.evacPoint(world.seed); evacCache.seed = world.seed; }
+    return evacCache;
+  }
+  function cityMode() { return scenario === 'zombie' && world && world.dim === 'over' && world.type === 'city'; }
+
+  // Длинные сообщения (рация, выжившие) висят дольше обычной подсказки
+  var msgTimer = 0;
+  function message(text, secs) {
+    var el = $('msg');
+    el.textContent = text;
+    el.classList.add('is-on');
+    clearTimeout(msgTimer);
+    msgTimer = setTimeout(function () { el.classList.remove('is-on'); }, (secs || 7) * 1000);
+  }
+
+  function nightWord(n) { var m10 = n % 10, m100 = n % 100; return m10 === 1 && m100 !== 11 ? 'ночь' : m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14) ? 'ночи' : 'ночей'; }
   function updateZombieHud() {
     var el = $('zday');
     if (!el) return;
     el.hidden = scenario !== 'zombie';
+    $('nav').hidden = scenario !== 'zombie';
     if (scenario !== 'zombie') return;
-    el.textContent = zombie.won ? 'Эвакуация состоялась · свободная игра' : 'День ' + zombie.day + ' из ' + ZOMBIE_NIGHTS + ' · до эвакуации ' + (ZOMBIE_NIGHTS - zombie.day + 1) + ' ' + nightWord(ZOMBIE_NIGHTS - zombie.day + 1);
+    var z = zombie, left = z.heliDay - z.day;
+    el.textContent = z.won ? 'Эвакуация состоялась · свободная игра' :
+      z.heliActive ? 'День ' + z.day + ' · вертолёт над площадкой до заката!' :
+      'День ' + z.day + ' · вертолёт через ' + left + ' ' + nightWord(left) + (z.radio ? '' : ' · место эвакуации неизвестно');
   }
-  function nightWord(n) { var m10 = n % 10, m100 = n % 100; return m10 === 1 && m100 !== 11 ? 'ночь' : m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14) ? 'ночи' : 'ночей'; }
-  // Рассвет: новый день; после седьмой ночи прилетает эвакуация
+
+  // Рассвет: новый день. В день прилёта вертолёт ждёт над площадкой до заката.
   function zombieDawn() {
     if (zombie.won) return;
     zombie.day++;
-    if (zombie.day > ZOMBIE_NIGHTS) { victory(); return; }
+    if (zombie.day >= zombie.heliDay) {
+      zombie.heliActive = true;
+      message(zombie.radio ? 'Рассвет. Вертолёт летит к площадке эвакуации и будет ждать до заката! Поднимайтесь на крышу башни в центре'
+        : 'Рассвет. Слышен гул вертолёта где-то в центре… Без рации не узнать, где он сядет: ищите её в полицейском участке', 9);
+    } else toast('Рассвет. День ' + zombie.day + ': заражённых всё больше');
     updateZombieHud();
-    toast(zombie.day === ZOMBIE_NIGHTS ? 'Последний день! Продержитесь ещё одну ночь' : 'Рассвет. День ' + zombie.day + ': заражённых всё больше');
     saveGame();
+  }
+  function heliMissed() {
+    zombie.heliActive = false;
+    zombie.heliDay = zombie.day + HELI_AGAIN;
+    if (heli && !heli.dead) heli.st = 'leave';
+    message('Вертолёт улетел на закате. Следующий будет утром ' + zombie.heliDay + '-го дня', 8);
+    updateZombieHud();
   }
   function victory() {
     zombie.won = true;
+    zombie.heliActive = false;
     updateZombieHud();
     Audio.play('victory');
     state = 'won';
     releaseInput();
-    $('victory-text').textContent = 'Вы продержались ' + ZOMBIE_NIGHTS + ' ночей в заражённом городе — за вами прилетел эвакуационный вертолёт. Повержено заражённых: ' + zombie.kills + '.';
+    $('victory-text').textContent = 'Вертолёт поднял вас с крыши на ' + zombie.day + '-й день апокалипсиса. Повержено заражённых: ' + zombie.kills +
+      ', спасено выживших: ' + zombie.rescued + '.';
     showScreen('victory');
     if (locked && document.exitPointerLock) document.exitPointerLock();
     saveGame();
+  }
+
+  function radioFound() {
+    zombie.radio = true;
+    Audio.play('radio');
+    useRadio();
+    updateZombieHud();
+  }
+  function useRadio() {
+    if (scenario !== 'zombie') { toast('В эфире тишина'); return; }
+    Audio.play('radio');
+    var ev = evacInfo(), gen = genRunning();
+    message(zombie.won ? 'Рация: «Все эвакуированы. Конец связи»' :
+      'Рация: «…эвакуация с вертолётной площадки на крыше башни в центре города. Вертолёт — на рассвете ' + zombie.heliDay +
+      '-го дня. ' + (gen ? 'Посадочные огни горят — пилот увидит площадку»' : 'Заправьте генератор на крыше, иначе пилот не увидит огней»'), 10);
+    void ev;
+  }
+  function genRunning() {
+    var g = evacInfo().gen;
+    if (!world.isLoaded(g.x, g.z)) return !!zombie.genFueled;
+    return world.getBlock(g.x, g.y, g.z) === B.GENERATOR && (world.getMeta(g.x, g.y, g.z) & 4) !== 0;
+  }
+  function generatorFueled(x, y, z) {
+    var g = evacInfo().gen;
+    if (scenario === 'zombie' && x === g.x && y === g.y && z === g.z) {
+      zombie.genFueled = true;
+      message('Посадочные огни загорелись. Теперь пилот увидит площадку — встречайте вертолёт здесь', 8);
+    }
+  }
+
+  // ---- Вертолёт эвакуации -------------------------------------------------------------------
+  var heli = null;
+  function heliUpdate() {
+    if (heli && heli.dead) heli = null;
+    if (!zombie.heliActive || zombie.won) return;
+    var ev = evacInfo(), e = P.e;
+    if (!heli && Math.hypot(e.x - ev.x, e.z - ev.z) < 140 && world.isLoaded(ev.x, ev.z)) {
+      heli = E.spawnMob('heli', ev.x + 14, ev.y + 14, ev.z, { yaw: 0 });
+      if (heli) { heli.st = 'circle'; heli.ang = 0; heli.rotor = 16; heli.soundT = 0; }
+    }
+  }
+  function vehicleUpdate(m, dt) {
+    var ev = evacInfo(), e = P.e, tx, ty, tz;
+    m.t = (m.t || 0) + dt;
+    var onPad = !P.dead && Math.hypot(e.x - ev.x, e.z - ev.z) < 6 && Math.abs(e.y - ev.y) < 2.5;
+    if (m.st === 'circle') {
+      m.ang += dt * 0.35;
+      tx = ev.x + Math.cos(m.ang) * 14; tz = ev.z + Math.sin(m.ang) * 14; ty = ev.y + 14;
+      if (onPad && genRunning()) { m.st = 'land'; message('Пилот видит огни! Вертолёт садится — ждите на площадке', 6); }
+      else if (onPad && !m.warned) { m.warned = true; message('Пилот не видит площадку: заправьте генератор на крыше канистрой с топливом', 8); }
+    } else if (m.st === 'land') {
+      tx = ev.x; ty = ev.y + 0.05; tz = ev.z + 0.5;
+      if (Math.abs(m.y - ty) < 0.2 && Math.hypot(m.x - tx, m.z - tz) < 0.5) m.st = 'wait';
+    } else if (m.st === 'wait') {
+      tx = m.x; ty = m.y; tz = m.z;
+      if (onPad) { m.st = 'leave'; m.t = 0; victory(); }
+    } else {
+      tx = m.x + 40; ty = Math.min(m.y + 30, KC.H + 40); tz = m.z - 40;
+      if (m.t > 25) m.dead = true;
+    }
+    var dx = tx - m.x, dy = ty - m.y, dz = tz - m.z, d = Math.sqrt(dx * dx + dy * dy + dz * dz);
+    var sp = m.st === 'land' ? 3.5 : 9;
+    if (d > 0.01) { var st = Math.min(d, sp * dt); m.x += dx / d * st; m.y += dy / d * st; m.z += dz / d * st; }
+    if (Math.abs(dx) + Math.abs(dz) > 0.3) {
+      var want = Math.atan2(-dx, -dz), turn = want - m.yaw;
+      while (turn > Math.PI) turn -= Math.PI * 2;
+      while (turn < -Math.PI) turn += Math.PI * 2;
+      m.yaw += turn * Math.min(1, dt * 2);
+      m.bank = Math.max(-0.3, Math.min(0.3, -turn * 0.4));
+    } else m.bank = (m.bank || 0) * 0.9;
+    m.vx = m.vy = m.vz = 0;
+    m.soundT -= dt;
+    if (m.soundT <= 0) { m.soundT = 0.8; Audio.play('heli', m.x, m.y, m.z); }
+  }
+
+  // ---- Сигнализация машин: удар или выстрел по машине собирает заражённых -------------------
+  var alarms = [], alarmed = {};
+  function carHit(x, y, z) {
+    if (world.type !== 'city') return;
+    var k = (x >> 2) + ',' + (z >> 2);
+    if (alarmed[k]) return;
+    alarmed[k] = 1;
+    alarms.push({ x: x + 0.5, y: y + 0.5, z: z + 0.5, t: 20, n: 0 });
+    toast('Сработала сигнализация! Заражённые идут на шум');
+  }
+  function updateAlarms(dt) {
+    for (var i = alarms.length - 1; i >= 0; i--) {
+      var a = alarms[i];
+      a.t -= dt; a.n -= dt;
+      if (a.n <= 0) {
+        a.n = 1;
+        Audio.play('alarm', a.x, a.y, a.z);
+        E.noise(a.x, a.y, a.z, 50);
+        for (var q = 0; q < 3; q++) particles('spark', a.x, a.y + 0.6, a.z);
+      }
+      if (a.t <= 0) alarms.splice(i, 1);
+    }
+  }
+
+  // ---- События в городе: сброс груза, выжившие на крышах, пожары ---------------------------
+  function streetSpot(r0, r1) {
+    var e = P.e, cell = KC.Gen.CELL;
+    for (var i = 0; i < 40; i++) {
+      var ang = Math.random() * Math.PI * 2, r = r0 + Math.random() * (r1 - r0);
+      var x = Math.floor(e.x + Math.cos(ang) * r), z = Math.floor(e.z + Math.sin(ang) * r);
+      var lx = ((x % cell) + cell) % cell, lz = ((z % cell) + cell) % cell;
+      if (!(lx >= 1 && lx <= 6) && !(lz >= 1 && lz <= 6)) continue;
+      var c = world.getChunk(x >> 4, z >> 4);
+      if (!c || !c.mesh) continue;
+      var y = KC.Gen.CITY_GROUND + 1;
+      if (world.getBlock(x, y, z) || world.getBlock(x, y + 1, z) || !KC.SOLID[world.getBlock(x, y - 1, z)]) continue;
+      return { x: x, y: y, z: z };
+    }
+    return null;
+  }
+  function roofSpot(r0, r1) {
+    var e = P.e, G = KC.Gen, cell = G.CELL;
+    for (var i = 0; i < 30; i++) {
+      var ang = Math.random() * Math.PI * 2, r = r0 + Math.random() * (r1 - r0);
+      var pl = G.plotInfo(world.seed, Math.floor((e.x + Math.cos(ang) * r) / cell), Math.floor((e.z + Math.sin(ang) * r) / cell));
+      if (pl.kind !== 'building' || pl.special === 'helipad') continue;
+      var x = pl.bx0 + 2 + Math.floor(Math.random() * (pl.bx1 - pl.bx0 - 3)), z = pl.bz0 + 2 + Math.floor(Math.random() * (pl.bz1 - pl.bz0 - 3));
+      var c = world.getChunk(x >> 4, z >> 4);
+      if (!c || !c.mesh) continue;
+      var y = pl.top + 1;
+      if (world.getBlock(x, y, z) || world.getBlock(x, y + 1, z) || !KC.SOLID[world.getBlock(x, y - 1, z)]) continue;
+      return { x: x, y: y, z: z, plot: pl };
+    }
+    return null;
+  }
+  function airdrop() {
+    var s = streetSpot(45, 85);
+    if (!s) return false;
+    E.spawnFalling(s.x, KC.H - 6, s.z, B.AIRDROP, 0);
+    zombie.ev.drop = { x: s.x, y: s.y, z: s.z, day: zombie.day, filled: false };
+    message('Над городом пролетел самолёт и сбросил груз с припасами — ищите красный дым. Туда же пойдут и заражённые', 8);
+    return true;
+  }
+  function survivorEvent() {
+    var s = roofSpot(40, 100);
+    if (!s) return false;
+    var m = E.spawnMob('survivor', s.x + 0.5, s.y, s.z + 0.5);
+    if (!m) return false;
+    zombie.ev.surv = { x: s.x + 0.5, y: s.y, z: s.z + 0.5, day: zombie.day };
+    message('На крыше кто-то машет руками — выживший зовёт на помощь. Поднимитесь к нему', 7);
+    return true;
+  }
+  function fireEvent() {
+    var s = roofSpot(40, 110);
+    if (!s) return false;
+    var pl = s.plot, n = 0;
+    for (var i = 0; i < 400 && n < 40; i++) {
+      // огонь на крыше и у окон — чтобы зарево было видно с улицы
+      var roof = Math.random() < 0.5, x, z;
+      if (roof || Math.random() < 0.3) { x = pl.bx0 + Math.floor(Math.random() * (pl.bx1 - pl.bx0 + 1)); z = pl.bz0 + Math.floor(Math.random() * (pl.bz1 - pl.bz0 + 1)); }
+      else if (Math.random() < 0.5) { x = Math.random() < 0.5 ? pl.bx0 + 1 : pl.bx1 - 1; z = pl.bz0 + 1 + Math.floor(Math.random() * (pl.bz1 - pl.bz0 - 1)); }
+      else { z = Math.random() < 0.5 ? pl.bz0 + 1 : pl.bz1 - 1; x = pl.bx0 + 1 + Math.floor(Math.random() * (pl.bx1 - pl.bx0 - 1)); }
+      var y = roof ? pl.top + 1 : KC.Gen.CITY_GROUND + 1 + 4 * Math.floor(Math.random() * pl.floors);
+      if (world.getBlock(x, y, z) || !KC.OPAQUE[world.getBlock(x, y - 1, z)]) continue;
+      world.setBlock(x, y, z, B.FIRE, 0);
+      n++;
+    }
+    if (!n) return false;
+    zombie.ev.fire = { x: (pl.bx0 + pl.bx1) / 2, y: pl.top + 2, z: (pl.bz0 + pl.bz1) / 2, day: zombie.day };
+    toast('Где-то горит дом — зарево видно издалека');
+    return true;
+  }
+  function talkTo(m) {
+    if (m.kind !== 'survivor') return;
+    if (m.helped) { toast('Выживший: «Удачи вам!»'); return; }
+    m.helped = true;
+    zombie.rescued++;
+    var gifts = [[I.AMMO, 10], [I.CANNED_FOOD, 2], [I.BANDAGE, 3]];
+    if (!P.count(I.CITY_MAP)) gifts.unshift([I.CITY_MAP, 1]);
+    gifts.forEach(function (g) { var left = P.give({ id: g[0], n: g[1], d: 0 }); if (left) E.dropItem(P.e.x, P.e.y + 1, P.e.z, { id: g[0], n: left }); });
+    message('Выживший: «Спасибо, что добрались! Возьмите карту района — там отмечены полиция, больницы и заправки. А я уйду через метро»', 9);
+    zombie.ev.surv = null;
+    setTimeout(function () { if (!m.dead) { m.dead = true; for (var q = 0; q < 10; q++) particles('smoke', m.x, m.y + Math.random() * 1.8, m.z); } }, 5000);
+    UI.renderHud();
+  }
+
+  var evT = 0;
+  function cityEvents(dt) {
+    evT -= dt;
+    if (evT > 0) return;
+    evT = 1;
+    var ev = zombie.ev, tod = timeOfDay;
+    if (!ev.dropAt) ev.dropAt = 0.08 + Math.random() * 0.25;
+    if (ev.dropDay !== zombie.day && tod > ev.dropAt && tod < 0.45) { if (airdrop()) { ev.dropDay = zombie.day; ev.dropAt = 0.08 + Math.random() * 0.25; } }
+    if (ev.survDay !== zombie.day && tod > 0.16 && tod < 0.45) { ev.survDay = zombie.day; if (Math.random() < 0.75) survivorEvent(); }
+    if (ev.fireDay !== zombie.day && zombie.day % 2 === 0 && tod > 0.5 && tod < 0.62) { if (fireEvent()) ev.fireDay = zombie.day; }
+    var d = ev.drop;
+    if (d) {
+      if (!d.filled && world.getBlock(d.x, d.y, d.z) === B.AIRDROP) {
+        var be = Sim.getBent(d.x, d.y, d.z);
+        if (be) { be.slots = KC.Gen.rollLoot('airdrop', d.x, d.y + zombie.day, d.z, world.seed); d.filled = true; }
+        Audio.play('drop', d.x, d.y, d.z);
+        E.noise(d.x, d.y, d.z, 36);
+      }
+      if (d.opened || zombie.day - d.day > 1 || (d.filled && world.isLoaded(d.x, d.z) && world.getBlock(d.x, d.y, d.z) !== B.AIRDROP)) ev.drop = null;
+    }
+    if (ev.surv && zombie.day - ev.surv.day > 1) ev.surv = null;
+    if (ev.fire && zombie.day - ev.fire.day > 0 && tod < 0.5) ev.fire = null;
+  }
+  // Столбы дыма над грузом и пожаром видно издалека
+  var smokeT = 0;
+  function smokeColumns(dt) {
+    if (reduceMotion) return;
+    smokeT -= dt;
+    if (smokeT > 0) return;
+    smokeT = 0.12;
+    var ev = zombie.ev;
+    if (ev.drop && ev.drop.filled) particles('smokeRed', ev.drop.x + 0.5, ev.drop.y + 1.2, ev.drop.z + 0.5);
+    if (ev.fire) {
+      particles('smokeDark', ev.fire.x + (Math.random() - 0.5) * 6, ev.fire.y, ev.fire.z + (Math.random() - 0.5) * 6);
+      if (Math.random() < 0.6) particles('flame', ev.fire.x + (Math.random() - 0.5) * 8, ev.fire.y - 0.5, ev.fire.z + (Math.random() - 0.5) * 8);
+    }
+  }
+
+  // ---- Навигация: цель сценария и события, стрелка относительно взгляда -------------------
+  var navT = 0, navCache = null;
+  function objective() {
+    if (scenario !== 'zombie' || zombie.won || !world || world.dim !== 'over') return null;
+    var e = P.e;
+    if (!zombie.radio) {
+      if (!navCache || Math.abs(navCache.px - e.x) + Math.abs(navCache.pz - e.z) > 24) {
+        var pol = KC.Gen.findNearest(world.seed, e.x, e.z, 'police', 8);
+        navCache = { px: e.x, pz: e.z, pol: pol };
+      }
+      return navCache.pol ? { x: navCache.pol.x, z: navCache.pol.z, label: 'Полицейский участок: рация' } : null;
+    }
+    var ev = evacInfo();
+    return { x: ev.x, z: ev.z, label: zombie.heliActive ? 'Площадка эвакуации: вертолёт ждёт!' : genRunning() ? 'Площадка эвакуации' : 'Площадка эвакуации: генератор' };
+  }
+  function updateNav(dt) {
+    navT -= dt;
+    if (navT > 0) return;
+    navT = 0.2;
+    var rows = $('nav').children, e = P.e, marks = [];
+    if (cityMode()) {
+      if (!zombie.radio && P.count(I.RADIO) > 0) radioFound();
+      var o = objective();
+      if (o) marks.push(o);
+      var ev = zombie.ev;
+      if (ev.drop && ev.drop.filled) marks.push({ x: ev.drop.x + 0.5, z: ev.drop.z + 0.5, label: 'Груз с припасами', kind: 'drop' });
+      if (ev.surv) marks.push({ x: ev.surv.x, z: ev.surv.z, label: 'Выживший на крыше', kind: 'surv' });
+    }
+    for (var i = 0; i < rows.length; i++) {
+      var r = rows[i], m = marks[i];
+      r.hidden = !m;
+      if (!m) continue;
+      var dx = m.x - e.x, dz = m.z - e.z, dist = Math.hypot(dx, dz);
+      var rel = Math.atan2(-dx, -dz) - e.yaw;
+      r.children[0].style.transform = 'rotate(' + (-rel * 180 / Math.PI).toFixed(1) + 'deg)';
+      r.children[1].textContent = m.label;
+      r.children[2].textContent = dist < 4 ? 'здесь' : Math.round(dist) + ' м';
+      r.className = 'nav-row' + (m.kind ? ' nav-row--' + m.kind : '');
+    }
+  }
+
+  // ---- Названия мест: район, особое здание, метро ---------------------------------------------
+  var SPECIAL_NOTES = { police: 'оружейная за решёткой на первом этаже', hospital: 'аптечки и бинты, но и пациенты', market: 'много еды и толпа внутри',
+    gas: 'канистры с топливом, бочки взрываются', helipad: 'лестница на крышу — в углу здания' };
+  var placeT = 0, lastPlace = '';
+  function updatePlace(dt) {
+    placeT -= dt;
+    if (placeT > 0) return;
+    placeT = 0.5;
+    if (!world || world.type !== 'city' || world.dim !== 'over') { lastPlace = ''; return; }
+    var e = P.e, G = KC.Gen, info = G.cityInfo(world.seed, e.x, e.z), pl = info.plot, name = info.D.name, sub = info.D.note;
+    if (e.y < G.CITY_GROUND - 3) { name = 'Метро'; sub = 'темно; слепые слышат шаги — крадитесь'; }
+    else if (info.inPlot && pl.special) {
+      var bx0 = pl.bx0 !== undefined ? pl.bx0 : pl.x0, bx1 = pl.bx1 !== undefined ? pl.bx1 : pl.x0 + 27;
+      var bz0 = pl.bz0 !== undefined ? pl.bz0 : pl.z0, bz1 = pl.bz1 !== undefined ? pl.bz1 : pl.z0 + 27;
+      if (pl.special === 'gas' || (e.x >= bx0 - 2 && e.x <= bx1 + 2 && e.z >= bz0 - 2 && e.z <= bz1 + 2)) { name = G.SPECIAL_NAMES[pl.special]; sub = SPECIAL_NOTES[pl.special]; }
+    }
+    if (name !== lastPlace) { lastPlace = name; showLabel(name, sub); }
+  }
+
+  // ---- Карта района ---------------------------------------------------------------------------
+  var MAP_COL = { downtown: '#4a5160', residential: '#6b5a48', industrial: '#6a6243', suburb: '#8a8a66' };
+  var MAP_ICON = { police: ['П', '#3f6fd8'], hospital: ['Б', '#2fae63'], market: ['С', '#e08a2a'], gas: ['З', '#d0453a'], helipad: ['★', '#f0b545'] };
+  function openMap() {
+    if (state !== 'playing') return;
+    if (!world || world.type !== 'city' || world.dim !== 'over') { toast('Эта карта — только для города'); return; }
+    state = 'map';
+    releaseInput();
+    showScreen('map');
+    drawMap();
+    if (locked && document.exitPointerLock) document.exitPointerLock();
+  }
+  function closeMap() {
+    if (state !== 'map') return;
+    state = 'playing';
+    showScreen(null);
+    if (!isTouch) lockPointer();
+  }
+  function drawMap() {
+    var cv = $('map-canvas'), g = cv.getContext('2d'), G = KC.Gen, cell = G.CELL, N = 15, S = cv.width / N;
+    var e = P.e, pcx = Math.floor(e.x / cell), pcz = Math.floor(e.z / cell), ox = (pcx - 7) * cell, oz = (pcz - 7) * cell;
+    var k = S / cell, i, j;
+    g.fillStyle = '#23262b'; g.fillRect(0, 0, cv.width, cv.height);
+    g.font = 'bold ' + Math.round(S * 0.5) + 'px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    for (j = 0; j < N; j++) for (i = 0; i < N; i++) {
+      var pl = G.plotInfo(world.seed, pcx - 7 + i, pcz - 7 + j), x0 = i * S, y0 = j * S;
+      g.fillStyle = MAP_COL[pl.district]; g.fillRect(x0 + 10 * k, y0 + 10 * k, 28 * k, 28 * k);
+      if (pl.bx0 !== undefined) { g.fillStyle = 'rgba(0,0,0,0.35)'; g.fillRect(x0 + (pl.bx0 - pl.x0 + 10) * k, y0 + (pl.bz0 - pl.z0 + 10) * k, (pl.bx1 - pl.bx0 + 1) * k, (pl.bz1 - pl.bz0 + 1) * k); }
+      if (pl.kind === 'park') { g.fillStyle = '#3f8a3a'; g.fillRect(x0 + 12 * k, y0 + 12 * k, 24 * k, 24 * k); }
+      var ic = MAP_ICON[pl.special];
+      if (ic && (pl.special !== 'helipad' || zombie.radio)) {
+        g.fillStyle = ic[1]; g.beginPath(); g.arc(x0 + 24 * k, y0 + 24 * k, S * 0.34, 0, Math.PI * 2); g.fill();
+        g.fillStyle = '#fff'; g.fillText(ic[0], x0 + 24 * k, y0 + 24.5 * k);
+      }
+      // линии и станции метро
+      var cx = pcx - 7 + i, cz = pcz - 7 + j;
+      g.fillStyle = 'rgba(206,38,44,0.55)';
+      if (((cx % 4) + 4) % 4 === 2) g.fillRect(x0 + 3 * k, y0, 2 * k, S);
+      if (((cz % 4) + 4) % 4 === 2) g.fillRect(x0, y0 + 3 * k, S, 2 * k);
+      if (((cx % 4) + 4) % 4 === 2 && ((cz % 4) + 4) % 4 === 2) {
+        g.fillStyle = '#ce262c'; g.beginPath(); g.arc(x0 + 4 * k, y0 + 4 * k, S * 0.26, 0, Math.PI * 2); g.fill();
+        g.fillStyle = '#fff'; g.font = 'bold ' + Math.round(S * 0.34) + 'px sans-serif'; g.fillText('М', x0 + 4 * k, y0 + 4.5 * k);
+        g.font = 'bold ' + Math.round(S * 0.5) + 'px sans-serif';
+      }
+    }
+    // события
+    var ev = zombie.ev;
+    function dot(wx, wz, col) { g.fillStyle = col; g.beginPath(); g.arc((wx - ox) * k, (wz - oz) * k, S * 0.18, 0, Math.PI * 2); g.fill(); }
+    if (ev.drop && ev.drop.filled) dot(ev.drop.x, ev.drop.z, '#ff4a4a');
+    if (ev.surv) dot(ev.surv.x, ev.surv.z, '#ffffff');
+    // игрок
+    var px = (e.x - ox) * k, pz = (e.z - oz) * k, a = -e.yaw;
+    g.save(); g.translate(px, pz); g.rotate(a);
+    g.fillStyle = '#f0b545'; g.strokeStyle = '#1a1a1a'; g.lineWidth = 2;
+    g.beginPath(); g.moveTo(0, -S * 0.42); g.lineTo(S * 0.28, S * 0.3); g.lineTo(-S * 0.28, S * 0.3); g.closePath(); g.fill(); g.stroke();
+    g.restore();
+  }
+
+  function zombieTick(dt) {
+    if (!cityMode()) return;
+    heliUpdate();
+    cityEvents(dt);
+    updateAlarms(dt);
+    smokeColumns(dt);
+    if (zombie.heliActive && lastTod < 0.5 && timeOfDay >= 0.5) heliMissed();
   }
 
   function packStack(s) { return s ? [s.id, s.n, s.d || 0] : 0; }
@@ -514,6 +913,14 @@
       case 'splash': p.col = [0.5, 0.7, 1.2]; p.vy = 3; p.size = 0.05; break;
       case 'spark': p.col = [1.5, 1.2, 0.5]; p.vx *= 2; p.vz *= 2; p.vy = 1 + Math.random() * 2; p.size = 0.035; p.life = 0.3; break;
       case 'tracer': p.col = [1.6, 1.4, 0.8]; p.vx = p.vy = p.vz = 0; p.grav = 0; p.size = 0.025; p.life = 0.07; break;
+      case 'smokeRed':
+        var sr = Math.random() * 0.25;
+        p.col = [1.05 - sr, 0.22 + sr * 0.3, 0.2]; p.grav = -0.6; p.vx = p.vx * 0.5 + 0.35; p.vz = p.vz * 0.5 + 0.15; p.vy = 1.4 + Math.random();
+        p.size = 0.22 + Math.random() * 0.3; p.life = 4 + Math.random() * 2; break;
+      case 'smokeDark':
+        var sd = Math.random() * 0.15;
+        p.col = [0.5 + sd, 0.44 + sd, 0.4 + sd]; p.grav = -0.5; p.vx = p.vx * 0.8 + 0.4; p.vz = p.vz * 0.8 + 0.2; p.vy = 1.2 + Math.random();
+        p.size = 0.5 + Math.random() * 0.6; p.life = 6; break;
       case 'portal': p.col = [1.3, 0.9, 1.5]; p.grav = -1.2; p.vx *= 0.4; p.vz *= 0.4; p.vy = 0.3; p.size = 0.05; p.life = 0.9; break;
       case 'explosion':
         for (var i = 0; i < 40; i++) {
@@ -651,7 +1058,7 @@
     fpsT += dt; fpsN++;
     if (fpsT >= 0.5) { fps = Math.round(fpsN / fpsT); fpsT = 0; fpsN = 0; }
 
-    var simulate = placed && (state === 'playing' || state === 'container' || state === 'dead');
+    var simulate = placed && (state === 'playing' || state === 'container' || state === 'dead' || state === 'map');
     var e = P.e;
     if (simulate) {
       var inp = state === 'playing' && !sleeping ? input() : { f: 0, s: 0, jump: false, down: false, sprint: false };
@@ -665,11 +1072,13 @@
       while (tickAcc >= TICK && n < 5) { Sim.tick(); tickAcc -= TICK; n++; }
       if (n === 5) tickAcc = 0;
       E.update(dt);
+      zombieTick(dt);
       if (P.swing > 0) { P.swing += dt * 3.2; if (P.swing >= 1) P.swing = 0; }
     }
     if (settings.cycle && (simulate || state === 'title')) timeOfDay = (timeOfDay + dt / DAY_LENGTH) % 1;
     // рассвет в городе засчитывает пережитую ночь
     if (scenario === 'zombie' && simulate && world.dim === 'over' && lastTod > 0.9 && timeOfDay < 0.1) zombieDawn();
+    if (scenario === 'zombie' && simulate && world.dim === 'over' && zombie.heliActive && lastTod < 0.5 && timeOfDay >= 0.5) heliMissed();
     lastTod = timeOfDay;
     // провалился сквозь облака — падает в обычный мир, мягко планируя
     if (simulate && world.dim === 'heaven' && e.y < 2 && !P.dead) {
@@ -731,6 +1140,7 @@
     } else {
       UI.renderHud();
       UI.tick();
+      if (simulate) { updateNav(dt); updatePlace(dt); }
     }
     if (settings.debug && state !== 'title') {
       debugT -= dt;
@@ -825,6 +1235,7 @@
     $('pause').hidden = name !== 'pause';
     $('death').hidden = name !== 'death';
     $('victory').hidden = name !== 'victory';
+    $('citymap').hidden = name !== 'map';
     if (name !== 'container') $('container').hidden = true;
     $('hud').hidden = name === 'title';
     $('touch').hidden = !(isTouch && state === 'playing');
@@ -841,7 +1252,10 @@
     showScreen(P.dead ? 'death' : null);
     UI.forceHud();
     if (!isTouch && state === 'playing') lockPointer();
-    if (scenario === 'zombie' && !tips.start) { tips.start = 1; toast('Продержитесь ' + ZOMBIE_NIGHTS + ' ночей до эвакуации. Припасы — в сундуках домов'); }
+    if (scenario === 'zombie' && !tips.start) {
+      tips.start = 1;
+      message('Цель — эвакуация. Сначала найдите рацию в полицейском участке: стрелка вверху покажет дорогу. Припасы — в сундуках домов и магазинов', 9);
+    }
     else if (mode === 'survival' && !tips.start) { tips.start = 1; toast('Удерживайте ЛКМ на дереве, чтобы добыть брёвна'); }
     if (world.dim !== 'over') showDimLabel();
   }
@@ -877,6 +1291,8 @@
     releaseInput();
     showScreen('container');
     UI.open(kind, bent);
+    var drop = zombie.ev && zombie.ev.drop;
+    if (bent && drop && bent.x === drop.x && bent.y === drop.y && bent.z === drop.z) drop.opened = true;
     if (locked && document.exitPointerLock) document.exitPointerLock();
   }
   function closeContainer() {
@@ -1034,6 +1450,7 @@
     $('btn-title').addEventListener('click', toTitle);
     $('btn-respawn').addEventListener('click', doRespawn);
     $('btn-death-title').addEventListener('click', function () { backToOverworld(); P.respawn(spawn); placedSaved = false; placed = false; toTitle(); });
+    $('btn-map-close').addEventListener('click', closeMap);
     $('btn-victory-go').addEventListener('click', function () { state = 'playing'; showScreen(null); UI.forceHud(); if (!isTouch) lockPointer(); });
     $('btn-victory-title').addEventListener('click', function () { state = 'playing'; toTitle(); });
 
@@ -1148,6 +1565,7 @@
         return;
       }
       if (state === 'paused') { if (code === 'Escape') { e.preventDefault(); resume(); } return; }
+      if (state === 'map') { if (code === 'Escape' || code === 'KeyM' || code === 'KeyE') { e.preventDefault(); closeMap(); } return; }
       if (state !== 'playing') return;
       if (/^Digit[1-9]$/.test(code)) { selectSlot(+code.charAt(5) - 1); return; }
       if (code === 'Space' || code.indexOf('Arrow') === 0 || code === 'F3' || code === 'F5') e.preventDefault();
@@ -1155,6 +1573,7 @@
       var now = performance.now();
       switch (code) {
         case 'KeyE': e.preventDefault(); openContainer('inventory'); return;
+        case 'KeyM': if (P.count(I.CITY_MAP) || P.creative) openMap(); else toast('Карты района нет: её можно найти в сундуках или получить от выживших'); return;
         case 'KeyF': if (mode === 'creative') setFly(!P.e.fly); return;
         case 'KeyQ': dropHeld(e.shiftKey); return;
         case 'F5': view = (view + 1) % 3; return;
@@ -1265,6 +1684,7 @@
   KC.debug = {
     get world() { return world; }, get player() { return P.e; }, get state() { return state; }, get target() { return target; },
     get zombie() { return zombie; }, get scenario() { return scenario; }, goTo: goTo, travel: travel, zombieDawn: zombieDawn,
+    evac: function () { return evacInfo(); }, openMap: openMap, carHit: carHit, events: { airdrop: airdrop, survivor: survivorEvent, fire: fireEvent }, get heli() { return heli; },
     P: P, play: play, pause: pause, setTime: function (t) { timeOfDay = t; lastTod = t; }, save: saveGame,
     open: openContainer, close: closeContainer, setMode: function (m) { mode = m; P.setCreative(m === 'creative'); }
   };

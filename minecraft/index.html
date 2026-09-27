@@ -26,8 +26,16 @@
   <pre id="debug" hidden></pre>
   <p id="hint" hidden></p>
   <p id="toast" aria-live="polite"></p>
-  <p id="dim-label" aria-live="polite"></p>
-  <p id="zday" hidden></p>
+  <p id="dim-label" aria-live="polite"><span></span><small id="dim-sub"></small></p>
+  <div id="ztop">
+    <p id="zday" hidden></p>
+    <div id="nav" hidden aria-label="Направление к целям">
+      <div class="nav-row" hidden><span class="nav-arr" aria-hidden="true">▲</span><span class="nav-t"></span><span class="nav-d"></span></div>
+      <div class="nav-row" hidden><span class="nav-arr" aria-hidden="true">▲</span><span class="nav-t"></span><span class="nav-d"></span></div>
+      <div class="nav-row" hidden><span class="nav-arr" aria-hidden="true">▲</span><span class="nav-t"></span><span class="nav-d"></span></div>
+    </div>
+  </div>
+  <p id="msg" aria-live="polite"></p>
   <div id="bars" aria-label="Здоровье и сытость">
     <div id="armor-row" class="icons" hidden></div>
     <div class="bars-row">
@@ -101,7 +109,7 @@
         <label><input type="radio" name="nw-mode" value="creative"> <span>Творчество</span></label>
         <label><input type="radio" name="nw-mode" value="zombie"> <span>Зомби-апокалипсис</span></label>
       </fieldset>
-      <p class="nw-note" id="nw-note" hidden>Бесконечный мегаполис, где бродят заражённые. Днём их мало, ночью — толпы. Ищите припасы в домах и продержитесь 7 ночей до эвакуации.</p>
+      <p class="nw-note" id="nw-note" hidden>Бесконечный мегаполис, где бродят заражённые: днём их мало, ночью — толпы. Найдите рацию в полицейском участке, узнайте, где площадка эвакуации, и встретьте вертолёт на восьмой день.</p>
       <label class="set-row" for="nw-diff">
         <span class="set-name">Сложность</span>
         <select id="nw-diff">
@@ -134,6 +142,7 @@
         <dt><kbd>1–9</kbd><kbd>колесо</kbd></dt><dd>выбор предмета, <kbd>Q</kbd> — выбросить</dd>
         <dt><kbd>F5</kbd><kbd>F3</kbd></dt><dd>вид камеры, координаты</dd>
         <dt><kbd>F</kbd></dt><dd>полёт (в творчестве)</dd>
+        <dt><kbd>M</kbd></dt><dd>карта района (если она есть)</dd>
         <dt><kbd>Esc</kbd></dt><dd>пауза и настройки</dd>
       </dl>
     </div>
@@ -236,6 +245,26 @@
     <div class="title-actions">
       <button type="button" class="btn btn--primary" id="btn-respawn">Возродиться</button>
       <button type="button" class="btn" id="btn-death-title">В главное меню</button>
+    </div>
+  </div>
+</section>
+
+<!-- Карта района (режим зомби-апокалипсиса) -->
+<section id="citymap" class="screen screen--center" aria-labelledby="map-h" hidden>
+  <div class="panel map-panel">
+    <h2 id="map-h" class="controls-h">Карта района</h2>
+    <div class="map-body">
+    <canvas id="map-canvas" width="450" height="450" aria-label="Карта кварталов вокруг вас"></canvas>
+    <div class="map-side">
+      <ul class="map-legend">
+        <li><i style="background:#3f6fd8">П</i>полиция</li><li><i style="background:#2fae63">Б</i>больница</li>
+        <li><i style="background:#e08a2a">С</i>супермаркет</li><li><i style="background:#d0453a">З</i>заправка</li>
+        <li><i style="background:#ce262c">М</i>метро</li><li><i style="background:#f0b545">★</i>эвакуация</li>
+        <li><b style="background:#4a5160"></b>центр</li><li><b style="background:#6b5a48"></b>спальный</li>
+        <li><b style="background:#6a6243"></b>промзона</li><li><b style="background:#8a8a66"></b>окраина</li>
+      </ul>
+      <button type="button" class="btn" id="btn-map-close">Закрыть</button>
+    </div>
     </div>
   </div>
 </section>

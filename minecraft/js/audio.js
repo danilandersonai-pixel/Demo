@@ -136,6 +136,13 @@
         case 'heal': for (i = 0; i < 3; i++) tone(d, t + i * 0.09, 'sine', 520 + i * 180, 700 + i * 180, 0.14, 0.2); break;
         case 'portal': tone(d, t, 'sine', 180, 720, 1.4, 0.35); tone(d, t, 'triangle', 240, 960, 1.4, 0.2); noiseHit(d, t, 900, 0.5, 1.2, 0.4); break;
         case 'teleport': for (i = 0; i < 6; i++) tone(d, t + i * 0.05, 'sine', 400 + i * 220, 900 + i * 220, 0.12, 0.18); break;
+        case 'siege-hit': noiseHit(d, t, 380, 1.2, 0.12, 1.6, 'lowpass'); tone(d, t, 'triangle', 110, 60, 0.12, 0.4); break;
+        case 'alarm': for (i = 0; i < 4; i++) tone(d, t + i * 0.25, 'square', i % 2 ? 620 : 880, i % 2 ? 620 : 880, 0.22, 0.22, 2400); break;
+        case 'generator-on': tone(d, t, 'sawtooth', 40, 90, 0.8, 0.3, 500); noiseHit(d, t, 200, 0.5, 0.8, 0.6, 'lowpass'); break;
+        case 'generator-off': tone(d, t, 'sawtooth', 90, 35, 0.9, 0.3, 500); break;
+        case 'radio': noiseHit(d, t, 2000, 0.4, 0.5, 0.5); for (i = 0; i < 3; i++) tone(d, t + 0.5 + i * 0.12, 'square', 900, 900, 0.08, 0.12, 2500); break;
+        case 'heli': for (i = 0; i < 8; i++) noiseHit(d, t + i * 0.09, 160, 0.7, 0.07, 1.4, 'lowpass'); break;
+        case 'drop': noiseHit(d, t, 500, 0.6, 0.5, 1.8, 'lowpass'); tone(d, t, 'sine', 90, 40, 0.4, 0.5); break;
         case 'victory': [523, 659, 784, 1047].forEach(function (f, k) { tone(d, t + k * 0.18, 'triangle', f, f, 0.5, 0.3); }); break;
         case 'eat': for (i = 0; i < 3; i++) noiseHit(d, t + i * 0.12, 900, 1.5, 0.07, 1.2); break;
         case 'burp': tone(d, t, 'sawtooth', 110, 70, 0.3, 0.3, 400); break;

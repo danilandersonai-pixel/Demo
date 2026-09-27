@@ -29,7 +29,10 @@
     // Город
     ASPHALT: 92, ROAD_LINE: 93, SIDEWALK: 94, CONCRETE: 95, CONCRETE_DARK: 96, TILE_FLOOR: 97,
     CEILING_LAMP: 98, STREET_POLE: 99, STREET_LAMP: 100, CAR_RED: 101, CAR_BLUE: 102, CAR_WHITE: 103,
-    TIRE: 104, RUBBLE: 105, CRATE: 106
+    TIRE: 104, RUBBLE: 105, CRATE: 106,
+    // Особые здания и выживание в городе
+    MED_SIGN: 107, POLICE_SIGN: 108, METRO_SIGN: 109, BARS: 110, SHELF: 111, FUEL_PUMP: 112, FUEL_BARREL: 113,
+    RAIL_FLOOR: 114, BARRICADE: 115, GENERATOR: 116, HELIPAD: 117, LANDING_LIGHT: 118, AIRDROP: 119, FIRE: 120
   };
 
   // ---- Идентификаторы предметов -----------------------------------------------
@@ -43,7 +46,7 @@
     DYE_RED: 295, DYE_YELLOW: 296, DYE_BLUE: 297, DYE_GREEN: 298,
     SULFUR: 346, BLOOD_CRYSTAL: 347, SKY_SHARD: 348, METEOR_IRON: 349, SPACE_RATION: 350, CANNED_FOOD: 351,
     MEDKIT: 352, PISTOL: 353, AMMO: 354, BAT: 355, MACHETE: 356, HELL_BLADE: 357, SPACE_HELMET: 358,
-    LASER_CUTTER: 359
+    LASER_CUTTER: 359, BANDAGE: 360, FUEL_CAN: 361, RADIO: 362, BODY_ARMOR: 363, CITY_MAP: 364
   };
   // Инструменты 300–324 (материал × вид), броня 330–345 (материал × слот)
   var TOOL_MATS = ['wood', 'stone', 'iron', 'gold', 'diamond'];
@@ -207,6 +210,30 @@
   blk(B.TIRE, 'Колесо', 'tire', { hardness: 1, mat: 'cloth' });
   blk(B.RUBBLE, 'Обломки', 'rubble', { hardness: 0.6, tool: 'shovel', mat: 'sand', falls: true });
   blk(B.CRATE, 'Ящик', 'crate', { hardness: 1.5, tool: 'axe', mat: 'wood', fuel: 300, drop: [[B.PLANKS, 2]] });
+  blk(B.MED_SIGN, 'Знак больницы', 'medSign', { hardness: 1, mat: 'glass', light: 8, glow: true });
+  blk(B.POLICE_SIGN, 'Вывеска полиции', 'policeSign', { hardness: 1, mat: 'glass', light: 6, glow: true });
+  blk(B.METRO_SIGN, 'Знак метро', 'metroSign', { hardness: 1, mat: 'glass', light: 10, glow: true });
+  blk(B.BARS, 'Решётка', 'bars', ext(metal, { opaque: false, glass: true, hardness: 4, tier: 1 }));
+  // стеллаж: разломав, можно найти банку консервов
+  blk(B.SHELF, 'Стеллаж с товарами', { top: 'shelfTop', side: 'shelfSide' }, { hardness: 1, mat: 'metal',
+    drop: function (m, r) { var x = r(); return x < 0.22 ? [[I.CANNED_FOOD, 1]] : x < 0.3 ? [[I.BREAD, 1]] : x < 0.34 ? [[I.BANDAGE, 1]] : []; } });
+  blk(B.FUEL_PUMP, 'Бензоколонка', { top: 'hullDark', side: 'fuelPumpSide', front: 'fuelPumpFront' }, ext(metal, { hardness: 3 }));
+  // бочка: разобрать — канистра, выстрел или взрыв — сама взрывается
+  blk(B.FUEL_BARREL, 'Бочка с топливом', { top: 'barrelTop', side: 'barrelSide' }, { hardness: 1.5, mat: 'metal', explosive: 3,
+    drop: [[I.FUEL_CAN, 1]] });
+  blk(B.RAIL_FLOOR, 'Рельсы', { top: 'railX', bottom: 'gravel', side: 'gravel' }, ext(road, { mat: 'metal' }));
+  // баррикаду заражённые ломают дольше всего
+  blk(B.BARRICADE, 'Баррикада', 'barricade', { opaque: false, glass: true, hardness: 2, tool: 'axe', mat: 'wood', fuel: 300, siege: 16 });
+  blk(B.GENERATOR, 'Генератор', { top: 'generatorTop', side: 'generatorSide', front: 'generatorFront' },
+    ext(metal, { hardness: 3, use: 'generator', entity: 'generator' }));
+  blk(B.HELIPAD, 'Разметка вертолётной площадки', 'helipad', ext(road, { hardness: 1.8 }));
+  blk(B.LANDING_LIGHT, 'Посадочный огонь', 'landingOff', { hardness: 0.5, mat: 'glass' });
+  blk(B.AIRDROP, 'Гуманитарный груз', { top: 'airdropTop', side: 'airdropSide' }, { hardness: 2, tool: 'axe', mat: 'wood', use: 'chest', entity: 'chest', drop: [[B.PLANKS, 3]] });
+  blk(B.FIRE, 'Огонь', 'fire', { shape: 'cross', opaque: false, solid: false, hardness: 0, mat: 'plant', light: 14, glow: true,
+    support: 'floor', replaceable: true, drop: [] });
+  // что заражённые могут выломать, если оно мешает добраться до игрока (секунды на один блок)
+  [[B.DOOR, 9], [B.GLASS, 1.5], [B.WINDOW, 2], [B.PLANKS, 12], [B.CRATE, 6], [B.BOOKSHELF, 8], [B.TABLE, 6], [B.LADDER, 3],
+    [B.WOOL_WHITE, 3], [B.LEAVES, 2], [B.SHELF, 7], [B.TNT, 2]].forEach(function (p) { BLOCKS[p[0]].siege = p[1]; });
 
   // ---- Флаги ------------------------------------------------------------------------
   BLOCKS.forEach(function (b, id) {
@@ -226,6 +253,8 @@
     if (id === B.FURNACE) return (meta & 4) ? 13 : 0;
     if (id === B.LAMP) return meta & 1 ? 15 : 0;
     if (id === B.SPARK_TORCH) return (meta & 8) ? 0 : 7;
+    if (id === B.GENERATOR) return meta & 4 ? 12 : 0;
+    if (id === B.LANDING_LIGHT) return meta & 1 ? 15 : 0;
     return EMIT[id];
   }
 
@@ -245,7 +274,7 @@
   BLOCK_SPRITES[B.PLATE] = 'plateItem'; BLOCK_SPRITES[B.SPARK_TORCH] = 'sparkTorchOn';
   BLOCK_SPRITES[B.GLOWROOT] = 'glowroot'; BLOCK_SPRITES[B.FIREFLOWER] = 'fireflower'; BLOCK_SPRITES[B.HALO_FLOWER] = 'haloFlower';
   BLOCK_SPRITES[B.HELL_GATE] = 'hellGate'; BLOCK_SPRITES[B.HEAVEN_GATE] = 'heavenGate'; BLOCK_SPRITES[B.STREET_POLE] = 'pole';
-  var NOT_ITEMS = [B.AIR, B.WATER, B.LAVA, B.WHEAT, B.WIRE, B.PISTON_HEAD, B.FARMLAND];
+  var NOT_ITEMS = [B.AIR, B.WATER, B.LAVA, B.WHEAT, B.WIRE, B.PISTON_HEAD, B.FARMLAND, B.FIRE];
   BLOCKS.forEach(function (b, id) {
     if (!b || NOT_ITEMS.indexOf(id) >= 0) return;
     ITEMS[id] = { id: id, name: b.name, block: id, stack: 64, fuel: b.fuel };
@@ -311,6 +340,11 @@
   item(I.HELL_BLADE, 'Адский клинок', 'hellBlade', { stack: 1, dur: 1200, tool: { kind: 'sword', tier: 4, speed: 1.5, dmg: 9, mat: 'blood', ignite: true } });
   item(I.SPACE_HELMET, 'Космический шлем', 'spaceHelmet', { stack: 1, dur: 400, armor: { slot: 0, points: 2, mat: 'space', vacuum: true } });
   item(I.LASER_CUTTER, 'Лазерный резак', 'laserCutter', { stack: 1, dur: 900, tool: { kind: 'pickaxe', tier: 4, speed: 14, dmg: 4, mat: 'laser' } });
+  item(I.BANDAGE, 'Бинт', 'bandage', { stack: 16, heal: 4 });
+  item(I.FUEL_CAN, 'Канистра с топливом', 'fuelCan', { stack: 4 });
+  item(I.RADIO, 'Рация', 'radio', { stack: 1 });
+  item(I.BODY_ARMOR, 'Бронежилет', 'bodyArmor', { stack: 1, dur: 360, armor: { slot: 1, points: 7, mat: 'kevlar' } });
+  item(I.CITY_MAP, 'Карта района', 'cityMap', { stack: 1 });
 
   var MAT_RU = { wood: 'Деревянн', stone: 'Каменн', iron: 'Железн', gold: 'Золот', diamond: 'Алмазн', leather: 'Кожан' };
   var TOOL_RU = { pickaxe: ['ая', 'кирка'], axe: ['ый', 'топор'], shovel: ['ая', 'лопата'], sword: ['ый', 'меч'], hoe: ['ая', 'мотыга'] };
@@ -483,6 +517,11 @@
   shaped(B.CRATE, 1, ['PPP', 'PSP', 'PPP'], { P: B.PLANKS, S: I.STICK });
   shapeless(B.CONCRETE, 4, [B.SAND, B.GRAVEL, I.WATER_BUCKET]);
   shaped(B.LIGHT_PANEL, 4, ['GGG', 'GRG', 'GGG'], { G: B.GLASS, R: I.SPARK_DUST });
+  shaped(B.BARRICADE, 2, ['PSP', 'PSP'], { P: B.PLANKS, S: I.STICK });
+  shaped(B.GENERATOR, 1, ['III', 'IFI', 'IRI'], { I: I.IRON_INGOT, F: B.FURNACE, R: I.SPARK_DUST });
+  shapeless(I.BANDAGE, 2, [B.WOOL_WHITE, I.STRING]);
+  shaped(B.BARS, 8, ['III', 'III'], { I: I.IRON_INGOT });
+  shaped(B.LANDING_LIGHT, 2, ['G', 'R'], { G: B.GLASS, R: I.SPARK_DUST });
 
   // Плавка: вход → выход
   var SMELT = {};

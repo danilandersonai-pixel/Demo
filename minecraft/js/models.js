@@ -314,6 +314,92 @@
       leg: [84, 72, 56], legW: 4, legPaint: function (f, x, y, w, h) { return y >= h - 3 ? [50, 40, 30] : null; }
     }) };
 
+    // ---- Особые места города: пациент, полицейский, слепой, выживший ----------------
+    var PALE = [196, 190, 160], GOWN = [228, 232, 230];
+    MODELS.patient = { parts: humanoid({
+      head: PALE, headNoise: 0.12,
+      headPaint: function (f, x, y) {
+        if (y === 2 || y === 3) return (x + y) % 4 === 0 ? [210, 206, 196] : [244, 244, 240];     // бинт на голове
+        return sickFace(f, x, y);
+      },
+      body: GOWN, bodyPaint: function (f, x, y) {
+        if ((x + y * 2) % 5 === 0) return [150, 176, 190];                                         // горошек на халате
+        if ((x * 7 + y) % 17 === 0) return STAIN;
+        return null;
+      },
+      arm: PALE, armPaint: function (f, x, y) { return y <= 4 ? GOWN : (f === 'front' && y === 6 ? [200, 60, 60] : null); },
+      leg: PALE, legPaint: function (f, x, y) { return y <= 2 ? GOWN : null; }
+    }) };
+    var NAVY = [34, 44, 74];
+    MODELS.cop = { parts: humanoid({
+      head: [30, 32, 38], headNoise: 0.06,
+      headPaint: function (f, x, y) {
+        if (f === 'front' && y >= 2 && y <= 4 && x >= 1 && x <= 6) return y === 2 ? [90, 120, 150] : [40, 60, 90];   // забрало
+        if (f === 'front' && y >= 5) return y === 6 && x >= 2 && x <= 5 ? [40, 20, 20] : SICK;
+        return null;
+      },
+      body: NAVY, bodyPaint: function (f, x, y) {
+        if (y === 4 || y === 5) return [220, 210, 70];                                             // светоотражающая полоса
+        if (y === 10) return [20, 20, 22];                                                         // ремень
+        if (f === 'front' && x === 5 && y === 2) return [200, 170, 60];                             // жетон
+        return null;
+      },
+      arm: NAVY, armPaint: function (f, x, y, w, h) { return y >= h - 2 ? SICK : null; },
+      leg: NAVY, legPaint: function (f, x, y, w, h) { return y >= h - 3 ? [22, 22, 24] : null; }
+    }) };
+    var GHOST = [214, 210, 200];
+    MODELS.blind = { parts: humanoid({
+      head: GHOST, headNoise: 0.1,
+      headPaint: function (f, x, y) {
+        if (f === 'top' || y <= 1) return (x * 3 + y) % 5 === 0 ? [150, 146, 140] : null;
+        if (f === 'front' && y === 3 && x >= 1 && x <= 6) return [34, 28, 26];                       // пустые глазницы
+        if (f === 'front' && y === 6 && x >= 1 && x <= 6) return x % 2 ? [30, 20, 20] : [230, 226, 210];
+        if ((x + y) % 6 === 0) return [170, 176, 190];                                             // прожилки
+        return null;
+      },
+      body: [64, 66, 72], bodyPaint: function (f, x, y) { if (y >= 10 && x % 2) return [0, 0, 0, 0]; if ((x * 3 + y) % 9 === 0) return [44, 46, 50]; return null; },
+      arm: GHOST, armW: 3, armPaint: function (f, x, y) { return y <= 2 ? [64, 66, 72] : null; },
+      leg: [64, 66, 72], legW: 3, legPaint: function (f, x, y, w, h) { return y >= h - 2 ? GHOST : null; }
+    }) };
+    var PLAID = function (f, x, y) { return (x % 4 < 2) !== (y % 4 < 2) ? [150, 34, 30] : [36, 30, 30]; };
+    MODELS.survivor = { parts: humanoid({
+      head: SKIN,
+      headPaint: function (f, x, y) {
+        if (y <= 1 || f === 'top') return [70, 90, 60];                                           // кепка
+        if (f === 'front' && y === 2) return [60, 80, 52];
+        if (f === 'front' && y === 4 && (x === 2 || x === 5)) return [40, 60, 80];
+        if (f === 'front' && y === 6 && x >= 3 && x <= 4) return [150, 90, 80];
+        if (f !== 'front' && y <= 4) return HAIR;
+        return null;
+      },
+      body: [150, 34, 30], bodyPaint: PLAID,
+      arm: [150, 34, 30], armPaint: function (f, x, y, w, h) { return y >= h - 3 ? SKIN : PLAID(f, x, y); },
+      leg: [150, 136, 96], legPaint: function (f, x, y, w, h) { return y >= h - 2 ? [70, 50, 34] : null; }
+    }) };
+
+    // ---- Вертолёт эвакуации ----------------------------------------------------------
+    var HULLC = [56, 70, 86], STRIPE = [236, 196, 40];
+    MODELS.helicopter = { parts: [
+      part('body', [28, 22, 44], [0, 8, 0], [-14, 0, -24], HULLC, 0.05, function (f, x, y, w, h) {
+        if ((f === 'left' || f === 'right') && y >= 4 && y <= 10 && x >= 4 && x <= 20) return [60, 110, 150];            // окна
+        if ((f === 'left' || f === 'right') && y === 14) return STRIPE;
+        if (f === 'front' && y >= 3 && y <= 12 && x >= 3 && x <= w - 4) return [70, 130, 170];                        // лобовое стекло
+        return null;
+      }),
+      part('boom', [6, 6, 44], [0, 20, 20], [-3, 0, 0], HULLC, 0.05, function (f, x, y) { return y === 3 ? STRIPE : null; }),
+      part('fin', [2, 14, 8], [0, 22, 58], [-1, 0, 0], HULLC, 0.05),
+      part('mast', [4, 4, 4], [0, 30, 0], [-2, 0, -2], [40, 40, 44], 0.05),
+      part('rotorA', [140, 1, 5], [0, 34, 0], [-70, 0, -2.5], [30, 30, 34], 0.05),
+      part('rotorB', [5, 1, 140], [0, 34, 0], [-2.5, 0, -70], [30, 30, 34], 0.05),
+      part('tailRotor', [1, 16, 3], [2, 30, 62], [0, -8, -1.5], [30, 30, 34], 0.05),
+      part('skidR', [2, 2, 48], [-11, 0, 0], [-1, 0, -24], [40, 40, 44], 0.05),
+      part('skidL', [2, 2, 48], [11, 0, 0], [-1, 0, -24], [40, 40, 44], 0.05),
+      part('strutR', [2, 8, 2], [-11, 2, -10], [-1, 0, -1], [40, 40, 44], 0.05),
+      part('strutL', [2, 8, 2], [11, 2, -10], [-1, 0, -1], [40, 40, 44], 0.05),
+      part('strutR2', [2, 8, 2], [-11, 2, 12], [-1, 0, -1], [40, 40, 44], 0.05),
+      part('strutL2', [2, 8, 2], [11, 2, 12], [-1, 0, -1], [40, 40, 44], 0.05)
+    ] };
+
     // ---- Пекло: бес и огненный дух ---------------------------------------------------
     var IMP = [152, 52, 36];
     MODELS.imp = { parts: [

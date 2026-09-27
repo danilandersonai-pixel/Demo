@@ -13,7 +13,7 @@
   // Блоки, которые хотя бы в каком-то состоянии светятся
   var EMITTER = new Uint8Array(256);
   for (var em = 0; em < 256; em++) if (EMIT[em]) EMITTER[em] = 1;
-  [B.FURNACE, B.LAMP, B.SPARK_TORCH].forEach(function (id) { EMITTER[id] = 1; });
+  [B.FURNACE, B.LAMP, B.SPARK_TORCH, B.GENERATOR, B.LANDING_LIGHT].forEach(function (id) { EMITTER[id] = 1; });
 
   function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
   function smooth(a, b, x) { var t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); }
@@ -529,7 +529,7 @@
   var AO_CURVE = [0.46, 0.66, 0.83, 1.0];
   var CORNERS = [[0, 0], [1, 0], [1, 1], [0, 1]];
   var UVS = [];
-  for (var t = 0; t < 256; t++) UVS.push(KC.tileUV(t));
+  for (var t = 0; t < 512; t++) UVS.push(KC.tileUV(t));      // атлас 16×32 плиток
   var WHEAT_TILE = [T.wheat0, T.wheat0, T.wheat1, T.wheat1, T.wheat2, T.wheat2, T.wheat3, T.wheat4];
 
   // Плитка грани с учётом состояния блока
@@ -541,6 +541,9 @@
         if (f === FACING_FACE[meta & 3]) return tl.front; break;
       case B.ROAD_LINE: if (f === 2) return meta === 1 ? T.roadLineZ : meta === 2 ? T.crosswalk : T.roadLineX; break;
       case B.LAMP: return meta & 1 ? T.lampOn : T.lampOff;
+      case B.LANDING_LIGHT: return meta & 1 ? T.landingOn : T.landingOff;
+      case B.GENERATOR: if (f === FACING_FACE[meta & 3]) return meta & 4 ? T.generatorOn : tl.front; break;
+      case B.RAIL_FLOOR: if (f === 2) return meta & 1 ? T.railZ : T.railX; break;
       case B.FARMLAND: if (f === 2) return meta & 1 ? T.farmlandWet : T.farmland; break;
       case B.PISTON:
         var pf = meta & 7;
@@ -650,7 +653,7 @@
       switch (bd.shape) {
         case 'cube': case 'cactus':
           // Сами светильники горят ровно, без теней (печь светит только наружу)
-          var glow = bd.glow || id === B.JACK || (id === B.LAMP && (meta & 1)) ? 1 : 0;
+          var glow = bd.glow || id === B.JACK || ((id === B.LAMP || id === B.LANDING_LIGHT) && (meta & 1)) ? 1 : 0;
           for (var f = 0; f < 6; f++) {
             var face = FACES[f], nid = pad[p + face.no];
             if (bd.glass) { if (OPAQUE[nid] || nid === id) continue; }

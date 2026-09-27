@@ -990,6 +990,150 @@
     for (var i = 0; i < 16; i++) { px(i, 0, [96, 66, 36]); px(i, 15, [96, 66, 36]); px(0, i, [96, 66, 36]); px(15, i, [96, 66, 36]); px(i, i, [120, 84, 46]); }
   });
 
+  // ---- Особые здания мегаполиса ------------------------------------------------------
+  // крест здесь зелёный: красный крест на белом — охраняемая эмблема, её не используем
+  tile('medSign', function () {
+    for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) {
+      var edge = x === 0 || y === 0 || x === 15 || y === 15;
+      var cross = (x >= 6 && x <= 9 && y >= 2 && y <= 13) || (y >= 6 && y <= 9 && x >= 2 && x <= 13);
+      px(x, y, edge ? [170, 176, 172] : cross ? [40, 176, 90] : jit([244, 246, 242], 0.02));
+    }
+  });
+  tile('policeSign', function () {
+    for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) {
+      var c = jit([32, 54, 118], 0.05);
+      if (y === 12 || y === 13) c = [236, 238, 240];
+      var sh = Math.abs(x - 7.5) <= 4 - Math.max(0, y - 6) * 0.8 && y >= 2 && y <= 9;
+      if (sh) c = (x + y) % 5 === 0 ? [255, 236, 140] : [226, 184, 56];
+      px(x, y, c);
+    }
+  });
+  tile('metroSign', function () {
+    var M = { '6,5': 1, '6,6': 1, '7,6': 1, '7,7': 1, '8,6': 1, '8,7': 1, '9,5': 1, '9,6': 1 };
+    for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) {
+      var d = Math.hypot(x - 7.5, y - 7.5), c = [46, 50, 58];
+      if (d < 7) c = [206, 38, 44];
+      if (((x === 4 || x === 5 || x === 10 || x === 11) && y >= 4 && y <= 11) || M[x + ',' + y]) c = [250, 250, 250];
+      px(x, y, c);
+    }
+  });
+  tile('bars', function () {
+    clear();
+    for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) {
+      var v = x % 5 === 1 || x % 5 === 2, h = y === 1 || y === 14;
+      if (v || h) px(x, y, v && x % 5 === 1 ? [150, 154, 160] : [96, 100, 106]);
+    }
+  });
+  tile('shelfTop', function () { fill([120, 126, 132], 0.06); });
+  tile('shelfSide', function () {
+    var goods = [[200, 50, 40], [240, 200, 60], [60, 130, 200], [80, 170, 90], [236, 236, 230], [170, 90, 40]];
+    for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) {
+      var frame = x === 0 || x === 15 || y % 5 === 0;
+      px(x, y, frame ? [120, 126, 132] : [40, 42, 46]);
+    }
+    for (var row = 0; row < 3; row++) for (var gx = 1; gx < 15; gx += 3) {
+      if (rnd() < 0.2) continue;
+      var c = pick(goods), hgt = 2 + Math.floor(rnd() * 2);
+      rect(gx, row * 5 + 5 - hgt, gx + 1, row * 5 + 4, c, 0.1);
+    }
+  });
+  tile('fuelPumpSide', function () {
+    for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) px(x, y, y < 3 ? [236, 236, 232] : jit([196, 40, 38], 0.05));
+    rect(2, 5, 13, 5, [140, 24, 24]);
+  });
+  tile('fuelPumpFront', function () {
+    for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) px(x, y, y < 3 ? [236, 236, 232] : jit([196, 40, 38], 0.05));
+    rect(3, 4, 12, 8, [20, 24, 20]);
+    rect(4, 5, 7, 5, [120, 255, 120]); rect(9, 5, 11, 5, [120, 255, 120]); rect(4, 7, 10, 7, [80, 200, 90]);
+    rect(6, 10, 9, 13, [40, 40, 44]);
+  });
+  tile('barrelSide', function () {
+    for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) {
+      var rib = y === 2 || y === 13;
+      px(x, y, rib ? [120, 26, 22] : jit(mul([200, 44, 36], 0.85 + 0.25 * Math.sin(x / 15 * Math.PI)), 0.04));
+    }
+    for (var ty = 5; ty <= 10; ty++) for (var tx = 7 - (ty - 5); tx <= 8 + (ty - 5); tx++) px(tx, ty, ty === 10 || tx === 7 - (ty - 5) || tx === 8 + (ty - 5) ? [30, 30, 30] : [250, 210, 40]);
+  });
+  tile('barrelTop', function () {
+    for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) {
+      var d = Math.hypot(x - 7.5, y - 7.5);
+      px(x, y, d > 7 ? [120, 26, 22] : d < 1.8 && x > 8 ? [60, 60, 64] : jit([190, 42, 34], 0.05));
+    }
+  });
+  function rails(alongX) {
+    for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) {
+      var a = alongX ? x : y, b = alongX ? y : x;
+      var c = jit(pick([[92, 88, 84], [110, 106, 100], [74, 72, 70]]), 0.08);
+      if (a % 5 === 1 || a % 5 === 2) c = jit([96, 66, 40], 0.08);
+      if (b === 3 || b === 12) c = [176, 180, 186];
+      if (b === 4 || b === 11) c = [110, 114, 120];
+      px(x, y, c);
+    }
+  }
+  tile('railX', function () { rails(true); });
+  tile('railZ', function () { rails(false); });
+  tile('barricade', function () {
+    clear();
+    for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) {
+      var board = y % 5 !== 4;
+      var diag = Math.abs(x - y) <= 1;
+      if (board || diag) px(x, y, diag ? jit([130, 96, 56], 0.06) : jit([170, 130, 78], 0.08));
+    }
+    [[2, 1], [13, 1], [2, 6], [13, 6], [2, 11], [13, 11]].forEach(function (n) { px(n[0], n[1], [60, 60, 64]); });
+  });
+  tile('generatorSide', function () {
+    for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) {
+      var frame = x === 0 || x === 15 || y === 0 || y === 15;
+      px(x, y, frame ? [50, 52, 56] : (y % 3 === 1 && x > 2 && x < 13) ? [70, 60, 30] : jit([222, 170, 44], 0.05));
+    }
+  });
+  tile('generatorFront', function () {
+    for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) px(x, y, x === 0 || x === 15 || y === 0 || y === 15 ? [50, 52, 56] : jit([222, 170, 44], 0.05));
+    rect(3, 3, 12, 8, [36, 38, 42]);
+    for (var a = 0; a < 5; a++) px(5 + a, 7 - Math.round(Math.sin(a / 4 * Math.PI) * 3), [230, 230, 220]);
+    rect(4, 11, 6, 12, [150, 30, 30]); rect(9, 11, 11, 12, [40, 40, 44]);
+  });
+  tile('generatorOn', function () {
+    for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) px(x, y, x === 0 || x === 15 || y === 0 || y === 15 ? [50, 52, 56] : jit([232, 180, 50], 0.05));
+    rect(3, 3, 12, 8, [36, 38, 42]);
+    for (var a = 0; a < 5; a++) px(5 + a, 7 - Math.round(Math.sin(a / 4 * Math.PI) * 3), [120, 255, 140]);
+    rect(4, 11, 6, 12, [60, 60, 60]); rect(9, 11, 11, 12, [90, 255, 110]);
+  });
+  tile('generatorTop', function () {
+    fill([70, 72, 76], 0.06);
+    for (var y = 4; y < 12; y++) for (var x = 4; x < 12; x++) px(x, y, Math.hypot(x - 7.5, y - 7.5) < 2.5 ? [24, 24, 26] : [100, 104, 110]);
+  });
+  tile('helipad', function () {
+    for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) px(x, y, ((x + y) >> 2) % 2 ? jit([236, 196, 40], 0.04) : jit([34, 34, 38], 0.05));
+  });
+  tile('landingOff', function () {
+    fill([56, 58, 62], 0.05);
+    for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) if (Math.hypot(x - 7.5, y - 7.5) < 4.5) px(x, y, [40, 70, 44]);
+  });
+  tile('landingOn', function () {
+    fill([56, 58, 62], 0.05);
+    for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) { var d = Math.hypot(x - 7.5, y - 7.5); if (d < 4.5) px(x, y, d < 2 ? [240, 255, 240] : [130, 255, 140]); }
+  });
+  tile('airdropSide', function () {
+    for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) {
+      var frame = x <= 1 || x >= 14 || y <= 1 || y >= 14;
+      px(x, y, frame ? [70, 80, 44] : jit([108, 122, 66], 0.06));
+    }
+    rect(6, 4, 9, 11, [236, 236, 230]); rect(4, 6, 11, 9, [236, 236, 230]);
+  });
+  tile('airdropTop', function () {
+    for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) px(x, y, x === 7 || x === 8 || y === 7 || y === 8 ? [200, 190, 150] : jit([108, 122, 66], 0.06));
+  });
+  tile('fire', function () {
+    clear();
+    for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) {
+      var hgt = 9 + 6 * Math.abs(Math.sin(x * 1.3)) - (x === 0 || x === 15 ? 5 : 0);
+      var t = (15 - y) / hgt;
+      if (t > 1) continue;
+      px(x, y, t < 0.35 ? [255, 244, 170] : t < 0.7 ? [255, 170, 40] : [220, 70, 20]);
+    }
+  });
+
   // ---- Новые предметы ----------------------------------------------------------------
   tile('sulfur', function () { sprite(DUST, { a: [150, 120, 20], b: [230, 200, 40], c: [255, 240, 120] }); });
   tile('bloodCrystal', function () {
@@ -1016,7 +1160,7 @@
   tile('medkit', function () {
     sprite(['................', '................', '......aaaa......', '......a..a......', '..aaaaaaaaaaaa..', '..abbbbbbbbbba..', '..abbbbccbbbba..',
       '..abbbccccbba...', '..abbbbccbbbba..', '..abbbbbbbbbba..', '..aaaaaaaaaaaa..'],
-    { a: [120, 120, 124], b: [240, 240, 236], c: [210, 30, 30] });
+    { a: [120, 120, 124], b: [240, 240, 236], c: [40, 176, 90] });
   });
   tile('pistol', function () {
     sprite(['................', '................', '................', '................', '..aaaaaaaaaaa...', '..abbbbbbbbba...', '..aaaaaaaaaaa...',
@@ -1044,6 +1188,31 @@
     sprite(['................', '................', '..........dd....', '.........dcd....', '........acca....', '.......abbba....', '......abbba.....',
       '.....abbba......', '....abbba.......', '...eaaba........', '..eee...........', '.ee.............'],
     { a: [90, 96, 106], b: [180, 186, 196], c: [120, 220, 255], d: [255, 60, 60], e: [50, 50, 56] });
+  });
+  tile('bandage', function () {
+    sprite(['................', '................', '................', '......aaaa......', '....aabbbbaa....', '...abbbbbbbba...', '...abbccccbba...',
+      '...abbc..cbba...', '...abbccccbba...', '...abbbbbbbba...', '....aabbbbaa.dd.', '......aaaa.dd...', '..........dd....'],
+    { a: [200, 196, 186], b: [246, 244, 238], c: [220, 216, 206], d: [236, 234, 226] });
+  });
+  tile('fuelCan', function () {
+    sprite(['................', '........aa......', '..aaaaaaab......', '..abbbbbbba.....', '..abccccbbba....', '..abcbbcbbbba...', '..abcbbcbbbba...',
+      '..abccccbbbba...', '..abbbbbbbbba...', '..abbbbbbbbba...', '..abbbbbbbbba...', '..aaaaaaaaaaa...'],
+    { a: [110, 20, 18], b: [200, 40, 34], c: [240, 200, 60] });
+  });
+  tile('radio', function () {
+    sprite(['........a.......', '........a.......', '........a.......', '.....aaaaaa.....', '.....abbbba.....', '.....acccca.....', '.....acdcca.....',
+      '.....abbbba.....', '.....abebba.....', '.....abbeba.....', '.....abebba.....', '.....abbbba.....', '.....aaaaaa.....'],
+    { a: [30, 30, 34], b: [66, 70, 76], c: [60, 110, 70], d: [160, 255, 170], e: [110, 116, 124] });
+  });
+  tile('bodyArmor', function () {
+    sprite(['................', '................', '...aa......aa...', '..abba....abba..', '..abbbaaaabbba..', '..abbbbbbbbbba..', '..abccbbbbccba..',
+      '..abccbbbbccba..', '..abbbbbbbbbba..', '..adddddddddda..', '..abbbbbbbbbba..', '..abccbbbbccba..', '..aaaaaaaaaaaa..'],
+    { a: [24, 26, 30], b: [58, 62, 70], c: [90, 96, 104], d: [200, 200, 200] });
+  });
+  tile('cityMap', function () {
+    sprite(['................', '................', '..aaaaaaaaaaaa..', '..abbcbbbbcbba..', '..abbcbbbbcbba..', '..acccccccccca..', '..abbcbdbbcbba..',
+      '..abbcbbbbcbba..', '..abbcbbbbcbba..', '..acccccccccca..', '..abbcbbbbcbba..', '..abbcbbbbcbea..', '..aaaaaaaaaaaa..'],
+    { a: [150, 120, 70], b: [236, 224, 190], c: [190, 176, 140], d: [200, 40, 40], e: [60, 150, 70] });
   });
   tile('fireball', function () {
     clear();

@@ -168,13 +168,18 @@
   }
 
   // ---- Ломание блока с дропом и содержимым -------------------------------------------
+  function newBent(kind, x, y, z) {
+    if (kind === 'furnace') return { type: 'furnace', x: x, y: y, z: z, slots: [null, null, null], burn: 0, burnMax: 0, cook: 0 };
+    if (kind === 'generator') return { type: 'generator', x: x, y: y, z: z, slots: [], fuel: 0 };
+    return { type: 'chest', x: x, y: y, z: z, slots: new Array(27).fill(null) };
+  }
   // Блок-сущность для сундука или печи; у сгенерированных сундуков добыча выдаётся лениво
   function chestBent(x, y, z) {
     var k = key(x, y, z), be = bents.get(k);
     if (be) return be;
     var id = get(x, y, z), nb = BLOCKS[id];
     if (!nb || !nb.entity) return null;
-    if (nb.entity === 'furnace') be = { type: 'furnace', x: x, y: y, z: z, slots: [null, null, null], burn: 0, burnMax: 0, cook: 0 };
+    if (nb.entity !== 'chest') be = newBent(nb.entity, x, y, z);
     else {
       var slots = new Array(27).fill(null);
       var c = world.getChunk(x >> 4, z >> 4);
@@ -217,18 +222,14 @@
 
   // ---- Реакция на любое изменение блока ------------------------------------------------
   var RS = {};
-  [B.WIRE, B.LEVER, B.BUTTON, B.PLATE, B.SPARK_TORCH, B.SPARK_BLOCK, B.LAMP, B.PISTON, B.DOOR, B.TNT].forEach(function (id) { RS[id] = 1; });
+  [B.WIRE, B.LEVER, B.BUTTON, B.PLATE, B.SPARK_TORCH, B.SPARK_BLOCK, B.LAMP, B.PISTON, B.DOOR, B.TNT, B.GENERATOR].forEach(function (id) { RS[id] = 1; });
 
   function onChange(x, y, z, oldId, newId) {
     scheduleLiquidsAround(x, y, z);
     if (isLiquid(newId)) schedule(x, y, z, 'liquid', newId === B.WATER ? 5 : 30);
     // блок-сущности
     var nb = BLOCKS[newId];
-    if (nb && nb.entity && !bents.has(key(x, y, z))) {
-      bents.set(key(x, y, z), nb.entity === 'furnace'
-        ? { type: 'furnace', x: x, y: y, z: z, slots: [null, null, null], burn: 0, burnMax: 0, cook: 0 }
-        : { type: 'chest', x: x, y: y, z: z, slots: new Array(27).fill(null) });
-    }
+    if (nb && nb.entity && !bents.has(key(x, y, z))) bents.set(key(x, y, z), newBent(nb.entity, x, y, z));
     if (oldId !== newId && BLOCKS[oldId] && BLOCKS[oldId].entity && !(nb && nb.entity)) bents.delete(key(x, y, z));
     // опоры и падение соседей (с задержкой в тик — чтобы не рекурсировать глубоко)
     schedule(x, y, z, 'neighbors', 1);
@@ -326,6 +327,9 @@
       case B.SUGAR_CANE: case B.CACTUS:
         if (!get(x, y + 1, z) && y + 1 < KC.H && stackHeight(x, y, z, id) < 3 && Math.random() < 0.2) world.setBlock(x, y + 1, z, id, 0);
         break;
+      case B.FIRE:
+        if (Math.random() < 0.3 || get(x, y + 1, z) === B.WATER) world.setBlock(x, y, z, 0, 0);
+        break;
     }
   }
 
@@ -341,7 +345,7 @@
         var lx = r & 15, lz = (r >> 4) & 15, ly = s * 16 + (r >> 8);
         var id = c.blocks[lx + lz * 16 + ly * 256];
         if (id === B.WHEAT || id === B.SAPLING || id === B.FARMLAND || id === B.DIRT || id === B.GRASS ||
-            id === B.LEAVES || id === B.SUGAR_CANE || id === B.CACTUS) {
+            id === B.LEAVES || id === B.SUGAR_CANE || id === B.CACTUS || id === B.FIRE) {
           randomTick(c.cx * 16 + lx, ly, c.cz * 16 + lz, id);
         }
       }
@@ -379,6 +383,32 @@
     }
   }
 
+  // ---- Генератор: топливо в тиках; пока работает — светит, питает провода и посадочные огни ---
+  var GEN_MAX = 20 * 60 * 60;          // до трёх игровых суток (сутки — 20 минут)
+  function tickGenerator(g) {
+    var was = g.fuel > 0;
+    if (g.fuel > 0) g.fuel--;
+    var on = g.fuel > 0;
+    if (on !== was || (on && tickN % 100 === 0 && !(meta(g.x, g.y, g.z) & 4))) setGenerator(g, on);
+  }
+  function setGenerator(g, on) {
+    if (get(g.x, g.y, g.z) !== B.GENERATOR) return;
+    var m = meta(g.x, g.y, g.z);
+    world.setBlock(g.x, g.y, g.z, B.GENERATOR, on ? (m | 4) : (m & 3), true);
+    rsDirty.push([g.x, g.y, g.z]);
+    for (var dy = -2; dy <= 2; dy++) for (var dz = -10; dz <= 10; dz++) for (var dx = -10; dx <= 10; dx++) {
+      if (get(g.x + dx, g.y + dy, g.z + dz) === B.LANDING_LIGHT) world.setBlock(g.x + dx, g.y + dy, g.z + dz, B.LANDING_LIGHT, on ? 1 : 0, true);
+    }
+    if (hooks.sound) hooks.sound(on ? 'generator-on' : 'generator-off', g.x + 0.5, g.y + 0.5, g.z + 0.5);
+  }
+  function fuelGenerator(x, y, z, ticks) {
+    var g = chestBent(x, y, z);
+    if (!g || g.type !== 'generator') return -1;
+    g.fuel = Math.min(GEN_MAX, g.fuel + ticks);
+    setGenerator(g, true);
+    return g.fuel;
+  }
+
   // ---- Искровая сеть -------------------------------------------------------------
   function sourceOn(id, m) {
     switch (id) {
@@ -386,6 +416,7 @@
       case B.PLATE: return (m & 1) !== 0;
       case B.SPARK_TORCH: return !(m & 8);
       case B.SPARK_BLOCK: return true;
+      case B.GENERATOR: return (m & 4) !== 0;
     }
     return false;
   }
@@ -624,10 +655,12 @@
       }
       gone.forEach(function (g) {
         if (g[3] === B.TNT) { primeTnt(g[0], g[1], g[2], 0.5 + Math.random()); return; }
+        if (BLOCKS[g[3]].explosive) { world.setBlock(g[0], g[1], g[2], 0, 0); schedule(g[0], g[1], g[2], 'blast', 4 + Math.floor(Math.random() * 6)); return; }
         breakBlock(g[0], g[1], g[2], Math.random() < 0.3, BLAST_TOOL);
       });
     }
     if (hooks.explosionHit) hooks.explosionHit(ex, ey, ez, power);
+    if (KC.Entities.noise) KC.Entities.noise(ex, ey, ez, 48);
     if (hooks.particles) hooks.particles('explosion', ex, ey, ez);
     if (hooks.sound) hooks.sound('boom', ex, ey, ez);
   }
@@ -689,6 +722,7 @@
         switch (ev[3]) {
           case 'liquid': if (world.isLoaded(x, z)) updateLiquid(x, y, z); break;
           case 'neighbors': checkNeighbors(x, y, z); break;
+          case 'blast': explode(x + 0.5, y + 0.5, z + 0.5, 3); break;
           case 'button':
             if (get(x, y, z) === B.BUTTON) { world.setBlock(x, y, z, B.BUTTON, meta(x, y, z) & 7); if (hooks.sound) hooks.sound('click', x + 0.5, y + 0.5, z + 0.5); }
             break;
@@ -709,7 +743,11 @@
         }
       }
     }
-    bents.forEach(function (b) { if (b.type === 'furnace' && world.isLoaded(b.x, b.z)) tickFurnace(b); });
+    bents.forEach(function (b) {
+      if (!world.isLoaded(b.x, b.z)) return;
+      if (b.type === 'furnace') tickFurnace(b);
+      else if (b.type === 'generator') tickGenerator(b);
+    });
     if (tickN % 5 === 0) releasePlates();
     var p = hooks.player && hooks.player();
     if (p) randomTicks(p.x, p.z);
@@ -722,6 +760,7 @@
     bents.forEach(function (b) {
       var o = { t: b.type, x: b.x, y: b.y, z: b.z, s: b.slots.map(function (s) { return s ? [s.id, s.n, s.d || 0] : 0; }) };
       if (b.type === 'furnace') { o.b = b.burn; o.bm = b.burnMax; o.c = b.cook; }
+      if (b.type === 'generator') o.f = b.fuel;
       out.push(o);
     });
     return out;
@@ -732,6 +771,7 @@
       var slots = o.s.map(function (s) { return s ? { id: s[0], n: s[1], d: s[2] } : null; });
       var b = { type: o.t, x: o.x, y: o.y, z: o.z, slots: slots };
       if (o.t === 'furnace') { b.burn = o.b || 0; b.burnMax = o.bm || 0; b.cook = o.c || 0; }
+      if (o.t === 'generator') b.fuel = o.f || 0;
       bents.set(key(o.x, o.y, o.z), b);
     });
   }
@@ -746,7 +786,8 @@
     init: init, tick: tick, breakBlock: breakBlock, supported: supported,
     getBent: function (x, y, z) { return chestBent(x, y, z); },
     toggleLever: toggleLever, pressButton: pressButton, toggleDoor: toggleDoor, pressPlate: pressPlate,
-    primeTnt: primeTnt, explode: explode, serialize: serialize, restore: restore,
+    primeTnt: primeTnt, explode: explode, serialize: serialize, restore: restore, fuelGenerator: fuelGenerator, GEN_MAX: GEN_MAX,
+    bents: bents,
     markRedstone: function (x, y, z) { rsDirty.push([x, y, z]); },
     growTree: growTree
   };
