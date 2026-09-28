@@ -19,6 +19,10 @@ code in this repository.
 `.claude/` (скилл `repo-map` и список разрешённых вызовов). Это отдельный
 слой: правки сайта его не касаются и наоборот.
 
+Ещё один самостоятельный проект — аркада `neon-velocity/` (см. раздел
+«Игра Neon Velocity» ниже). Правило «без сборки и npm» относится только к
+сайту; у игры своя Vite-сборка, и к сайту с деплоем она отношения не имеет.
+
 ## Структура
 
 ```
@@ -35,6 +39,7 @@ code in this repository.
 │       ├── reference/collect.md    — сбор данных (репозитории, ветки, PR)
 │       ├── reference/render.md     — отрисовка вывода
 │       └── assets/template.html    — HTML-шаблон карты
+├── neon-velocity/                  — отдельный проект: аркада на React + Canvas (Vite, npm)
 └── yegor-diana-wedding/            — САМ САЙТ (публикуется в корень Pages)
     ├── index.html                  — вся разметка, одна страница (~670 строк)
     ├── favicon.svg                 — монограмма «Е&Д»
@@ -189,3 +194,24 @@ reduced-motion** (всегда в конце файла). Дизайн-сист�
 нужны (`git status/log/branch/…`, `mcp__github__*`, `list_repos`), уже
 разрешены в `.claude/settings.json` — держи этот список в актуальном состоянии
 при правках скилла.
+
+## Игра Neon Velocity
+
+`neon-velocity/` — неоновая аркада «Neon Velocity: Rhythm & Dodge»: React 19 +
+TypeScript + Tailwind CSS 4 + Framer Motion + Lucide, игровой цикл и отрисовка
+на Canvas 2D, звук синтезируется Web Audio. Это обычный Vite-проект со своими
+зависимостями; на сайт и workflow деплоя он не влияет.
+
+```bash
+cd neon-velocity
+npm install
+npm run dev            # разработка → http://localhost:5173
+npm run typecheck      # проверка типов (обязательно перед коммитом)
+npm run build          # сборка в dist/
+npm run build:single   # вся игра одним HTML-файлом в dist-single/
+```
+
+Устройство игры, владельцы модулей и контракты описаны в
+`neon-velocity/ARCHITECTURE.md`, а инструкция для игрока лежит в
+`neon-velocity/README.md`. Общие типы (`src/game/types.ts`) и баланс
+(`src/game/config.ts`) — точка правды: числа баланса живут только в конфиге.
