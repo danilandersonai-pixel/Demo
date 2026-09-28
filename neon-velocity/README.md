@@ -22,7 +22,22 @@ npm run dev            # игра на http://localhost:5173
 | `npm run typecheck` | проверка типов TypeScript |
 | `npm run build` | продакшен-сборка в `dist/` |
 | `npm run build:single` | вся игра одним HTML-файлом в `dist-single/index.html` — открывается двойным кликом, без сервера и интернета |
+| `npm run build:play` | то же самое плюс копия в `play/index.html` — файл, который публикуется через githack |
 | `npm run preview` | локальный просмотр продакшен-сборки |
+
+## Поделиться игрой
+
+Готовая игра одним файлом лежит в [`play/index.html`](play/index.html) — её можно
+открыть в браузере без установки. Через githack тот же файл открывается по ссылке,
+которую можно просто отправить другу:
+
+```
+https://raw.githack.com/danilandersonai-pixel/Demo/claude/neon-velocity-arcade-game-cbc1ff/neon-velocity/play/index.html
+```
+
+Для постоянной ссылки на конкретную версию замените имя ветки на хеш коммита и
+домен на `rawcdn.githack.com`. После изменений в коде пересоберите файл командой
+`npm run build:play` и закоммитьте `play/index.html`.
 
 ## Управление
 
