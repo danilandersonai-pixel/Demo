@@ -7,14 +7,14 @@
  *  • MelodyLine — исполнение: траектория идеального прохождения через уже
  *    расставленные препятствия. Она ищется динамическим программированием по
  *    золотой полосе коридора: держится замысла, обходит препятствия с запасом
- *    и заранее, не дёргается и идёт не быстрее половины расчётной скорости. Паттерны могут
- *    поставить «манок» — точку, через которую линия обязана стремиться пройти
- *    (центр ворот, просвет слалома).
+ *    и заранее, не дёргается и идёт не быстрее половины расчётной скорости.
+ *    Паттерны могут поставить «манок» — точку, через которую линия обязана
+ *    стремиться пройти (центр ворот, просвет слалома).
  *
  * Раз все сферы такта лежат на одной допустимой траектории, соседние сферы
  * цепочки заведомо достижимы друг за другом.
  */
-import { CELLS, cellX, GOLD_REACH, rowOf, SLICE, type Corridor } from './chart-corridor';
+import { CELLS, cellX, GOLD_REACH, rowOf, SLICE, WORDS, type Corridor } from './chart-corridor';
 import { WORLD } from './config';
 import { clamp, easeInOutSine, lerp } from './math';
 import { TICKS_PER_BAR } from './timing';
@@ -86,19 +86,20 @@ export class MelodyLine {
   private path = new Float32Array(0);
   private targetX = new Float32Array(0);
   private targetW = new Float32Array(0);
-  private readonly open = new Uint8Array(CELLS);
-  private readonly obstacle = new Uint8Array(CELLS);
   private readonly near = new Float32Array(CELLS);
+  private readonly shut = new Uint32Array(WORDS);
   private firstRow = 0;
   private rows = 0;
 
   /**
-   * Проложить линию от последней сферы до конца видимого коридора.
+   * Проложить линию от последней сферы до тика untilTick. Дальше смотреть
+   * незачем: живые клетки коридора уже знают обо всём, что прилетит позже.
    * false — идеального пути нет (тогда такт остаётся без сфер).
    */
-  trace(corridor: Corridor, contour: Contour, lures: readonly Lure[], barStart: number): boolean {
+  trace(corridor: Corridor, contour: Contour, lures: readonly Lure[], barStart: number, untilTick: number): boolean {
+    corridor.refresh();
     const first = Math.max(corridor.firstRow, corridor.lastCrystalRow, rowOf(barStart) - LEAD_ROWS);
-    const rows = corridor.lastRow - first + 1;
+    const rows = Math.min(corridor.lastRow, rowOf(untilTick)) - first + 1;
     this.firstRow = first;
     this.rows = 0;
     if (rows <= 0) return false;
@@ -116,39 +117,51 @@ export class MelodyLine {
       }
     }
 
-    const { cost, back, open, near } = this;
+    const { cost, back, near, shut } = this;
     for (let r = 0; r < rows; r++) {
-      corridor.readGold(first + r, open);
-      this.measureNear(corridor, first + r);
+      const row = first + r;
       const o = r * CELLS;
+      const prev = o - CELLS;
+      cost.fill(UNREACHABLE, o, o + CELLS);
+      const crowded = this.measureNear(corridor, row);
+      for (let w = 0; w < WORDS; w++) shut[w] = corridor.goldBlockedWord(row, w);
       const tx = this.targetX[r];
       const tw = this.targetW[r];
-      for (let i = 0; i < CELLS; i++) {
-        if (!open[i]) {
-          cost[o + i] = UNREACHABLE;
-          continue;
-        }
-        let best = 0;
-        let from = 0;
-        if (r > 0) {
-          best = UNREACHABLE;
-          const lo = Math.max(0, i - GOLD_REACH);
-          const hi = Math.min(CELLS - 1, i + GOLD_REACH);
-          for (let j = lo; j <= hi; j++) {
-            const c = cost[o - CELLS + j] + MOVE_COST[Math.abs(i - j)];
-            if (c < best) {
-              best = c;
-              from = j - i;
+      for (let w = 0; w < WORDS; w++) {
+        let bits = corridor.goldAliveWord(row, w);
+        while (bits !== 0) {
+          const low = bits & -bits;
+          bits ^= low;
+          const i = w * 32 + 31 - Math.clz32(low);
+          let best = 0;
+          let from = 0;
+          if (r > 0) {
+            best = cost[prev + i];
+            // Ход в сторону — только через клетки, свободные в этом срезе (как у волны коридора).
+            for (let d = 1; d <= GOLD_REACH; d++) {
+              const j = i - d;
+              if (j < 0 || (shut[j >> 5] >>> (j & 31)) & 1) break;
+              const c = cost[prev + j] + MOVE_COST[d];
+              if (c < best) {
+                best = c;
+                from = -d;
+              }
             }
+            for (let d = 1; d <= GOLD_REACH; d++) {
+              const j = i + d;
+              if (j >= CELLS || (shut[j >> 5] >>> (j & 31)) & 1) break;
+              const c = cost[prev + j] + MOVE_COST[d];
+              if (c < best) {
+                best = c;
+                from = d;
+              }
+            }
+            if (best >= UNREACHABLE) continue;
           }
-          if (best >= UNREACHABLE) {
-            cost[o + i] = UNREACHABLE;
-            continue;
-          }
+          const off = (cellX(i) - tx) / 10;
+          cost[o + i] = best + tw * off * off + (crowded ? near[i] : 0);
+          back[o + i] = from;
         }
-        const off = (cellX(i) - tx) / 10;
-        cost[o + i] = best + tw * off * off + near[i];
-        back[o + i] = from;
       }
     }
 
@@ -194,21 +207,24 @@ export class MelodyLine {
     this.targetW = new Float32Array(rows);
   }
 
-  /** near[i] — штраф клетки за соседство с препятствием в этом срезе. */
-  private measureNear(corridor: Corridor, row: number): void {
-    const { obstacle, near } = this;
-    corridor.readObstacles(row, obstacle);
+  /** near[i] — штраф клетки за соседство с препятствием в этом срезе. false — препятствий в срезе нет. */
+  private measureNear(corridor: Corridor, row: number): boolean {
+    const { near, shut } = this;
+    let any = 0;
+    for (let w = 0; w < WORDS; w++) any |= shut[w] = corridor.blockedWord(row, w);
+    if (any === 0) return false;
     const far = NEAR_COST.length;
     let distance = far;
     for (let i = 0; i < CELLS; i++) {
-      distance = obstacle[i] ? 0 : Math.min(far, distance + 1);
+      distance = (shut[i >> 5] >>> (i & 31)) & 1 ? 0 : Math.min(far, distance + 1);
       near[i] = distance;
     }
     distance = far;
     for (let i = CELLS - 1; i >= 0; i--) {
-      distance = obstacle[i] ? 0 : Math.min(far, distance + 1);
+      distance = (shut[i >> 5] >>> (i & 31)) & 1 ? 0 : Math.min(far, distance + 1);
       const d = Math.min(near[i], distance);
       near[i] = d > 0 && d < far ? NEAR_COST[d] : 0;
     }
+    return true;
   }
 }

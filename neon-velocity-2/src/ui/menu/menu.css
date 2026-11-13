@@ -1,0 +1,648 @@
+/*
+ * Стили меню второй редакции: раскладки главного экрана (портрет, широкий
+ * экран, телефон боком), логотип, кнопка «Играть», слайдер и анимации превью.
+ * Всё, что выражается утилитами Tailwind, написано классами в компонентах —
+ * здесь только сетки с собственными брейкпоинтами, псевдоэлементы и keyframes.
+ *
+ * Раскладки главного меню:
+ *   портрет (по умолчанию) — логотип в небе, «Играть» и док разделов у нижнего края;
+ *   wide — ширина ≥ 900px и высота ≥ 560px: колонки по бокам дороги;
+ *   low  — высота < 560px и ширина ≥ 560px (телефон боком): компактные колонки.
+ * Доля ритма — 0.46875 с (128 BPM): в этом темпе «дышат» логотип и кнопка.
+ */
+
+/* ─── Главное меню: сетка ──────────────────────────────────────────────── */
+
+.nvm-menu {
+  --nvm-pad-x: 1rem;
+  --nvm-pad-y: 1rem;
+  display: grid;
+  /* Портрет: снаряжение — под плашками, внизу только «Играть» и док. Так нижний блок
+   * ниже линии корабля, и на высоком телефоне корабль фоновой сцены остаётся виден. */
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto auto auto minmax(1.5rem, 1fr) auto;
+  grid-template-areas:
+    'top'
+    'hangar'
+    'logo'
+    '.'
+    'nav';
+  row-gap: 0.5rem;
+  padding: max(var(--nvm-pad-y), env(safe-area-inset-top, 0px)) max(var(--nvm-pad-x), env(safe-area-inset-right, 0px))
+    max(var(--nvm-pad-y), env(safe-area-inset-bottom, 0px)) max(var(--nvm-pad-x), env(safe-area-inset-left, 0px));
+}
+
+.nvm-menu-top {
+  grid-area: top;
+}
+.nvm-menu-logo {
+  grid-area: logo;
+  justify-self: center;
+  width: min(100%, 21rem);
+  margin-top: 0.25rem;
+}
+.nvm-menu-hangar {
+  grid-area: hangar;
+  justify-self: center;
+  width: min(100%, 26rem);
+}
+.nvm-menu-nav {
+  grid-area: nav;
+  justify-self: center;
+  width: min(100%, 26rem);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+/* Подсказка управления: на телефоне в портрете её нет — место нужнее сцене,
+ * а управление пальцем подсказывает сам забег. */
+.nvm-menu-foot {
+  grid-area: foot;
+  justify-self: center;
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+@media (min-width: 640px) {
+  .nvm-menu {
+    grid-template-rows: auto auto auto minmax(1.5rem, 1fr) auto auto;
+    grid-template-areas:
+      'top'
+      'hangar'
+      'logo'
+      '.'
+      'nav'
+      'foot';
+    row-gap: 0.625rem;
+  }
+  .nvm-menu-foot {
+    display: flex;
+  }
+  /* Планшет в портрете: снаряжение — в левом верхнем углу под плашками, логотип крупнее. */
+  .nvm-menu-hangar {
+    justify-self: start;
+  }
+  .nvm-menu-logo {
+    width: min(100%, 30rem);
+  }
+}
+
+/* Плитки разделов: в портрете — «док» из четырёх, значок над подписью. */
+.nvm-tiles {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+.nvm-tile {
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.25rem;
+  min-height: 3.5rem;
+  padding: 0.375rem 0.125rem;
+}
+.nvm-tile-label {
+  font-size: 0.625rem;
+  letter-spacing: 0.04em;
+}
+.nvm-tile-meta,
+.nvm-tile-chevron,
+.nvm-hangar-card {
+  display: none;
+}
+
+/* Локальные затемнения вместо сплошной подложки: центр сцены остаётся чистым.
+ * Высоты — в rem, по размеру самих блоков: тень не дотягивается до корабля над «Играть». */
+.nvm-menu-scrim {
+  background:
+    linear-gradient(180deg, rgba(5, 5, 10, 0.8) 0, rgba(5, 5, 10, 0.4) 7.5rem, transparent 14rem),
+    linear-gradient(0deg, rgba(5, 5, 10, 0.88) 0, rgba(5, 5, 10, 0.55) 6rem, transparent 9.5rem);
+}
+
+/* Невысокий телефон: логотип меньше, чтобы не спускаться далеко за горизонт. */
+@media (max-height: 700px) and (max-width: 559.98px) {
+  .nvm-menu-logo {
+    width: min(100%, 17.5rem);
+  }
+}
+
+@media (min-width: 900px) and (min-height: 560px) {
+  .nvm-menu {
+    --nvm-pad-x: 1.5rem;
+    --nvm-pad-y: 1.25rem;
+    --nvm-col: clamp(15rem, 22vw, 21rem);
+    grid-template-columns: var(--nvm-col) minmax(0, 1fr) var(--nvm-col);
+    grid-template-rows: auto auto minmax(0, 1fr) auto;
+    grid-template-areas:
+      'top top top'
+      'logo logo logo'
+      'nav . hangar'
+      'foot foot foot';
+    column-gap: 1.5rem;
+    row-gap: 0.75rem;
+  }
+  .nvm-menu-logo {
+    width: min(clamp(25rem, 37vw, 43rem), 66vh);
+    margin-top: 0;
+  }
+  .nvm-menu-nav,
+  .nvm-menu-hangar {
+    align-self: center;
+    width: 100%;
+  }
+  .nvm-menu-nav {
+    gap: 0.75rem;
+  }
+  .nvm-tiles {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .nvm-tile {
+    flex-direction: row;
+    justify-content: flex-start;
+    gap: 0.75rem;
+    min-height: 3.25rem;
+    padding: 0.375rem 0.625rem 0.375rem 0.5rem;
+  }
+  .nvm-tile-label {
+    font-size: 0.8125rem;
+    letter-spacing: 0.14em;
+  }
+  .nvm-tile-meta {
+    display: block;
+  }
+  .nvm-tile-chevron {
+    display: block;
+  }
+  .nvm-hangar-card {
+    display: flex;
+  }
+  .nvm-hangar-strip {
+    display: none;
+  }
+  .nvm-menu-scrim {
+    background:
+      linear-gradient(180deg, rgba(5, 5, 10, 0.78) 0%, rgba(5, 5, 10, 0.4) 18%, transparent 36%),
+      linear-gradient(90deg, rgba(5, 5, 10, 0.78) 0%, rgba(5, 5, 10, 0.45) 16%, transparent 32%),
+      linear-gradient(270deg, rgba(5, 5, 10, 0.78) 0%, rgba(5, 5, 10, 0.45) 16%, transparent 32%);
+  }
+}
+
+@media (max-height: 559.98px) and (min-width: 560px) {
+  .nvm-menu {
+    --nvm-pad-y: 0.5rem;
+    grid-template-columns: minmax(0, 15rem) minmax(0, 1fr) minmax(0, 20rem);
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    grid-template-areas:
+      'logo . top'
+      'foot . hangar'
+      'nav nav nav';
+    column-gap: 1rem;
+    row-gap: 0.5rem;
+  }
+  .nvm-menu-logo {
+    justify-self: start;
+    width: 100%;
+    margin-top: 0.125rem;
+  }
+  .nvm-menu-foot {
+    display: flex;
+    justify-self: start;
+    align-self: start;
+    align-items: flex-start;
+  }
+  .nvm-menu-hangar {
+    align-self: end;
+    width: 100%;
+  }
+  /* Нижний ряд на всю ширину: «Играть» слева, плитки справа, середина — кораблю. */
+  .nvm-menu-nav {
+    width: 100%;
+    display: grid;
+    grid-template-columns: minmax(0, 15rem) minmax(0, 1fr) minmax(0, 20rem);
+    column-gap: 1rem;
+    align-items: end;
+  }
+  .nvm-tiles {
+    grid-column: 3;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.375rem;
+  }
+  .nvm-tile {
+    flex-direction: row;
+    justify-content: flex-start;
+    gap: 0.5rem;
+    min-height: 2.5rem;
+    padding: 0.25rem 0.375rem;
+  }
+  .nvm-tile-label {
+    font-size: 0.6875rem;
+    letter-spacing: 0.06em;
+  }
+  .nvm-menu-scrim {
+    background:
+      linear-gradient(90deg, rgba(5, 5, 10, 0.86) 0%, rgba(5, 5, 10, 0.5) 22%, transparent 38%),
+      linear-gradient(270deg, rgba(5, 5, 10, 0.86) 0%, rgba(5, 5, 10, 0.5) 24%, transparent 42%);
+  }
+}
+
+/* Узкий телефон боком (до 700px): колонки у́же, середина не схлопывается совсем. */
+@media (max-height: 559.98px) and (min-width: 560px) and (max-width: 699.98px) {
+  .nvm-menu,
+  .nvm-menu-nav {
+    grid-template-columns: minmax(0, 13rem) minmax(0.5rem, 1fr) minmax(0, 18rem);
+    column-gap: 0.75rem;
+  }
+}
+
+/* ─── Логотип ──────────────────────────────────────────────────────────── */
+
+.nvm-logo {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+.nvm-logo-neon {
+  filter: drop-shadow(0 0 5px var(--theme-b)) drop-shadow(0 0 16px color-mix(in srgb, var(--theme-b) 60%, transparent));
+}
+.nvm-logo-velocity {
+  filter: drop-shadow(0 0 4px var(--theme-a)) drop-shadow(0 0 20px color-mix(in srgb, var(--theme-a) 65%, transparent));
+}
+.nvm-logo-mark {
+  filter: drop-shadow(0 0 5px var(--theme-c)) drop-shadow(0 0 22px color-mix(in srgb, var(--theme-c) 55%, transparent));
+}
+/* «II» вспыхивает на каждую долю — знак второй редакции живёт в ритме игры. */
+.nvm-logo-beat {
+  opacity: 0;
+  animation: nvm-beat 0.46875s ease-out infinite;
+}
+
+@keyframes nvm-beat {
+  0% {
+    opacity: 0.6;
+  }
+  55%,
+  100% {
+    opacity: 0;
+  }
+}
+
+/* ─── Кнопка «Играть» ──────────────────────────────────────────────────── */
+
+.nvm-play {
+  --nvm-play-skew: 0.875rem;
+  position: relative;
+  display: flex;
+  width: 100%;
+  height: 3.5rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  color: #05050a;
+  isolation: isolate;
+}
+.nvm-play-glow,
+.nvm-play-plate {
+  position: absolute;
+  inset: 0;
+  clip-path: polygon(var(--nvm-play-skew) 0, 100% 0, calc(100% - var(--nvm-play-skew)) 100%, 0 100%);
+  background: linear-gradient(180deg, var(--theme-c) 0%, color-mix(in srgb, var(--theme-c) 45%, var(--theme-a)) 42%, var(--theme-a) 100%);
+}
+/* Свечение — отдельный статичный размытый слой: блик поверх пластины его не перерисовывает. */
+.nvm-play-glow {
+  z-index: -2;
+  inset: -2px;
+  clip-path: none;
+  border-radius: 6px;
+  filter: blur(14px);
+  opacity: 0.55;
+  transition: opacity 0.2s ease-out;
+}
+.nvm-play-plate {
+  z-index: -1;
+  overflow: hidden;
+}
+/* Прорези ретро-солнца в нижней трети пластины. */
+.nvm-play-plate::before {
+  content: '';
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 38%;
+  background: repeating-linear-gradient(180deg, transparent 0 4px, rgba(5, 5, 10, 0.3) 4px 6px);
+  mask-image: linear-gradient(180deg, transparent, #000);
+}
+.nvm-play-plate::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 34%;
+  background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.75), transparent);
+  transform: translateX(-140%) skewX(-18deg);
+  animation: nvm-sheen 3.75s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+.nvm-play:hover .nvm-play-glow,
+.nvm-play:focus-visible .nvm-play-glow {
+  opacity: 0.9;
+}
+
+@keyframes nvm-sheen {
+  0%,
+  55% {
+    transform: translateX(-140%) skewX(-18deg);
+  }
+  100% {
+    transform: translateX(440%) skewX(-18deg);
+  }
+}
+
+@media (min-width: 900px) and (min-height: 560px) {
+  .nvm-play {
+    height: 4.25rem;
+  }
+}
+@media (max-height: 559.98px) and (min-width: 560px) {
+  .nvm-play {
+    height: 3rem;
+  }
+}
+
+/* ─── Превью корабля ───────────────────────────────────────────────────── */
+
+.nvm-ship-flame,
+.nvm-ship-core,
+.nvm-ship-trail {
+  transform-box: fill-box;
+}
+.nvm-ship-flame {
+  transform-origin: 50% 0%;
+}
+.nvm-ship-core,
+.nvm-ship-ring {
+  transform-origin: 50% 50%;
+}
+.nvm-ship-ring {
+  transform-box: fill-box;
+}
+.nvm-ship--live .nvm-ship-flame {
+  animation: nvm-flame 0.234375s ease-in-out infinite alternate;
+}
+.nvm-ship--live .nvm-ship-core {
+  animation: nvm-core 0.9375s ease-in-out infinite;
+}
+.nvm-ship--live .nvm-ship-trail {
+  animation: nvm-trail 0.66s linear infinite;
+}
+.nvm-ship--live .nvm-ship-ring {
+  animation: nvm-spin 9s linear infinite;
+}
+.nvm-ship--live .nvm-ship-field {
+  animation: nvm-field 0.9375s ease-in-out infinite;
+}
+
+@keyframes nvm-flame {
+  from {
+    transform: scaleY(0.68);
+    opacity: 0.8;
+  }
+  to {
+    transform: scaleY(1.06);
+    opacity: 1;
+  }
+}
+@keyframes nvm-core {
+  0%,
+  100% {
+    transform: scale(0.86);
+  }
+  50% {
+    transform: scale(1.12);
+  }
+}
+@keyframes nvm-trail {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(0.34px);
+    opacity: 0;
+  }
+}
+@keyframes nvm-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes nvm-field {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* ─── Превью темы ──────────────────────────────────────────────────────── */
+
+.nvm-scene--live .nvm-scene-row {
+  animation: nvm-row 0.46875s cubic-bezier(0.5, 0.36, 0.5, 0.35) infinite;
+}
+
+@keyframes nvm-row {
+  from {
+    transform: translateY(var(--row-from));
+    opacity: var(--row-fade);
+  }
+  to {
+    transform: translateY(var(--row-to));
+  }
+}
+
+/* ─── Слайдер громкости ────────────────────────────────────────────────── */
+
+.nvm-range {
+  --fill: 50%;
+  --c: var(--theme-a);
+  display: block;
+  width: 100%;
+  height: 1.75rem;
+  margin: 0;
+  background: transparent;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+  touch-action: pan-y;
+}
+.nvm-range::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 3px;
+  background: linear-gradient(90deg, var(--c) var(--fill), rgba(255, 255, 255, 0.1) var(--fill));
+  box-shadow: 0 0 10px color-mix(in srgb, var(--c) 35%, transparent);
+}
+.nvm-range::-moz-range-track {
+  height: 6px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.1);
+}
+.nvm-range::-moz-range-progress {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--c);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--c) 35%, transparent);
+}
+.nvm-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  margin-top: -6px;
+  border: 2px solid var(--c);
+  border-radius: 3px;
+  background: #05050a;
+  box-shadow:
+    0 0 10px var(--c),
+    inset 0 0 6px color-mix(in srgb, var(--c) 60%, transparent);
+  transition: transform 0.12s ease-out;
+}
+.nvm-range::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--c);
+  border-radius: 3px;
+  background: #05050a;
+  box-shadow:
+    0 0 10px var(--c),
+    inset 0 0 6px color-mix(in srgb, var(--c) 60%, transparent);
+}
+.nvm-range:hover::-webkit-slider-thumb,
+.nvm-range:active::-webkit-slider-thumb {
+  transform: scale(1.15);
+}
+.nvm-range:focus-visible {
+  outline: none;
+}
+.nvm-range:focus-visible::-webkit-slider-thumb {
+  outline: 2px solid var(--theme-b);
+  outline-offset: 3px;
+}
+.nvm-range:focus-visible::-moz-range-thumb {
+  outline: 2px solid var(--theme-b);
+  outline-offset: 3px;
+}
+
+/* ─── Мелочи ───────────────────────────────────────────────────────────── */
+
+/*
+ * Прокручиваемое содержимое панели получает программный фокус (tabindex="-1"),
+ * чтобы стрелки листали его сразу. Рамку вокруг всей панели при этом не рисуем:
+ * глобальное правило :focus-visible не в слое и сильнее утилиты outline-none.
+ */
+.nvm-focus-quiet:focus-visible {
+  outline: none;
+}
+
+/* Цифры одной ширины: счёт и кошелёк не «прыгают» при смене значения. */
+.nvm-digits {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'zero' 0;
+}
+
+/* Полоса до автоматической отмены подтверждения сброса. */
+.nvm-countdown {
+  transform-origin: 0 50%;
+  animation: nvm-countdown var(--nvm-countdown, 8s) linear forwards;
+}
+@keyframes nvm-countdown {
+  to {
+    transform: scaleX(0);
+  }
+}
+
+/* Подсветка строки последнего забега: вспышка при открытии и ровное свечение потом. */
+.nvm-row-fresh {
+  animation: nvm-row-fresh 1.4s ease-out 0.35s both;
+}
+@keyframes nvm-row-fresh {
+  0% {
+    box-shadow:
+      0 0 0 1px var(--theme-a),
+      0 0 34px color-mix(in srgb, var(--theme-a) 80%, transparent),
+      inset 0 0 26px color-mix(in srgb, var(--theme-a) 45%, transparent);
+  }
+  100% {
+    box-shadow:
+      0 0 0 1px color-mix(in srgb, var(--theme-a) 75%, transparent),
+      0 0 16px color-mix(in srgb, var(--theme-a) 35%, transparent),
+      inset 0 0 14px color-mix(in srgb, var(--theme-a) 14%, transparent);
+  }
+}
+
+/* Пунктирная «дорожка» метки прилёта в справке. */
+.nvm-marker-pulse {
+  animation: nvm-field 0.9375s ease-in-out infinite;
+}
+
+/* ─── Плитки разделов: значок и подпись по раскладкам ──────────────────── */
+
+.nvm-tile-icon {
+  width: 1.375rem;
+  height: 1.375rem;
+}
+.nvm-tile-text {
+  align-items: center;
+}
+
+@media (min-width: 900px) and (min-height: 560px) {
+  .nvm-tile-icon {
+    width: 2.25rem;
+    height: 2.25rem;
+    border: 1px solid color-mix(in srgb, currentColor 35%, transparent);
+    border-radius: 2px;
+    background: color-mix(in srgb, currentColor 8%, transparent);
+  }
+  .nvm-tile-text {
+    flex: 1 1 0;
+    min-width: 0;
+    align-items: flex-start;
+  }
+}
+
+@media (max-height: 559.98px) and (min-width: 560px) {
+  .nvm-tile-icon {
+    width: 1.5rem;
+    height: 1.5rem;
+  }
+  .nvm-tile-text {
+    align-items: flex-start;
+  }
+}
+
+/*
+ * Большой монитор: блоки меню крупнее — на 1080p они не должны выглядеть «мелким
+ * шрифтом». Логотип не трогаем: он и так растёт от ширины экрана.
+ */
+@media (min-width: 1600px) and (min-height: 900px) {
+  .nvm-menu {
+    --nvm-col: clamp(21rem, 22vw, 27rem);
+  }
+  .nvm-menu-top,
+  .nvm-menu-nav,
+  .nvm-menu-hangar,
+  .nvm-menu-foot {
+    zoom: 1.25;
+  }
+}
+@media (min-width: 2400px) and (min-height: 1300px) {
+  .nvm-menu {
+    --nvm-col: clamp(27rem, 22vw, 36rem);
+  }
+  .nvm-menu-top,
+  .nvm-menu-nav,
+  .nvm-menu-hangar,
+  .nvm-menu-foot {
+    zoom: 1.6;
+  }
+}

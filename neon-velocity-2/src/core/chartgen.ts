@@ -11,6 +11,7 @@
  *   chart-patterns.ts  — библиотека паттернов
  *   chart-melody.ts    — линия мелодии, на которую нанизаны сферы
  *   chart-corridor.ts  — коридор честности
+ *   chart-probe.ts     — какие клетки сетки перекрывает препятствие (общая с ботом planMove)
  */
 import type { CorridorStats } from './chart-corridor';
 import { Composer } from './chart-plan';

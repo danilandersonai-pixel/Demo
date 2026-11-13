@@ -1,21 +1,34 @@
 /**
- * Неподвижный задник: небо, звёзды, полосатое солнце, дымка, тёмная равнина и
- * полотно дороги с виньеткой. Всё это рисуется один раз в офскрин-слой и в
- * кадре стоит один блит «пиксель в пиксель». Живые детали поверх — мерцание
- * звёзд и вспышка солнца на сильную долю.
+ * Неподвижный задник в двух непрозрачных слоях: небо (градиент, туманности,
+ * звёзды, полосатое солнце, зарево и дальний план горизонта) и земля (равнина,
+ * полотно дороги, линия горизонта, продольные линии сетки и бортики). Слои
+ * рисуются один раз и в кадре стоят блитами «пиксель в пиксель»; непрозрачный
+ * слой копируется без смешивания.
  *
- * Слой шире экрана на BLEED: тряска камеры сдвигает его на целое число
+ * Небо вместе с дальним планом чуть сдвигается вслед за кораблём — это первый
+ * план параллакса. Земля кренится: строки слоя сдвигаются вбок тем сильнее,
+ * чем они ниже горизонта. Живые детали поверх неба: мерцание звёзд, пульс
+ * солнца на сильную долю, лучи северного сияния.
+ *
+ * Цвет сетки меняется с уровнем, поэтому слоёв земли два: текущий и следующий.
+ * Следующий запекается заранее по несколько клиньев за кадр, а при смене
+ * уровня слои плавно сменяют друг друга.
+ *
+ * Слои шире экрана на BLEED: тряска камеры сдвигает их на целое число
  * пикселей устройства, и по краям не появляется пустота.
  */
 import { createRng } from '../core/rng';
-import { darken, lighten, mixColor, rgba, TAU } from '../core/math';
-import type { ThemeColors } from '../core/types';
+import { clamp, darken, lighten, mixColor, rgba, TAU } from '../core/math';
+import type { Theme, ThemeColors } from '../core/types';
 import type { Camera } from './camera';
+import { LANE_STEPS, paintLane } from './road';
+import { paintFarPlane } from './scenery';
 import { BLEED, freeLayer, layerContext, makeLayer, type View } from './view';
 
 /** Сколько звёзд мерцает поверх запечённых. */
 const TWINKLES = 26;
 const TWINKLE_STRIDE = 5;
+const RAY_STRIDE = 5;
 
 export interface SunGeometry {
   x: number;
@@ -29,38 +42,173 @@ export function sunGeometry(cam: Camera): SunGeometry {
   return { x: cam.cx, y: cam.horizonY - r * 0.55, r };
 }
 
+/** Слой земли с запечённой сеткой одного цвета. */
+interface Ground {
+  canvas: HTMLCanvasElement;
+  ctx: CanvasRenderingContext2D | null;
+  /** Цвет сетки; пустая строка — слой свободен. */
+  color: string;
+  /** Сколько клиньев уже запечено (LANE_STEPS — готов). */
+  step: number;
+}
+
 export class Backdrop {
-  private layer: HTMLCanvasElement | null = null;
-  private sunGlow: HTMLCanvasElement | null = null;
+  private sky: HTMLCanvasElement | null = null;
+  /** Земля без сетки — заготовка, с которой начинается каждый слой земли. */
+  private base: HTMLCanvasElement | null = null;
+  private ground: Ground | null = null;
+  private next: Ground | null = null;
+  private ray: HTMLCanvasElement | null = null;
+  private cam: Camera | null = null;
+  private colors: ThemeColors | null = null;
+  private kx = 1;
+  private ky = 1;
+  /** Левый край слоя неба без сдвига и запасы слоёв, пиксели устройства. */
+  private skyX0 = 0;
   private bleedX = 0;
   private bleedY = 0;
-  /** Положение вспышки солнца и высота её видимой (над горизонтом) части, пиксели устройства. */
-  private glowX = 0;
-  private glowY = 0;
-  private glowH = 0;
+  /** Строка холста, на которой небо встречается с землёй. */
+  private seamY = 0;
+  /** Наибольший сдвиг неба вслед за кораблём, CSS-пиксели. */
+  private range = 0;
+  private sun: SunGeometry = { x: 0, y: 0, r: 0 };
+  private sunRim = '#ffffff';
   private readonly twinkles = new Float32Array(TWINKLES * TWINKLE_STRIDE);
   private twinkleCount = 0;
+  /** Лучи сияния: x, верх, высота (CSS-пиксели, y от горизонта), фаза, частота. */
+  private rays: number[] = [];
 
-  build(cam: Camera, colors: ThemeColors, kx: number, ky: number, seed: number): void {
+  build(cam: Camera, theme: Theme, kx: number, ky: number, seed: number): void {
     this.dispose();
+    const colors = theme.colors;
+    this.cam = cam;
+    this.colors = colors;
+    this.kx = kx;
+    this.ky = ky;
+    const far = paintFarPlane(cam, theme, kx, ky, seed);
+    this.range = far.range;
+    this.rays = far.rays;
+    this.sun = sunGeometry(cam);
+    this.sunRim = lighten(colors.sunTop, 0.5);
     this.bleedX = Math.ceil(BLEED * kx);
     this.bleedY = Math.ceil(BLEED * ky);
-    const layer = makeLayer(Math.round(cam.cssW * kx) + this.bleedX * 2, Math.round(cam.cssH * ky) + this.bleedY * 2);
-    this.layer = layer;
-    const ctx = layerContext(layer);
-    if (!ctx) return;
-    ctx.setTransform(kx, 0, 0, ky, this.bleedX, this.bleedY);
+    this.seamY = Math.round(cam.horizonY * ky);
+    this.skyX0 = far.x0;
 
-    const left = -BLEED;
+    this.sky = this.paintSky(cam, colors, kx, ky, seed, far.canvas);
+    freeLayer(far.canvas);
+    this.base = this.paintGround(cam, colors, kx, ky);
+    this.ground = this.makeGround();
+    this.next = this.makeGround();
+    if (this.rays.length > 0) this.ray = paintRay(colors);
+  }
+
+  private makeGround(): Ground {
+    const base = this.base as HTMLCanvasElement;
+    const canvas = makeLayer(base.width, base.height);
+    return { canvas, ctx: layerContext(canvas, true), color: '', step: 0 };
+  }
+
+  // ─── Земля и сетка ────────────────────────────────────────────────────────
+
+  /** Начать слой земли для цвета сетки: копия заготовки, клинья допекаются в bakeInto. */
+  private begin(ground: Ground, color: string): void {
+    ground.color = color;
+    ground.step = 0;
+    if (!ground.ctx || !this.base) return;
+    ground.ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ground.ctx.globalCompositeOperation = 'copy';
+    ground.ctx.drawImage(this.base, 0, 0);
+  }
+
+  private bakeInto(ground: Ground, steps: number): void {
+    const { cam, colors } = this;
+    if (!ground.ctx || !cam || !colors) {
+      ground.step = LANE_STEPS;
+      return;
+    }
+    const ctx = ground.ctx;
+    ctx.setTransform(this.kx, 0, 0, this.ky, this.bleedX, -this.seamY);
+    ctx.globalCompositeOperation = 'lighter';
+    const until = Math.min(LANE_STEPS, ground.step + steps);
+    while (ground.step < until) paintLane(ctx, cam, colors, ground.color, ground.step++);
+  }
+
+  /** Земля этого цвета нужна прямо сейчас (начало сцены): допечь без рассрочки. */
+  showGrid(color: string): void {
+    const { ground, next } = this;
+    if (!ground || !next) return;
+    if (ground.color !== color) {
+      if (next.color === color) this.commit();
+      else this.begin(ground, color);
+    }
+    this.bakeInto(this.ground as Ground, LANE_STEPS);
+  }
+
+  /** Готовить землю следующего цвета заранее; сама выпечка идёт в bake(). */
+  prepare(color: string): void {
+    const { ground, next } = this;
+    if (!ground || !next || ground.color === color || next.color === color) return;
+    this.begin(next, color);
+  }
+
+  /** Допечь несколько клиньев следующего слоя (вызывается каждый кадр). */
+  bake(steps: number): void {
+    const next = this.next;
+    if (next && next.color !== '' && next.step < LANE_STEPS) this.bakeInto(next, steps);
+  }
+
+  /** Начинается переход к цвету: следующий слой обязан быть готов целиком. */
+  fadeTo(color: string): void {
+    const next = this.next;
+    if (!next) return;
+    if (next.color !== color) this.begin(next, color);
+    this.bakeInto(next, LANE_STEPS);
+  }
+
+  /** Переход закончен: следующий слой становится текущим. */
+  commit(): void {
+    const { ground, next } = this;
+    if (!ground || !next || next.color === '') return;
+    this.bakeInto(next, LANE_STEPS);
+    this.ground = next;
+    this.next = ground;
+    ground.color = '';
+  }
+
+  /**
+   * Земля с креном. ox, oy — тряска в пикселях устройства; blend — доля
+   * следующего слоя поверх текущего (0 — перехода нет).
+   */
+  drawGround(view: View, ox: number, oy: number, blend: number): void {
+    const { ground, next } = this;
+    if (!ground) return;
+    const ctx = view.ctx;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    // Сдвиг строки растёт с расстоянием от горизонта: view.shear CSS-пикселей на CSS-пиксель.
+    const slope = (view.shear * view.kx) / view.ky;
+    blitRows(ctx, ground.canvas, ox - this.bleedX, oy + this.seamY, slope);
+    if (blend > 0.004 && next && next.color !== '') {
+      ctx.globalAlpha = Math.min(1, blend);
+      blitRows(ctx, next.canvas, ox - this.bleedX, oy + this.seamY, slope);
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  private paintSky(cam: Camera, colors: ThemeColors, kx: number, ky: number, seed: number, far: HTMLCanvasElement): HTMLCanvasElement {
+    const layer = makeLayer(far.width, this.seamY + this.bleedY);
+    const ctx = layerContext(layer, true);
+    if (!ctx) return layer;
+    ctx.setTransform(kx, 0, 0, ky, -this.skyX0, this.bleedY);
+
+    const left = this.skyX0 / kx;
     const top = -BLEED;
-    const w = cam.cssW + BLEED * 2;
-    const bottom = cam.cssH + BLEED;
+    const w = layer.width / kx;
     const hy = cam.horizonY;
     const span = cam.lineY - hy;
-    const sun = sunGeometry(cam);
+    const sun = this.sun;
     const rng = createRng(seed);
 
-    // ── Небо ──
     const sky = ctx.createLinearGradient(0, top, 0, hy);
     sky.addColorStop(0, colors.skyTop);
     sky.addColorStop(0.45, mixColor(colors.skyTop, colors.skyBottom, 0.3));
@@ -93,8 +241,8 @@ export class Backdrop {
       const big = rng.chance(0.07);
       const size = big ? rng.range(1.5, 2.2) : rng.range(0.7, 1.4);
       const tint = rng.chance(0.2) ? lighten(rng.pick([colors.accent2, colors.accent3, colors.accent]), 0.55) : '#ffffff';
-      // Вне запаса под тряску: звезда, уехавшая за край, не должна мерцать «из ниоткуда».
-      const twinkle = this.twinkleCount < TWINKLES && rng.chance(0.14) && x > 4 && x < cam.cssW - 4 && y > 4;
+      // Только на экране: звезда, уехавшая за край, не должна мерцать «из ниоткуда».
+      const twinkle = this.twinkleCount < TWINKLES && rng.chance(0.14) && x > 24 && x < cam.cssW - 24 && y > 4;
       ctx.globalAlpha = fade * (twinkle ? 0.35 : rng.range(0.35, 0.95));
       ctx.fillStyle = tint;
       ctx.fillRect(x - size / 2, y - size / 2, size, size);
@@ -131,25 +279,49 @@ export class Backdrop {
     ctx.fillRect(left, hy - span * 0.42, w, span * 0.42);
     ctx.globalCompositeOperation = 'source-over';
 
-    // ── Солнце ──
+    // ── Солнце и дальний план ──
     const disc = paintSun(sun.r, colors, kx, ky);
-    ctx.save();
     ctx.setTransform(1, 0, 0, 1, 0, 0);
-    const discX = Math.round(this.bleedX + (sun.x - sun.r) * kx);
-    const discY = Math.round(this.bleedY + (sun.y - sun.r) * ky);
-    ctx.drawImage(disc, discX, discY);
-    ctx.restore();
-    this.buildSunGlow(disc, sun, cam, colors, kx, ky);
+    ctx.drawImage(disc, Math.round((sun.x - sun.r) * kx) - this.skyX0, Math.round((sun.y - sun.r) * ky) + this.bleedY);
     freeLayer(disc);
+    ctx.drawImage(far, 0, layer.height - far.height);
+    ctx.setTransform(kx, 0, 0, ky, -this.skyX0, this.bleedY);
 
-    // ── Равнина и полотно дороги ──
-    const ground = ctx.createLinearGradient(0, hy, 0, bottom);
-    ground.addColorStop(0, mixColor(colors.bg, colors.haze, 0.3));
-    ground.addColorStop(0.1, mixColor(colors.bg, colors.haze, 0.1));
-    ground.addColorStop(0.4, colors.bg);
-    ground.addColorStop(1, darken(colors.bg, 0.35));
-    ctx.fillStyle = ground;
-    ctx.fillRect(left, hy, w, bottom - hy);
+    // Верхняя половина ореола линии горизонта (нижняя — в слое земли).
+    const bloom = horizonBloom(span);
+    const line = ctx.createLinearGradient(0, hy - bloom, 0, hy);
+    line.addColorStop(0, rgba(colors.haze, 0));
+    line.addColorStop(1, rgba(colors.haze, 0.5));
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.fillStyle = line;
+    ctx.fillRect(left, hy - bloom, w, bloom);
+    ctx.globalCompositeOperation = 'source-over';
+
+    paintVignette(ctx, cam, left, top, w, hy - top);
+    return layer;
+  }
+
+  private paintGround(cam: Camera, colors: ThemeColors, kx: number, ky: number): HTMLCanvasElement {
+    const layer = makeLayer(Math.round(cam.cssW * kx) + this.bleedX * 2, Math.round(cam.cssH * ky) - this.seamY + this.bleedY);
+    const ctx = layerContext(layer, true);
+    if (!ctx) return layer;
+    // Начало координат — как у экрана: слой начинается точно со шва.
+    ctx.setTransform(kx, 0, 0, ky, this.bleedX, -this.seamY);
+
+    const left = -BLEED;
+    const w = cam.cssW + BLEED * 2;
+    const hy = cam.horizonY;
+    const top = this.seamY / ky;
+    const bottom = cam.cssH + BLEED;
+    const span = cam.lineY - hy;
+
+    const plain = ctx.createLinearGradient(0, hy, 0, bottom);
+    plain.addColorStop(0, mixColor(colors.bg, colors.haze, 0.3));
+    plain.addColorStop(0.1, mixColor(colors.bg, colors.haze, 0.1));
+    plain.addColorStop(0.4, colors.bg);
+    plain.addColorStop(1, darken(colors.bg, 0.35));
+    ctx.fillStyle = plain;
+    ctx.fillRect(left, top - 1, w, bottom - top + 2);
 
     const reach = ((bottom - hy) / span) * cam.unit * 50;
     const road = ctx.createLinearGradient(0, hy, 0, bottom);
@@ -179,68 +351,38 @@ export class Backdrop {
     ctx.closePath();
     ctx.fill();
 
-    // Линия горизонта с ореолом.
-    const bloom = Math.max(4, span * 0.035);
-    const line = ctx.createLinearGradient(0, hy - bloom, 0, hy + bloom);
-    line.addColorStop(0, rgba(colors.haze, 0));
-    line.addColorStop(0.5, rgba(colors.haze, 0.5));
+    // Линия горизонта и нижняя половина её ореола.
+    const bloom = horizonBloom(span);
+    const line = ctx.createLinearGradient(0, hy, 0, hy + bloom);
+    line.addColorStop(0, rgba(colors.haze, 0.5));
     line.addColorStop(1, rgba(colors.haze, 0));
     ctx.fillStyle = line;
-    ctx.fillRect(left, hy - bloom, w, bloom * 2);
+    ctx.fillRect(left, top, w, bloom);
     ctx.fillStyle = rgba(lighten(colors.haze, 0.6), 0.8);
-    ctx.fillRect(left, hy - 0.6, w, 1.2);
+    ctx.fillRect(left, top, w, Math.max(1.2, 1 / ky));
     ctx.globalCompositeOperation = 'source-over';
 
-    // ── Виньетка ──
-    const vx = cam.cssW / 2;
-    const vy = cam.cssH * 0.52;
-    const diag = Math.hypot(cam.cssW, cam.cssH) / 2;
-    const vignette = ctx.createRadialGradient(vx, vy, diag * 0.55, vx, vy, diag * 1.08);
-    vignette.addColorStop(0, 'rgba(0,0,0,0)');
-    vignette.addColorStop(1, 'rgba(0,0,0,0.62)');
-    ctx.fillStyle = vignette;
-    ctx.fillRect(left, top, w, bottom - top);
+    paintVignette(ctx, cam, left, top, w, bottom - top);
+    return layer;
   }
 
-  /** Спрайт вспышки: ореол и сам диск, которые добавляются к солнцу на сильную долю. */
-  private buildSunGlow(disc: HTMLCanvasElement, sun: SunGeometry, cam: Camera, colors: ThemeColors, kx: number, ky: number): void {
-    const reach = sun.r * 1.9;
-    const glow = makeLayer(reach * 2 * kx, reach * 2 * ky);
-    this.sunGlow = glow;
-    this.glowX = Math.round((sun.x - reach) * kx);
-    this.glowY = Math.round((sun.y - reach) * ky);
-    this.glowH = Math.max(0, Math.min(glow.height, Math.round(cam.horizonY * ky) - this.glowY));
-    const ctx = layerContext(glow);
-    if (!ctx) return;
-    ctx.setTransform(kx, 0, 0, ky, 0, 0);
-    const g = ctx.createRadialGradient(reach, reach, sun.r * 0.6, reach, reach, reach);
-    g.addColorStop(0, rgba(colors.sunBottom, 0.55));
-    g.addColorStop(0.45, rgba(colors.sunBottom, 0.16));
-    g.addColorStop(1, rgba(colors.sunBottom, 0));
-    ctx.fillStyle = g;
-    ctx.fillRect(0, 0, reach * 2, reach * 2);
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.globalAlpha = 0.55;
-    ctx.drawImage(disc, Math.round((reach - sun.r) * kx), Math.round((reach - sun.r) * ky));
-  }
-
-  /** ox, oy — сдвиг тряски в пикселях устройства (целые). */
-  draw(view: View, ox: number, oy: number): void {
+  /**
+   * Небо, пульс солнца, мерцание и лучи. ox, oy — сдвиг тряски в пикселях
+   * устройства (целые). Рисуется до ближнего плана: тот заслоняет солнце.
+   */
+  drawSky(view: View, ox: number, oy: number): void {
     const ctx = view.ctx;
-    if (!this.layer) return;
+    if (!this.sky) return;
+    const lean = clamp((view.shipX - 50) / 50, -1, 1);
+    // Сдвиг округляется до пикселя устройства: слой остаётся резким, а блит — дешёвым.
+    const shift = Math.round(-lean * this.range * view.kx);
     ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.drawImage(this.layer, ox - this.bleedX, oy - this.bleedY);
+    ctx.drawImage(this.sky, this.skyX0 + ox + shift, oy - this.bleedY);
 
-    // Солнце вспыхивает на сильную долю, на остальные — едва заметно.
-    const pulse = (view.downbeat * 0.5 + view.beat * 0.12) * (view.reduced ? 0.4 : 1);
+    ctx.setTransform(view.kx, 0, 0, view.ky, ox + shift, oy);
     ctx.globalCompositeOperation = 'lighter';
-    if (this.sunGlow && pulse > 0.02 && this.glowH > 0) {
-      ctx.globalAlpha = Math.min(1, pulse);
-      const sw = this.sunGlow.width;
-      ctx.drawImage(this.sunGlow, 0, 0, sw, this.glowH, this.glowX + ox, this.glowY + oy, sw, this.glowH);
-    }
+    this.drawSunPulse(view);
 
-    ctx.setTransform(view.kx, 0, 0, view.ky, ox, oy);
     ctx.fillStyle = '#ffffff';
     const tw = this.twinkles;
     for (let i = 0; i < this.twinkleCount; i++) {
@@ -250,17 +392,104 @@ export class Backdrop {
       ctx.globalAlpha = wave * wave * 0.9;
       ctx.fillRect(tw[o] - size / 2, tw[o + 1] - size / 2, size, size);
     }
+
+    if (this.ray) {
+      // Сияние дышит: узкие лучи внутри занавесей то разгораются, то гаснут.
+      const hy = view.cam.horizonY;
+      const rays = this.rays;
+      for (let i = 0; i < rays.length; i += RAY_STRIDE) {
+        const wave = view.reduced ? 0.5 : 0.5 + 0.5 * Math.sin(view.now * rays[i + 4] + rays[i + 3]);
+        ctx.globalAlpha = 0.1 + 0.5 * wave * wave;
+        const width = rays[i + 2] * (0.12 + 0.06 * wave);
+        ctx.drawImage(this.ray, rays[i] - width / 2, hy + rays[i + 1], width, rays[i + 2]);
+      }
+    }
     ctx.globalAlpha = 1;
     ctx.globalCompositeOperation = 'source-over';
   }
 
-  dispose(): void {
-    freeLayer(this.layer);
-    freeLayer(this.sunGlow);
-    this.layer = null;
-    this.sunGlow = null;
-    this.twinkleCount = 0;
+  /** Солнце «бьётся» в такт: ободок вспыхивает на долю, на сильную — от диска расходится кольцо. */
+  private drawSunPulse(view: View): void {
+    const ctx = view.ctx;
+    const sun = this.sun;
+    // Только сильная доля: большой контур — недешёвая фигура, а солнце и должно бить реже сетки.
+    const rim = view.downbeat * (view.reduced ? 0.4 : 1);
+    // Видимая часть окружности — выше горизонта.
+    const below = view.cam.horizonY - sun.y;
+    ctx.strokeStyle = this.sunRim;
+    if (rim > 0.02) {
+      const a = Math.asin(Math.min(1, below / sun.r));
+      ctx.globalAlpha = rim;
+      ctx.lineWidth = sun.r * 0.035;
+      ctx.beginPath();
+      ctx.arc(sun.x, sun.y, sun.r * 1.012, Math.PI - a, TAU + a);
+      ctx.stroke();
+    }
+    if (view.downbeat > 0.02 && !view.reduced) {
+      const grow = 1 - view.downbeat;
+      const r = sun.r * (1.05 + 0.5 * grow);
+      const a = Math.asin(Math.min(1, below / r));
+      ctx.globalAlpha = view.downbeat * view.downbeat * 0.55;
+      ctx.lineWidth = sun.r * (0.05 - 0.035 * grow);
+      ctx.beginPath();
+      ctx.arc(sun.x, sun.y, r, Math.PI - a, TAU + a);
+      ctx.stroke();
+    }
   }
+
+  dispose(): void {
+    freeLayer(this.sky);
+    freeLayer(this.base);
+    freeLayer(this.ground?.canvas ?? null);
+    freeLayer(this.next?.canvas ?? null);
+    freeLayer(this.ray);
+    this.sky = null;
+    this.base = null;
+    this.ground = null;
+    this.next = null;
+    this.ray = null;
+    this.twinkleCount = 0;
+    this.rays = [];
+  }
+}
+
+/**
+ * Скопировать слой со сдвигом строк: строка r уезжает вбок на round(slope · r)
+ * пикселей. Слой режется на полосы с одинаковым сдвигом — каждая копируется
+ * «пиксель в пиксель», без фильтрации.
+ */
+function blitRows(ctx: CanvasRenderingContext2D, layer: HTMLCanvasElement, x: number, y: number, slope: number): void {
+  const rows = layer.height;
+  const reach = Math.abs(slope) * rows;
+  if (reach < 0.5) {
+    ctx.drawImage(layer, x, y);
+    return;
+  }
+  const dir = slope > 0 ? 1 : -1;
+  const width = layer.width;
+  let from = 0;
+  for (let shift = 0; from < rows; shift++) {
+    // Полоса со сдвигом shift кончается там, где round(|slope| · r) станет shift + 1.
+    const to = Math.min(rows, Math.ceil((shift + 0.5) / Math.abs(slope)));
+    if (to > from) ctx.drawImage(layer, 0, from, width, to - from, x + dir * shift, y + from, width, to - from);
+    from = to;
+  }
+}
+
+function horizonBloom(span: number): number {
+  return Math.max(4, span * 0.035);
+}
+
+/** Виньетка общая для обоих слоёв: центр и радиус заданы в координатах экрана. */
+function paintVignette(ctx: CanvasRenderingContext2D, cam: Camera, x: number, y: number, w: number, h: number): void {
+  const vx = cam.cssW / 2;
+  const vy = cam.cssH * 0.52;
+  const diag = Math.hypot(cam.cssW, cam.cssH) / 2;
+  const vignette = ctx.createRadialGradient(vx, vy, diag * 0.55, vx, vy, diag * 1.08);
+  vignette.addColorStop(0, 'rgba(0,0,0,0)');
+  vignette.addColorStop(1, 'rgba(0,0,0,0.62)');
+  ctx.fillStyle = vignette;
+  ctx.fillRect(x, y, w, h);
 }
 
 /** Диск солнца с прорезанными полосами — отдельным спрайтом, чтобы сквозь полосы было видно небо. */
@@ -290,5 +519,29 @@ function paintSun(r: number, colors: ThemeColors, kx: number, ky: number): HTMLC
     const h = r * (0.022 + 0.062 * k);
     ctx.fillRect(0, y - h / 2, r * 2, h);
   }
+  return canvas;
+}
+
+/** Луч сияния: мягкое вертикальное пятно света, которое растягивается под каждую занавесь. */
+function paintRay(colors: ThemeColors): HTMLCanvasElement {
+  const canvas = makeLayer(16, 64);
+  const ctx = layerContext(canvas);
+  if (!ctx) return canvas;
+  const top = mixColor(colors.sceneryFar, colors.accent2, 0.7);
+  const g = ctx.createLinearGradient(0, 0, 0, 64);
+  g.addColorStop(0, rgba(top, 0));
+  g.addColorStop(0.5, rgba(mixColor(colors.sceneryFar, top, 0.4), 0.35));
+  g.addColorStop(0.92, rgba(lighten(colors.sceneryFar, 0.25), 0.9));
+  g.addColorStop(1, rgba(colors.sceneryFar, 0));
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, 16, 64);
+  // Края луча по горизонтали растворяются.
+  const side = ctx.createLinearGradient(0, 0, 16, 0);
+  side.addColorStop(0, 'rgba(0,0,0,0)');
+  side.addColorStop(0.5, 'rgba(0,0,0,1)');
+  side.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.globalCompositeOperation = 'destination-in';
+  ctx.fillStyle = side;
+  ctx.fillRect(0, 0, 16, 64);
   return canvas;
 }

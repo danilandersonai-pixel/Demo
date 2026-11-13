@@ -1,9 +1,9 @@
 /**
  * Горизонт — свой у каждой темы: город, пальмы, заводы или ледяные пики под
- * сиянием. Два плана кэшируются в офскрин-слои и в кадре сдвигаются вслед за
- * кораблём (дальний — чуть-чуть, ближний — заметнее): два блита «пиксель в
- * пиксель» дают параллакс. Поверх — немного живых деталей: маячки, дым,
- * переливы сияния.
+ * сиянием. Два плана с параллаксом от положения корабля: дальний запекается в
+ * слой неба (см. backdrop.ts) и едва сдвигается вместе с ним, ближний живёт
+ * отдельным слоем и сдвигается заметнее. Поверх ближнего — немного живых
+ * деталей: маячки на крышах и дым из труб.
  *
  * Художники рисуют в координатах экрана по X и «от горизонта вверх» по Y
  * (0 — линия горизонта, отрицательные значения — выше).
@@ -21,6 +21,11 @@ interface Plane {
   y0: number;
   /** Наибольший сдвиг параллакса, CSS-пиксели. */
   range: number;
+}
+
+/** Дальний план для запекания в небо. rays — лучи сияния пятёрками: x, верх, высота, фаза, частота. */
+export interface FarPlane extends Plane {
+  rays: number[];
 }
 
 /** Мигающий огонёк на крыше или трубе. */
@@ -55,69 +60,65 @@ interface Painter {
   h: number;
   beacons: Beacon[];
   vents: Vent[];
+  rays: number[];
 }
 
 /** Сколько клубов дыма одновременно висит над одной трубой. */
 const PUFFS = 4;
 
+function detailScale(cam: Camera): number {
+  return clamp(cam.horizonY / 272, 0.42, 1.4);
+}
+
+/** Дальний план: рисуется во временный слой, который задник переносит в небо. */
+export function paintFarPlane(cam: Camera, theme: Theme, kx: number, ky: number, seed: number): FarPlane {
+  const span = cam.lineY - cam.horizonY;
+  // Сияние занимает почти всё небо, остальным хватает полосы над горизонтом.
+  const height = theme.scenery === 'aurora' ? cam.horizonY * 0.94 : Math.min(cam.horizonY * 0.5, span * 0.4);
+  const rays: number[] = [];
+  const plane = paintPlane(cam, kx, ky, height, 7 * detailScale(cam), theme.colors, createRng(seed + 11), [], [], rays, FAR_PAINTERS[theme.scenery]);
+  return { ...plane, rays };
+}
+
+/** Ближний план горизонта с живыми деталями. */
 export class Scenery {
-  private far: Plane | null = null;
   private near: Plane | null = null;
-  private kind: SceneryKind = 'city';
   private readonly beacons: Beacon[] = [];
   private readonly vents: Vent[] = [];
 
   build(cam: Camera, theme: Theme, kx: number, ky: number, seed: number): void {
     this.dispose();
-    this.kind = theme.scenery;
-    const colors = theme.colors;
-    const sc = clamp(cam.horizonY / 272, 0.42, 1.4);
     const span = cam.lineY - cam.horizonY;
-    // Сияние занимает почти всё небо, остальным хватает полосы над горизонтом.
-    const farH = theme.scenery === 'aurora' ? cam.horizonY * 0.94 : Math.min(cam.horizonY * 0.5, span * 0.4);
-    const nearH = Math.min(cam.horizonY * 0.62, span * 0.48);
-
-    this.far = paintPlane(cam, kx, ky, farH, 7 * sc, (p) => {
-      p.rng = createRng(seed + 11);
-      p.colors = colors;
-      FAR_PAINTERS[theme.scenery](p);
-    });
-    this.near = paintPlane(cam, kx, ky, nearH, 18 * sc, (p) => {
-      p.rng = createRng(seed + 23);
-      p.colors = colors;
-      p.beacons = this.beacons;
-      p.vents = this.vents;
-      NEAR_PAINTERS[theme.scenery](p);
-    });
+    const height = Math.min(cam.horizonY * 0.62, span * 0.48);
+    this.near = paintPlane(
+      cam,
+      kx,
+      ky,
+      height,
+      18 * detailScale(cam),
+      theme.colors,
+      createRng(seed + 23),
+      this.beacons,
+      this.vents,
+      [],
+      NEAR_PAINTERS[theme.scenery],
+    );
   }
 
   /** ox, oy — сдвиг тряски в пикселях устройства (целые). */
   draw(view: View, ox: number, oy: number): void {
-    const far = this.far;
     const near = this.near;
-    if (!far || !near) return;
+    if (!near) return;
     const ctx = view.ctx;
     const lean = clamp((view.shipX - 50) / 50, -1, 1);
     // Сдвиг округляется до пикселя устройства: слой остаётся резким, а блит — дешёвым.
-    const farShift = Math.round(-lean * far.range * view.kx);
-    const nearShift = Math.round(-lean * near.range * view.kx);
+    const shift = Math.round(-lean * near.range * view.kx);
 
     ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.drawImage(far.canvas, far.x0 + ox + farShift, far.y0 + oy);
-    if (this.kind === 'aurora' && !view.reduced) {
-      // Перелив: тот же слой, чуть сдвинутый, то проявляется, то гаснет.
-      const wave = 0.5 + 0.5 * Math.sin(view.now * 0.55);
-      ctx.globalCompositeOperation = 'lighter';
-      ctx.globalAlpha = 0.1 + 0.3 * wave;
-      const drift = Math.round(Math.sin(view.now * 0.21) * 14 * view.kx);
-      ctx.drawImage(far.canvas, far.x0 + ox + farShift + drift, far.y0 + oy);
-      ctx.globalAlpha = 1;
-      ctx.globalCompositeOperation = 'source-over';
-    }
-    ctx.drawImage(near.canvas, near.x0 + ox + nearShift, near.y0 + oy);
+    ctx.drawImage(near.canvas, near.x0 + ox + shift, near.y0 + oy);
 
     if (this.beacons.length === 0 && this.vents.length === 0) return;
-    ctx.setTransform(view.kx, 0, 0, view.ky, ox + nearShift, oy + Math.round(view.cam.horizonY * view.ky));
+    ctx.setTransform(view.kx, 0, 0, view.ky, ox + shift, oy + Math.round(view.cam.horizonY * view.ky));
     ctx.globalCompositeOperation = 'lighter';
     for (const b of this.beacons) {
       const blink = view.reduced ? 0.7 : Math.pow(0.5 + 0.5 * Math.sin(view.now * b.rate + b.phase), 3);
@@ -140,16 +141,26 @@ export class Scenery {
   }
 
   dispose(): void {
-    freeLayer(this.far?.canvas ?? null);
     freeLayer(this.near?.canvas ?? null);
-    this.far = null;
     this.near = null;
     this.beacons.length = 0;
     this.vents.length = 0;
   }
 }
 
-function paintPlane(cam: Camera, kx: number, ky: number, height: number, range: number, paint: (p: Painter) => void): Plane {
+function paintPlane(
+  cam: Camera,
+  kx: number,
+  ky: number,
+  height: number,
+  range: number,
+  colors: ThemeColors,
+  rng: Rng,
+  beacons: Beacon[],
+  vents: Vent[],
+  rays: number[],
+  paint: (p: Painter) => void,
+): Plane {
   const margin = BLEED + range + 2;
   const canvas = makeLayer((cam.cssW + margin * 2) * kx, height * ky);
   const plane: Plane = {
@@ -161,18 +172,7 @@ function paintPlane(cam: Camera, kx: number, ky: number, height: number, range: 
   const ctx = layerContext(canvas);
   if (!ctx) return plane;
   ctx.setTransform(kx, 0, 0, ky, -plane.x0, canvas.height);
-  paint({
-    ctx,
-    rng: createRng(1),
-    colors: {} as ThemeColors,
-    cam,
-    sc: clamp(cam.horizonY / 272, 0.42, 1.4),
-    left: -margin,
-    right: cam.cssW + margin,
-    h: height,
-    beacons: [],
-    vents: [],
-  });
+  paint({ ctx, rng, colors, cam, sc: detailScale(cam), left: -margin, right: cam.cssW + margin, h: height, beacons, vents, rays });
   return plane;
 }
 
@@ -628,6 +628,10 @@ function paintAuroraFar(p: Painter): void {
       const power = Math.pow(0.5 + 0.5 * Math.sin(x * f3 + p3), 1.6) * (0.45 + 0.55 * Math.sin(x * f1 * 2.3 + p2) ** 2);
       if (power < 0.03) continue;
       const height = tall * (0.55 + 0.45 * power);
+      // Самые яркие столбики получают живой луч поверх запечённой занавеси.
+      if (power > 0.72 && p.rays.length < 5 * 22 && rng.chance(0.05)) {
+        p.rays.push(x, edge - height, height, rng.range(0, TAU), rng.range(0.5, 1.7));
+      }
       const g = ctx.createLinearGradient(0, edge - height, 0, edge);
       g.addColorStop(0, rgba(top, 0));
       g.addColorStop(0.55, rgba(mixColor(colors.sceneryFar, top, 0.35), 0.16 * power));

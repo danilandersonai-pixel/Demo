@@ -1,43 +1,53 @@
 /**
  * Коридор честности — «совесть» генератора трека.
  *
- * Пока генератор расставляет объекты, коридор ведёт две волны достижимых
- * позиций корабля на той же сетке, что и verifyChart (клетка 1 ед., срез
- * 4 тика, скорость GAME.fairness.assumedSpeed):
+ * Пока генератор расставляет объекты, коридор ведёт волны достижимых позиций
+ * корабля на сетке verifyChart (клетка 1 ед., срез 4 тика, скорость
+ * GAME.fairness.assumedSpeed), но строже неё — так, чтобы путь по клеткам был
+ * настоящим путём корабля, а не только пометкой на сетке:
  *
+ *  • клетка среза занята, если корабль задел бы препятствие в любой из двух
+ *    проб каждого тика среза (t − 0.5 и t) — ровно как их берёт симуляция;
+ *  • ход из клетки в клетку за срез требует, чтобы были свободны все клетки
+ *    между ними: корабль не срезает угол сквозь препятствие.
+ * Всё, что проходит такую проверку, заведомо проходит и verifyChart.
+ *
+ * Волн две:
  *  • свободная полоса — где вообще может быть корабль, не разбившись;
  *  • золотая полоса — где может быть корабль, собравший ВСЕ сферы подряд и
  *    при этом летящий спокойно: вдвое медленнее расчётной скорости
  *    (GOLD_REACH), на расстоянии зоны сферы от препятствий (GOLD_PAD) и
- *    уходя из-под каждого удара заранее (SHADOW_ROWS). По ней ложатся сферы.
+ *    уходя из-под каждого удара заранее (SHADOW_ROWS). Она ведётся по оси
+ *    дорожки шириной MIN_GOLD_RUN клеток, так что идеальный путь — не нитка
+ *    в одну клетку, а дорожка, на которую ложатся сферы.
  *
  * Группа препятствий принимается, только если после неё:
  *  1) в каждом срезе остаётся «живой» проход не уже GAME.fairness.minGap
  *     («живой» — достижим из прошлого и не ведёт в тупик);
  *  2) ни одна позиция, которая была живой в момент, когда группа появилась
  *     из дымки, не стала смертельной — игрока нельзя поймать тем, чего он
- *     ещё не видел;
+ *     ещё не видел (на это правило опирается бот planMove: он держится живых
+ *     позиций и потому не гибнет на честном треке);
  *  3) идеальное комбо остаётся возможным;
  *  4) уже поставленные сферы по-прежнему можно взять, не задев препятствие.
  * Иначе состояние откатывается, и паттерн чинит себя или отказывается.
  *
- * Строки волн — битовые (клетка = бит), поэтому проверка кандидата стоит
- * десятки микросекунд и генерация такта не даёт рывка кадра.
+ * Строки волн — битовые (клетка = бит), а после каждой правки пересчитываются
+ * только затронутые срезы, поэтому проверка кандидата стоит микросекунды и
+ * генерация такта не даёт рывка кадра.
  */
+import { CELL, CELLS, cellOf, cellX, gateCells, solidCells, type Span } from './chart-probe';
 import { contactAt, dangerWindow, type Contact } from './collision';
-import { GAME, WORLD } from './config';
-import { obstacleX } from './motion';
+import { GAME } from './config';
 import { TICK_DT, TICKS_PER_BAR } from './timing';
 import type { Obstacle } from './types';
 
-// ─── Сетка (совпадает с verifyChart в bot.ts) ───────────────────────────────
+// ─── Сетка (совпадает с verifyChart и planMove в bot.ts) ────────────────────
 
-/** Ширина клетки, единицы дороги. */
-export const CELL = 1;
+export { CELL, CELLS, cellOf, cellX, type Span } from './chart-probe';
+
 /** Длина среза, тики. */
 export const SLICE = 4;
-/** Клеток поперёк дороги (центр корабля ходит от edge до roadW − edge). */
-export const CELLS = Math.floor((WORLD.roadW - 2 * GAME.player.edge) / CELL) + 1;
 /** Клеток за срез на расчётной скорости — с округлением вниз, как у verifyChart. */
 export const REACH = Math.floor((GAME.fairness.assumedSpeed * SLICE * TICK_DT) / CELL);
 /**
@@ -45,15 +55,20 @@ export const REACH = Math.floor((GAME.fairness.assumedSpeed * SLICE * TICK_DT) /
  * можно сыграть спокойным манёвром, без рывков на пределе.
  */
 export const GOLD_REACH = Math.max(1, Math.floor(REACH / 2));
-/** Запас вокруг препятствий, с которым трек обязан быть проходим. */
+/** Запас вокруг препятствий, с которым трек обязан быть проходим (тот же, что у verifyChart по умолчанию). */
 export const MARGIN = 1;
 /**
  * Минимальная длина живого прохода в клетках. n клеток подряд — это проход
  * не уже (n − 1)·CELL + 2·(радиус + запас) между хитбоксами, поэтому +1.
  */
 export const MIN_FREE_RUN = Math.ceil((GAME.fairness.minGap - 2 * GAME.player.radius - 2 * MARGIN) / CELL) + 1;
-/** Минимальная ширина золотой полосы, клетки. */
+/**
+ * Минимальная ширина золотой полосы, клетки (нечётная). Полоса ведётся по
+ * своей оси: клетка золотой волны — центр дорожки такой ширины, поэтому
+ * непустая волна означает сквозную дорожку, а не просто «где-то есть место».
+ */
 export const MIN_GOLD_RUN = 3;
+const LANE_HALF = (MIN_GOLD_RUN - 1) / 2;
 /**
  * Полуширина зоны сферы в золотой полосе, клетки. Уже настоящей зоны подбора:
  * корабль, стоящий в зоне на своём срезе, в тик прилёта гарантированно дотянется.
@@ -81,29 +96,15 @@ const BACK_ROWS = Math.ceil(GAME.approach.base / SLICE) + 5;
 /** Срезов после конца такта: туда дотягиваются окна опасности его последних объектов. */
 const FRONT_ROWS = 4;
 const ROWS = BACK_ROWS + ROWS_PER_BAR + FRONT_ROWS + 1;
-const WORDS = Math.ceil(CELLS / 32);
+export const WORDS = Math.ceil(CELLS / 32);
 const TAIL_BITS = CELLS - (WORDS - 1) * 32;
 const TAIL_MASK = TAIL_BITS === 32 ? 0xffffffff : 2 ** TAIL_BITS - 1;
-
-/** X центра клетки. */
-export function cellX(cell: number): number {
-  return GAME.player.edge + cell * CELL;
-}
-
-/** Ближайшая клетка к X (с зажимом в дорогу). */
-export function cellOf(x: number): number {
-  return Math.min(CELLS - 1, Math.max(0, Math.round((x - GAME.player.edge) / CELL)));
-}
+/** Слов в одной плоскости сетки (все срезы окна). */
+const PLANE = ROWS * WORDS;
 
 /** Срез, в который попадает тик (как у verifyChart: срез k отвечает за тики (4k − 4, 4k]). */
 export function rowOf(tick: number): number {
   return Math.ceil(tick / SLICE);
-}
-
-/** Отрезок X центра корабля. */
-export interface Span {
-  lo: number;
-  hi: number;
 }
 
 export type RejectReason = 'width' | 'reveal' | 'gold' | 'crystal' | 'order' | 'window';
@@ -117,11 +118,20 @@ export interface CorridorStats {
   /** Самый узкий живой проход свободной и золотой полос за весь трек, клетки. */
   narrowestFree: number;
   narrowestGold: number;
-  /** Наименьшее число достижимых клеток в срезе (то же, что minReachable у verifyChart). */
+  /** Наименьшее число достижимых клеток в срезе (не больше minReachable у verifyChart). */
   narrowestReach: number;
 }
 
 // ─── Битовые строки ─────────────────────────────────────────────────────────
+
+/** Поставить биты lo…hi строки. */
+function setBits(rows: Uint32Array, o: number, lo: number, hi: number): void {
+  for (let w = lo >> 5; w <= hi >> 5; w++) {
+    const from = Math.max(lo, w * 32) - w * 32;
+    const count = Math.min(hi, w * 32 + 31) - w * 32 - from + 1;
+    rows[o + w] |= (2 ** count - 1) * 2 ** from;
+  }
+}
 
 /** Расширить строку на cells клеток в обе стороны (на месте). */
 function widen(rows: Uint32Array, o: number, cells: number): void {
@@ -137,21 +147,33 @@ function widen(rows: Uint32Array, o: number, cells: number): void {
   }
 }
 
-/** dst = src, расширенная на reach клеток в обе стороны (ход корабля за срез). */
-function dilate(src: Uint32Array, so: number, dst: Uint32Array, d: number, reach: number): void {
-  for (let w = 0; w < WORDS; w++) dst[d + w] = src[so + w];
-  widen(dst, d, reach);
+/**
+ * Ход корабля за срез: строка расширяется на reach клеток, не заходя в занятые
+ * клетки строки blocked (на месте). Так клетка достижима, только если свободен
+ * весь путь до неё.
+ */
+function travel(rows: Uint32Array, o: number, blocked: Uint32Array, b: number, reach: number): void {
+  for (let pass = 0; pass < reach; pass++) {
+    let prev = 0;
+    for (let w = 0; w < WORDS; w++) {
+      const cur = rows[o + w];
+      const next = w + 1 < WORDS ? rows[o + w + 1] : 0;
+      rows[o + w] = (cur | (cur << 1) | (prev >>> 31) | (cur >>> 1) | (next << 31)) & ~blocked[b + w];
+      prev = cur;
+    }
+    rows[o + WORDS - 1] &= TAIL_MASK;
+  }
 }
 
 const runScratch = new Uint32Array(WORDS);
 
-/** В строке есть n занятых бит подряд (n ≤ 32). Удвоением: бит i выживает, пока заняты i…i+len−1. */
+/** В строке есть n занятых бит подряд. Удвоением: бит i выживает, пока заняты i…i+len−1. */
 function hasRun(rows: Uint32Array, o: number, n: number): boolean {
   const m = runScratch;
   for (let w = 0; w < WORDS; w++) m[w] = rows[o + w];
   let len = 1;
   while (len < n) {
-    const step = Math.min(len, n - len);
+    const step = Math.min(len, n - len, 31);
     for (let w = 0; w < WORDS; w++) {
       const next = w + 1 < WORDS ? m[w + 1] : 0;
       m[w] &= (m[w] >>> step) | (next << (32 - step));
@@ -162,41 +184,68 @@ function hasRun(rows: Uint32Array, o: number, n: number): boolean {
   return false;
 }
 
-function bit(rows: Uint32Array, o: number, cell: number): number {
-  return (rows[o + (cell >> 5)] >>> (cell & 31)) & 1;
-}
-
+/** Длина самой длинной серии занятых бит. */
 function longestRun(rows: Uint32Array, o: number): number {
-  let best = 0;
-  let run = 0;
-  for (let i = 0; i < CELLS; i++) {
-    run = bit(rows, o, i) ? run + 1 : 0;
-    if (run > best) best = run;
+  const m = runScratch;
+  for (let w = 0; w < WORDS; w++) m[w] = rows[o + w];
+  for (let length = 0; ; length++) {
+    let any = 0;
+    for (let w = 0; w < WORDS; w++) {
+      any |= m[w];
+      m[w] &= (m[w] >>> 1) | ((w + 1 < WORDS ? m[w + 1] : 0) << 31);
+    }
+    if (any === 0) return length;
   }
-  return best;
 }
 
 function countBits(rows: Uint32Array, o: number): number {
   let count = 0;
-  for (let i = 0; i < CELLS; i++) count += bit(rows, o, i);
+  for (let w = 0; w < WORDS; w++) {
+    let v = rows[o + w];
+    v -= (v >>> 1) & 0x55555555;
+    v = (v & 0x33333333) + ((v >>> 2) & 0x33333333);
+    count += Math.imul((v + (v >>> 4)) & 0x0f0f0f0f, 0x01010101) >>> 24;
+  }
   return count;
 }
 
-function runsOf(rows: Uint32Array, o: number): Span[] {
-  const out: Span[] = [];
-  let start = -1;
-  for (let i = 0; i <= CELLS; i++) {
-    const on = i < CELLS && bit(rows, o, i) === 1;
-    if (on && start < 0) start = i;
-    if (!on && start >= 0) {
-      out.push({ lo: cellX(start), hi: cellX(i - 1) });
-      start = -1;
-    }
+/** Номер младшего занятого бита; −1 — строка пуста. */
+function lowestBit(rows: Uint32Array, o: number): number {
+  for (let w = 0; w < WORDS; w++) {
+    const v = rows[o + w];
+    if (v !== 0) return w * 32 + 31 - Math.clz32(v & -v);
   }
-  return out;
+  return -1;
+}
+
+/** Номер старшего занятого бита; −1 — строка пуста. */
+function highestBit(rows: Uint32Array, o: number): number {
+  for (let w = WORDS - 1; w >= 0; w--) {
+    const v = rows[o + w];
+    if (v !== 0) return w * 32 + 31 - Math.clz32(v);
+  }
+  return -1;
 }
 
 // ─── Коридор ────────────────────────────────────────────────────────────────
+
+/**
+ * Полоса коридора: три плоскости общей сетки (занятые клетки, волна
+ * достижимых и «живые» клетки) и ход корабля за срез.
+ */
+interface Layer {
+  blocked: number;
+  wave: number;
+  alive: number;
+  reach: number;
+  /** Срезы, в которых волна менялась после последнего пересчёта живых клеток (пусто, если lo > hi). */
+  dirtyLo: number;
+  dirtyHi: number;
+}
+
+function layer(index: number, reach: number): Layer {
+  return { blocked: index * 3 * PLANE, wave: (index * 3 + 1) * PLANE, alive: (index * 3 + 2) * PLANE, reach, dirtyLo: Infinity, dirtyHi: -Infinity };
+}
 
 const contact: Contact = { inRange: false, clear: Infinity };
 
@@ -211,26 +260,28 @@ export class Corridor {
     narrowestReach: CELLS,
   };
 
-  // Скользящее окно срезов [base, frontier]: строка r отвечает срезу base + r.
-  private readonly freeBlocked = new Uint32Array(ROWS * WORDS);
-  private readonly freeWave = new Uint32Array(ROWS * WORDS);
-  private readonly goldBlocked = new Uint32Array(ROWS * WORDS);
-  private readonly goldWave = new Uint32Array(ROWS * WORDS);
-  /** Живые клетки: достижимы и не ведут в тупик (пересчитываются лениво). */
-  private readonly freeAlive = new Uint32Array(ROWS * WORDS);
-  private readonly goldAlive = new Uint32Array(ROWS * WORDS);
-  private readonly undo = new Uint32Array(ROWS * WORDS * 4);
+  /** Скользящее окно срезов [base, frontier]: строка r каждой плоскости отвечает срезу base + r. */
+  private readonly grid = new Uint32Array(6 * PLANE);
+  private readonly undo = new Uint32Array(6 * PLANE);
+  private readonly free = layer(0, REACH);
+  private readonly gold = layer(1, GOLD_REACH);
   private readonly revealBefore = new Uint32Array(WORDS * 2);
   private readonly lane = new Uint32Array(WORDS);
+  private readonly fresh = new Uint32Array(WORDS);
   /** Клетки, перекрытые одним препятствием, по срезам его окна опасности. */
   private own = new Uint32Array(8 * WORDS);
   private base = 0;
   private frontier = -1;
-  private freeDirty = true;
-  private goldDirty = true;
-  /** Недавние препятствия и сферы — для взаимной проверки зазоров. */
+  /** Недавние препятствия (с окнами опасности) и сферы — для взаимной проверки зазоров. */
   private bodies: Obstacle[] = [];
-  private crystals: Array<{ tick: number; x: number }> = [];
+  private bodyFrom: number[] = [];
+  private bodyTo: number[] = [];
+  /** Окна опасности группы, которую сейчас ставят. */
+  private readonly groupFrom: number[] = [];
+  private readonly groupTo: number[] = [];
+  private readonly span: Span = { lo: 0, hi: 0 };
+  private crystalTicks: number[] = [];
+  private crystalXs: number[] = [];
   private lastArrive = -Infinity;
   private lastCrystal = -Infinity;
 
@@ -240,23 +291,42 @@ export class Corridor {
     const base = Math.max(0, startRow - BACK_ROWS);
     const shift = base - this.base;
     if (shift > 0) {
+      this.refresh();
       this.retire(Math.min(shift, this.frontier - this.base + 1));
-      for (const rows of [this.freeBlocked, this.freeWave, this.goldBlocked, this.goldWave]) {
-        rows.copyWithin(0, shift * WORDS);
+      const g = this.grid;
+      for (let plane = 0; plane < g.length; plane += PLANE) {
+        g.copyWithin(plane, plane + shift * WORDS, plane + PLANE);
+        g.fill(0, plane + PLANE - shift * WORDS, plane + PLANE);
       }
-      this.freeBlocked.fill(0, (ROWS - shift) * WORDS);
-      this.goldBlocked.fill(0, (ROWS - shift) * WORDS);
       this.base = base;
     }
     const from = this.frontier + 1;
     this.frontier = startRow + ROWS_PER_BAR + FRONT_ROWS;
-    this.recompute(this.freeBlocked, this.freeWave, from, REACH);
-    this.recompute(this.goldBlocked, this.goldWave, from, GOLD_REACH);
-    this.freeDirty = this.goldDirty = true;
+    // Ось дорожки не подходит к бортику ближе её полуширины.
+    for (let row = from; row <= this.frontier; row++) {
+      const o = this.gold.blocked + (row - this.base) * WORDS;
+      setBits(this.grid, o, 0, LANE_HALF - 1);
+      setBits(this.grid, o, CELLS - LANE_HALF, CELLS - 1);
+    }
+    this.forward(this.free, from, this.frontier);
+    this.forward(this.gold, from, this.frontier);
     // Сферы ставятся на такт позже препятствий, поэтому помним три такта.
     const horizon = barStart - 3 * TICKS_PER_BAR;
-    this.bodies = this.bodies.filter((o) => o.arriveTick >= horizon);
-    this.crystals = this.crystals.filter((c) => c.tick >= horizon);
+    let kept = 0;
+    for (let i = 0; i < this.bodies.length; i++) {
+      if (this.bodies[i].arriveTick < horizon) continue;
+      this.bodies[kept] = this.bodies[i];
+      this.bodyFrom[kept] = this.bodyFrom[i];
+      this.bodyTo[kept++] = this.bodyTo[i];
+    }
+    this.bodies.length = this.bodyFrom.length = this.bodyTo.length = kept;
+    kept = 0;
+    for (let i = 0; i < this.crystalTicks.length; i++) {
+      if (this.crystalTicks[i] < horizon) continue;
+      this.crystalTicks[kept] = this.crystalTicks[i];
+      this.crystalXs[kept++] = this.crystalXs[i];
+    }
+    this.crystalTicks.length = this.crystalXs.length = kept;
   }
 
   /**
@@ -270,44 +340,58 @@ export class Corridor {
     let last = -Infinity;
     let arrive = Infinity;
     let spawn = Infinity;
-    for (const o of group) {
+    let clash = false;
+    for (let n = 0; n < group.length; n++) {
+      const o = group[n];
       const w = dangerWindow(o);
+      this.groupFrom[n] = w.from;
+      this.groupTo[n] = w.to;
       first = Math.min(first, rowOf(Math.max(w.from, 0)));
       last = Math.max(last, rowOf(w.to));
       arrive = Math.min(arrive, o.arriveTick);
       spawn = Math.min(spawn, o.spawnTick);
+      for (let i = 0; i < this.crystalTicks.length && !clash; i++) {
+        clash = !this.keepsClear(o, w.from, w.to, this.crystalTicks[i], this.crystalXs[i]);
+      }
     }
     // Тень упреждения ложится на срезы перед окном опасности — они тоже меняются.
     first = Math.max(first - SHADOW_ROWS, 0);
     if (arrive < this.lastArrive) return this.reject('order');
     if (last > this.frontier || (this.base > 0 && first <= this.base)) return this.reject('window');
-    for (const o of group) {
-      for (const c of this.crystals) if (!this.keepsClear(o, c.tick, c.x)) return this.reject('crystal');
-    }
+    if (clash) return this.reject('crystal');
 
     // Что было живым в момент появления группы (два соседних среза — время появления между ними).
     this.refresh();
+    const g = this.grid;
     const reveal0 = this.clampRow(Math.floor(spawn / SLICE));
     const reveal1 = this.clampRow(Math.ceil(spawn / SLICE));
-    this.copyRow(this.freeAlive, reveal0, this.revealBefore, 0);
-    this.copyRow(this.freeAlive, reveal1, this.revealBefore, WORDS);
+    const before0 = this.free.alive + (reveal0 - this.base) * WORDS;
+    const before1 = this.free.alive + (reveal1 - this.base) * WORDS;
+    for (let w = 0; w < WORDS; w++) {
+      this.revealBefore[w] = g[before0 + w];
+      this.revealBefore[WORDS + w] = g[before1 + w];
+    }
 
-    this.snapshot(first);
-    for (const o of group) this.mark(o);
-    this.recompute(this.freeBlocked, this.freeWave, first, REACH);
-    this.recompute(this.goldBlocked, this.goldWave, first, GOLD_REACH);
-    this.freeDirty = this.goldDirty = true;
-    this.refresh();
+    this.undo.set(g);
+    for (let n = 0; n < group.length; n++) this.mark(group[n], this.groupFrom[n], this.groupTo[n]);
+    const freeTop = this.forward(this.free, first, last);
+    const goldTop = this.forward(this.gold, first, last);
+    const freeLow = this.settle(this.free);
+    const goldLow = this.settle(this.gold);
 
     let reason: RejectReason | null = null;
-    if (!this.wideEnough(this.freeAlive, reveal0, MIN_FREE_RUN)) reason = 'width';
-    else if (!this.keeps(reveal0, 0) || !this.keeps(reveal1, WORDS)) reason = 'reveal';
-    else if (!this.wideEnough(this.goldAlive, this.base, MIN_GOLD_RUN)) reason = 'gold';
+    if (!this.wide(this.free.alive, Math.max(reveal0, freeLow), freeTop, MIN_FREE_RUN)) reason = 'width';
+    else if (!this.keeps(before0, 0) || !this.keeps(before1, WORDS)) reason = 'reveal';
+    else if (!this.wide(this.gold.alive, goldLow, goldTop, 1)) reason = 'gold';
     if (reason) {
-      this.rollback(first);
+      g.set(this.undo);
       return this.reject(reason);
     }
-    for (const o of group) this.bodies.push(o);
+    for (let n = 0; n < group.length; n++) {
+      this.bodies.push(group[n]);
+      this.bodyFrom.push(this.groupFrom[n]);
+      this.bodyTo.push(this.groupTo[n]);
+    }
     this.lastArrive = arrive;
     this.stats.placed += 1;
     return true;
@@ -318,55 +402,55 @@ export class Corridor {
    * слишком близко к препятствию или её нельзя взять, не сорвав идеальное комбо.
    */
   addCrystal(tick: number, x: number): boolean {
-    const row = rowOf(tick);
-    const outside = row > this.frontier || (this.base > 0 && row <= this.base);
-    if (outside || tick <= this.lastCrystal || !this.crystalClear(tick, x)) {
+    if (!this.admits(tick, x, this.lastCrystal)) {
       this.stats.crystalsRejected += 1;
       return false;
     }
-    this.snapshot(row);
-    const o = (row - this.base) * WORDS;
-    const center = cellOf(x);
-    for (let w = 0; w < WORDS; w++) {
-      let keep = 0;
-      for (let i = Math.max(center - ZONE_CELLS, w * 32); i <= Math.min(center + ZONE_CELLS, w * 32 + 31); i++) {
-        keep |= 1 << (i & 31);
-      }
-      this.goldBlocked[o + w] |= ~keep;
-    }
-    this.recompute(this.goldBlocked, this.goldWave, row, GOLD_REACH);
-    this.goldDirty = true;
     this.refresh();
-    if (!this.wideEnough(this.goldAlive, this.base, MIN_GOLD_RUN)) {
-      this.rollback(row);
+    this.undo.set(this.grid);
+    const row = rowOf(tick);
+    this.confine(row, x);
+    if (!this.goldHolds(row, row)) {
+      this.grid.set(this.undo);
       this.stats.crystalsRejected += 1;
       return false;
     }
-    this.crystals.push({ tick, x });
-    this.lastCrystal = tick;
-    this.stats.crystals += 1;
+    this.keepCrystal(tick, x);
     return true;
   }
 
-  /** Точка (tick, x) не ближе CRYSTAL_CLEAR к любому из недавних препятствий. */
-  crystalClear(tick: number, x: number): boolean {
-    for (const o of this.bodies) if (!this.keepsClear(o, tick, x)) return false;
+  /**
+   * Поставить цепочку сфер разом (тики по возрастанию) — одна проверка вместо
+   * проверки на каждую сферу. true — приняты все. false — хотя бы одна не
+   * проходит; состояние не изменилось, и сферы стоит предъявить по одной
+   * через addCrystal: результат будет тот же, что без этой попытки.
+   */
+  addCrystals(ticks: readonly number[], xs: readonly number[]): boolean {
+    if (ticks.length === 0) return true;
+    let last = this.lastCrystal;
+    for (let i = 0; i < ticks.length; i++) {
+      if (!this.admits(ticks[i], xs[i], last)) return false;
+      last = ticks[i];
+    }
+    this.refresh();
+    this.undo.set(this.grid);
+    for (let i = 0; i < ticks.length; i++) this.confine(rowOf(ticks[i]), xs[i]);
+    if (!this.goldHolds(rowOf(ticks[0]), rowOf(last))) {
+      this.grid.set(this.undo);
+      return false;
+    }
+    for (let i = 0; i < ticks.length; i++) this.keepCrystal(ticks[i], xs[i]);
     return true;
   }
 
   // ─── Запросы паттернов ────────────────────────────────────────────────────
 
-  /** Живые проходы свободной полосы в тик tick. */
-  freeRuns(tick: number): Span[] {
+  /** Ближайшая к x точка, где в тик tick может быть корабль, идущий на идеальное комбо (сам x, если такой точки нет). */
+  goldClamp(tick: number, x: number): number {
     this.refresh();
-    return runsOf(this.freeAlive, this.offsetOf(rowOf(tick)));
-  }
-
-  /** Где в тик tick может быть корабль, идущий на идеальное комбо; null — нигде. */
-  goldHull(tick: number): Span | null {
-    this.refresh();
-    const runs = runsOf(this.goldAlive, this.offsetOf(rowOf(tick)));
-    return runs.length === 0 ? null : { lo: runs[0].lo, hi: runs[runs.length - 1].hi };
+    const o = this.gold.alive + this.offsetOf(rowOf(tick));
+    const lo = lowestBit(this.grid, o);
+    return lo < 0 ? x : Math.min(Math.max(x, cellX(lo)), cellX(highestBit(this.grid, o)));
   }
 
   /**
@@ -377,12 +461,13 @@ export class Corridor {
   gateBand(arriveTick: number, spawnTick: number, half: number): Span | null {
     this.refresh();
     const revealRow = this.clampRow(Math.ceil(spawnTick / SLICE));
-    const runs = runsOf(this.freeAlive, (revealRow - this.base) * WORDS);
-    if (runs.length === 0) return null;
+    const o = this.free.alive + (revealRow - this.base) * WORDS;
+    const leftmost = lowestBit(this.grid, o);
+    if (leftmost < 0) return null;
     // Запас в несколько клеток: проход должен быть достижим не «впритык».
-    const travel = Math.max(0, (rowOf(arriveTick) - revealRow) * REACH * CELL - 4);
-    const lo = runs[runs.length - 1].hi - travel - half;
-    const hi = runs[0].lo + travel + half;
+    const reach = Math.max(0, (rowOf(arriveTick) - revealRow) * REACH * CELL - 4);
+    const lo = cellX(highestBit(this.grid, o)) - reach - half;
+    const hi = cellX(leftmost) + reach + half;
     return lo <= hi ? { lo, hi } : null;
   }
 
@@ -401,22 +486,25 @@ export class Corridor {
     return rowOf(this.lastCrystal);
   }
 
-  /** out[i] = 1, если клетка i среза row живая для идеального комбо. */
-  readGold(row: number, out: Uint8Array): void {
-    this.refresh();
-    const o = this.offsetOf(row);
-    for (let i = 0; i < CELLS; i++) out[i] = bit(this.goldAlive, o, i);
+  /** Слово word битовой строки среза row: оси дорожек, живые для идеального комбо. */
+  goldAliveWord(row: number, word: number): number {
+    return this.grid[this.gold.alive + this.offsetOf(row) + word];
   }
 
-  /** out[i] = 1, если клетку i среза row перекрывает препятствие (с запасом MARGIN). */
-  readObstacles(row: number, out: Uint8Array): void {
-    const o = this.offsetOf(row);
-    for (let i = 0; i < CELLS; i++) out[i] = bit(this.freeBlocked, o, i);
+  /** Клетки, закрытые для идеального комбо (препятствие с отступом, его тень или чужая зона сферы). */
+  goldBlockedWord(row: number, word: number): number {
+    return this.grid[this.gold.blocked + this.offsetOf(row) + word];
   }
 
-  /** Число достижимых клеток в срезе тика tick (для сверки с verifyChart). */
-  reachCount(tick: number): number {
-    return countBits(this.freeWave, this.offsetOf(rowOf(tick)));
+  /** Клетки, которые в срезе row перекрывает препятствие (с запасом MARGIN). */
+  blockedWord(row: number, word: number): number {
+    return this.grid[this.free.blocked + this.offsetOf(row) + word];
+  }
+
+  /** Привести живые клетки в соответствие с волнами (вызывается перед чтением слов). */
+  refresh(): void {
+    this.settle(this.free);
+    this.settle(this.gold);
   }
 
   // ─── Внутреннее ───────────────────────────────────────────────────────────
@@ -434,29 +522,60 @@ export class Corridor {
     return (this.clampRow(row) - this.base) * WORDS;
   }
 
-  private copyRow(src: Uint32Array, row: number, dst: Uint32Array, d: number): void {
-    const o = (row - this.base) * WORDS;
-    for (let w = 0; w < WORDS; w++) dst[d + w] = src[o + w];
-  }
-
   /** Все клетки, живые до постановки группы, остались живыми. */
-  private keeps(row: number, d: number): boolean {
-    const o = (row - this.base) * WORDS;
-    for (let w = 0; w < WORDS; w++) if ((this.revealBefore[d + w] & ~this.freeAlive[o + w]) !== 0) return false;
+  private keeps(alive: number, before: number): boolean {
+    for (let w = 0; w < WORDS; w++) if ((this.revealBefore[before + w] & ~this.grid[alive + w]) !== 0) return false;
     return true;
   }
 
-  private wideEnough(alive: Uint32Array, fromRow: number, minRun: number): boolean {
-    for (let row = fromRow; row <= this.frontier; row++) {
-      if (!hasRun(alive, (row - this.base) * WORDS, minRun)) return false;
+  /** В каждом срезе от fromRow до toRow есть серия живых клеток не короче minRun. */
+  private wide(alive: number, fromRow: number, toRow: number, minRun: number): boolean {
+    for (let row = Math.max(fromRow, this.base); row <= toRow; row++) {
+      if (!hasRun(this.grid, alive + (row - this.base) * WORDS, minRun)) return false;
     }
     return true;
   }
 
-  private keepsClear(o: Obstacle, tick: number, x: number): boolean {
-    const w = dangerWindow(o);
-    const from = Math.max(w.from, tick - CRYSTAL_TICKS);
-    const to = Math.min(w.to, tick + CRYSTAL_TICKS);
+  /** Сферу в точке (tick, x) вообще можно рассматривать: она в окне, позже прошлой сферы и не вплотную к препятствию. */
+  private admits(tick: number, x: number, lastCrystal: number): boolean {
+    const row = rowOf(tick);
+    if (tick <= lastCrystal || row > this.frontier || (this.base > 0 && row <= this.base)) return false;
+    for (let i = 0; i < this.bodies.length; i++) {
+      if (!this.keepsClear(this.bodies[i], this.bodyFrom[i], this.bodyTo[i], tick, x)) return false;
+    }
+    return true;
+  }
+
+  /** Закрыть для идеального прохождения всё в срезе row, кроме зоны сферы в точке x. */
+  private confine(row: number, x: number): void {
+    const g = this.grid;
+    const zone = this.fresh.fill(0);
+    const center = cellOf(x);
+    // Вся дорожка, а не только её ось, обязана лежать в зоне сферы.
+    setBits(zone, 0, Math.max(0, center - ZONE_CELLS + LANE_HALF), Math.min(CELLS - 1, center + ZONE_CELLS - LANE_HALF));
+    const o = this.gold.blocked + (row - this.base) * WORDS;
+    for (let w = 0; w < WORDS; w++) g[o + w] |= ~zone[w];
+    g[o + WORDS - 1] &= TAIL_MASK;
+  }
+
+  /** После правок занятости в срезах [fromRow, toRow] золотая полоса всё ещё нигде не уже минимума. */
+  private goldHolds(fromRow: number, toRow: number): boolean {
+    const top = this.forward(this.gold, fromRow, toRow);
+    const low = this.settle(this.gold);
+    return this.wide(this.gold.alive, low, top, 1);
+  }
+
+  private keepCrystal(tick: number, x: number): void {
+    this.crystalTicks.push(tick);
+    this.crystalXs.push(x);
+    this.lastCrystal = tick;
+    this.stats.crystals += 1;
+  }
+
+  /** Препятствие с окном опасности [windowFrom, windowTo] не подходит к точке (tick, x) ближе CRYSTAL_CLEAR. */
+  private keepsClear(o: Obstacle, windowFrom: number, windowTo: number, tick: number, x: number): boolean {
+    const from = Math.max(windowFrom, tick - CRYSTAL_TICKS);
+    const to = Math.min(windowTo, tick + CRYSTAL_TICKS);
     for (let t = from; t <= to; t++) {
       contactAt(o, t, x, contact);
       if (contact.inRange && contact.clear < CRYSTAL_CLEAR) return false;
@@ -465,117 +584,143 @@ export class Corridor {
   }
 
   /**
-   * Отметить клетки, которые препятствие перекрывает. Свободная полоса — тем же
-   * правилом, что verifyChart. Золотая — строже: полоса шире на GOLD_PAD и
-   * закрыта заранее, за SHADOW_ROWS срезов до удара.
+   * Отметить клетки, которые препятствие перекрывает в обеих пробах каждого
+   * тика своего окна опасности. Свободная полоса получает сами клетки,
+   * золотая — строже: шире на GOLD_PAD и закрыта заранее, за SHADOW_ROWS
+   * срезов до удара.
    */
-  private mark(o: Obstacle): void {
-    const w = dangerWindow(o);
-    const fromTick = Math.max(w.from, 0);
+  private mark(o: Obstacle, windowFrom: number, windowTo: number): void {
+    const fromTick = Math.max(windowFrom, 0);
     const firstRow = rowOf(fromTick);
-    const rows = rowOf(w.to) - firstRow + 1;
+    const rows = rowOf(windowTo) - firstRow + 1;
     if (this.own.length < rows * WORDS) this.own = new Uint32Array(rows * WORDS);
     const own = this.own.fill(0, 0, rows * WORDS);
-    // Дальше этого от центра объект заведомо не достаёт (у куба — с учётом поворота).
-    const extent = o.kind === 'cube' ? o.halfW * GAME.hitbox.cube * Math.SQRT2 : o.halfW * GAME.hitbox.saw;
-    const span = extent + GAME.player.radius + MARGIN + CELL;
-    for (let t = fromTick; t <= w.to; t++) {
+    const span = this.span;
+    const laser = o.kind === 'laser';
+    for (let t = fromTick; t <= windowTo; t++) {
       const row = (rowOf(t) - firstRow) * WORDS;
-      let lo = 0;
-      let hi = CELLS - 1;
-      if (o.kind !== 'laser') {
-        const ox = obstacleX(o, t);
-        lo = cellOf(ox - span);
-        hi = cellOf(ox + span);
-      }
-      for (let i = lo; i <= hi; i++) {
-        contactAt(o, t, cellX(i), contact);
-        if (contact.inRange && contact.clear < MARGIN) own[row + (i >> 5)] |= 1 << (i & 31);
+      for (let probe = 0; probe < 2; probe++) {
+        const time = t - probe * 0.5;
+        if (!laser) {
+          if (solidCells(o, time, MARGIN, span)) setBits(own, row, span.lo, span.hi);
+        } else if (gateCells(o, time, MARGIN, span)) {
+          // Занято всё, кроме прохода.
+          if (span.lo > span.hi) setBits(own, row, 0, CELLS - 1);
+          else {
+            if (span.lo > 0) setBits(own, row, 0, span.lo - 1);
+            if (span.hi < CELLS - 1) setBits(own, row, span.hi + 1, CELLS - 1);
+          }
+        }
       }
     }
+    const g = this.grid;
     const lane = this.lane.fill(0);
     for (let r = 0; r < rows; r++) {
       const src = r * WORDS;
       const dst = (firstRow + r - this.base) * WORDS;
-      for (let k = 0; k < WORDS; k++) this.freeBlocked[dst + k] |= own[src + k];
-      widen(own, src, GOLD_PAD);
+      for (let k = 0; k < WORDS; k++) g[this.free.blocked + dst + k] |= own[src + k];
+      widen(own, src, GOLD_PAD + LANE_HALF);
       for (let k = 0; k < WORDS; k++) {
-        this.goldBlocked[dst + k] |= own[src + k];
+        g[this.gold.blocked + dst + k] |= own[src + k];
         lane[k] |= own[src + k];
       }
     }
     for (let row = Math.max(firstRow - SHADOW_ROWS, 0); row < firstRow; row++) {
-      const dst = (row - this.base) * WORDS;
-      for (let k = 0; k < WORDS; k++) this.goldBlocked[dst + k] |= lane[k];
+      const dst = this.gold.blocked + (row - this.base) * WORDS;
+      for (let k = 0; k < WORDS; k++) g[dst + k] |= lane[k];
     }
   }
 
-  /** Волна вперёд: срез достижим из соседних клеток прошлого среза, если не перекрыт. */
-  private recompute(blocked: Uint32Array, wave: Uint32Array, fromRow: number, reach: number): void {
-    for (let row = Math.max(fromRow, this.base); row <= this.frontier; row++) {
-      const o = (row - this.base) * WORDS;
+  /**
+   * Волна вперёд от среза fromRow: клетка достижима, если до неё есть свободный
+   * путь из достижимой клетки прошлого среза. Занятость менялась только в
+   * срезах до untilRow — дальше пересчёт идёт, пока волна ещё меняется.
+   * Возвращает последний изменившийся срез.
+   */
+  private forward(l: Layer, fromRow: number, untilRow: number): number {
+    const g = this.grid;
+    const fresh = this.fresh;
+    const start = Math.max(fromRow, this.base);
+    let top = start - 1;
+    for (let row = start; row <= this.frontier; row++) {
+      const r = (row - this.base) * WORDS;
       if (row === 0) {
         // Старт забега: корабль может быть где угодно (как у verifyChart).
-        for (let w = 0; w < WORDS; w++) wave[o + w] = 0xffffffff;
-        wave[o + WORDS - 1] = TAIL_MASK;
-      } else if (o === 0) {
+        for (let w = 0; w < WORDS; w++) fresh[w] = ~g[l.blocked + w];
+        fresh[WORDS - 1] &= TAIL_MASK;
+      } else if (r === 0) {
+        // Срез на краю окна: его прошлое уже забыто, волна в нём осталась прежней.
         continue;
       } else {
-        dilate(wave, o - WORDS, wave, o, reach);
+        for (let w = 0; w < WORDS; w++) fresh[w] = g[l.wave + r - WORDS + w] & ~g[l.blocked + r + w];
+        travel(fresh, 0, g, l.blocked + r, l.reach);
       }
-      for (let w = 0; w < WORDS; w++) wave[o + w] &= ~blocked[o + w];
+      let changed = false;
+      for (let w = 0; w < WORDS; w++) {
+        if (g[l.wave + r + w] !== fresh[w]) {
+          g[l.wave + r + w] = fresh[w];
+          changed = true;
+        }
+      }
+      if (changed) top = row;
+      else if (row > untilRow) break;
     }
+    if (top >= start) {
+      l.dirtyLo = Math.min(l.dirtyLo, start);
+      l.dirtyHi = Math.max(l.dirtyHi, top);
+    }
+    return top;
   }
 
-  /** Волна назад от края окна: живые клетки = достижимые, из которых есть путь дальше. */
-  private refresh(): void {
-    if (this.freeDirty) {
-      this.alivePass(this.freeWave, this.freeAlive, REACH);
-      this.freeDirty = false;
+  /**
+   * Волна назад: живые клетки = достижимые, из которых есть путь дальше.
+   * Пересчитывает срезы, где менялась волна, и более ранние — пока те ещё
+   * меняются. Возвращает самый ранний изменившийся срез (Infinity — ничего).
+   */
+  private settle(l: Layer): number {
+    if (l.dirtyLo > l.dirtyHi) return Infinity;
+    const g = this.grid;
+    const fresh = this.fresh;
+    const lo = l.dirtyLo;
+    let low = Infinity;
+    for (let row = l.dirtyHi; row >= this.base; row--) {
+      const r = (row - this.base) * WORDS;
+      if (row === this.frontier) {
+        for (let w = 0; w < WORDS; w++) fresh[w] = g[l.wave + r + w];
+      } else {
+        for (let w = 0; w < WORDS; w++) fresh[w] = g[l.alive + r + WORDS + w];
+        travel(fresh, 0, g, l.blocked + r + WORDS, l.reach);
+        for (let w = 0; w < WORDS; w++) fresh[w] &= g[l.wave + r + w];
+      }
+      let changed = false;
+      for (let w = 0; w < WORDS; w++) {
+        if (g[l.alive + r + w] !== fresh[w]) {
+          g[l.alive + r + w] = fresh[w];
+          changed = true;
+        }
+      }
+      if (changed) low = row;
+      else if (row < lo) break;
     }
-    if (this.goldDirty) {
-      this.alivePass(this.goldWave, this.goldAlive, GOLD_REACH);
-      this.goldDirty = false;
-    }
-  }
-
-  private alivePass(wave: Uint32Array, alive: Uint32Array, reach: number): void {
-    const lastOffset = (this.frontier - this.base) * WORDS;
-    for (let w = 0; w < WORDS; w++) alive[lastOffset + w] = wave[lastOffset + w];
-    for (let o = lastOffset - WORDS; o >= 0; o -= WORDS) {
-      dilate(alive, o + WORDS, alive, o, reach);
-      for (let w = 0; w < WORDS; w++) alive[o + w] &= wave[o + w];
-    }
-  }
-
-  private snapshot(fromRow: number): void {
-    const from = (fromRow - this.base) * WORDS;
-    const size = (this.frontier - fromRow + 1) * WORDS;
-    this.undo.set(this.freeBlocked.subarray(from, from + size), 0);
-    this.undo.set(this.freeWave.subarray(from, from + size), size);
-    this.undo.set(this.goldBlocked.subarray(from, from + size), size * 2);
-    this.undo.set(this.goldWave.subarray(from, from + size), size * 3);
-  }
-
-  private rollback(fromRow: number): void {
-    const from = (fromRow - this.base) * WORDS;
-    const size = (this.frontier - fromRow + 1) * WORDS;
-    this.freeBlocked.set(this.undo.subarray(0, size), from);
-    this.freeWave.set(this.undo.subarray(size, size * 2), from);
-    this.goldBlocked.set(this.undo.subarray(size * 2, size * 3), from);
-    this.goldWave.set(this.undo.subarray(size * 3, size * 4), from);
-    this.freeDirty = this.goldDirty = true;
+    l.dirtyLo = Infinity;
+    l.dirtyHi = -Infinity;
+    return low;
   }
 
   /** Срезы уходят из окна навсегда — запомнить, насколько узко в них было. */
   private retire(rows: number): void {
-    this.refresh();
+    const g = this.grid;
     const s = this.stats;
     for (let r = 0; r < rows; r++) {
       const o = r * WORDS;
-      s.narrowestFree = Math.min(s.narrowestFree, longestRun(this.freeAlive, o));
-      s.narrowestGold = Math.min(s.narrowestGold, longestRun(this.goldAlive, o));
-      s.narrowestReach = Math.min(s.narrowestReach, countBits(this.freeWave, o));
+      if (!hasRun(g, this.free.alive + o, s.narrowestFree)) s.narrowestFree = longestRun(g, this.free.alive + o);
+      // Серия осей длиной n — это дорожка шириной n + 2·LANE_HALF клеток.
+      const lane = Math.max(1, s.narrowestGold - 2 * LANE_HALF);
+      if (!hasRun(g, this.gold.alive + o, lane)) {
+        const axes = longestRun(g, this.gold.alive + o);
+        s.narrowestGold = axes > 0 ? axes + 2 * LANE_HALF : 0;
+      }
+      s.narrowestReach = Math.min(s.narrowestReach, countBits(g, this.free.wave + o));
     }
   }
 }

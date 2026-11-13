@@ -38,7 +38,7 @@ import {
 import { GAME, OBSTACLES } from './config';
 import { clamp } from './math';
 import { createRng, type Rng } from './rng';
-import { barInLevel, barStartTick, levelAtTick, TICK_RATE, TICKS_PER_BAR, TICKS_PER_LEVEL, TICKS_PER_STEP } from './timing';
+import { barInLevel, barStartTick, levelAtTick, TICK_RATE, TICKS_PER_BAR, TICKS_PER_BEAT, TICKS_PER_LEVEL, TICKS_PER_STEP } from './timing';
 import type { ChartItem, ChartOptions, CrystalSpec, ObstacleKind, ObstacleSpec } from './types';
 
 // ─── Драматургия уровня ─────────────────────────────────────────────────────
@@ -73,7 +73,9 @@ const LEVEL_SALT = 0x4c56;
 const PICKUP_LEAD = 2;
 /** За какое время до и после удара следить, не подходит ли линия мелодии к полосе препятствия, тики. */
 const WATCH_BEFORE = TICKS_PER_BAR / 2;
-const WATCH_AFTER = TICKS_PER_BAR;
+const WATCH_AFTER = TICKS_PER_BEAT;
+/** На сколько тиков за конец такта нужна линия мелодии: туда смотрят затакты ударов начала следующего такта. */
+const LINE_AHEAD = PICKUP_LEAD * TICKS_PER_STEP + WATCH_AFTER;
 
 // ─── Ритмы ──────────────────────────────────────────────────────────────────
 
@@ -474,7 +476,7 @@ export class Composer {
   private stageAttract(bar: number, barStart: number, rng: Rng): Staged {
     const mid = this.leg(rng, this.contour.end, 6, 18, rng.chance(0.6));
     this.contour.extend(mid, this.leg(rng, mid, 6, 18, rng.chance(0.6)));
-    const stage = new Stage(rng, this.corridor, this.contour, barStart, ATTRACT_LEVEL);
+    const stage = new Stage(rng, this.corridor, this.contour, barStart, ATTRACT_LEVEL, GAME.approach.base);
     const scene = ATTRACT_SCENES[bar % ATTRACT_SCENES.length];
     if (bar >= GAME.firstObstacleBar) scene.run(stage);
     return { stage, rng, chain: bar === 0 ? OPENING_CHAIN : scene.chain };
@@ -552,16 +554,23 @@ export class Composer {
     const { stage, rng } = current;
     const crystals: CrystalSpec[] = [];
     const lures = [...stage.lures, ...next.stage.lures];
-    if (!this.line.trace(this.corridor, this.contour, lures, stage.barStart)) return crystals;
+    const until = stage.barStart + TICKS_PER_BAR + LINE_AHEAD;
+    if (!this.line.trace(this.corridor, this.contour, lures, stage.barStart, until)) return crystals;
+    const ticks: number[] = [];
+    const xs: number[] = [];
     for (const step of this.melodySteps(current, next)) {
       const tick = stage.tickOf(step);
       const x = this.line.at(tick);
       // Жребий бросается всегда: рисунок трека не должен зависеть от шанса редкой сферы.
       const rare = rng.chance(this.options.rareChance);
-      if (x === null || !this.corridor.addCrystal(tick, x)) continue;
+      if (x === null) continue;
+      ticks.push(tick);
+      xs.push(x);
       crystals.push({ kind: 'crystal', arriveTick: tick, x, sway: null, rare });
     }
-    return crystals;
+    // Обычно коридор принимает всю цепочку разом; иначе — по одной сфере, и отвергнутые выпадают.
+    if (this.corridor.addCrystals(ticks, xs)) return crystals;
+    return crystals.filter((_, i) => this.corridor.addCrystal(ticks[i], xs[i]));
   }
 
   /**

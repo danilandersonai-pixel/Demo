@@ -13,10 +13,9 @@ import type { Contour, Lure } from './chart-melody';
 import { GAME, laserHalfGapForLevel, OBSTACLES, swayAmp, swayChance, swayPeriodTicks, WORLD } from './config';
 import { approachFor, makeObstacle } from './entities';
 import { clamp, lerp, TAU } from './math';
-import { swayOffset } from './motion';
 import type { Rng } from './rng';
 import { TICK_RATE, TICKS_PER_EIGHTH, TICKS_PER_STEP } from './timing';
-import type { ObstacleKind, ObstacleSpec, Sway } from './types';
+import type { Obstacle, ObstacleKind, ObstacleSpec, Sway } from './types';
 
 export const MAX_OBSTACLES_PER_BAR = 12;
 
@@ -26,6 +25,17 @@ const SHIP = GAME.player.radius;
 const LASER_HALF_MAX = 22;
 /** Зигзаг с меньшей амплитудой не читается — проще лететь прямо. */
 const MIN_SWAY_AMP = 3;
+/** Какую долю свободного места до бортика занимает урезанный зигзаг. */
+const FIT_INSET = 0.98;
+/**
+ * Доля шанса зигзага у фигур, где он спорит с замыслом: пара качается целиком,
+ * проход ворот уезжает из-под корабля, столбы слалома и ступени лесенки стоят
+ * в расчёте на ровный коридор. Одиночный объект берёт шанс уровня полностью.
+ */
+const PAIR_SWAY = 0.8;
+const GATE_SWAY = 0.6;
+const STAIRS_SWAY = 0.6;
+const POST_SWAY = 0.5;
 /** Шаг между центрами пил в стене относительно диаметра: диски слегка перекрываются. */
 const WALL_PITCH = 0.94;
 
@@ -52,24 +62,32 @@ export function threatens(spec: ObstacleSpec, x: number): boolean {
   return Math.abs(x - spec.x) < blockOf(spec) + pad;
 }
 
+/** Есть ли на отрезке углов [from, to] точка peak + 2πk (там синус достигает экстремума). */
+function passesPeak(from: number, to: number, peak: number): boolean {
+  return Math.floor((to - peak) / TAU) > Math.floor((from - peak) / TAU) || (from - peak) % TAU === 0;
+}
+
 /**
  * Подогнать зигзаг под дорогу: объект целиком остаётся на полотне весь полёт,
- * от появления до ухода за корабль. null — места для заметного зигзага нет.
+ * от появления до ухода за корабль. approach — время подлёта (по умолчанию —
+ * по уровню прилёта). null — места для заметного зигзага нет.
  */
-export function fitSway(spec: Pick<ObstacleSpec, 'arriveTick' | 'x' | 'halfW'>, sway: Sway): Sway | null {
-  const approach = approachFor(spec.arriveTick);
+export function fitSway(spec: Pick<ObstacleSpec, 'arriveTick' | 'x' | 'halfW'>, sway: Sway, approach = approachFor(spec.arriveTick)): Sway | null {
   const tail = Math.max(Math.ceil((WORLD.zBehind / WORLD.zFar) * approach), TICKS_PER_EIGHTH);
-  let min = 0;
-  let max = 0;
-  for (let t = spec.arriveTick - approach; t <= spec.arriveTick + tail; t++) {
-    const offset = swayOffset(sway, spec.arriveTick, t);
-    if (offset < min) min = offset;
-    if (offset > max) max = offset;
-  }
+  // Размах синуса за весь полёт — по углам его начала и конца, без перебора тиков.
+  const from = sway.phase - (TAU * approach) / sway.periodTicks;
+  const to = sway.phase + (TAU * tail) / sway.periodTicks;
+  const rest = Math.sin(sway.phase);
+  const top = passesPeak(from, to, Math.PI / 2) ? 1 : Math.max(Math.sin(from), Math.sin(to));
+  const bottom = passesPeak(from, to, -Math.PI / 2) ? -1 : Math.min(Math.sin(from), Math.sin(to));
+  const min = sway.amp * (bottom - rest);
+  const max = sway.amp * (top - rest);
   let scale = 1;
   if (min < 0) scale = Math.min(scale, (spec.x - spec.halfW) / -min);
   if (max > 0) scale = Math.min(scale, (ROAD - spec.halfW - spec.x) / max);
-  const amp = sway.amp * Math.min(1, scale * 0.98);
+  if (scale >= 1) return sway;
+  // Урезанный размах — с небольшим отступом от бортика, чтобы объект его не касался.
+  const amp = sway.amp * scale * FIT_INSET;
   return amp >= MIN_SWAY_AMP ? { ...sway, amp } : null;
 }
 
@@ -92,29 +110,47 @@ export class Stage {
     readonly barStart: number,
     /** Уровень, по которому берутся размеры, зигзаг и ширина проходов. */
     readonly level: number,
+    /**
+     * Время подлёта, одно на все объекты (фоновая сцена меню: там симуляция
+     * не ускоряется). null — как в забеге, по уровню в момент прилёта.
+     */
+    readonly fixedApproach: number | null = null,
   ) {}
 
   tickOf(step: number): number {
     return this.barStart + step * TICKS_PER_STEP;
   }
 
+  /** За сколько тиков объект, прилетающий в тик tick, проходит видимую дорогу. */
+  approachOf(tick: number): number {
+    return this.fixedApproach ?? approachFor(tick);
+  }
+
   /** Где в этот тик ждать корабль, идущий по линии мелодии. */
   line(tick: number): number {
-    const x = this.contour.at(tick);
-    const hull = this.corridor.goldHull(tick);
-    return hull ? clamp(x, hull.lo, hull.hi) : x;
+    return this.corridor.goldClamp(tick, this.contour.at(tick));
   }
 
   /** Предъявить группу одновременных препятствий коридору. */
   put(group: ObstacleSpec[]): boolean {
     if (group.length === 0 || this.obstacles.length + group.length > MAX_OBSTACLES_PER_BAR) return false;
-    if (!this.corridor.place(group.map((spec) => makeObstacle(spec, 0)))) return false;
+    if (!this.corridor.place(group.map((spec) => this.body(spec)))) return false;
     for (const spec of group) this.obstacles.push(spec);
     return true;
   }
 
   lure(tick: number, x: number): void {
     this.lures.push({ tick, x });
+  }
+
+  /** Препятствие таким, каким его увидит симуляция. */
+  private body(spec: ObstacleSpec): Obstacle {
+    const body = makeObstacle(spec, 0);
+    if (this.fixedApproach !== null) {
+      body.approachTicks = this.fixedApproach;
+      body.spawnTick = spec.arriveTick - this.fixedApproach;
+    }
+    return body;
   }
 
   /** Куб или пила — по весам уровня (или тот, что уровню ещё нужен). */
@@ -146,6 +182,15 @@ export class Stage {
     };
   }
 
+  /**
+   * Жребий зигзага для фигуры: шанс уровня, умноженный на share (у фигур, где
+   * зигзаг мешает замыслу, доля меньше). Жребий бросается всегда — рисунок
+   * остального такта не должен зависеть от того, с какого уровня зигзаг разрешён.
+   */
+  rollSway(share: number): boolean {
+    return this.rng.chance(swayChance(this.level) * share) && this.level >= GAME.sway.startLevel;
+  }
+
   /** Зигзаг уровня, подогнанный под дорогу для всей группы сразу (группа качается как целое). */
   swing(group: ObstacleSpec[]): Sway | null {
     if (this.level < GAME.sway.startLevel) return null;
@@ -156,7 +201,7 @@ export class Stage {
     for (const tryPhase of [phase, phase + Math.PI]) {
       let sway: Sway | null = { amp, periodTicks, phase: tryPhase };
       for (const spec of group) {
-        if (sway) sway = fitSway(spec, sway);
+        if (sway) sway = fitSway(spec, sway, this.approachOf(spec.arriveTick));
       }
       if (sway) return sway;
     }
@@ -244,7 +289,7 @@ export function pair(stage: Stage, step: number, options: PairOptions = {}): num
     left.x = center - gap / 2 - reachOf(left);
     right.x = center + gap / 2 + reachOf(right);
     const group = [left, right];
-    if (attempt === 0 && options.sway !== 'never' && rng.chance(swayChance(stage.level) * 0.6)) {
+    if (attempt === 0 && options.sway !== 'never' && stage.rollSway(PAIR_SWAY)) {
       const sway = stage.swing(group);
       for (const spec of group) spec.sway = sway;
     }
@@ -276,12 +321,17 @@ export function stairs(stage: Stage, startStep: number, count: number, direction
   };
   if (!fits(dir) && fits(-dir)) dir = dir === 1 ? -1 : 1;
   const start = clamp(lineX - dir * lead, edge + (dir < 0 ? run : 0), ROAD - edge - (dir > 0 ? run : 0));
-  let placed = 0;
+  const steps: ObstacleSpec[] = [];
   for (let i = 0; i < count; i++) {
-    const tick = stage.tickOf(startStep + i * 2);
     const x = clamp(start + dir * rise * i, edge, ROAD - edge);
-    const size = rng.range(0, 0.35);
-    if (stage.put([stage.cube(tick, x, size)]) || stage.put([stage.cube(tick, x - dir * rise * 0.5, 0)])) placed += 1;
+    steps.push(stage.cube(stage.tickOf(startStep + i * 2), x, rng.range(0, 0.35)));
+  }
+  // Один зигзаг на все ступени: каждая повторяет его со сдвигом во времени, и лесенка идёт «змейкой».
+  const sway = stage.rollSway(STAIRS_SWAY) ? stage.swing(steps) : null;
+  let placed = 0;
+  for (const spec of steps) {
+    const swayed = sway !== null && stage.put([{ ...spec, sway }]);
+    if (swayed || stage.put([spec]) || stage.put([stage.cube(spec.arriveTick, spec.x - dir * rise * 0.5, 0)])) placed += 1;
   }
   return placed;
 }
@@ -332,7 +382,7 @@ export function sawWall(stage: Stage, step: number, options: WallOptions = {}): 
   const minFill = 2 * OBSTACLES.saw.sizeMin;
   for (let attempt = 0; attempt < 3; attempt++) {
     const window = Math.max(GAME.fairness.minGap + 3.5, 33 - 1.2 * (stage.level - 1)) + rng.range(0, 3) + attempt * 5;
-    const band = corridor.gateBand(tick, tick - approachFor(tick), window / 2 - SHIP - MARGIN);
+    const band = corridor.gateBand(tick, tick - stage.approachOf(tick), window / 2 - SHIP - MARGIN);
     if (!band) continue;
     const lo = Math.max(band.lo, window / 2);
     const hi = Math.min(band.hi, ROAD - window / 2);
@@ -368,14 +418,14 @@ export function laserGate(stage: Stage, step: number, options: GateOptions = {})
   for (let attempt = 0; attempt < 4; attempt++) {
     const halfW = Math.min(LASER_HALF_MAX, laserHalfGapForLevel(stage.level) + rng.range(0.5, 3) + attempt * 2);
     const pass = halfW - SHIP * GAME.hitbox.laserPlayer - MARGIN;
-    const band = corridor.gateBand(tick, tick - approachFor(tick), pass);
+    const band = corridor.gateBand(tick, tick - stage.approachOf(tick), pass);
     if (!band) continue;
     const lo = Math.max(band.lo, halfW);
     const hi = Math.min(band.hi, ROAD - halfW);
     if (lo > hi) continue;
     const shift = attempt === 0 ? rng.range(-18, 18) : 0;
     let spec: ObstacleSpec = { kind: 'laser', arriveTick: tick, x: clamp(options.center ?? lineX + shift, lo, hi), sway: null, halfW };
-    if (attempt === 0 && swayAllowed && rng.chance(swayChance(stage.level) * 0.6)) spec = { ...spec, sway: stage.swing([spec]) };
+    if (attempt === 0 && swayAllowed && stage.rollSway(GATE_SWAY)) spec = { ...spec, sway: stage.swing([spec]) };
     if (stage.put([spec])) {
       stage.lure(tick, spec.x);
       return 1;
@@ -406,7 +456,12 @@ export function slalom(stage: Stage, steps: readonly number[], options: SlalomOp
     const spec = stage.solid(kind, tick, lineX, rng.range(0, 0.4));
     // Полуширина коридора для центра корабля: чуть шире зоны сферы.
     const x = lineX + side * (blockOf(spec) + GOLD_PAD * CELL + rng.range(1, 3));
-    if (x >= spec.halfW && x <= ROAD - spec.halfW && stage.put([{ ...spec, x }])) placed += 1;
+    const sways = stage.rollSway(POST_SWAY);
+    if (x >= spec.halfW && x <= ROAD - spec.halfW) {
+      const post = { ...spec, x };
+      const swayed = sways && stage.put([{ ...post, sway: stage.swing([post]) }]);
+      if (swayed || stage.put([post])) placed += 1;
+    }
     side = -side;
   }
   return placed;
