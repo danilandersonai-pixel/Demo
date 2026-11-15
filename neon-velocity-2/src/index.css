@@ -129,6 +129,19 @@ canvas {
   text-shadow: 0 0 10px rgba(233, 230, 255, 0.35);
 }
 
+/*
+ * Русские заголовки. Orbitron загружен только латиницей, и кириллица в
+ * font-display молча уходила бы в запасной шрифт с его разрядкой и весом. Поэтому
+ * у русских заголовков свой осознанный набор: JetBrains Mono ExtraBold вразрядку —
+ * так же набрана кнопка «ИГРАТЬ». Латинские аркадные надписи остаются на font-display.
+ */
+@utility title-ru {
+  font-family: var(--font-mono);
+  font-weight: 800;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+}
+
 /* ─── Неоновое свечение рамок ──────────────────────────────────────────── */
 
 @utility box-glow-pink {

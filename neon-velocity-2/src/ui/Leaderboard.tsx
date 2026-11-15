@@ -142,7 +142,7 @@ function EmptyState() {
       <span className="flex h-14 w-14 items-center justify-center rounded-[3px] border border-neon-yellow/50 bg-neon-yellow/[0.06] text-neon-yellow shadow-[0_0_18px_rgba(255,233,74,0.25)]">
         <Trophy size={28} strokeWidth={2} aria-hidden />
       </span>
-      <p className="m-0 font-display text-base font-bold uppercase tracking-widest text-neon-yellow text-glow-yellow">Рекордов пока нет</p>
+      <p className="title-ru m-0 text-base text-neon-yellow text-glow-yellow">Рекордов пока нет</p>
       <p className="m-0 max-w-xs text-xs leading-relaxed text-ink-dim">
         Сыграйте забег — пять лучших результатов останутся здесь с датой, уровнем скорости и кораблём.
       </p>

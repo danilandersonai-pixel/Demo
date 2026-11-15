@@ -38,7 +38,7 @@ export interface PanelProps {
 
 /**
  * Модальная неоновая панель: тёмное «стекло», светящаяся рамка, уголки,
- * заголовок шрифтом Orbitron и прокручиваемое тело. Появляется с масштабом и
+ * русский заголовок (title-ru: моноширинный вразрядку) и прокручиваемое тело. Появляется с масштабом и
  * расфокусом (Framer Motion) — кладите внутрь <Overlay>.
  */
 export function Panel({
@@ -92,7 +92,7 @@ export function Panel({
         <div className="min-w-0 flex-1">
           <h2
             id={titleId}
-            className={`font-display text-lg font-bold uppercase tracking-widest sm:text-2xl [@media(max-height:560px)]:text-lg ${a.title}`}
+            className={`title-ru text-lg sm:text-2xl [@media(max-height:560px)]:text-lg ${a.title}`}
           >
             {title}
           </h2>

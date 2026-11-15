@@ -6,7 +6,6 @@
 import { motion, useIsPresent } from 'framer-motion';
 import { Home, Play, RotateCcw, Volume2, VolumeX } from 'lucide-react';
 import { useId, useRef } from 'react';
-import { HIDE_KBD_ON_TOUCH } from './hud/constants';
 import './hud/hud.css';
 import { ScoreDigits } from './hud/ScoreDigits';
 import { useHudSnapshot } from './hudStore';
@@ -119,7 +118,7 @@ export function PauseOverlay({ soundOn, onToggleSound, onResume, onRestart, onMe
             </div>
           </div>
 
-          <div className={`flex min-w-0 flex-1 flex-col gap-2.5 ${HIDE_KBD_ON_TOUCH}`}>
+          <div className="flex min-w-0 flex-1 flex-col gap-2.5">
             <NeonButton ref={resume} variant="cyan" size="lg" icon={Play} hotkey="Esc" fullWidth onClick={onResume}>
               Продолжить
             </NeonButton>

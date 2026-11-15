@@ -21,7 +21,11 @@ interface Opener {
  * фокус возвращается на кнопку, открывшую панель, — но только если её выбрали
  * с клавиатуры: после клика мышью фокус остаётся «ничьим», и Enter в меню
  * запускает забег, а не открывает панель заново. anchor — любой элемент
- * внутри диалога: Panel не пробрасывает ref, диалог находится через closest().
+ * внутри диалога (или сам диалог): Panel не пробрасывает ref, диалог находится
+ * через closest().
+ *
+ * Диалоги бывают в два слоя («Рекорды» поверх Game Over): нижний на это время
+ * inert, и его Tab-ловушка молчит — фокус принадлежит верхнему диалогу.
  */
 export function useDialogFocus(anchor: RefObject<HTMLElement | null>, initial?: RefObject<HTMLElement | null>): void {
   /**
@@ -49,12 +53,16 @@ export function useDialogFocus(anchor: RefObject<HTMLElement | null>, initial?: 
 
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key !== 'Tab') return;
+      // Диалог перекрыт другой панелью или уже уходит (слой inert): Tab — не его дело,
+      // иначе он утянул бы фокус из верхнего диалога к себе.
+      if (dialog.closest('[inert]')) return;
       const items = focusables(dialog);
       if (items.length === 0) return;
       const first = items[0];
       const last = items[items.length - 1];
       const active = document.activeElement;
-      const outside = !(active instanceof Node) || !dialog.contains(active);
+      // Фокус на самой карточке диалога (Game Over) — для Shift+Tab это то же, что «снаружи».
+      const outside = !(active instanceof Node) || !dialog.contains(active) || active === dialog;
       if (e.shiftKey && (active === first || outside)) {
         e.preventDefault();
         last.focus();

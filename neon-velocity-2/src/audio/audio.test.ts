@@ -1,12 +1,13 @@
 /**
  * Чистая часть звука: сетка долей, гармония, мелодия сфер и аранжировка.
- * Web Audio здесь нет — граф и синтез проверяются в браузере.
+ * Синтез проверяется в браузере; здесь же — порядок разблокировки звука на
+ * модели Web Audio с правилом WebKit: контекст запускается только из жеста.
  */
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { GAME } from '../core/config';
 import { BARS_PER_LEVEL, BEATS_PER_BAR, TICK_DT, TICKS_PER_BEAT, TICKS_PER_LEVEL } from '../core/timing';
 import { addedNotes, COMBO_LAYERS, LAYER, layerOn, planBeat, type BeatInput, type Note } from './arrangement';
-import { audio } from './audio';
+import { audio, AudioEngine } from './audio';
 import { BeatGrid, LATENCY, LOCK_WINDOW, MAX_SLEW, measuredTime } from './clock';
 import { chordAtTick, chordFor, ladderNote, levelRootChord, melodyNote, PROGRESSIONS, sparkleNotes } from './harmony';
 
@@ -346,5 +347,312 @@ describe('движок без звукового контекста', () => {
     audio.onEvent({ type: 'ready', tick: -240 }, 0);
     expect(audio.stats().dead).toBe(false);
     audio.setMusicActive(false);
+  });
+});
+
+// ─── Разблокировка жестом ───────────────────────────────────────────────────
+
+type FakeState = 'suspended' | 'running' | 'closed' | 'interrupted';
+
+/** Идёт ли сейчас обработчик жеста пользователя (так WebKit решает, можно ли запускать звук). */
+let inGesture = false;
+
+function gesture(fn: () => void): void {
+  inGesture = true;
+  try {
+    fn();
+  } finally {
+    inGesture = false;
+  }
+}
+
+function fakeParam(): Record<string, unknown> {
+  const noop = (): void => undefined;
+  return {
+    value: 0,
+    setValueAtTime: noop,
+    linearRampToValueAtTime: noop,
+    exponentialRampToValueAtTime: noop,
+    setTargetAtTime: noop,
+    cancelScheduledValues: noop,
+  };
+}
+
+/** Узел графа: connect возвращает приёмник, любое незнакомое свойство — параметр (gain, frequency…). */
+function fakeNode(onStart: (node: Record<string, unknown>) => void): unknown {
+  const node: Record<string, unknown> = {
+    buffer: null,
+    curve: null,
+    onended: null,
+    connect: (dest: unknown) => dest,
+    disconnect: (): void => undefined,
+    stop: (): void => undefined,
+  };
+  node.start = (): void => onStart(node);
+  return new Proxy(node, {
+    get(target, key) {
+      if (typeof key !== 'string' || key === 'then') return undefined;
+      if (!(key in target)) target[key] = fakeParam();
+      return target[key];
+    },
+  });
+}
+
+/** Модель AudioContext: запоминает, что и когда создавали, и запускается только из жеста. */
+class FakeContext {
+  static made: FakeContext[] = [];
+
+  state: FakeState = 'suspended';
+  currentTime = 0;
+  readonly sampleRate = 48000;
+  readonly destination = fakeNode(() => undefined);
+  /** Имена вызванных create-методов по порядку. */
+  readonly created: string[] = [];
+  /** Для каждого resume(): шёл ли в этот момент жест. */
+  readonly resumes: boolean[] = [];
+  /** Сколько буферов в один отсчёт запущено из жеста. */
+  primedInGesture = 0;
+  readonly bornInGesture = inGesture;
+  private readonly listeners = new Set<() => void>();
+
+  constructor() {
+    FakeContext.made.push(this);
+  }
+
+  count(method: string): number {
+    return this.created.filter((m) => m === method).length;
+  }
+
+  /** Система усыпила контекст (звонок, вкладка в фоне). */
+  interrupt(): void {
+    this.state = 'interrupted';
+    this.listeners.forEach((l) => l());
+  }
+
+  addEventListener(_type: string, listener: () => void): void {
+    this.listeners.add(listener);
+  }
+
+  removeEventListener(_type: string, listener: () => void): void {
+    this.listeners.delete(listener);
+  }
+
+  resume(): Promise<void> {
+    this.resumes.push(inGesture);
+    // Правило WebKit: вне жеста запрос запуска ничего не даёт.
+    if (!inGesture) return Promise.resolve();
+    this.state = 'running';
+    this.listeners.forEach((l) => l());
+    return Promise.resolve();
+  }
+
+  close(): Promise<void> {
+    this.state = 'closed';
+    return Promise.resolve();
+  }
+
+  createBuffer(channels: number, length: number, rate: number): unknown {
+    this.created.push('createBuffer');
+    const data = Array.from({ length: channels }, () => new Float32Array(length));
+    return { length, numberOfChannels: channels, duration: length / rate, getChannelData: (ch: number) => data[ch] };
+  }
+
+  private make(method: string): unknown {
+    this.created.push(method);
+    return fakeNode((node) => {
+      const buffer = node.buffer as { length: number } | null;
+      if (method === 'createBufferSource' && buffer?.length === 1 && inGesture) this.primedInGesture++;
+    });
+  }
+
+  createBufferSource = (): unknown => this.make('createBufferSource');
+  createGain = (): unknown => this.make('createGain');
+  createOscillator = (): unknown => this.make('createOscillator');
+  createBiquadFilter = (): unknown => this.make('createBiquadFilter');
+  createDynamicsCompressor = (): unknown => this.make('createDynamicsCompressor');
+  createWaveShaper = (): unknown => this.make('createWaveShaper');
+  createConvolver = (): unknown => this.make('createConvolver');
+  createDelay = (): unknown => this.make('createDelay');
+  createStereoPanner = (): unknown => this.make('createStereoPanner');
+}
+
+interface GestureListener {
+  type: string;
+  listener: () => void;
+  signal: AbortSignal;
+}
+
+/** Окно с ручной очередью задач: таймеры и «свободное время» выполняются только по команде теста. */
+function fakeWindow() {
+  const tasks: (() => void)[] = [];
+  const idle: (() => void)[] = [];
+  const gestures: GestureListener[] = [];
+  const win = {
+    AudioContext: FakeContext,
+    setTimeout: (fn: () => void): number => tasks.push(fn),
+    clearTimeout: (id: number): void => {
+      tasks[id - 1] = () => undefined;
+    },
+    requestIdleCallback: (fn: () => void): number => idle.push(fn),
+    addEventListener: (type: string, listener: () => void, options: { signal: AbortSignal }): void => {
+      gestures.push({ type, listener, signal: options.signal });
+    },
+  };
+  return {
+    win,
+    /** Выполнить задачи, поставленные таймером (то, что браузер запустит уже после обработчика жеста). */
+    runTasks(): void {
+      for (const task of tasks.splice(0)) task();
+    },
+    /** Выполнить всё, что ждёт свободного времени, включая поставленное по ходу. */
+    runIdle(): void {
+      for (let guard = 0; idle.length > 0 && guard < 100; guard++) idle.shift()?.();
+    },
+    /** Событие окна: слушатели движка зовутся как внутри жеста. */
+    fire(type: string): void {
+      for (const g of gestures) if (g.type === type && !g.signal.aborted) gesture(g.listener);
+    },
+    listening: (): number => gestures.filter((g) => !g.signal.aborted).length,
+  };
+}
+
+function setup(activation?: { hasBeenActive: boolean }) {
+  FakeContext.made = [];
+  const env = fakeWindow();
+  vi.stubGlobal('window', env.win);
+  // Без navigator.userActivation (Safari до 16.4) движок считает, что жест был.
+  vi.stubGlobal('navigator', activation ? { userActivation: activation } : {});
+  const engine = new AudioEngine();
+  return { engine, env };
+}
+
+const READY = { type: 'ready', tick: -240 } as const;
+const COUNT_IN = { type: 'beat', tick: -240, beat: -4, bar: -1, beatInBar: 0, level: 1 } as const;
+
+describe('разблокировка звука жестом (правило WebKit)', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('до первого жеста контекст не создаётся', () => {
+    const { engine, env } = setup({ hasBeenActive: false });
+    engine.unlock();
+    engine.ui('click');
+    env.runTasks();
+    expect(FakeContext.made.length).toBe(0);
+    expect(engine.stats().state).toBe('locked');
+    expect(engine.stats().unlockMs).toBe(-1);
+  });
+
+  it('первый жест: контекст создан, resume() и пустой буфер — синхронно в обработчике, шин ещё нет', () => {
+    const { engine } = setup({ hasBeenActive: true });
+    gesture(() => engine.unlock());
+    // Ни одна отложенная задача ещё не выполнялась — всё ниже сделано самим обработчиком.
+    expect(FakeContext.made.length).toBe(1);
+    const ctx = FakeContext.made[0];
+    expect(ctx.bornInGesture).toBe(true);
+    expect(ctx.resumes).toEqual([true]);
+    expect(ctx.primedInGesture).toBe(1);
+    expect(ctx.state).toBe('running');
+    expect(engine.stats().state).toBe('running');
+    expect(engine.stats().unlockMs).toBeGreaterThanOrEqual(0);
+    // Тяжёлый граф в жесте не строится: создан только пустой буфер и его источник.
+    expect([...ctx.created].sort()).toEqual(['createBuffer', 'createBufferSource']);
+  });
+
+  it('граф строится следующей задачей; звук, запрошенный до него, не теряется', () => {
+    const { engine, env } = setup({ hasBeenActive: true });
+    engine.setMusicActive(true);
+    gesture(() => {
+      engine.unlock();
+      // Тот же клик нажал кнопку и начал забег: щелчок, вступление и первая доля.
+      engine.ui('click');
+      engine.onEvent(READY, 0);
+      engine.onEvent(COUNT_IN, 0);
+    });
+    const ctx = FakeContext.made[0];
+    expect(ctx.count('createOscillator')).toBe(0);
+    expect(engine.stats().started).toBe(0);
+
+    env.runTasks();
+    // Шины построены, очередь сыграна: щелчок интерфейса, «зарядка» READY, отсчёт и тик хэта.
+    expect(ctx.count('createGain')).toBeGreaterThanOrEqual(20);
+    expect(ctx.count('createDynamicsCompressor')).toBe(2);
+    expect(ctx.count('createOscillator')).toBeGreaterThan(0);
+    expect(engine.stats().started).toBeGreaterThanOrEqual(3);
+    expect(FakeContext.made.length).toBe(1);
+
+    // Шум и реверберация — ещё позже, в свободное время.
+    expect(engine.stats().warmed).toBe(false);
+    env.runIdle();
+    expect(engine.stats().warmed).toBe(true);
+
+    // После сборки графа звук играет сразу, мимо очереди.
+    const before = engine.stats().started;
+    engine.ui('back');
+    expect(engine.stats().started).toBe(before + 1);
+  });
+
+  it('жест пойман слушателем окна: контекст запущен, слушатели сняты', () => {
+    const { engine, env } = setup({ hasBeenActive: true });
+    engine.listenForGestures();
+    expect(env.listening()).toBeGreaterThanOrEqual(4);
+    env.fire('pointerup');
+    expect(FakeContext.made.length).toBe(1);
+    expect(FakeContext.made[0].resumes).toEqual([true]);
+    expect(engine.stats().state).toBe('running');
+    expect(env.listening()).toBe(0);
+  });
+
+  it('контекст, созданный вне жеста, остаётся спящим — следующий жест запускает его сам', () => {
+    // Safari без userActivation: pointerdown пальцем ещё не жест, а touchend — уже да.
+    const { engine, env } = setup();
+    engine.listenForGestures();
+    engine.unlock();
+    const ctx = FakeContext.made[0];
+    expect(ctx.bornInGesture).toBe(false);
+    expect(ctx.resumes).toEqual([false]);
+    expect(ctx.state).toBe('suspended');
+    // Таймер после «не-жеста» контекст не будит: ничто отложенное resume() не зовёт.
+    env.runTasks();
+    env.runIdle();
+    expect(ctx.resumes).toEqual([false]);
+    expect(ctx.state).toBe('suspended');
+    expect(env.listening()).toBeGreaterThan(0);
+
+    env.fire('touchend');
+    expect(ctx.resumes).toEqual([false, true]);
+    expect(ctx.primedInGesture).toBe(1);
+    expect(ctx.state).toBe('running');
+    expect(FakeContext.made.length).toBe(1);
+    expect(env.listening()).toBe(0);
+  });
+
+  it('система усыпила контекст (звонок, фон) — движок снова ждёт жеста и будит его в нём', () => {
+    const { engine, env } = setup({ hasBeenActive: true });
+    engine.listenForGestures();
+    env.fire('click');
+    env.runTasks();
+    const ctx = FakeContext.made[0];
+    expect(env.listening()).toBe(0);
+
+    ctx.interrupt();
+    expect(engine.stats().state).toBe('interrupted');
+    expect(env.listening()).toBeGreaterThan(0);
+    env.fire('pointerup');
+    expect(ctx.resumes).toEqual([true, true]);
+    expect(ctx.state).toBe('running');
+    expect(env.listening()).toBe(0);
+  });
+
+  it('dispose до сборки графа: отложенная задача ничего не строит', () => {
+    const { engine, env } = setup({ hasBeenActive: true });
+    gesture(() => engine.unlock());
+    const ctx = FakeContext.made[0];
+    engine.dispose();
+    env.runTasks();
+    expect(ctx.state).toBe('closed');
+    expect(ctx.count('createGain')).toBe(0);
+    expect(engine.stats().state).toBe('locked');
   });
 });

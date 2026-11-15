@@ -2,8 +2,10 @@
  * Звуковой движок: процедурный синтвейв и эффекты на Web Audio API, без файлов.
  *
  * AudioContext создаётся только в unlock() из жеста пользователя (модуль сам ловит
- * первый жест на странице, чтобы звучало и меню). До этого все методы безопасно
- * ничего не делают, а настройки и состояние забега просто запоминаются.
+ * первый жест на странице, чтобы звучало и меню) — прямо в обработчике: WebKit даёт
+ * запустить контекст только внутри самого жеста. Граф (шины, шум, реверберация)
+ * строится уже после него. До жеста все методы безопасно ничего не делают, а
+ * настройки и состояние забега просто запоминаются.
  *
  * Музыкой управляет игра: доли симуляции встают в сетку (clock.ts), секвенсор
  * (music.ts) раскладывает их на слои по множителю комбо (arrangement.ts), сферы
@@ -56,6 +58,8 @@ export interface AudioStats extends MixerStats {
   overdrive: boolean;
   /** Забег окончен (гибель): музыка молчит до следующего ready. */
   dead: boolean;
+  /** Сколько миллисекунд обработчик жеста потратил на создание и запуск контекста; −1 — ещё не создавался. */
+  unlockMs: number;
 }
 
 /** Запас планирования эффектов «сейчас», чтобы атака не срезалась. */
@@ -156,19 +160,21 @@ export class AudioEngine {
   private resumeAt = Number.NEGATIVE_INFINITY;
   private probe: Probe | null = null;
   private gestureListeners: AbortController | null = null;
-  /** Таймер отложенного создания контекста; не null — жест уже был, граф вот-вот появится. */
-  private startTimer: number | null = null;
+  /** Таймер отложенной сборки графа; не null — контекст уже создан жестом, шины вот-вот появятся. */
+  private buildTimer: number | null = null;
+  private unlockMs = -1;
   /** Запросы звука, пришедшие, пока граф строится: первый щелчок и первая доля не теряются. */
   private pending: Pending[] = [];
 
   /**
    * Создать или возобновить AudioContext. Вызывать из обработчика жеста (клик, тап, клавиша).
    *
-   * Сам обработчик жеста не делает почти ничего: создание контекста (десятки миллисекунд на
-   * слабой машине — это запуск звукового потока браузера) и узлов шин уходит в отдельную
-   * задачу сразу после жеста, а тяжёлая подготовка микшера — ещё дальше, в свободное время.
-   * Браузеру достаточно, что жест уже был (Safari передаёт жест таймеру, заведённому из
-   * обработчика). Звуки, запрошенные в этот промежуток, не теряются — см. pending.
+   * Контекст создаётся и запускается синхронно, прямо в обработчике: WebKit (iPhone, iPad)
+   * разрешает start / resume только внутри самого жеста — из таймера после него контекст
+   * остался бы спящим, и вступление с первыми секундами забега прошли бы в тишине. Это
+   * разовые 20–40 мс на первом жесте (запуск звукового потока браузера). Всё остальное —
+   * узлы шин, шум, реверберация — строится отдельной задачей сразу после жеста и дальше в
+   * свободное время. Звуки, запрошенные в этот промежуток, не теряются — см. pending.
    */
   unlock(): void {
     const ctx = this.ctx;
@@ -176,8 +182,20 @@ export class AudioEngine {
       this.wake(ctx);
       return;
     }
-    if (this.startTimer !== null || !audioContextCtor() || !hasUserActivation()) return;
-    this.startTimer = window.setTimeout(this.start, 0);
+    const Ctor = audioContextCtor();
+    if (!Ctor || !hasUserActivation()) return;
+    const startedAt = performance.now();
+    let created: AudioContext;
+    try {
+      created = new Ctor({ latencyHint: 'interactive' });
+    } catch {
+      return;
+    }
+    this.ctx = created;
+    created.addEventListener('statechange', this.onStateChange);
+    this.wake(created);
+    this.unlockMs = performance.now() - startedAt;
+    this.buildTimer = window.setTimeout(this.build, 0);
   }
 
   /**
@@ -273,6 +291,7 @@ export class AudioEngine {
       multiplier: this.multiplier,
       overdrive: this.overdrive,
       dead: this.dead,
+      unlockMs: this.unlockMs,
     };
   }
 
@@ -297,8 +316,8 @@ export class AudioEngine {
   dispose(): void {
     this.gestureListeners?.abort();
     this.gestureListeners = null;
-    if (this.startTimer !== null) window.clearTimeout(this.startTimer);
-    this.startTimer = null;
+    if (this.buildTimer !== null) window.clearTimeout(this.buildTimer);
+    this.buildTimer = null;
     this.pending = [];
     this.mix?.dispose();
     const ctx = this.ctx;
@@ -314,20 +333,13 @@ export class AudioEngine {
 
   // ── Внутреннее ──
 
-  /** Отложенная часть unlock(): контекст, узлы шин и всё, что успели попросить до их появления. */
-  private readonly start = (): void => {
-    this.startTimer = null;
+  /** Отложенная часть unlock(): узлы шин и всё, что успели попросить до их появления. */
+  private readonly build = (): void => {
+    this.buildTimer = null;
     const queue = this.pending;
     this.pending = [];
-    const Ctor = audioContextCtor();
-    if (this.ctx || !Ctor) return;
-    let ctx: AudioContext;
-    try {
-      ctx = new Ctor({ latencyHint: 'interactive' });
-    } catch {
-      return;
-    }
-    this.ctx = ctx;
+    const ctx = this.ctx;
+    if (!ctx || this.mix || ctx.state === 'closed') return;
     const mix = new Mixer(ctx);
     this.mix = mix;
     this.music = new Music(mix);
@@ -337,10 +349,7 @@ export class AudioEngine {
     mix.setLevels(this.settings, now);
     mix.setGate(!this.paused, now);
     if (!this.musicActive || this.dead) mix.musicDown(now, 0.01);
-    ctx.addEventListener('statechange', this.onStateChange);
-    this.primeOutput(ctx);
     this.warmUp(mix, ctx);
-    this.wake(ctx);
     const nowMs = performance.now();
     for (const p of queue) {
       const waited = (nowMs - p.at) / 1000;
@@ -355,18 +364,22 @@ export class AudioEngine {
     if (mix && ctx && this.canPlay(ctx)) sfxUi(mix, ctx.currentTime + 0.06, 'toggle');
   };
 
-  /** Попросить контекст запуститься, если он спит. */
+  /**
+   * Попросить контекст запуститься, если он спит. Зовётся только из обработчика жеста:
+   * вне жеста WebKit такой запрос отклоняет. Пустой буфер играется в том же жесте.
+   */
   private wake(ctx: AudioContext): void {
     if (ctx.state !== 'running' && ctx.state !== 'closed') {
       this.resumeAt = performance.now();
       ctx.resume().then(this.onStateChange, this.onStateChange);
+      this.primeOutput(ctx);
     }
     this.onStateChange();
   }
 
   /** Граф ещё строится — запомнить запрос звука. true — запрос отложен. */
   private defer(play: (waited: number) => void): boolean {
-    if (this.startTimer === null) return false;
+    if (this.buildTimer === null) return false;
     if (this.pending.length < PENDING_MAX) this.pending.push({ at: performance.now(), play });
     return true;
   }
@@ -548,13 +561,20 @@ export class AudioEngine {
     whenIdle(step);
   }
 
-  /** Пустой буфер в момент разблокировки — старые iOS иначе не «просыпаются». */
+  /**
+   * Пустой буфер длиной в один отсчёт, сыгранный прямо в жесте: старые iOS «просыпаются»
+   * только от источника, запущенного из обработчика, а не от одного resume().
+   */
   private primeOutput(ctx: AudioContext): void {
-    const src = ctx.createBufferSource();
-    src.buffer = ctx.createBuffer(1, 1, ctx.sampleRate);
-    src.connect(ctx.destination);
-    src.onended = () => src.disconnect();
-    src.start();
+    try {
+      const src = ctx.createBufferSource();
+      src.buffer = ctx.createBuffer(1, 1, ctx.sampleRate);
+      src.connect(ctx.destination);
+      src.onended = () => src.disconnect();
+      src.start();
+    } catch {
+      // Контекст закрывается или буфер не создался — запуску это не мешает.
+    }
   }
 
   private readonly onGesture = (): void => {

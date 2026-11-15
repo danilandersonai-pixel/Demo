@@ -11,13 +11,14 @@ import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import type { RunResult } from '../core/types';
 import type { RecordOutcome } from '../state/progress';
 import { LEADERBOARD_SIZE } from '../state/storage';
-import { EASE_OUT, GAME_OVER_ARM_MS, HIDE_KBD_ON_TOUCH, POINT_FORMS } from './hud/constants';
+import { EASE_OUT, GAME_OVER_ARM_MS, POINT_FORMS } from './hud/constants';
 import { CountUp } from './hud/CountUp';
 import './hud/hud.css';
 import { CrystalCount } from './kit/CrystalCount';
 import { formatDuration, formatNumber, formatSpeed, plural } from './kit/format';
 import { NeonButton } from './kit/NeonButton';
 import { Overlay } from './kit/Overlay';
+import { useDialogFocus } from './kit/useDialogFocus';
 
 export interface GameOverOverlayProps {
   result: RunResult;
@@ -74,8 +75,11 @@ function RecordLine({ result, outcome }: { result: RunResult; outcome: RecordOut
     const first = outcome.previousHighscore <= 0;
     return (
       <div className="flex flex-col items-center gap-1">
-        {/* Размер — от ширины экрана: «ПЕРВЫЙ РЕКОРД» с коронами помещается в строку и на 320 px, и в колонке телефона боком. */}
-        <p className="nvh-sign nvh-over-sign m-0 flex items-center gap-[0.45em] whitespace-nowrap font-display font-black italic leading-none tracking-[0.08em] text-neon-yellow text-glow-yellow">
+        {/* Размер — от ширины экрана: «ПЕРВЫЙ РЕКОРД» с коронами помещается в строку и на 320 px, и в колонке телефона боком.
+            Orbitron — только латиница: русская надпись набрана моноширинным явно, а не запасным шрифтом. */}
+        <p
+          className={`nvh-sign nvh-over-sign m-0 flex items-center gap-[0.45em] whitespace-nowrap italic leading-none tracking-[0.08em] text-neon-yellow text-glow-yellow ${first ? 'font-mono font-extrabold' : 'font-display font-black'}`}
+        >
           <Crown strokeWidth={2.6} aria-hidden />
           <span>{first ? 'ПЕРВЫЙ РЕКОРД' : 'NEW RECORD!'}</span>
           <Crown strokeWidth={2.6} aria-hidden />
@@ -114,10 +118,9 @@ export function GameOverOverlay({ result, outcome, wallet, onRetry, onShop, onLe
   }, []);
 
   // Фокус — на самой карточке, а не на кнопке: скринридер объявляет диалог, Tab
-  // идёт к «Ещё раз», а Enter и пробел остаются хоткеями экрана (их ведёт App).
-  useEffect(() => {
-    card.current?.focus({ preventScroll: true });
-  }, []);
+  // ходит по её кнопкам по кругу, а Enter и пробел остаются хоткеями экрана (их
+  // ведёт App). Под «Рекордами» карточка inert — ловушка Tab на это время молчит.
+  useDialogFocus(card, card);
 
   const score = Math.max(0, Math.floor(result.score));
   const record = outcome.isHighscore;
@@ -209,7 +212,7 @@ export function GameOverOverlay({ result, outcome, wallet, onRetry, onShop, onLe
               <CrystalCount value={wallet} size="md" />
             </div>
 
-            <div className={`flex flex-col gap-2 ${HIDE_KBD_ON_TOUCH}`}>
+            <div className="flex flex-col gap-2">
               <NeonButton variant="pink" size="lg" icon={RotateCcw} hotkey="Enter" fullWidth onClick={onRetry} className="[@media(max-height:560px)]:h-11!">
                 Ещё раз
               </NeonButton>

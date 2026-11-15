@@ -56,6 +56,16 @@ const RING_ROAD = 1;
 const RING_GLOW = 2;
 
 const LABELS = 10;
+/** Высота строки надписи в долях размера шрифта: с этим шагом надписи встают друг над другом. */
+const LABEL_LINE = 0.95;
+/** Зазор между соседними надписями по горизонтали, в долях размера шрифта. */
+const LABEL_GAP_X = 0.3;
+/**
+ * Надписи держатся выше этой высоты над кораблём (в размерах корпуса): над носом
+ * при любом крене и над пузырём щита. Корабль ездит только вбок, поэтому надпись,
+ * всплывшая выше этой черты, не закроет его, куда бы он ни ушёл.
+ */
+const LABEL_CLEARANCE = 1.5;
 const MAX_COLORS = 24;
 /** Частица за этой глубиной уже позади камеры. */
 const Z_BEHIND = -120;
@@ -74,6 +84,31 @@ interface Label {
   lift: number;
   age: number;
   span: number;
+  /** Размер шрифта, CSS-пиксели: сам текст меньше спрайта на поля свечения. */
+  px: number;
+  /** Номер появления: из двух мешающих друг другу надписей уступает та, что появилась раньше. */
+  seq: number;
+}
+
+/** Сам текст надписи на экране (без свечения): центр и размеры, CSS-пиксели. */
+export interface LabelBox {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  /** Непрозрачность 0..1. */
+  alpha: number;
+}
+
+/** Ширина самого текста: спрайт шире на поля свечения с обеих сторон (см. textSprite). */
+function labelTextWidth(label: Label, sprite: TextSprite): number {
+  return Math.max(1, sprite.w - 2 * Math.ceil(label.px * 0.7));
+}
+
+/** Экранный Y, выше которого остаётся низ любой надписи: корабль и щит под ним не закрыты. */
+export function labelCeiling(view: View): number {
+  const cam = view.cam;
+  return cam.lineY - (SHIP_HOVER + SHIP_SIZE * LABEL_CLEARANCE) * cam.unit;
 }
 
 function obstacleColor(colors: ThemeColors, kind: ObstacleKind): string {
@@ -89,13 +124,14 @@ export class Particles {
   private readonly colorIds = new Map<string, number>();
   private readonly p: Projected = { x: 0, y: 0, scale: 0 };
   private readonly q: Projected = { x: 0, y: 0, scale: 0 };
+  private labelSeq = 0;
   /** Дробный остаток частиц шлейфа между кадрами. */
   private trailDebt = 0;
   private tintOf = '';
   private tint = '#ffffff';
 
   constructor() {
-    for (let i = 0; i < LABELS; i++) this.labels.push({ sprite: null, x: 0, y: 0, z: 0, lift: 0, age: 0, span: 0 });
+    for (let i = 0; i < LABELS; i++) this.labels.push({ sprite: null, x: 0, y: 0, z: 0, lift: 0, age: 0, span: 0, px: 0, seq: 0 });
     this.clear();
   }
 
@@ -212,7 +248,11 @@ export class Particles {
     r[o + R_KIND] = kind;
   }
 
-  /** Всплывающая надпись над точкой мира; lift — начальный подъём в CSS-пикселях. */
+  /**
+   * Всплывающая надпись над точкой мира; lift — начальный подъём в CSS-пикселях.
+   * Ниже черты над кораблём надпись не появляется: если точка привязки ниже,
+   * подъём начинается сразу от черты.
+   */
   private label(view: View, text: string, color: string, px: number, x: number, y: number, z: number, span: number, lift = 0): void {
     let slot = this.labels[0];
     for (const label of this.labels) {
@@ -226,40 +266,72 @@ export class Particles {
     slot.x = x;
     slot.y = y;
     slot.z = z;
-    slot.lift = lift;
     slot.age = 0;
     slot.span = span;
-    this.settleLabels(view);
+    slot.px = px;
+    slot.seq = ++this.labelSeq;
+    const anchorY = project(view.cam, x, y, z, this.p).y;
+    slot.lift = Math.max(lift, anchorY + (px * LABEL_LINE) / 2 - labelCeiling(view));
+    this.layoutLabels(view);
+  }
+
+  /** Экранный X надписи: точка привязки, но целиком в пределах холста. */
+  private static labelX(view: View, sprite: TextSprite, anchorX: number): number {
+    return clamp(anchorX, sprite.w / 2 - sprite.h * 0.3, view.cam.cssW - sprite.w / 2 + sprite.h * 0.3);
   }
 
   /**
-   * Развести надписи, чтобы они не накладывались: из каждой пересекающейся пары
-   * старшая уступает место и поднимается над младшей. Вызывается при появлении
-   * новой надписи, не каждый кадр.
+   * Развести надписи, чтобы они не накладывались: из каждой мешающей друг другу
+   * пары та, что появилась раньше, встаёт ровно на строку выше младшей. Вызывается
+   * каждый кадр: младшие всплывают быстрее старших и иначе догоняли бы их.
+   * Положение надписи зависит только от тех, что моложе её, поэтому раскладка
+   * сходится не больше чем за LABELS проходов (обычно хватает одного).
    */
-  private settleLabels(view: View): void {
+  layoutLabels(view: View): void {
     const labels = this.labels;
-    for (let pass = 0; pass < 3; pass++) {
+    for (let pass = 0; pass < LABELS; pass++) {
       let moved = false;
       for (const young of labels) {
-        if (!young.sprite) continue;
+        const ys = young.sprite;
+        if (!ys) continue;
         const a = project(view.cam, young.x, young.y, young.z, this.p);
-        const ax = a.x;
+        const ax = Particles.labelX(view, ys, a.x);
         const ay = a.y - young.lift;
+        const aw = labelTextWidth(young, ys);
         for (const old of labels) {
-          if (!old.sprite || old === young || old.age <= young.age) continue;
+          const os = old.sprite;
+          if (!os || old.seq >= young.seq) continue;
           const b = project(view.cam, old.x, old.y, old.z, this.q);
-          // Спрайт шире и выше текста на поля свечения — сравниваем по самому тексту.
-          const reachX = (young.sprite.w + old.sprite.w) * 0.36;
-          const reachY = (young.sprite.h + old.sprite.h) * 0.2;
-          const gap = ay - (b.y - old.lift);
-          if (Math.abs(b.x - ax) >= reachX || Math.abs(gap) >= reachY) continue;
-          old.lift += reachY + gap;
+          const reachX = (aw + labelTextWidth(old, os)) / 2 + LABEL_GAP_X * Math.max(young.px, old.px);
+          if (Math.abs(Particles.labelX(view, os, b.x) - ax) >= reachX) continue;
+          const reachY = ((young.px + old.px) / 2) * LABEL_LINE;
+          // На сколько старшая выше младшей; меньше строки (или старшая ниже) — тесно.
+          const above = ay - (b.y - old.lift);
+          if (above >= reachY) continue;
+          old.lift += reachY - above;
           moved = true;
         }
       }
       if (!moved) break;
     }
+  }
+
+  /** Сколько надписей сейчас на экране и где их текст — для автотестов раскладки. */
+  labelBoxes(view: View, out: LabelBox[]): number {
+    let n = 0;
+    for (const label of this.labels) {
+      const sprite = label.sprite;
+      if (!sprite) continue;
+      const p = project(view.cam, label.x, label.y, label.z, this.p);
+      const box = (out[n] ??= { x: 0, y: 0, w: 0, h: 0, alpha: 0 });
+      box.x = Particles.labelX(view, sprite, p.x);
+      box.y = p.y - label.lift;
+      box.w = labelTextWidth(label, sprite);
+      box.h = label.px * LABEL_LINE;
+      box.alpha = clamp((1 - label.age / label.span) * 2.6, 0, 1);
+      n += 1;
+    }
+    return n;
   }
 
   /** Размер шрифта надписей под экран: крупнее на мониторе, компактнее на телефоне. */
@@ -313,9 +385,8 @@ export class Particles {
           this.spawn(SPARK, i % 3 === 0 ? hot : id, e.x, 1 + 3 * Math.random(), 0, side * v * (0.3 + 0.7 * Math.random()), v * (0.1 + 0.5 * Math.random()), -back - 30 * Math.random(), 0.3 + 0.3 * Math.random(), 0.5, 3.2, 40);
         }
         this.ring(RING_FACING, colors.accent3, e.x, 2.5, 0, 1, 7, 0.3, 0.9);
-        // Надпись — сбоку от корабля, с той стороны, где нет препятствия; счёт сфер над кораблём она не закрывает.
-        const px = Particles.fontPx(view, 0.8);
-        this.label(view, 'NEAR MISS', colors.accent3, px, shipX + side * 10, 2, 0, 0.9, px * 1.2);
+        // Надпись — со стороны, где нет препятствия; над кораблём её и счёт под ней разводит раскладка.
+        this.label(view, 'NEAR MISS', colors.accent3, Particles.fontPx(view, 0.8), shipX + side * 10, 2, 0, 0.9);
         this.label(view, `+${e.points}`, '#ffffff', Particles.fontPx(view, 0.68), shipX + side * 10, 2, 0, 0.9);
         break;
       }
@@ -451,6 +522,7 @@ export class Particles {
     ctx.globalCompositeOperation = 'source-over';
     this.drawRings(view);
     this.drawStreaks(view);
+    this.layoutLabels(view);
     this.drawLabels(view);
     ctx.globalCompositeOperation = 'lighter';
     this.drawPixels(view);
@@ -587,8 +659,7 @@ export class Particles {
       const f = label.age / label.span;
       const p = project(cam, label.x, label.y, label.z, this.p);
       const pop = view.reduced ? 1 : easeOutBack(Math.min(1, label.age / 0.16));
-      // Надпись не выходит за края холста.
-      const x = clamp(p.x, sprite.w / 2 - sprite.h * 0.3, cam.cssW - sprite.w / 2 + sprite.h * 0.3);
+      const x = Particles.labelX(view, sprite, p.x);
       const y = p.y - label.lift;
       ctx.globalAlpha = clamp((1 - f) * 2.6, 0, 1);
       if (pop === 1) {
