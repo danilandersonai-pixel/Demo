@@ -2,7 +2,8 @@
  * Корневой компонент: экраны (menu → playing ⇄ paused → gameover), панели
  * меню, горячие клавиши и прогресс. Холст живёт всегда, всё остальное —
  * React-слои поверх него:
- *   z-0 холст · z-10 HUD · z-20 вспышка гибели · z-30 экраны · z-40 панели · z-50 эффекты экрана.
+ *   z-0 холст · z-10 HUD · z-20 вспышка гибели · z-30 экраны · z-35 отсчёт после паузы ·
+ *   z-40 панели · z-50 эффекты экрана.
  */
 import { AnimatePresence, MotionConfig } from 'framer-motion';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
@@ -17,10 +18,12 @@ import { GameOverOverlay } from './ui/GameOverOverlay';
 import { HowToPlay } from './ui/HowToPlay';
 import { Hud } from './ui/Hud';
 import { GAME_OVER_ARM_MS } from './ui/hud/constants';
+import { hudStore } from './ui/hudStore';
 import { applyThemeCss } from './ui/kit/themeCss';
 import { Leaderboard } from './ui/Leaderboard';
 import { MainMenu } from './ui/MainMenu';
 import { PauseOverlay } from './ui/PauseOverlay';
+import { ResumeCountIn } from './ui/ResumeCountIn';
 import { ScreenFx } from './ui/ScreenFx';
 import { SettingsPanel } from './ui/SettingsPanel';
 import { Shop } from './ui/Shop';
@@ -123,7 +126,10 @@ export default function App() {
 
   const play = useCallback(() => {
     const current = screenRef.current;
-    if (current === 'playing' || (current === 'gameover' && !gameOverArmed())) return;
+    // Идущий забег «Играть» не перезапускает (двойной клик по кнопке). Исключение — отсчёт
+    // после паузы: там R начинает заново, как на самом экране паузы.
+    if (current === 'playing' && hudStore.getResumeCount() === 0) return;
+    if (current === 'gameover' && !gameOverArmed()) return;
     // Жест пользователя: звук можно запускать.
     audio.unlock();
     setPanel(null);
@@ -138,6 +144,7 @@ export default function App() {
     switchScreen('paused');
   }, [switchScreen]);
 
+  // Экран сразу 'playing', но мир стоит ещё две доли: отсчёт «2», «1» ведёт GameHost.
   const resume = useCallback(() => {
     if (screenRef.current === 'paused') switchScreen('playing');
   }, [switchScreen]);
@@ -258,8 +265,13 @@ export default function App() {
           return;
         case 'playing':
           if (esc || letter === 'KeyP') {
+            // Работает и во время отсчёта после паузы — возвращает на её экран.
             e.preventDefault();
             pause();
+          } else if (letter === 'KeyR' && hudStore.getResumeCount() > 0) {
+            e.preventDefault();
+            playUiSound('click');
+            play();
           }
           return;
         case 'paused':
@@ -340,6 +352,8 @@ export default function App() {
         </AnimatePresence>
 
         {burst && <DeathFlash key={burst.id} x={burst.x} y={burst.y} colors={burstColors} onDone={clearBurst} />}
+
+        <ResumeCountIn />
 
         <AnimatePresence>
           {screen === 'menu' && (

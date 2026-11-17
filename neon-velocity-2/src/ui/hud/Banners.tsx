@@ -8,7 +8,7 @@
  */
 import { AnimatePresence, motion, type TargetAndTransition, type Variants } from 'framer-motion';
 import { Crown, ShieldOff, Zap } from 'lucide-react';
-import { useLayoutEffect, useRef, useState } from 'react';
+import { memo, useLayoutEffect, useRef, useState } from 'react';
 import { TICK_DT, TICKS_PER_BEAT } from '../../core/timing';
 import type { Banner } from '../../core/types';
 import { useBanners } from '../hudStore';
@@ -23,8 +23,21 @@ function exitTo(normal: TargetAndTransition): Variants {
   return { exit: (replaced: boolean) => (replaced ? QUICK_EXIT : normal) };
 }
 
-export function Banners() {
-  const banners = useBanners();
+export interface BannersProps {
+  /** HUD под паузой: баннеры стоят на месте, см. Banners. */
+  frozen: boolean;
+}
+
+/**
+ * Баннер живёт по настоящим часам и под паузой истёк бы — а его уход это анимация
+ * под размытым экраном. Пока HUD заморожен, на полках остаётся список на момент
+ * паузы; истёкшие за это время баннеры уходят уже после неё.
+ */
+export function Banners({ frozen }: BannersProps) {
+  const live = useBanners();
+  const [held, setHeld] = useState(live);
+  if (!frozen && held !== live) setHeld(live);
+  const banners = frozen ? held : live;
   return (
     <div role="status" aria-live="polite" className="nvh-band">
       {SHELVES.map((shelf) => {
@@ -43,7 +56,8 @@ export function Banners() {
   );
 }
 
-function BannerView({ banner }: { banner: Banner }) {
+/** memo: смена списка в сторе под паузой не перерисовывает баннеры, которые стоят на полках. */
+const BannerView = memo(function BannerView({ banner }: { banner: Banner }) {
   switch (banner.kind) {
     case 'ready':
       return <ReadyBanner banner={banner} />;
@@ -62,7 +76,7 @@ function BannerView({ banner }: { banner: Banner }) {
     case 'comboUp':
       return <ComboUpBanner banner={banner} />;
   }
-}
+});
 
 // ─── READY / GO! ─────────────────────────────────────────────────────────────
 
@@ -175,7 +189,7 @@ function LevelBanner({ banner }: { banner: Banner }) {
         <span>{banner.text}</span>
         <Wing side="right" />
       </span>
-      {banner.sub && <span className="nvh-banner-sub text-theme-b">{banner.sub}</span>}
+      {banner.sub && <span className="nvh-banner-sub [--sub:var(--theme-b)]">{banner.sub}</span>}
     </motion.div>
   );
 }
@@ -244,7 +258,7 @@ function RecordBanner({ banner }: { banner: Banner }) {
         </span>
         <Crown aria-hidden strokeWidth={2.6} className="text-neon-yellow drop-shadow-[0_0_6px_#ffe94a]" />
       </span>
-      {banner.sub && <span className="nvh-banner-sub text-neon-yellow">{banner.sub}</span>}
+      {banner.sub && <span className="nvh-banner-sub [--sub:#ffe94a]">{banner.sub}</span>}
     </motion.div>
   );
 }
@@ -267,7 +281,7 @@ function ShieldBanner({ banner }: { banner: Banner }) {
         <ShieldOff aria-hidden strokeWidth={2.6} />
         <span>{banner.text}</span>
       </span>
-      {banner.sub && <span className="nvh-banner-sub text-ink">{banner.sub}</span>}
+      {banner.sub && <span className="nvh-banner-sub">{banner.sub}</span>}
     </motion.div>
   );
 }
@@ -294,7 +308,7 @@ function ComboBreakBanner({ banner }: { banner: Banner }) {
           </span>
         </span>
       </span>
-      {banner.sub && <span className="nvh-banner-sub text-ink-dim">{banner.sub}</span>}
+      {banner.sub && <span className="nvh-banner-sub [--sub:#9a94c4]">{banner.sub}</span>}
     </motion.div>
   );
 }
@@ -318,7 +332,7 @@ function OverdriveBanner({ banner }: { banner: Banner }) {
         <Zap aria-hidden strokeWidth={2.6} fill="currentColor" className="drop-shadow-[0_0_6px_#ffe94a]" />
         <Wing side="right" optional />
       </span>
-      {banner.sub && <span className="nvh-banner-sub">{banner.sub}</span>}
+      {banner.sub && <span className="nvh-banner-sub [--sub:#ffe94a]">{banner.sub}</span>}
     </motion.div>
   );
 }
@@ -337,7 +351,7 @@ function ComboUpBanner({ banner }: { banner: Banner }) {
       transition={{ type: 'spring', stiffness: 520, damping: 16 }}
     >
       <span className="nvh-banner-title nvh-neon font-display [--glow:#ff2bd6]">{banner.text}</span>
-      {banner.sub && <span className="nvh-banner-sub text-ink-dim">{banner.sub}</span>}
+      {banner.sub && <span className="nvh-banner-sub [--sub:#9a94c4]">{banner.sub}</span>}
     </motion.div>
   );
 }

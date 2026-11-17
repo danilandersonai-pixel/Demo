@@ -12,7 +12,7 @@
 import { GAME, WORLD } from '../core/config';
 import { clamp, darken, lighten, mixColor, smoothstep, TAU } from '../core/math';
 import { crystalRadius, crystalX, depthAt, obstacleX, yawAt } from '../core/motion';
-import { mod } from '../core/timing';
+import { mod, TICK_RATE } from '../core/timing';
 import type { Crystal, Obstacle, ThemeColors } from '../core/types';
 import { depthScale, project, type Projected } from './camera';
 import { blit, hash01, useWorld, type View } from './view';
@@ -34,6 +34,16 @@ const CRYSTAL_DRAW = 1.3;
 const SAW_TEETH = 12;
 /** Метка прилёта: половина толщины полосы на линии удара, единицы мира. */
 const MARK_DEPTH = 1.15;
+/**
+ * Метка разгорается по ВРЕМЕНИ до удара, а не по пройденному пути: на скорости
+ * ×3 весь полёт короче секунды, и метка «по пути» успевала проявиться лишь к
+ * самому удару. За MARK_FROM тиков до прилёта она начинает проявляться, за
+ * секунду уже видна больше чем наполовину, за MARK_FULL — горит в полную силу.
+ */
+const MARK_FROM = 1.9 * TICK_RATE;
+const MARK_FULL = 0.6 * TICK_RATE;
+/** Последние тики перед прилётом метка мигает (не тусклее половины яркости). */
+const MARK_BLINK = 36;
 /** Сколько точек в пунктире траектории зигзага. */
 const PATH_STEPS = 12;
 const DASH: number[] = [5, 6];
@@ -61,6 +71,14 @@ interface Palette {
   rare: string;
   rareCore: string;
   rareBody: string;
+}
+
+/**
+ * Яркость метки прилёта 0..1 за ticksLeft тиков до удара. Объект, которому
+ * лететь меньше секунды, получает яркую метку сразу, как только появился.
+ */
+export function markerPower(ticksLeft: number): number {
+  return 1 - smoothstep(MARK_FULL, MARK_FROM, ticksLeft);
 }
 
 function makePalette(c: ThemeColors): Palette {
@@ -149,7 +167,46 @@ export class Objects {
       if (z > WORLD.zFar || z <= 0) continue;
       const color = o.kind === 'cube' ? pal.cube : o.kind === 'saw' ? pal.saw : pal.laser;
       if (o.sway) this.swayPath(view, o, z, Objects.fadeIn(z), color);
-      this.marker(view, o, z, pal, color);
+      this.marker(view, o, pal, color);
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  /**
+   * Проходы ворот, которые ещё впереди, — отдельным слоем поверх корабля, частиц
+   * и всплывающих надписей: скобы в самих воротах и скобы на линии удара, куда
+   * проход прилетит. То, что корабль рассыпает вокруг себя (шлейф, искры
+   * подбора, «+100»), не закрывает место, в которое надо попасть.
+   */
+  drawPassages(view: View): void {
+    const { ctx, cam, state } = view;
+    const pal = this.colorsFor(view);
+    const mid = WORLD.roadW / 2;
+    useWorld(view);
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    for (let i = state.obstacles.length - 1; i >= 0; i--) {
+      const o = state.obstacles[i];
+      if (o.kind !== 'laser' || o.destroyed) continue;
+      const z = depthAt(o.arriveTick, o.approachTicks, view.t);
+      // Ворота у корабля и за ним рисует laser() — целиком, вместе со скобами.
+      if (z > WORLD.zFar || z <= 0) continue;
+      this.gateBrackets(view, o, z, Objects.fadeIn(z), pal);
+      const power = Objects.markPower(view, o);
+      if (power <= 0.01) continue;
+      const xl = cam.cx + (o.x - o.halfW - mid) * cam.unit;
+      const xr = cam.cx + (o.x + o.halfW - mid) * cam.unit;
+      const tick = (2.2 + 1.6 * power) * cam.unit;
+      const arm = Math.min(o.halfW * 0.45, 3.2) * cam.unit;
+      ctx.beginPath();
+      ctx.moveTo(xl + arm, cam.lineY - tick);
+      ctx.lineTo(xl, cam.lineY - tick);
+      ctx.lineTo(xl, cam.lineY);
+      ctx.moveTo(xr - arm, cam.lineY - tick);
+      ctx.lineTo(xr, cam.lineY - tick);
+      ctx.lineTo(xr, cam.lineY);
+      this.glowStroke(ctx, pal.safe, pal.safeCore, (1.4 + 1.2 * power) * view.line, 0.25 + 0.75 * power);
     }
     ctx.globalAlpha = 1;
   }
@@ -175,19 +232,23 @@ export class Objects {
     ctx.setLineDash(NO_DASH);
   }
 
+  /** Яркость метки в этом кадре: время до удара плюс мигание в последние мгновения. */
+  private static markPower(view: View, o: Obstacle): number {
+    const ticksLeft = o.arriveTick - view.t;
+    const power = markerPower(ticksLeft);
+    return ticksLeft < MARK_BLINK && !view.reduced ? power * (0.72 + 0.28 * Math.cos(ticksLeft * 0.55)) : power;
+  }
+
   /**
    * Метка прилёта на линии удара: полоса шириной в хитбокс там, где объект
-   * окажется, пересекая корабль. Для ворот — подсвеченный проход между
-   * двумя «запретными» полосами. Яркость растёт по мере приближения.
+   * окажется, пересекая корабль. Для ворот — «запретные» полосы и подсветка
+   * прохода между ними (его скобы рисует drawPassages — поверх частиц).
+   * Яркость задаёт время до удара.
    */
-  private marker(view: View, o: Obstacle, z: number, pal: Palette, color: string): void {
+  private marker(view: View, o: Obstacle, pal: Palette, color: string): void {
     const { ctx, cam } = view;
-    const near = 1 - z / WORLD.zFar;
-    let power = smoothstep(0.18, 0.95, near);
+    const power = Objects.markPower(view, o);
     if (power <= 0.01) return;
-    // Последние мгновения перед прилётом метка мигает.
-    const ticksLeft = o.arriveTick - view.t;
-    if (ticksLeft < 36 && !view.reduced) power *= 0.72 + 0.28 * Math.cos(ticksLeft * 0.55);
     const zs0 = depthScale(MARK_DEPTH);
     const zs1 = depthScale(-MARK_DEPTH);
     const y0 = cam.horizonY + view.span * zs0;
@@ -203,22 +264,13 @@ export class Objects {
       this.strip(ctx, cam.cx, cam.unit, 0 - mid, gl - mid, y0, y1, zs0, zs1);
       this.strip(ctx, cam.cx, cam.unit, gr - mid, WORLD.roadW - mid, y0, y1, zs0, zs1);
       ctx.fill();
-      // Проход: скобы по краям и мягкая подсветка между ними.
+      // Проход: мягкая подсветка между скобами.
       const xl = cam.cx + (gl - mid) * cam.unit;
       const xr = cam.cx + (gr - mid) * cam.unit;
       const tick = (2.2 + 1.6 * power) * cam.unit;
-      const arm = Math.min(o.halfW * 0.45, 3.2) * cam.unit;
       ctx.fillStyle = pal.safe;
       ctx.globalAlpha = 0.05 + 0.13 * power;
       ctx.fillRect(xl, cam.lineY - tick, xr - xl, tick);
-      ctx.beginPath();
-      ctx.moveTo(xl + arm, cam.lineY - tick);
-      ctx.lineTo(xl, cam.lineY - tick);
-      ctx.lineTo(xl, cam.lineY);
-      ctx.moveTo(xr - arm, cam.lineY - tick);
-      ctx.lineTo(xr, cam.lineY - tick);
-      ctx.lineTo(xr, cam.lineY);
-      this.glowStroke(ctx, pal.safe, pal.safeCore, (1.4 + 1.2 * power) * view.line, 0.25 + 0.75 * power);
       return;
     }
 
@@ -541,7 +593,27 @@ export class Objects {
     ctx.lineTo(xr, yTop);
     this.glowStroke(ctx, pal.laser, pal.laserCore, Math.max(1, 2.6 * near * view.line), fade);
 
-    // Скобы прохода: «сюда можно».
+    // Скобы прохода у ворот перед кораблём рисует drawPassages — поверх частиц и надписей.
+    if (z <= 0) this.gateBrackets(view, o, z, fade, pal);
+
+    // Огни излучателей и срезы луча у прохода.
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.globalAlpha = fade;
+    view.sprites.glow(view, pal.laser, true, xl, yBeam, 2.3 * scale * flicker);
+    view.sprites.glow(view, pal.laser, true, xr, yBeam, 2.3 * scale * flicker);
+    view.sprites.glow(view, pal.laser, true, gl, yBeam, 1.5 * scale * flicker);
+    view.sprites.glow(view, pal.laser, true, gr, yBeam, 1.5 * scale * flicker);
+  }
+
+  /** Скобы прохода в самих воротах: «сюда можно». */
+  private gateBrackets(view: View, o: Obstacle, z: number, fade: number, pal: Palette): void {
+    const { ctx, cam } = view;
+    const gx = obstacleX(o, view.t);
+    const left = project(cam, gx - o.halfW, 0, z, this.p);
+    const scale = left.scale;
+    const gl = left.x;
+    const gr = gl + 2 * o.halfW * scale;
+    const yRoad = left.y;
     const arm = Math.min(o.halfW * 0.4, 3) * scale;
     const yBracket = yRoad - (BEAM_Y + 2.4) * scale;
     ctx.beginPath();
@@ -553,15 +625,7 @@ export class Objects {
     ctx.lineTo(gr, yBracket);
     ctx.lineTo(gr, yRoad);
     ctx.lineTo(gr - arm, yRoad);
-    this.glowStroke(ctx, pal.safe, pal.safeCore, Math.max(0.9, 2 * near * view.line), fade);
-
-    // Огни излучателей и срезы луча у прохода.
-    ctx.globalCompositeOperation = 'lighter';
-    ctx.globalAlpha = fade;
-    view.sprites.glow(view, pal.laser, true, xl, yBeam, 2.3 * scale * flicker);
-    view.sprites.glow(view, pal.laser, true, xr, yBeam, 2.3 * scale * flicker);
-    view.sprites.glow(view, pal.laser, true, gl, yBeam, 1.5 * scale * flicker);
-    view.sprites.glow(view, pal.laser, true, gr, yBeam, 1.5 * scale * flicker);
+    this.glowStroke(ctx, pal.safe, pal.safeCore, Math.max(0.9, 2 * depthScale(z) * view.line), fade);
   }
 
   /** Сфера — гранёный кристалл: бипирамида с вращающимся «экватором», ядро и ореол. */

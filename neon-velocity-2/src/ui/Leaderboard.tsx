@@ -1,11 +1,12 @@
 /**
  * Локальный топ-5: место, счёт, уровень скорости, дата и время, лучшее комбо и
  * корабль. Строка последнего забега подсвечена. На телефоне строка складывается
- * в три короткие линии — ни одно значение не обрезается.
+ * в три короткие линии — ни одно значение не обрезается. Счёт и числа статистики
+ * любой длины остаются в своих ячейках: кегль подстраивается под ширину (.nvm-fit).
  */
 import { motion } from 'framer-motion';
 import { Clock, Crown, Flame, Gauge, Gem, Hash, Sigma, Trophy, type LucideIcon } from 'lucide-react';
-import { useEffect, useRef, type ReactNode } from 'react';
+import { useEffect, useRef } from 'react';
 import { SKINS, THEMES } from '../core/config';
 import type { LeaderboardEntry, SaveData, Theme } from '../core/types';
 import { LEADERBOARD_SIZE } from '../state/storage';
@@ -14,7 +15,7 @@ import { Overlay } from './kit/Overlay';
 import { Panel } from './kit/Panel';
 import { useDialogFocus } from './kit/useDialogFocus';
 import './menu/menu.css';
-import { formatPlayTime, stagger, staggerItem } from './menu/shared';
+import { fitFontSize, formatPlayTime, stagger, staggerItem } from './menu/shared';
 import { ShipPreview } from './ShipPreview';
 
 export interface LeaderboardProps {
@@ -37,13 +38,22 @@ const RANK_TONE = [
 
 const SCORE_TONE = ['text-neon-yellow text-glow-yellow', 'text-neon-cyan', 'text-neon-pink', 'text-ink', 'text-ink'];
 
-/** Сетка строки: на телефоне три линии, с sm — одна строка из шести колонок. */
+/** Полный кегль (rem) и разрядка (em) счёта в строке и числа в статистике — пара к классам text-xl/tracking-wider и text-sm/tracking-wide. */
+const SCORE_FIT = { rem: 1.25, tracking: 0.05 } as const;
+const STAT_FIT = { rem: 0.875, tracking: 0.025 } as const;
+
+/**
+ * Сетка строки: на телефоне три линии, с sm — одна строка из шести колонок.
+ * Колонка счёта не уже семизначного числа полным кеглем; на панели у́же полной
+ * (телефон боком, 640–670px) место уступают колонки уровня и корабля.
+ */
 const ROW_GRID =
-  'grid grid-cols-[2.25rem_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 sm:grid-cols-[2.5rem_minmax(0,1fr)_5.75rem_3rem_9.75rem_5.25rem]';
+  'grid grid-cols-[2.25rem_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 sm:grid-cols-[2.5rem_minmax(7.375rem,1fr)_minmax(4rem,5.75rem)_3rem_minmax(6.25rem,9.75rem)_5.25rem]';
 
 function Row({ entry, rank, theme, fresh }: { entry: LeaderboardEntry; rank: number; theme: Theme; fresh: boolean }) {
   const skin = SKINS[entry.skinId];
   const { date, time } = formatDate(entry.date);
+  const score = formatNumber(entry.score);
   const ref = useRef<HTMLLIElement>(null);
 
   // Строка последнего забега должна быть видна сразу, даже если список не влез в панель.
@@ -85,15 +95,25 @@ function Row({ entry, rank, theme, fresh }: { entry: LeaderboardEntry; rank: num
         )}
       </span>
 
-      <span className={['nvm-digits col-start-2 row-start-1 font-mono text-xl font-extrabold leading-none tracking-wider', SCORE_TONE[rank - 1] ?? 'text-ink'].join(' ')}>
-        <span aria-hidden>{formatNumber(entry.score)}</span>
-        <span className="sr-only">{`${formatNumber(entry.score)} ${plural(entry.score, POINT_FORMS)}`}</span>
-      </span>
+      {/* На телефоне счёт и комбо делят первую линию: счёту — вся ширина до комбо. С sm обёртка
+          растворяется (contents), и оба встают в свои колонки таблицы. */}
+      <span className="col-span-2 col-start-2 row-start-1 flex min-w-0 items-center gap-3 sm:contents">
+        <span className={['nvm-digits nvm-fit flex-1 font-mono font-extrabold sm:col-start-2 sm:row-start-1', SCORE_TONE[rank - 1] ?? 'text-ink'].join(' ')}>
+          <span
+            aria-hidden
+            className="block whitespace-nowrap leading-5 tracking-wider"
+            style={{ fontSize: fitFontSize(score.length, SCORE_FIT.rem, SCORE_FIT.tracking) }}
+          >
+            {score}
+          </span>
+          <span className="sr-only">{`${score} ${plural(entry.score, POINT_FORMS)}`}</span>
+        </span>
 
-      <span className="col-start-3 row-start-1 flex items-center gap-1 justify-self-end text-sm font-extrabold leading-none text-neon-pink sm:col-start-4 sm:justify-self-start">
-        <span className="sr-only">Лучшее комбо </span>
-        <Flame size={13} strokeWidth={2.4} className="shrink-0" aria-hidden />
-        <span className="nvm-digits">x{entry.maxMultiplier}</span>
+        <span className="flex shrink-0 items-center gap-1 text-sm font-extrabold leading-none text-neon-pink sm:col-start-4 sm:row-start-1 sm:justify-self-start">
+          <span className="sr-only">Лучшее комбо </span>
+          <Flame size={13} strokeWidth={2.4} className="shrink-0" aria-hidden />
+          <span className="nvm-digits">x{entry.maxMultiplier}</span>
+        </span>
       </span>
 
       <span className="col-start-2 row-start-2 flex items-baseline gap-1.5 whitespace-nowrap text-[11px] font-bold leading-none tracking-wider sm:col-start-3 sm:row-start-1 sm:flex-col sm:items-start sm:gap-1">
@@ -150,12 +170,20 @@ function EmptyState() {
   );
 }
 
-function Stat({ icon: Icon, label, children }: { icon: LucideIcon; label: string; children: ReactNode }) {
+function Stat({ icon: Icon, label, value }: { icon: LucideIcon; label: string; value: string }) {
   return (
     <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-x-2 gap-y-1 rounded-[3px] border border-white/8 bg-void/45 px-2.5 py-2 leading-none">
-      <Icon size={16} strokeWidth={2.2} className="row-span-2 shrink-0 text-theme-b" aria-hidden />
+      {/* На телефоне значок стоит в строке подписи, а числу достаётся вся ширина ячейки. */}
+      <Icon size={16} strokeWidth={2.2} className="shrink-0 text-theme-b sm:row-span-2" aria-hidden />
       <dt className="text-[9px] font-bold uppercase leading-tight tracking-[0.18em] text-ink-faint">{label}</dt>
-      <dd className="nvm-digits m-0 text-sm font-extrabold tracking-wide text-ink">{children}</dd>
+      <dd className="nvm-digits nvm-fit col-span-2 m-0 font-extrabold text-ink sm:col-span-1 sm:col-start-2">
+        <span
+          className="block whitespace-nowrap leading-[0.875rem] tracking-wide"
+          style={{ fontSize: fitFontSize(value.length, STAT_FIT.rem, STAT_FIT.tracking) }}
+        >
+          {value}
+        </span>
+      </dd>
     </div>
   );
 }
@@ -214,24 +242,12 @@ export function Leaderboard({ save, highlightId = null, onClose }: LeaderboardPr
               За всё время
             </h3>
             <dl className="m-0 grid grid-cols-2 gap-2 sm:grid-cols-3">
-              <Stat icon={Hash} label="Забегов сыграно">
-                {formatNumber(stats.gamesPlayed)}
-              </Stat>
-              <Stat icon={Sigma} label="Всего очков">
-                {formatNumber(stats.totalScore)}
-              </Stat>
-              <Stat icon={Gauge} label="Средний счёт">
-                {formatNumber(average)}
-              </Stat>
-              <Stat icon={Flame} label="Лучшее комбо">
-                x{stats.bestMultiplier}
-              </Stat>
-              <Stat icon={Gem} label="Кристаллов собрано">
-                {formatNumber(stats.totalCrystals)}
-              </Stat>
-              <Stat icon={Clock} label="Время в забегах">
-                {formatPlayTime(stats.totalTime)}
-              </Stat>
+              <Stat icon={Hash} label="Забегов сыграно" value={formatNumber(stats.gamesPlayed)} />
+              <Stat icon={Sigma} label="Всего очков" value={formatNumber(stats.totalScore)} />
+              <Stat icon={Gauge} label="Средний счёт" value={formatNumber(average)} />
+              <Stat icon={Flame} label="Лучшее комбо" value={`x${stats.bestMultiplier}`} />
+              <Stat icon={Gem} label="Кристаллов собрано" value={formatNumber(stats.totalCrystals)} />
+              <Stat icon={Clock} label="Время в забегах" value={formatPlayTime(stats.totalTime)} />
             </dl>
           </motion.section>
         </motion.div>

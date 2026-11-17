@@ -1,16 +1,21 @@
 /**
  * Тесты той части рендера, которой не нужен браузер: согласованность двух
- * способов попасть в пиксель холста (матрица и ручной пересчёт), пул частиц и
- * волны дороги. Сама картинка проверяется глазами — на тестовой странице.
+ * способов попасть в пиксель холста (матрица и ручной пересчёт), сила тряски
+ * камеры, яркость и слой меток прилёта, пул частиц и волны дороги. Сама
+ * картинка проверяется глазами — на тестовой странице.
  */
 import { describe, expect, it } from 'vitest';
-import { SKINS, THEMES } from '../core/config';
+import { approachTicksForLevel, BASE_SIM_LOADOUT, GAME, SKINS, THEMES } from '../core/config';
 import { Simulation } from '../core/sim';
-import type { SimEvent } from '../core/types';
+import { holdAt, runUntil, scriptedChart } from '../core/testkit';
+import { TICK_RATE } from '../core/timing';
+import type { ObstacleSpec, SimEvent } from '../core/types';
 import { SHIP_SIZE } from '../core/shipGeometry';
-import { makeCamera } from './camera';
+import { makeCamera, type Camera } from './camera';
+import { markerPower, Objects } from './objects';
 import { labelCeiling, Particles, type LabelBox } from './particles';
 import { LANE_STEPS, Road } from './road';
+import { shakeAmplitude, shakeOffset } from './shake';
 import { SHIP_HOVER } from './ship';
 import { devX, devY, lineScale, useWorld, type Sprites, type View } from './view';
 
@@ -105,6 +110,160 @@ describe('матрица мира', () => {
     expect(lineScale(makeCamera(1280, 800, 2))).toBeCloseTo(1, 1);
     expect(lineScale(makeCamera(390, 844, 3))).toBe(0.6);
     expect(lineScale(makeCamera(3840, 2160, 1))).toBe(1.3);
+  });
+});
+
+describe('тряска камеры', () => {
+  const desktop = makeCamera(1280, 800, 1);
+  const phone = makeCamera(390, 844, 2);
+
+  /**
+   * Что увидит игрок после события: кадры идут как в рендере (травма спадает,
+   * сдвиг округляется до пикселей устройства). peak — наибольший сдвиг по оси,
+   * span — сколько секунд картинка вообще двигалась.
+   */
+  function shaken(trauma0: number, cam: Camera, pixelRatio: number, now0: number): { peak: number; span: number } {
+    const fps = 60;
+    const out = { x: 0, y: 0 };
+    let trauma = trauma0;
+    let peak = 0;
+    let first = -1;
+    let last = -1;
+    for (let frame = 0; trauma > 0; frame++) {
+      trauma = Math.max(0, trauma - GAME.shake.decay / fps);
+      shakeOffset(trauma, cam, now0 + frame / fps, out);
+      const ox = Math.round(out.x * pixelRatio);
+      const oy = Math.round(out.y * pixelRatio);
+      if (ox === 0 && oy === 0) continue;
+      if (first < 0) first = frame;
+      last = frame;
+      peak = Math.max(peak, Math.abs(ox), Math.abs(oy));
+    }
+    return { peak, span: first < 0 ? 0 : (last - first + 1) / fps };
+  }
+
+  /** Событие может прийти в любой фазе колебания: статистика по двум сотням фаз. */
+  function survey(trauma: number, cam: Camera, pixelRatio: number): { seen: number; peak: number; span: number } {
+    const runs = Array.from({ length: 200 }, (_, i) => shaken(trauma, cam, pixelRatio, i * 0.731));
+    const median = (values: number[]) => values.sort((a, b) => a - b)[values.length >> 1];
+    return {
+      seen: runs.filter((run) => run.peak >= 1).length / runs.length,
+      peak: median(runs.map((run) => run.peak)),
+      span: median(runs.map((run) => run.span)),
+    };
+  }
+
+  it('без травмы кадр неподвижен; размах на узком экране вдвое меньше', () => {
+    expect(shakeOffset(0, desktop, 12.3, { x: 5, y: 5 })).toEqual({ x: 0, y: 0 });
+    expect(shakeAmplitude(1, desktop)).toBe(GAME.shake.maxOffset);
+    expect(shakeAmplitude(1, phone)).toBeCloseTo(GAME.shake.maxOffset * (390 / 720), 6);
+    expect(shakeAmplitude(1, makeCamera(320, 568, 2))).toBe(GAME.shake.maxOffset / 2);
+  });
+
+  it('каждое событие переживает округление до пикселя — на мониторе и на телефоне', () => {
+    const { hit, shield, levelUp, nearMiss } = GAME.shake;
+    for (const [cam, pixelRatio] of [[desktop, 1], [phone, 2], [makeCamera(390, 844, 1), 1]] as const) {
+      for (const trauma of [hit, shield, levelUp]) expect(survey(trauma, cam, pixelRatio).seen).toBe(1);
+      // Лёгкий тик «впритирку» — самый слабый: ему разрешено потеряться лишь в редкой неудачной фазе.
+      expect(survey(nearMiss, cam, pixelRatio).seen).toBeGreaterThanOrEqual(0.97);
+    }
+  });
+
+  it('новый уровень ощутим, но слабее столкновений; «впритирку» — лёгкий тик', () => {
+    for (const [cam, pixelRatio] of [[desktop, 1], [phone, 2]] as const) {
+      const hit = survey(GAME.shake.hit, cam, pixelRatio);
+      const shield = survey(GAME.shake.shield, cam, pixelRatio);
+      const levelUp = survey(GAME.shake.levelUp, cam, pixelRatio);
+      const nearMiss = survey(GAME.shake.nearMiss, cam, pixelRatio);
+      // Несколько пикселей на треть секунды и дольше.
+      expect(levelUp.peak).toBeGreaterThanOrEqual(4);
+      expect(levelUp.span).toBeGreaterThanOrEqual(0.3);
+      expect(levelUp.span).toBeLessThanOrEqual(0.5);
+      // Заметно слабее и короче удара о щит, а тот — слабее гибели.
+      expect(levelUp.peak).toBeLessThanOrEqual(shield.peak * 0.75);
+      expect(levelUp.span).toBeLessThan(shield.span);
+      expect(shield.peak).toBeLessThan(hit.peak);
+      expect(shield.span).toBeLessThan(hit.span);
+      // Тик: пара пикселей на доли секунды, минимум вдвое слабее смены уровня.
+      expect(nearMiss.peak).toBeLessThanOrEqual(3);
+      expect(nearMiss.peak).toBeLessThanOrEqual(levelUp.peak / 2);
+      expect(nearMiss.span).toBeLessThanOrEqual(0.2);
+    }
+  });
+});
+
+describe('метки прилёта', () => {
+  it('яркость задаёт время до удара: за секунду — больше половины, за 0.6 с — полная, на любой скорости', () => {
+    for (let level = 1; level <= 22; level++) {
+      const approach = approachTicksForLevel(level);
+      // За секунду до удара — или с самого появления, если весь полёт короче секунды.
+      for (let left = Math.min(TICK_RATE, approach); left >= 0; left--) expect(markerPower(left)).toBeGreaterThanOrEqual(0.5);
+    }
+    for (let left = Math.floor(0.6 * TICK_RATE); left >= 0; left--) expect(markerPower(left)).toBe(1);
+    // Чем ближе удар, тем ярче; только что появившийся далёкий объект метки ещё не имеет.
+    for (let left = 0; left < GAME.approach.base; left++) expect(markerPower(left + 1)).toBeLessThanOrEqual(markerPower(left));
+    expect(markerPower(2 * TICK_RATE)).toBe(0);
+    expect(markerPower(GAME.approach.base)).toBe(0);
+  });
+
+  interface Stroke {
+    alpha: number;
+    points: [number, number][];
+  }
+
+  /** Контекст-самописец: запоминает обведённые пути, остальное молча принимает. */
+  function recorder(): { ctx: CanvasRenderingContext2D; strokes: Stroke[] } {
+    const strokes: Stroke[] = [];
+    let path: [number, number][] = [];
+    const props: Record<string | symbol, unknown> = { globalAlpha: 1 };
+    const calls: Record<string | symbol, (...args: number[]) => void> = {
+      beginPath: () => {
+        path = [];
+      },
+      moveTo: (x, y) => void path.push([x, y]),
+      lineTo: (x, y) => void path.push([x, y]),
+      stroke: () => void strokes.push({ alpha: props.globalAlpha as number, points: path.slice() }),
+    };
+    const ctx = new Proxy(props, {
+      get: (target, key) => (key in target ? target[key] : (calls[key] ?? (() => undefined))),
+      set: (target, key, value) => {
+        target[key] = value;
+        return true;
+      },
+    });
+    return { ctx: ctx as unknown as CanvasRenderingContext2D, strokes };
+  }
+
+  it('проход ворот — отдельный слой для отрисовки поверх частиц: скобы в воротах и на линии удара', () => {
+    const cam = makeCamera(1280, 800, 1);
+    const gate: ObstacleSpec = { kind: 'laser', arriveTick: 480, x: 30, sway: null, halfW: 12 };
+    const xl = cam.cx + (gate.x - gate.halfW - 50) * cam.unit;
+    const xr = cam.cx + (gate.x + gate.halfW - 50) * cam.unit;
+    /** Обводки скоб на линии удара: вертикали по краям прохода прилёта. */
+    const landing = (strokes: Stroke[]) =>
+      strokes.filter((stroke) => [xl, xr].every((x) => stroke.points.some((p) => Math.abs(p[0] - x) < 1e-6 && Math.abs(p[1] - cam.lineY) < 1e-6)));
+
+    for (const [left, bright] of [[70, true], [200, false]] as const) {
+      const sim = new Simulation();
+      sim.startRun(1, BASE_SIM_LOADOUT, scriptedChart([gate]));
+      runUntil(sim, gate.arriveTick - left, holdAt(50));
+      const rec = recorder();
+      const view = fakeView({ a: 0, b: 0, c: 0, d: 0, e: 0, f: 0 }, { cam, state: sim.state, t: sim.state.tick, kx: 1, ky: 1 });
+      view.ctx = rec.ctx;
+      const objects = new Objects();
+      // Слой полотна (под кораблём и частицами) скоб не рисует — только полосы и подсветку.
+      objects.drawGround(view);
+      expect(rec.strokes).toHaveLength(0);
+      objects.drawPassages(view);
+      // Скобы в самих воротах и на линии удара; каждая пара — ореол и сердцевина.
+      expect(rec.strokes).toHaveLength(4);
+      const marks = landing(rec.strokes);
+      expect(marks).toHaveLength(2);
+      const alpha = Math.max(...marks.map((stroke) => stroke.alpha));
+      // 70 тиков (0.55 с) до удара — уже полная яркость; за 1.6 с метка только проявляется.
+      if (bright) expect(alpha).toBe(1);
+      else expect(alpha).toBeLessThan(0.5);
+    }
   });
 });
 

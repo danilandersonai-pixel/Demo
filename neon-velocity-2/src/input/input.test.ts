@@ -3,7 +3,7 @@
  * window и холсте (в настоящем браузере те же переходы проверяет Playwright).
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { InputController } from './input';
+import { InputController, MOUSE_WAKE_PX } from './input';
 import { SteerKeys, steerDirection } from './keys';
 import { TouchStack } from './pointers';
 
@@ -163,6 +163,12 @@ describe('InputController', () => {
 
   const key = (type: 'keydown' | 'keyup', code: string, init: Record<string, unknown> = {}) => win.emit(type, { code, ...init });
   const pointer = (type: string, pointerType: string, pointerId: number, clientX: number) => canvas.emit(type, { pointerType, pointerId, clientX });
+  const mouse = (clientX: number) => pointer('pointermove', 'mouse', 1, clientX);
+  /** Разбудить спящую мышь и привести её в clientX: первое событие — точка покоя, второе — заметное движение. */
+  const mouseTo = (clientX: number) => {
+    mouse(clientX - 3 * MOUSE_WAKE_PX);
+    mouse(clientX);
+  };
 
   it('до любого ввода кадр нейтральный', () => {
     expect(input.frame()).toEqual({ axis: 0, pointerX: null, source: 'none' });
@@ -207,7 +213,10 @@ describe('InputController', () => {
   });
 
   it('мышь ведёт движением без клика; значение сохраняется после ухода', () => {
-    pointer('pointermove', 'mouse', 1, 250);
+    // Первое событие только отмечает, где лежит мышь; рулит уже второе, заметное движение.
+    mouse(238);
+    expect(input.frame()).toEqual({ axis: 0, pointerX: null, source: 'none' });
+    mouse(250);
     expect(input.frame()).toEqual({ axis: 0, pointerX: 25, source: 'pointer' });
     pointer('pointermove', 'mouse', 1, 700);
     expect(input.frame().pointerX).toBe(70);
@@ -217,7 +226,7 @@ describe('InputController', () => {
   });
 
   it('source — последнее устройство; дрожание мыши не отбирает управление у клавиатуры', () => {
-    pointer('pointermove', 'mouse', 1, 500);
+    mouseTo(500);
     key('keydown', 'ArrowLeft');
     expect(input.frame()).toEqual({ axis: -1, pointerX: 50, source: 'keyboard' });
     pointer('pointermove', 'mouse', 1, 502);
@@ -270,7 +279,7 @@ describe('InputController', () => {
   });
 
   it('setEnabled(false): нейтральный кадр, ничего не отменяется, корабль не уводится', () => {
-    pointer('pointermove', 'mouse', 1, 400);
+    mouseTo(400);
     key('keydown', 'ArrowLeft');
     input.setEnabled(false);
     expect(input.frame()).toEqual({ axis: 0, pointerX: null, source: 'none' });
@@ -286,27 +295,186 @@ describe('InputController', () => {
   });
 
   it('клавиша, зажатая при включении, сразу рулит', () => {
-    pointer('pointermove', 'mouse', 1, 400);
+    mouseTo(400);
     input.setEnabled(false);
     key('keydown', 'KeyD');
     input.setEnabled(true);
     expect(input.frame()).toEqual({ axis: 1, pointerX: 40, source: 'keyboard' });
   });
 
-  it('reset: клавиши и указатель сброшены; первое же движение мыши снова ведёт', () => {
+  it('reset: клавиши и указатель сброшены; мышь спит, пока не сдвинется заметно', () => {
     key('keydown', 'ArrowLeft');
     pointer('pointerdown', 'touch', 1, 300);
     input.reset();
     expect(input.frame()).toEqual({ axis: 0, pointerX: null, source: 'none' });
     pointer('pointermove', 'touch', 1, 500);
     expect(input.frame().pointerX).toBeNull();
-    pointer('pointermove', 'mouse', 1, 120);
-    expect(input.frame()).toEqual({ axis: 0, pointerX: 12, source: 'pointer' });
+    // Старт забега: курсор лежит там, где нажали «Играть», — первое событие корабль не ведёт.
+    mouse(120);
+    mouse(120 + MOUSE_WAKE_PX - 1);
+    expect(input.frame()).toEqual({ axis: 0, pointerX: null, source: 'none' });
+    mouse(120 + MOUSE_WAKE_PX);
+    expect(input.frame()).toEqual({ axis: 0, pointerX: 12.4, source: 'pointer' });
+  });
+
+  it('старт и рестарт забега усыпляют мышь, кто бы ни рулил до этого', () => {
+    // Рулила мышь.
+    mouseTo(300);
+    input.reset();
+    mouse(640);
+    mouse(642);
+    expect(input.frame()).toEqual({ axis: 0, pointerX: null, source: 'none' });
+    // Рулила клавиатура; курсор за это время переехал.
+    key('keydown', 'KeyA');
+    key('keyup', 'KeyA');
+    input.reset();
+    mouse(200);
+    mouse(203);
+    expect(input.frame()).toEqual({ axis: 0, pointerX: null, source: 'none' });
+    // Рулил палец.
+    pointer('pointerdown', 'touch', 7, 900);
+    pointer('pointerup', 'touch', 7, 900);
+    input.reset();
+    mouse(500);
+    mouse(501);
+    expect(input.frame()).toEqual({ axis: 0, pointerX: null, source: 'none' });
+    mouse(560);
+    expect(input.frame()).toEqual({ axis: 0, pointerX: 56, source: 'pointer' });
+  });
+
+  describe('после паузы мышь спит', () => {
+    /** Пауза: холст под её экраном событий мыши не получает — курсор переезжает молча. */
+    const pauseAndResume = () => {
+      input.setEnabled(false);
+      input.setEnabled(true);
+    };
+
+    it.each([1, 2, 3])('клавиатурный игрок: мышь уехала за паузу, дрожание на %i px корабль не ведёт', (nudge) => {
+      mouseTo(400);
+      key('keydown', 'ArrowRight');
+      key('keyup', 'ArrowRight');
+      const before = { ...input.frame() };
+      expect(before).toEqual({ axis: 0, pointerX: 40, source: 'keyboard' });
+      // Esc, курсор уезжает к «Продолжить» (x = 640), клик по кнопке — мимо холста.
+      pauseAndResume();
+      // Первое событие после паузы — уже у кнопки, в сотнях пикселей от прежней точки покоя.
+      mouse(640);
+      expect(input.frame()).toEqual(before);
+      mouse(640 + nudge);
+      mouse(640 - nudge);
+      mouse(640);
+      expect(input.frame()).toEqual(before);
+    });
+
+    it.each([1, 2, 3])('игрок с мышью: клик по «Продолжить» и дрожание на %i px корабль не ведут', (nudge) => {
+      mouseTo(100);
+      const before = { ...input.frame() };
+      expect(before).toEqual({ axis: 0, pointerX: 10, source: 'pointer' });
+      pauseAndResume();
+      // Цель руления осталась там, где корабль был до паузы.
+      expect(input.frame()).toEqual(before);
+      mouse(640);
+      mouse(640 + nudge);
+      mouse(640 - nudge);
+      expect(input.frame()).toEqual(before);
+    });
+
+    it('намеренное движение дальше порога возвращает управление мыши — у любого игрока', () => {
+      mouseTo(100);
+      pauseAndResume();
+      mouse(640);
+      mouse(640 - MOUSE_WAKE_PX + 1);
+      expect(input.frame().pointerX).toBe(10);
+      mouse(640 - MOUSE_WAKE_PX);
+      expect(input.frame()).toEqual({ axis: 0, pointerX: 63.6, source: 'pointer' });
+      // Проснувшаяся мышь ведёт каждым событием, без порога.
+      mouse(637);
+      expect(input.frame().pointerX).toBe(63.7);
+
+      key('keydown', 'ArrowLeft');
+      key('keyup', 'ArrowLeft');
+      pauseAndResume();
+      mouse(900);
+      mouse(902);
+      expect(input.frame()).toEqual({ axis: 0, pointerX: 63.7, source: 'keyboard' });
+      mouse(910);
+      expect(input.frame()).toEqual({ axis: 0, pointerX: 91, source: 'pointer' });
+    });
+
+    it('события мыши, пришедшие на паузе, точкой покоя не становятся', () => {
+      mouseTo(400);
+      key('keydown', 'ArrowRight');
+      key('keyup', 'ArrowRight');
+      input.setEnabled(false);
+      // Уходящий экран паузы уже прозрачен для указателя: холст увидел часть пути курсора.
+      mouse(500);
+      mouse(600);
+      input.setEnabled(true);
+      mouse(641);
+      mouse(643);
+      expect(input.frame()).toEqual({ axis: 0, pointerX: 40, source: 'keyboard' });
+    });
+
+    it('клавиша после паузы не подменяет точку покоя старым положением мыши', () => {
+      mouseTo(100);
+      pauseAndResume();
+      // Мышь рулила до паузы и с тех пор молчит: клавиатура берёт управление, mouseX устарел.
+      key('keydown', 'ArrowRight');
+      key('keyup', 'ArrowRight');
+      mouse(640);
+      mouse(641);
+      expect(input.frame()).toEqual({ axis: 0, pointerX: 10, source: 'keyboard' });
+    });
+
+    it('автопауза по потере фокуса: то же самое, зажатая клавиша отпущена', () => {
+      mouseTo(400);
+      key('keydown', 'ArrowLeft');
+      win.emit('blur');
+      pauseAndResume();
+      expect(input.frame()).toEqual({ axis: 0, pointerX: 40, source: 'keyboard' });
+      mouse(1000);
+      mouse(1002);
+      expect(input.frame()).toEqual({ axis: 0, pointerX: 40, source: 'keyboard' });
+    });
+
+    it('клик мышью по полю будит её сразу', () => {
+      mouseTo(100);
+      pauseAndResume();
+      pointer('pointerdown', 'mouse', 1, 700);
+      expect(input.frame()).toEqual({ axis: 0, pointerX: 70, source: 'pointer' });
+      mouse(701);
+      expect(input.frame().pointerX).toBe(70.1);
+    });
+
+    it('палец и перо после паузы ведут как раньше — сразу, без порога', () => {
+      pointer('pointerdown', 'touch', 5, 300);
+      pointer('pointerup', 'touch', 5, 300);
+      pauseAndResume();
+      expect(input.frame()).toEqual({ axis: 0, pointerX: 30, source: 'pointer' });
+      expect(pointer('pointerdown', 'touch', 6, 640)).toBe(true);
+      expect(input.frame().pointerX).toBe(64);
+      pointer('pointermove', 'touch', 6, 641);
+      expect(input.frame().pointerX).toBe(64.1);
+      pointer('pointerup', 'touch', 6, 641);
+      pointer('pointerdown', 'pen', 9, 200);
+      expect(input.frame().pointerX).toBe(20);
+      pointer('pointermove', 'pen', 9, 202);
+      expect(input.frame().pointerX).toBe(20.2);
+      pointer('pointerup', 'pen', 9, 202);
+      // Палец, оставшийся на экране с паузы, ведёт первым же движением.
+      pointer('pointerdown', 'touch', 2, 500);
+      input.setEnabled(false);
+      pointer('pointermove', 'touch', 2, 520);
+      input.setEnabled(true);
+      pointer('pointermove', 'touch', 2, 521);
+      expect(input.frame()).toEqual({ axis: 0, pointerX: 52.1, source: 'pointer' });
+    });
   });
 
   it('нечисловой результат toRoadX игнорируется', () => {
     input.attach(canvas as unknown as HTMLElement, () => Number.NaN);
-    pointer('pointermove', 'mouse', 1, 300);
+    mouseTo(300);
+    pointer('pointerdown', 'touch', 3, 300);
     expect(input.frame()).toEqual({ axis: 0, pointerX: null, source: 'none' });
   });
 
@@ -316,7 +484,7 @@ describe('InputController', () => {
     expect(canvas.style.touchAction).toBe('none');
     input.attach(canvas as unknown as HTMLElement, (x) => x / 5);
     expect(win.count() + canvas.count()).toBe(before);
-    pointer('pointermove', 'mouse', 1, 250);
+    mouseTo(250);
     expect(input.frame().pointerX).toBe(50);
 
     // Другой холст — со старого всё снимается.

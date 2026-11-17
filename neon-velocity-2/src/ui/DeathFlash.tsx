@@ -89,10 +89,16 @@ export function DeathFlash({ x, y, colors, onDone }: DeathFlashProps) {
         />
       )}
 
+      {/*
+        Масштаб колец и осколков Framer пишет в transform каждый кадр. Без will-change браузер
+        на каждом таком кадре заново растеризует слой вместе с размытой тенью — взрыв шёл в
+        20–27 кадров/с. С подсказкой слой рисуется один раз, дальше его масштабирует композитор.
+        При «меньше движения» кольцо сразу стоит в конечном размере — там подсказка не нужна.
+      */}
       {Array.from({ length: RING_COUNT }, (_, i) => (
         <motion.span
           key={i}
-          className="absolute -ml-12 -mt-12 h-24 w-24 rounded-full border-2"
+          className={`absolute -ml-12 -mt-12 h-24 w-24 rounded-full border-2 ${reduce ? '' : 'will-change-transform'}`}
           style={{ left: x, top: y, borderColor: colors[i % 3], boxShadow: `0 0 22px ${colors[i % 3]}, inset 0 0 18px ${colors[i % 3]}` }}
           initial={{ scale: 0.15, opacity: 0.95 }}
           animate={{ scale: 3.2 + i * 2.1, opacity: 0 }}
@@ -104,7 +110,7 @@ export function DeathFlash({ x, y, colors, onDone }: DeathFlashProps) {
         shards.map((s, i) => (
           <motion.span
             key={i}
-            className="absolute -ml-[2px] w-1 rounded-[1px]"
+            className="absolute -ml-[2px] w-1 rounded-[1px] will-change-transform"
             style={{
               left: x,
               top: y,

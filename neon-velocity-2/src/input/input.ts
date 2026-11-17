@@ -11,18 +11,24 @@
  *
  * Пока ввод выключен (меню, пауза), кадр нейтральный и ни одно событие не
  * отменяется. Зажатые клавиши и пальцы при этом продолжают учитываться — иначе
- * клавиша, отпущенная на паузе, «залипла» бы, — но корабль они не двигают:
- * движение мыши к кнопке «Продолжить» не должно увести корабль после паузы.
+ * клавиша, отпущенная на паузе, «залипла» бы, — но корабль они не двигают.
+ *
+ * Мышь умеет «спать»: спящая не рулит, пока курсор не уйдёт от точки покоя на
+ * MOUSE_WAKE_PX. Она засыпает, когда управление берёт клавиатура, и при каждом
+ * включении ввода и старте забега — кто бы ни рулил до этого. За паузу курсор
+ * уехал к кнопке «Продолжить», а холст под экраном паузы событий не получал,
+ * поэтому точка покоя берётся из первого же события мыши после включения: ни
+ * старая точка, ни её отсутствие не значат «порога нет».
  */
 import type { InputFrame } from '../core/types';
 import { SteerKeys, steerDirection } from './keys';
 import { TouchStack } from './pointers';
 
 /**
- * Насколько мышь должна сдвинуться (CSS-пиксели), чтобы забрать управление у
- * клавиатуры: дрожание мыши от ударов по клавишам корабль не уводит.
+ * Насколько спящая мышь должна уйти от точки покоя (CSS-пиксели), чтобы начать
+ * рулить: дрожание от ударов по клавишам и от клика по «Продолжить» корабль не уводит.
  */
-const MOUSE_WAKE_PX = 4;
+export const MOUSE_WAKE_PX = 4;
 
 /** Фокус в поле ввода — клавиши принадлежат ему, а не кораблю. */
 function isEditable(el: EventTarget | null): boolean {
@@ -43,8 +49,11 @@ export class InputController {
   private readonly touches = new TouchStack();
   private pointerX: number | null = null;
   private source: InputFrame['source'] = 'none';
-  /** Последний экранный X мыши и X, на котором она «уснула», когда рулить стала клавиатура. */
+  /** Последний экранный X мыши над холстом. */
   private mouseX: number | null = null;
+  /** Мышь спит: рулить начнёт, только уйдя от точки покоя на MOUSE_WAKE_PX. */
+  private mouseAsleep = true;
+  /** Точка покоя спящей мыши; null — её даст первое событие мыши. */
   private mouseRestX: number | null = null;
   /** Кадр переиспользуется: frame() зовут на каждом тике. */
   private readonly out: InputFrame = { axis: 0, pointerX: null, source: 'none' };
@@ -99,8 +108,10 @@ export class InputController {
   setEnabled(enabled: boolean): void {
     if (this.enabled === enabled) return;
     this.enabled = enabled;
+    if (!enabled) return;
     // Клавиша, зажатая к моменту включения (игрок держит её, снимая паузу), — это уже руление.
-    if (enabled && this.keys.axis !== 0) this.takeKeyboard();
+    if (this.keys.axis !== 0) this.takeKeyboard();
+    this.restMouse();
   }
 
   /** Ввод на текущий тик. Возвращается один и тот же объект — не хранить между тиками. */
@@ -124,6 +135,12 @@ export class InputController {
     this.touches.clear();
     this.pointerX = null;
     this.source = 'none';
+    this.restMouse();
+  }
+
+  /** Усыпить мышь, не зная, где курсор: точку покоя даст её первое событие. */
+  private restMouse(): void {
+    this.mouseAsleep = true;
     this.mouseRestX = null;
   }
 
@@ -145,6 +162,9 @@ export class InputController {
   private takeKeyboard(): void {
     if (this.source === 'keyboard') return;
     this.source = 'keyboard';
+    // Уже спящая мышь хранит свою точку покоя: mouseX мог устареть за паузу.
+    if (this.mouseAsleep) return;
+    this.mouseAsleep = true;
     this.mouseRestX = this.mouseX;
   }
 
@@ -162,7 +182,10 @@ export class InputController {
   private readonly onPointerDown = (e: PointerEvent): void => {
     if (e.pointerType === 'mouse') {
       this.mouseX = e.clientX;
-      if (this.enabled) this.steerTo(e.clientX);
+      if (!this.enabled) return;
+      // Клик по полю — намеренное действие: мышь просыпается сразу, без порога.
+      this.mouseAsleep = false;
+      this.steerTo(e.clientX);
       return;
     }
     this.touches.down(e.pointerId, e.clientX);
@@ -181,9 +204,15 @@ export class InputController {
     if (e.pointerType === 'mouse') {
       this.mouseX = e.clientX;
       if (!this.enabled) return;
-      // Пока рулит клавиатура, мышь «спит» и просыпается только от заметного движения.
-      const rest = this.source === 'keyboard' ? this.mouseRestX : null;
-      if (rest !== null && Math.abs(e.clientX - rest) < MOUSE_WAKE_PX) return;
+      if (this.mouseAsleep) {
+        // Первое событие спящей мыши только отмечает точку покоя.
+        if (this.mouseRestX === null) {
+          this.mouseRestX = e.clientX;
+          return;
+        }
+        if (Math.abs(e.clientX - this.mouseRestX) < MOUSE_WAKE_PX) return;
+        this.mouseAsleep = false;
+      }
       this.steerTo(e.clientX);
       return;
     }

@@ -118,16 +118,32 @@ export function melodyNote(note: number, chord: Chord): number {
   return ladderNote(step);
 }
 
-/** Искрящееся арпеджио редкой сферы: звуки аккорда вверх от ноты мелодии. */
+/** Сколько нот в арпеджио редкой сферы. */
+const SPARKLE_NOTES = 5;
+/**
+ * Потолок арпеджио — ми четвёртой октавы (E7, 2637 Гц). Выше нота уже не звенит, а
+ * режет слух: основной тон уходит в 4–7 кГц, «стеклянный» обертон — за 10 кГц.
+ */
+export const SPARKLE_TOP = 100;
+
+/**
+ * Искрящееся арпеджио редкой сферы: от ноты мелодии вверх по трезвучию аккорда.
+ * Трезвучие (классы высот пэда) даёт три звука на октаву на любом аккорде, поэтому
+ * размах везде одинаков — около октавы с третью. По одним «пентатонным» звукам аккорда
+ * F, G, Dm и Em (их там по два на октаву) арпеджио растягивалось на две октавы.
+ * Не уместилось под потолок — опускается на октаву целиком: подъём остаётся подъёмом.
+ */
 export function sparkleNotes(note: number, chord: Chord): number[] {
   const base = melodyNote(note, chord);
-  const out: number[] = [];
-  let step = 0;
-  // Найти ступень базовой ноты и подняться от неё по звукам аккорда.
-  while (ladderNote(step) < base) step++;
-  for (let guard = 0; out.length < 5 && guard < 24; guard++, step++) {
-    const midi = ladderNote(step);
-    if (out.length === 0 || chord.tones.includes(pitchClass(midi))) out.push(midi);
+  const out = [base];
+  for (let midi = base + 1; out.length < SPARKLE_NOTES && midi <= base + 36; midi++) {
+    const pc = pitchClass(midi);
+    if (chord.pad.some((p) => pitchClass(p) === pc)) out.push(midi);
+  }
+  const over = out[out.length - 1] - SPARKLE_TOP;
+  if (over > 0) {
+    const drop = 12 * Math.ceil(over / 12);
+    for (let i = 0; i < out.length; i++) out[i] -= drop;
   }
   return out;
 }

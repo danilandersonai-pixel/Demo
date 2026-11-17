@@ -11,17 +11,17 @@
 import { useLayoutEffect, useRef, useState } from 'react';
 import { audio } from '../audio/audio';
 import { planMove, type BotOptions } from '../core/bot';
-import { GAME, toSimLoadout } from '../core/config';
+import { GAME, RESUME_COUNT_IN_BEATS, toSimLoadout } from '../core/config';
 import { randomSeed } from '../core/rng';
 import { Simulation } from '../core/sim';
-import { LEAD_IN_TICKS, TICK_DT } from '../core/timing';
+import { LEAD_IN_TICKS, TICK_DT, TICKS_PER_BEAT } from '../core/timing';
 import type { BannerKind, InputFrame, Loadout, RunResult, Screen, Settings, SimEvent, SimMode, SimState } from '../core/types';
 import { debugEnabled, installDebug } from '../debug';
 import { InputController } from '../input/input';
 import { makeCamera, roadToScreenX, screenToRoadX, type Camera } from '../render/camera';
 import { Renderer } from '../render/renderer';
 import { BANNER_SHELF, type BannerShelf } from './hud/constants';
-import { coarsenHud, FixedStep, shieldNote, withBankedRecord } from './hud/loop';
+import { coarsenHud, FixedStep, RecordWatch, ResumeCountIn, shieldNote, withBankedRecord } from './hud/loop';
 import { hudPulse, prefersReducedMotion } from './hud/pulse';
 import { hudStore } from './hudStore';
 import { formatNumber, formatSpeed } from './kit/format';
@@ -115,6 +115,8 @@ class HostDriver {
   /** Время прошлого кадра, сек; 0 — следующий кадр не должен «догонять» простой. */
   private last = 0;
   private readonly stepper = new FixedStep();
+  /** Отсчёт после паузы: пока он идёт, экран уже 'playing', но тиков нет. */
+  private readonly countIn = new ResumeCountIn();
   private overTime = 0;
 
   /** Экран, под который настроены ввод, звук и сцена; null — ещё ни один. */
@@ -122,6 +124,8 @@ class HostDriver {
   private runId = 0;
   /** Снаряжение идущего забега: чужая вкладка не переоденет корабль посреди игры. */
   private runLoadout: Loadout | null = null;
+  /** Рекорд, с которым сверяется идущий забег: чужая вкладка может поднять его посреди игры. */
+  private readonly record = new RecordWatch();
 
   // Баннеры: последний на каждой полке; тик и остаток зарядов последнего удара в щит.
   private readonly shelfBanner: Record<BannerShelf, number> = { top: 0, mid: 0, low: 0 };
@@ -190,6 +194,7 @@ class HostDriver {
         return taken;
       },
       counters: () => ({ ticks: this.ticks, frames: this.frames }),
+      resumeCount: () => this.countIn.count,
     });
 
     // Пока были отцеплены (StrictMode, горячая перезагрузка), размер окна мог измениться.
@@ -217,12 +222,18 @@ class HostDriver {
     this.veil = null;
   }
 
-  /** Смена экрана приложения: ввод, пауза звука, фоновая сцена меню. Повтор с тем же экраном — пустой. */
-  applyScreen(screen: Screen): void {
+  /**
+   * Смена экрана приложения: ввод, пауза звука, фоновая сцена меню. Повтор с тем же экраном —
+   * пустой. runId — номер забега из того же коммита: если он новый, следом придёт startRun.
+   */
+  applyScreen(screen: Screen, runId: number): void {
     const prev = this.screen;
     if (screen === prev) return;
     this.screen = screen;
+    // Включение ввода усыпляет мышь: курсор за паузу уехал к кнопкам (см. InputController).
     this.input.setEnabled(screen === 'playing');
+    // Отсчёт после паузы живёт только на экране забега: пауза, меню и Game Over его обрывают.
+    this.stopCountIn();
 
     if (screen === 'menu') {
       // «В меню» из паузы: забег ещё идёт — сдать его итог до фоновой сцены.
@@ -239,10 +250,39 @@ class HostDriver {
     audio.setPaused(screen === 'paused');
     if (screen === 'gameover') this.overTime = 0;
     if (screen === 'playing') {
-      // После паузы первый кадр не «догоняет» простой, а вступление снова подписано.
+      // После паузы первый кадр не «догоняет» простой.
       this.last = 0;
-      if (prev === 'paused') this.restoreReadyBanner();
+      // «Заново» из паузы — новый забег со своим вступлением READY / GO: отсчёт только для прежнего.
+      const fresh = runId > 0 && runId !== this.runId;
+      if (prev === 'paused' && !fresh) this.beginResume();
     }
+  }
+
+  /**
+   * Возврат из паузы. Мир стоит ещё RESUME_COUNT_IN_BEATS долей (цифры «2», «1»): ввод уже
+   * включён и меняет цель руления, но тиков нет — корабль с места не трогается. Звук открыт
+   * сразу, но молчит: музыку ведут доли симуляции, слышны только сигналы отсчёта.
+   */
+  private beginResume(): void {
+    this.countIn.start();
+    this.showCount();
+    this.restoreReadyBanner();
+    // Рекорд могла поднять другая вкладка, пока забег стоял, — BEST в HUD обновится сразу.
+    this.watchRecord(this.sim.state);
+    this.forceHud = true;
+  }
+
+  /** Показать цифру отсчёта; каждая новая цифра звучит сигналом. */
+  private showCount(): void {
+    const count = this.countIn.count;
+    if (count === hudStore.getResumeCount()) return;
+    hudStore.setResumeCount(count);
+    if (count > 0) audio.countIn(count);
+  }
+
+  private stopCountIn(): void {
+    this.countIn.cancel();
+    hudStore.setResumeCount(0);
   }
 
   /** Новый забег. Повторный вызов с тем же номером ничего не делает (StrictMode). */
@@ -253,6 +293,9 @@ class HostDriver {
     this.runId = runId;
     const loadout = withBankedRecord(this.props.current.loadout, banked);
     this.runLoadout = loadout;
+    this.record.start(loadout.highscore);
+    // R во время отсчёта после паузы: экран тот же, забег новый — отсчёт обрывается.
+    this.stopCountIn();
     hudStore.clearBanners();
     this.sim.startRun(randomSeed(), toSimLoadout(loadout));
     this.input.reset();
@@ -294,7 +337,11 @@ class HostDriver {
     this.raf = requestAnimationFrame(this.frame);
     const renderer = this.renderer;
     if (!renderer) return;
-    const now = nowMs / 1000;
+    // Кадр, который заново запускает часы (новая сцена, возврат из паузы или из фона), берёт
+    // момент своего исполнения, а не метку rAF. После смены экрана он исполняется на 45–65 мс
+    // позже метки, а звук привязывает первую долю к моменту исполнения: с меткой rAF вторая
+    // доля пришла бы на те же миллисекунды раньше, и отсчёт вступления спотыкался.
+    const now = (this.last > 0 ? nowMs : performance.now()) / 1000;
     const dt = this.last > 0 ? Math.min(Math.max(0, now - this.last), MAX_FRAME_DT) : 0;
     this.last = now;
     this.measureFps(dt);
@@ -310,7 +357,21 @@ class HostDriver {
       if (this.overTime >= OVER_LIVE) return;
     }
 
-    this.advance(dt);
+    let simDt = dt;
+    if (this.countIn.active) {
+      simDt = this.countIn.advance(dt);
+      this.showCount();
+      if (this.countIn.active) {
+        // Мир стоит: тот же кадр, что на паузе, но без приглушения — корабль хорошо виден.
+        this.draw(renderer, now, false);
+        this.frames++;
+        if (this.forceHud) this.publishHud();
+        return;
+      }
+      // Отсчёт кончился посреди кадра: остаток кадра — уже время симуляции.
+    }
+
+    this.advance(simDt);
     this.draw(renderer, now, false);
     this.frames++;
 
@@ -327,6 +388,22 @@ class HostDriver {
     this.ticks += this.stepper.advance(dt, state, this.stepOnce);
     const events = sim.drainEvents();
     for (let i = 0; i < events.length; i++) this.handleEvent(events[i], state);
+    this.watchRecord(state);
+  }
+
+  /**
+   * NEW RECORD! объявляет хост, а не событие симуляции: та сверяет счёт с рекордом на
+   * момент старта, а рекорд в сохранении могла поднять другая вкладка (см. RecordWatch).
+   */
+  private watchRecord(state: SimState): void {
+    if (!isLive(state.mode)) return;
+    const previous = this.record.poll(state.score, this.props.current.loadout.highscore);
+    if (previous === null) return;
+    const e: SimEvent = { type: 'newRecord', tick: state.tick, score: state.score };
+    audio.onEvent(e, this.stepper.alpha * TICK_DT);
+    this.renderer?.onEvent(e, state);
+    this.forceHud = true;
+    this.showBanner('newRecord', 'NEW RECORD!', `прошлый рекорд ${formatNumber(previous)}`, BANNER_MS.newRecord);
   }
 
   private readonly stepOnce = (): void => {
@@ -365,7 +442,7 @@ class HostDriver {
     this.hudClock = 0;
     this.forceHud = false;
     const fps = this.props.current.settings.showFps ? this.fps : 0;
-    hudStore.setSnapshot(coarsenHud(this.sim.hud(), fps, this.sim.state.player.alive));
+    hudStore.setSnapshot(this.record.stamp(coarsenHud(this.sim.hud(), fps, this.sim.state.player.alive)));
   }
 
   // ─── События симуляции ────────────────────────────────────────────────────
@@ -381,22 +458,26 @@ class HostDriver {
     this.showBanner('ready', 'READY', 'ПРИГОТОВЬТЕСЬ', ticksLeft * TICK_DT * 1000 + 250);
   }
 
-  /** Баннер READY живёт по настоящим часам и мог погаснуть за время паузы, а вступление ещё идёт. */
+  /**
+   * Баннер READY живёт по настоящим часам, а вступление стояло всю паузу и простоит ещё
+   * отсчёт после неё: баннер ставится заново — до нового момента GO.
+   */
   private restoreReadyBanner(): void {
     const state = this.sim.state;
     if (state.mode !== 'ready') return;
-    if (hudStore.getBanners().some((b) => b.kind === 'ready')) return;
-    this.showReady(-state.tick);
+    this.showReady(-state.tick + RESUME_COUNT_IN_BEATS * TICKS_PER_BEAT);
   }
 
   private handleEvent(e: SimEvent, state: SimState): void {
-    // Сколько секунд назад (по часам симуляции) случилось событие: звук встаёт точно в сетку.
-    audio.onEvent(e, (state.tick - e.tick + this.stepper.alpha) * TICK_DT);
-    this.renderer?.onEvent(e, state);
     if (this.logging) {
       if (this.log.length >= LOG_LIMIT) this.log.splice(0, LOG_LIMIT / 2);
       this.log.push(e);
     }
+    // Рекорд симуляции — рекорд на момент старта: фанфару, волну и баннер даёт watchRecord.
+    if (e.type === 'newRecord') return;
+    // Сколько секунд назад (по часам симуляции) случилось событие: звук встаёт точно в сетку.
+    audio.onEvent(e, (state.tick - e.tick + this.stepper.alpha) * TICK_DT);
+    this.renderer?.onEvent(e, state);
     // Фоновая сцена меню шлёт только доли: HUD и баннеров у неё нет.
     if (state.mode === 'attract') return;
     // Любое событие забега меняет цифры HUD — показать их в этом же кадре.
@@ -416,9 +497,6 @@ class HostDriver {
         break;
       case 'levelUp':
         this.showBanner('levelUp', `LEVEL ${e.level}`, `SPEED ${formatSpeed(e.speedMult)}`, BANNER_MS.levelUp);
-        break;
-      case 'newRecord':
-        this.showBanner('newRecord', 'NEW RECORD!', `прошлый рекорд ${formatNumber(state.highscore)}`, BANNER_MS.newRecord);
         break;
       case 'shieldBreak':
         this.shieldTick = e.tick;
@@ -548,8 +626,8 @@ export function GameHost(props: GameHostProps) {
   }, [driver]);
 
   useLayoutEffect(() => {
-    driver.applyScreen(screen);
-  }, [driver, screen]);
+    driver.applyScreen(screen, runId);
+  }, [driver, screen, runId]);
 
   // После applyScreen: при «Ещё раз» экран и номер забега меняются в одном коммите.
   useLayoutEffect(() => {

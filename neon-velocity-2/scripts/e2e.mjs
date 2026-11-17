@@ -29,8 +29,10 @@
  * one FAIL, 2 — the check could not start: no Playwright or no Chromium)
  *   desktop  1280×800: menu renders · start by Enter · autopilot reaches level 3 · one rAF loop
  *            (ticks ≈ 128/s, frames ≈ display rate) · pause / resume by key, button, blur, hidden tab ·
- *            0 ticks while paused · resize and rotation mid-run · forced death → Game Over ·
- *            the save (gamesPlayed, leaderboard, crystals) · reload keeps it
+ *            0 ticks while paused · the resume count-in (the world stands still for two beats, «2», «1»,
+ *            then ticks restart; a pause during the count) · resize and rotation mid-run · forced death →
+ *            Game Over · the save (gamesPlayed, leaderboard, crystals) · reload keeps it · after a
+ *            resume the mouse is asleep: a 1–3 px nudge does not move the ship, a deliberate move does
  *   phone    390×844 touch: the same flow with taps and finger steering
  *   progress seeded highscore: NEW RECORD! banner · «Заново» / «В меню» from pause recorded exactly once ·
  *            the next run starts with the new highscore · an empty run is not recorded · reload mid-run
@@ -44,8 +46,13 @@
  *            forced deaths and reloads, weighted by the screen it is on (the choices are seeded; the
  *            game's own tracks are random, so two walks of one seed differ in detail); after every
  *            step: screen and sim mode agree, at most one non-inert dialog, wallet ≥ 0, gamesPlayed
- *            grows exactly once per finished or abandoned non-empty run
+ *            grows exactly once per finished or abandoned non-empty run, 0 ticks while paused and
+ *            during every resume count-in
  *   …and no console errors, page errors, failed requests or native alert / confirm / prompt anywhere.
+ *
+ * RESUME COUNT-IN. After a pause the debug API already says screen() === 'playing', but the world
+ * stands still for two beats: __NV__.resumeCount() is the digit on screen (2, 1) and 0 once ticks run.
+ * The page probe records every count-in frame by frame (how long it lasted, ticks during it, digits).
  *
  * Timing checks repeat a measurement before they fail; on a machine that cannot hold the display rate
  * the absolute FPS check is reported as SKIP, the «one loop» checks still run.
@@ -177,9 +184,35 @@ function installProbe(saveKey) {
     persist();
   });
 
+  // Отсчёт после паузы — по кадрам: сколько длился, шли ли тики, сдвинулся ли корабль, какие
+  // цифры показал. Этот обработчик кадра встаёт раньше игрового, поэтому кадр, в котором игра
+  // закончила отсчёт и уже просчитала тики, сюда попадает следующим — с нулём в resumeCount().
+  e2e.countIns = [];
+  let counting = null;
+  const watchCountIn = () => {
+    const nv = window.__NV__;
+    if (!nv || typeof nv.resumeCount !== 'function') return;
+    const count = nv.resumeCount();
+    const now = performance.now();
+    const state = nv.sim.state;
+    if (count > 0) {
+      const ticks = nv.counters().ticks;
+      if (!counting) counting = { t0: now, ticks0: ticks, ticks: 0, digits: [], seed: state.seed, x0: state.player.x, moved: 0 };
+      counting.ticks = ticks - counting.ticks0;
+      counting.moved = Math.max(counting.moved, Math.abs(state.player.x - counting.x0));
+      if (counting.digits[counting.digits.length - 1] !== count) counting.digits.push(count);
+    } else if (counting) {
+      // Сам отсчёт кончился или его оборвали (пауза, «Заново», меню)?
+      const natural = nv.screen() === 'playing' && state.seed === counting.seed;
+      e2e.countIns.push({ ms: now - counting.t0, end: now, ticks: counting.ticks, moved: counting.moved, digits: counting.digits, natural });
+      counting = null;
+    }
+  };
+
   const loop = () => {
     e2e.raf++;
     requestAnimationFrame(loop);
+    watchCountIn();
   };
   requestAnimationFrame(loop);
 
@@ -264,6 +297,9 @@ function installProbe(saveKey) {
       alive: s.player.alive,
       x: s.player.x,
       shield: s.player.shield,
+      // Отсчёт после паузы: цифра на экране (2, 1) или 0; и всё, что зонд о них записал.
+      resumeCount: nv.resumeCount(),
+      countIns: e2e.countIns.slice(),
       counters: nv.counters(),
       raf: e2e.raf,
       now: performance.now(),
@@ -420,6 +456,13 @@ async function until(page, predicate, arg, timeout = 5000) {
 }
 
 const untilScreen = (page, screen, timeout = 5000) => until(page, (want) => window.__NV__?.screen() === want, screen, timeout);
+
+/** Забег действительно идёт: экран «playing» и отсчёт после паузы (две доли, мир стоит) уже кончился. */
+const untilRunning = (page, timeout = 5000) => until(page, () => window.__NV__?.screen() === 'playing' && window.__NV__.resumeCount() === 0, null, timeout);
+const untilCounting = (page, timeout = 3000) => until(page, () => window.__NV__?.screen() === 'playing' && window.__NV__.resumeCount() > 0, null, timeout);
+
+/** Отсчёт после паузы: две доли по 60 тиков настоящего времени. */
+const COUNT_IN_MS = (2 * 60 * 1000) / TICK_RATE;
 
 function makeSave(patch = {}) {
   return {
@@ -692,6 +735,9 @@ async function scenarioMain(browser, profile) {
     s = await snap(page);
     check('«Ещё раз» starts one new run and the finished one is recorded once', s.screen === 'playing' && s.mode === 'ready' && s.tally.runs === 2 && s.save.stats.gamesPlayed === 2, `runs ${s.tally.runs}, gamesPlayed ${s.save.stats.gamesPlayed}`);
 
+    // Мышь после паузы спит: вступление и первый такт без препятствий — рулим сами, без автопилота.
+    if (!game.touch) await mouseAfterPauseChecks(game, check);
+
     consoleCheck(game, check);
   } catch (err) {
     check('scenario finished', false, String(err?.message ?? err).split('\n')[0]);
@@ -736,6 +782,83 @@ async function touchSteering(game, check) {
   await cdp.detach().catch(() => {});
 }
 
+/**
+ * Мышь после паузы спит (desktop). Забег только что начат: вступление и первый такт без препятствий,
+ * поэтому автопилот выключен и кораблём рулят настоящие клавиши и мышь.
+ */
+async function mouseAfterPauseChecks(game, check) {
+  const { page } = game;
+  await page.evaluate(() => window.__NV__.setInput(null));
+  const resumeByClick = async () => {
+    const box = await button(page, /Продолжить/).boundingBox();
+    const x = Math.round(box.x + box.width / 2);
+    const y = Math.round(box.y + box.height / 2);
+    await page.mouse.move(x, y, { steps: 6 });
+    await sleep(60);
+    await page.mouse.down();
+    await page.mouse.up();
+    return [x, y];
+  };
+  const pauseNow = async () => {
+    await page.keyboard.press('Escape');
+    await untilScreen(page, 'paused', 3000);
+    await button(page, /Продолжить/).waitFor({ state: 'visible', timeout: 3000 });
+    await sleep(350);
+  };
+
+  // Корабль после отпущенной клавиши ещё докатывается и встаёт: сравниваем с запасом, которого
+  // «угон» к кнопке (десятки единиц дороги) не пройдёт, а остаток скольжения — пройдёт.
+  const STILL = 0.5;
+
+  // Клавиатурный игрок: увёл корабль влево, пауза, курсор уехал к «Продолжить», клик.
+  await page.keyboard.down('ArrowLeft');
+  await sleep(200);
+  await page.keyboard.up('ArrowLeft');
+  await sleep(600);
+  const rest = await snap(page);
+  await pauseNow();
+  let [x, y] = await resumeByClick();
+  const counting = await untilCounting(page, 2000);
+  // Рука дрожит: 1–3 px во время отсчёта и после него.
+  await page.mouse.move(x + 1, y);
+  await sleep(120);
+  await page.mouse.move(x + 3, y + 1);
+  const during = await snap(page);
+  await untilRunning(page, 4000);
+  await sleep(150);
+  await page.mouse.move(x + 1, y - 1);
+  await sleep(250);
+  let s = await snap(page);
+  const usable = (a) => a.alive && a.screen === 'playing';
+  if (!usable(rest) || !usable(s)) check.skip('after a resume the mouse is asleep', `the run ended before the check: screen ${s.screen}, alive ${s.alive}`);
+  else {
+    check(
+      'keyboard player: after a click on «Продолжить» 1–3 px mouse nudges do not move the ship (during the count and after it)',
+      counting && Math.abs(rest.x - 50) > 3 && Math.abs(during.x - rest.x) < STILL && Math.abs(s.x - rest.x) < STILL,
+      `x ${fmt(rest.x, 2)} before the pause → ${fmt(during.x, 2)} during the count → ${fmt(s.x, 2)} after it; cursor on the button at ${x} px`,
+    );
+    // Намеренное движение — мышь забирает управление.
+    await page.mouse.move(x + 60, y, { steps: 3 });
+    await sleep(400);
+    const taken = await snap(page);
+    check('a deliberate mouse move past the threshold takes over', Math.abs(taken.x - s.x) > 3, `x ${fmt(s.x, 2)} → ${fmt(taken.x, 2)}`);
+
+    // Игрок с мышью: корабль шёл за курсором, пауза, клик по «Продолжить», рука дрогнула.
+    const mouseRest = await snap(page);
+    await pauseNow();
+    [x, y] = await resumeByClick();
+    await untilCounting(page, 2000);
+    await page.mouse.move(x + 2, y);
+    await untilRunning(page, 4000);
+    await sleep(150);
+    await page.mouse.move(x - 1, y + 1);
+    await sleep(250);
+    s = await snap(page);
+    if (!usable(s)) check.skip('mouse player: nudges after a click on «Продолжить»', `the run ended before the check: screen ${s.screen}`);
+    else check('mouse player: after a click on «Продолжить» 1–3 px nudges do not yank the ship to the button', Math.abs(s.x - mouseRest.x) < STILL, `x ${fmt(mouseRest.x, 2)} → ${fmt(s.x, 2)}; cursor on the button at ${x} px`);
+  }
+}
+
 async function pauseChecks(game, check) {
   const { page } = game;
   const frozen = async (label) => {
@@ -745,16 +868,28 @@ async function pauseChecks(game, check) {
     check(`${label}: 0 ticks while paused`, a.screen === 'paused' && b.counters.ticks === a.counters.ticks && b.tick === a.tick, `screen ${a.screen}, ticks ${a.counters.ticks} → ${b.counters.ticks}, sim tick ${a.tick} → ${b.tick}`);
     return b;
   };
+  /** Длительности отсчётов, которые дошли до конца: в конце сверяются с двумя долями. */
+  const countMs = [];
   const resumed = async (label, pausedSnap) => {
     const ok = await untilScreen(page, 'playing', 3000);
+    // Экран уже «playing», но мир стоит две доли (отсчёт «2», «1») — тики пойдут только после него.
+    const ran = await untilRunning(page, 5000);
     await sleep(500);
     const c = await snap(page);
+    const ci = c.countIns[c.countIns.length - 1];
+    const counted = Boolean(ci) && ci.natural && ci.end > pausedSnap.now;
+    if (counted) countMs.push(ci.ms);
+    check(
+      `${label}: count-in — «2», «1», the world stands still (0 ticks) for no less than two beats`,
+      ok && ran && counted && ci.ticks === 0 && ci.moved === 0 && ci.digits.join() === '2,1' && ci.ms >= COUNT_IN_MS - 12,
+      counted ? `${Math.round(ci.ms)} ms, ${ci.ticks} ticks and ship moved ${ci.moved} during it, digits ${ci.digits.join(' → ')}` : `no finished count-in recorded: ${json(ci ?? null)}`,
+    );
+    // «Догонять» простой нельзя: после отсчёта тиков не больше, чем прошло настоящего времени
+    // (часы страницы — машина может быть занята; конец отсчёта зонд видит кадром позже).
     const gained = c.tick - pausedSnap.tick;
-    // Полсекунды после паузы — около 64 тиков. «Догонять» простой нельзя: тиков не больше, чем
-    // прошло настоящего времени со снимка на паузе (часы страницы — машина может быть занята).
-    const elapsed = (c.now - pausedSnap.now) / 1000;
+    const elapsed = counted ? (c.now - ci.end) / 1000 + 0.04 : 0;
     const limit = Math.ceil(elapsed * TICK_RATE * 1.1) + 8;
-    check(`${label}: ticks restart and do not catch up the pause`, ok && gained > 20 && gained <= limit && c.alive, `+${gained} ticks in ${fmt(elapsed, 2)} s since the paused snapshot (limit ${limit}), alive ${c.alive}`);
+    check(`${label}: ticks restart after the count and do not catch up the pause`, ok && ran && counted && gained > 20 && gained <= limit && c.alive, `+${gained} ticks in ${fmt(elapsed, 2)} s since the count ended (limit ${limit}), alive ${c.alive}`);
   };
 
   // Клавиша (на телефоне — кнопка HUD).
@@ -777,6 +912,41 @@ async function pauseChecks(game, check) {
     await resumed('resume by «Продолжить»', p);
   }
 
+  // Пауза во время отсчёта: Esc (на телефоне — потеря фокуса) возвращает на экран паузы, мир не сдвинулся.
+  if (game.touch) await press(game, button(page, 'Пауза'));
+  else await page.keyboard.press('Escape');
+  await untilScreen(page, 'paused', 3000);
+  await button(page, /Продолжить/).waitFor({ state: 'visible', timeout: 3000 });
+  await sleep(300);
+  p = await snap(page);
+  if (game.touch) await press(game, button(page, /Продолжить/));
+  else await page.keyboard.press('Escape');
+  const counting = await untilCounting(page, 3000);
+  // Не в первый же кадр: отсчёт уже идёт треть секунды, цифра «2» на экране.
+  await sleep(300);
+  const mid = await snap(page);
+  if (game.touch) await page.evaluate(() => window.__e2e.blur());
+  else await page.keyboard.press('Escape');
+  const back = await untilScreen(page, 'paused', 3000);
+  await sleep(400);
+  const q = await snap(page);
+  // Запись зонда об этом отсчёте (если он успел попасть в кадр): оборван, а не дошёл до конца.
+  const cut = q.countIns.filter((ci) => ci.end > p.now).pop() ?? null;
+  const how = game.touch ? 'losing focus' : 'Esc';
+  if (mid.resumeCount === 0 || (cut && cut.natural)) check.skip(`${how} during the count-in goes back to pause`, `the machine was too slow: the count had ended before the pause landed (${cut ? Math.round(cut.ms) : '?'} ms)`);
+  else {
+    check(
+      `${how} during the count-in goes back to pause: the count is cancelled, 0 ticks`,
+      counting && back && q.screen === 'paused' && q.resumeCount === 0 && q.tick === p.tick && q.counters.ticks === p.counters.ticks && (!cut || cut.ticks === 0) && q.dialogs.length === 1,
+      `count «${mid.resumeCount}» → screen ${q.screen}, resumeCount ${q.resumeCount}, ticks ${p.counters.ticks} → ${q.counters.ticks}, sim tick ${p.tick} → ${q.tick}${cut ? `, cut after ${Math.round(cut.ms)} ms` : ''}`,
+    );
+  }
+  if (q.screen === 'paused') {
+    if (game.touch) await press(game, button(page, /Продолжить/));
+    else await page.keyboard.press('KeyP');
+    await resumed('resume after a pause during the count', q);
+  }
+
   // Окно потеряло фокус.
   await page.evaluate(() => window.__e2e.blur());
   const blurred = await untilScreen(page, 'paused', 2000);
@@ -794,6 +964,14 @@ async function pauseChecks(game, check) {
   check('a hidden tab pauses the run and stays paused when shown again', hidden && p.screen === 'paused', `screen ${p.screen}`);
   await press(game, button(page, /Продолжить/));
   await resumed('resume after a hidden tab', p);
+
+  // Все отсчёты вместе: две доли, а не «сколько получилось». Занятая машина растягивает кадры
+  // (цикл не считает кадр длиннее 0.1 с), поэтому смотрим на самый быстрый.
+  const fastest = Math.min(...countMs);
+  const all = countMs.map((ms) => Math.round(ms)).join(', ');
+  if (countMs.length === 0) check('the resume count-in lasts two beats (0.94 s)', false, 'no finished count-in');
+  else if (fastest > COUNT_IN_MS + 160) check.skip('the resume count-in lasts two beats (0.94 s)', `this machine stalled during every count-in: ${all} ms`);
+  else check('the resume count-in lasts two beats (0.94 s)', fastest >= COUNT_IN_MS - 12, `${countMs.length} count-ins: ${all} ms (two beats = ${fmt(COUNT_IN_MS)} ms; the probe sees the end a frame late)`);
 }
 
 async function resizeChecks(game, check, sizes) {
@@ -1507,7 +1685,7 @@ const FUZZ_SIZES = {
 };
 
 /** Что увидели все прогулки вместе. */
-const FUZZ_SEEN = { screens: new Set(), finished: 0, abandoned: 0, empty: 0, runs: 0, panels: 0, reloads: 0, unloads: 0, walks: 0 };
+const FUZZ_SEEN = { screens: new Set(), finished: 0, abandoned: 0, empty: 0, runs: 0, panels: 0, reloads: 0, unloads: 0, walks: 0, counts: 0, cut: 0 };
 
 const FUZZ_KEYS = ['Enter', 'Space', 'Escape', 'Escape', 'KeyP', 'KeyR', 'KeyM', 'KeyS', 'KeyL', 'Tab', 'ArrowLeft', 'ArrowRight', 'KeyA', 'KeyD'];
 const HOLD_KEYS = ['Enter', 'Space', 'Escape', 'KeyR', 'KeyP', 'ArrowLeft', 'ArrowRight'];
@@ -1579,9 +1757,11 @@ async function scenarioFuzz(browser, seed) {
   const flag = (invariant, step, detail) => {
     if (!broken[invariant]) broken[invariant] = `step ${step}: ${detail} ¦ last actions: ${history.slice(-7).join(' → ')}`;
   };
-  const seen = { screens: new Set(), finished: 0, abandoned: 0, empty: 0, runs: 0, panels: 0, reloads: 0, unloads: 0 };
+  const seen = { screens: new Set(), finished: 0, abandoned: 0, empty: 0, runs: 0, panels: 0, reloads: 0, unloads: 0, counts: 0, cut: 0 };
   let held = null;
   let base = null;
+  /** Сколько записей зонда об отсчётах уже проверено (перезагрузка страницы список обнуляет). */
+  let countInsSeen = 0;
 
   try {
     await page.evaluate(() => window.__e2e.keep(true));
@@ -1683,6 +1863,7 @@ async function scenarioFuzz(browser, seed) {
         await page.reload({ waitUntil: 'load' });
         await gameReady(page);
         await setPilot(pilot);
+        countInsSeen = 0;
         seen.reloads++;
         const after = await snap(page);
         if (after.tally.abandons.length > abandonsBefore) seen.unloads++;
@@ -1739,6 +1920,22 @@ async function scenarioFuzz(browser, seed) {
         const again = await snap(page);
         if (again.screen === 'paused' && again.counters.ticks !== s.counters.ticks) flag('paused', step, `ticks ${s.counters.ticks} → ${again.counters.ticks} while paused`);
       }
+      // Отсчёт после паузы живёт только на экране забега, и пока он идёт, мир стоит.
+      if (s.resumeCount > 0 && s.screen !== 'playing') flag('countin', step, `resumeCount ${s.resumeCount} on screen «${s.screen}»`);
+      if (s.resumeCount > 0 && s.screen === 'playing') {
+        await sleep(60);
+        const again = await snap(page);
+        if (again.resumeCount > 0 && again.screen === 'playing' && again.seed === s.seed && again.counters.ticks !== s.counters.ticks) flag('countin', step, `ticks ${s.counters.ticks} → ${again.counters.ticks} during the resume count-in`);
+      }
+      // Всё, что зонд записал об отсчётах с прошлого шага: ни одного тика, корабль на месте, а
+      // отсчёт, который не оборвали, длился не меньше двух долей.
+      for (const ci of s.countIns.slice(countInsSeen)) {
+        if (ci.natural) seen.counts++;
+        else seen.cut++;
+        if (ci.ticks !== 0 || ci.moved !== 0) flag('countin', step, `${ci.ticks} ticks, ship moved ${ci.moved} during a count-in of ${Math.round(ci.ms)} ms`);
+        if (ci.natural && ci.ms < COUNT_IN_MS - 12) flag('countin', step, `a count-in ended after ${Math.round(ci.ms)} ms — shorter than two beats`);
+      }
+      countInsSeen = s.countIns.length;
       seen.finished = s.tally.gameOver;
       seen.abandoned = nonEmpty.length;
       seen.empty = s.tally.abandons.length - nonEmpty.length;
@@ -1755,10 +1952,11 @@ async function scenarioFuzz(browser, seed) {
     check('totals, highscore and leaderboard match the recorded runs', !broken.totals, broken.totals ?? '');
     check('every run starts with the saved highscore', !broken.record, broken.record ?? '');
     check('0 ticks whenever the game is paused', !broken.paused, broken.paused ?? '');
+    check('every resume count-in: 0 ticks, the ship stands still, not shorter than two beats', !broken.countin, broken.countin ?? `${seen.counts} count-ins ran to the end, ${seen.cut} were cut short by a pause, a restart or the menu`);
     // Что прогулка успела увидеть — сверяется по всем зёрнам сразу (см. fuzzCoverage): одна
     // случайная прогулка вправе не застать, например, ни одного брошенного забега с очками.
     for (const x of seen.screens) FUZZ_SEEN.screens.add(x);
-    for (const k of ['finished', 'abandoned', 'empty', 'runs', 'panels', 'reloads', 'unloads']) FUZZ_SEEN[k] += seen[k];
+    for (const k of ['finished', 'abandoned', 'empty', 'runs', 'panels', 'reloads', 'unloads', 'counts', 'cut']) FUZZ_SEEN[k] += seen[k];
     FUZZ_SEEN.walks++;
 
     // После всего этого — по-прежнему один цикл и рабочая игра.
@@ -1790,7 +1988,8 @@ function fuzzCoverage() {
   if (c.abandoned === 0) missing.push('a non-empty run abandoned');
   if (c.empty === 0) missing.push('an empty run abandoned');
   if (c.panels === 0) missing.push('a menu panel');
-  const summary = `${c.walks} walks: ${c.runs} runs started, ${c.finished} finished, ${c.abandoned} abandoned with a score, ${c.empty} abandoned empty, ${c.reloads} reloads (${c.unloads} mid-run), ${c.panels} steps on a menu panel`;
+  if (c.counts === 0) missing.push('a resume count-in that ran to the end');
+  const summary = `${c.walks} walks: ${c.runs} runs started, ${c.finished} finished, ${c.abandoned} abandoned with a score, ${c.empty} abandoned empty, ${c.reloads} reloads (${c.unloads} mid-run), ${c.panels} steps on a menu panel, ${c.counts} resume count-ins (+${c.cut} cut short)`;
   // Мало шагов (--steps) — не вина игры: отмечаем пропуском, а не провалом.
   if (missing.length > 0 && FUZZ_STEPS * c.walks < 300) check.skip('the walks together covered every screen and every way a run ends', `not reached: ${missing.join(', ')} — ${summary}`);
   else check('the walks together covered every screen and every way a run ends', missing.length === 0, missing.length ? `not reached: ${missing.join(', ')} — ${summary}` : summary);
@@ -1826,6 +2025,8 @@ async function scenarioFuzzLoop(browser) {
     } else if (s.screen === 'paused') await page.keyboard.press('Escape');
     else if (s.screen === 'menu') await page.keyboard.press('Enter');
     await untilScreen(page, 'playing', 3000);
+    // После паузы мир стоит ещё две доли (отсчёт) — замер начинается, когда тики уже идут.
+    await untilRunning(page, 5000);
     await until(page, () => window.__NV__.sim.state.mode === 'playing', null, 5000);
     await checkOneLoop(page, check, 'after 40 fast transitions');
     s = await snap(page);

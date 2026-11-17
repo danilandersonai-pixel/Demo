@@ -7,6 +7,7 @@ import { CELL, cellX, Corridor, CRYSTAL_CLEAR, MARGIN, MIN_FREE_RUN, REACH, rowO
 import { Contour } from './chart-melody';
 import {
   barrier,
+  calmGateSway,
   dropGate,
   fitSway,
   funnel,
@@ -516,6 +517,65 @@ describe('зигзаг', () => {
     expect(fitSway(spec, { amp: 20, periodTicks: 200, phase: 0 })).toBeNull();
     expect(fitSway({ ...spec, x: ROAD - 6 }, { amp: 20, periodTicks: 200, phase: 1 })).toBeNull();
     expect(fitSway({ ...spec, x: CENTER }, { amp: 20, periodTicks: 200, phase: 0 })).toEqual({ amp: 20, periodTicks: 200, phase: 0 });
+  });
+
+  it('ворота успокаиваются перед прилётом: последние полсекунды центр видимого прохода — безопасное место', () => {
+    const rng = createRng(91);
+    const ship = GAME.player.radius * GAME.hitbox.laserPlayer;
+    let calmed = 0;
+    let kept = 0;
+    for (let n = 0; n < 800; n++) {
+      const level = rng.int(2, 22);
+      const halfW = laserHalfGapForLevel(level) + rng.range(0.5, 3);
+      const wanted: Sway = { amp: swayAmp(level) * rng.range(0.55, 1), periodTicks: rng.int(GAME.sway.periodMin, 340), phase: rng.range(0, 6.28) };
+      const sway = calmGateSway({ halfW }, wanted);
+      if (!sway) continue;
+      // Меняется только размах: форма зигзага остаётся той, что выпала.
+      expect(sway.amp).toBeLessThanOrEqual(wanted.amp);
+      expect(sway.amp).toBeGreaterThanOrEqual(3);
+      expect(sway).toMatchObject({ periodTicks: wanted.periodTicks, phase: wanted.phase });
+      let worst = 0;
+      for (let before = 0; before <= GAME.sway.gateCalmTicks; before += 0.5) worst = Math.max(worst, Math.abs(swayOffset(sway, 0, -before)));
+      // Корабль в центре прохода, каким его видно в любой из этих моментов, пройдёт ворота с запасом.
+      const limit = halfW - ship - GAME.sway.gateMargin;
+      expect(worst).toBeLessThanOrEqual(limit + 1e-9);
+      if (sway === wanted) {
+        kept += 1;
+      } else {
+        // Урезанный зигзаг занимает всё, что разрешено, — не меньше.
+        expect(worst).toBeGreaterThan(limit - 0.05);
+        calmed += 1;
+      }
+    }
+    expect(calmed).toBeGreaterThan(200);
+    expect(kept).toBeGreaterThan(20);
+    // Слишком узкий проход: заметного зигзага под условие не остаётся.
+    expect(calmGateSway({ halfW: ship + GAME.sway.gateMargin + 2 }, { amp: 20, periodTicks: 128, phase: 0 })).toBeNull();
+  });
+
+  it('паттерн ворот ставит только успокоенный зигзаг, а одиночный объект качается в полную силу', () => {
+    const ship = GAME.player.radius * GAME.hitbox.laserPlayer;
+    let gates = 0;
+    let widest = 0;
+    for (let seed = 1; seed <= 120; seed++) {
+      const level = 9 + (seed % 3) * 5;
+      const stage = stageAt(level, seed);
+      laserGate(stage, 8);
+      const gate = stage.obstacles[0];
+      if (gate?.sway) {
+        gates += 1;
+        for (let before = 0; before <= GAME.sway.gateCalmTicks; before++) {
+          expect(Math.abs(swayOffset(gate.sway, 0, -before))).toBeLessThanOrEqual(gate.halfW - ship - GAME.sway.gateMargin + 1e-9);
+        }
+      }
+      const solo = stageAt(level, seed);
+      solo.wantSway = true;
+      single(solo, 8);
+      const sway = solo.obstacles[0]?.sway;
+      if (sway) widest = Math.max(widest, sway.amp / swayAmp(level));
+    }
+    expect(gates).toBeGreaterThan(15);
+    expect(widest).toBeGreaterThan(0.95);
   });
 
   it('со 2-го уровня паттерны действительно качаются: одиночные, пары, ворота, лесенки и столбы слалома', () => {

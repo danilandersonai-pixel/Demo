@@ -91,6 +91,26 @@ export function fitSway(spec: Pick<ObstacleSpec, 'arriveTick' | 'x' | 'halfW'>, 
   return amp >= MIN_SWAY_AMP ? { ...sway, amp } : null;
 }
 
+/**
+ * Успокоить зигзаг ворот перед прилётом. Последние GAME.sway.gateCalmTicks
+ * тиков центр прохода на экране остаётся внутри прохода прилёта с запасом на
+ * корпус корабля: кто едет в проход, который видит, — проходит, а не узнаёт в
+ * последний миг, что ворота уехали. Период и фаза сохраняются, уменьшается
+ * только размах. null — заметного зигзага под это условие не осталось.
+ */
+export function calmGateSway(spec: Pick<ObstacleSpec, 'halfW'>, sway: Sway): Sway | null {
+  const limit = spec.halfW - SHIP * GAME.hitbox.laserPlayer - GAME.sway.gateMargin;
+  // Наибольший уход синуса от точки прилёта за окно — по углам его начала и конца.
+  const from = sway.phase - (TAU * GAME.sway.gateCalmTicks) / sway.periodTicks;
+  const rest = Math.sin(sway.phase);
+  const top = passesPeak(from, sway.phase, Math.PI / 2) ? 1 : Math.max(Math.sin(from), rest);
+  const bottom = passesPeak(from, sway.phase, -Math.PI / 2) ? -1 : Math.min(Math.sin(from), rest);
+  const reach = Math.max(top - rest, rest - bottom);
+  if (sway.amp * reach <= limit) return sway;
+  const amp = limit / reach;
+  return amp >= MIN_SWAY_AMP ? { ...sway, amp } : null;
+}
+
 // ─── Сцена такта ────────────────────────────────────────────────────────────
 
 /** Всё, что нужно паттерну, чтобы поставить себя в такт. */
@@ -425,7 +445,11 @@ export function laserGate(stage: Stage, step: number, options: GateOptions = {})
     if (lo > hi) continue;
     const shift = attempt === 0 ? rng.range(-18, 18) : 0;
     let spec: ObstacleSpec = { kind: 'laser', arriveTick: tick, x: clamp(options.center ?? lineX + shift, lo, hi), sway: null, halfW };
-    if (attempt === 0 && swayAllowed && stage.rollSway(GATE_SWAY)) spec = { ...spec, sway: stage.swing([spec]) };
+    if (attempt === 0 && swayAllowed && stage.rollSway(GATE_SWAY)) {
+      // Зигзаг уровня — но перед самым прилётом проход уже почти на месте.
+      const sway = stage.swing([spec]);
+      spec = { ...spec, sway: sway && calmGateSway(spec, sway) };
+    }
     if (stage.put([spec])) {
       stage.lure(tick, spec.x);
       return 1;

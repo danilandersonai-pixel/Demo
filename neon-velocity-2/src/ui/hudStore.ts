@@ -1,7 +1,7 @@
 /**
  * Мост между игровым циклом и React. Цикл пишет сюда снимок HUD (не чаще
- * ~30 раз в секунду) и баннеры, а компоненты подписываются через хуки на
- * useSyncExternalStore — никакого setState в каждом кадре.
+ * ~30 раз в секунду), баннеры и цифру отсчёта после паузы, а компоненты
+ * подписываются через хуки на useSyncExternalStore — никакого setState в каждом кадре.
  */
 import { useSyncExternalStore } from 'react';
 import type { Banner, BannerKind, HudSnapshot } from '../core/types';
@@ -53,6 +53,8 @@ class HudStore {
   private bannerListeners = new Set<Listener>();
   private nextBannerId = 1;
   private timers = new Map<number, ReturnType<typeof setTimeout>>();
+  private resumeCount = 0;
+  private resumeListeners = new Set<Listener>();
 
   // ── снимок HUD ──
   getSnapshot = (): HudSnapshot => this.snapshot;
@@ -115,6 +117,21 @@ class HudStore {
     this.emitBanners();
   }
 
+  // ── отсчёт после паузы ──
+  getResumeCount = (): number => this.resumeCount;
+
+  subscribeResumeCount = (listener: Listener): (() => void) => {
+    this.resumeListeners.add(listener);
+    return () => this.resumeListeners.delete(listener);
+  };
+
+  /** Цифра отсчёта после паузы (2, 1); 0 — отсчёта нет, тики идут. */
+  setResumeCount(count: number): void {
+    if (this.resumeCount === count) return;
+    this.resumeCount = count;
+    this.resumeListeners.forEach((l) => l());
+  }
+
   private clearTimer(id: number): void {
     const t = this.timers.get(id);
     if (t !== undefined) clearTimeout(t);
@@ -136,4 +153,9 @@ export function useHudSnapshot(): HudSnapshot {
 /** Активные баннеры (READY/GO, LEVEL UP, NEW RECORD! и т. д.). */
 export function useBanners(): Banner[] {
   return useSyncExternalStore(hudStore.subscribeBanners, hudStore.getBanners, hudStore.getBanners);
+}
+
+/** Цифра отсчёта после паузы: сколько долей мир ещё стоит (2, 1); 0 — отсчёта нет. */
+export function useResumeCount(): number {
+  return useSyncExternalStore(hudStore.subscribeResumeCount, hudStore.getResumeCount, hudStore.getResumeCount);
 }

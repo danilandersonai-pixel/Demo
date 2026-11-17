@@ -12,7 +12,10 @@ import type { Camera } from './render/camera';
 export interface DebugApi {
   /** Симуляция — читать state, не вызывать step() самому. */
   sim: Simulation;
-  /** Текущий экран приложения. */
+  /**
+   * Текущий экран приложения. Сразу после паузы экран уже 'playing', но мир ещё стоит
+   * две доли (отсчёт «2», «1») — тики пойдут, когда resumeCount() вернёт 0.
+   */
   screen(): Screen;
   /** Актуальная камера (перевод координат мир ↔ экран). */
   camera(): Camera;
@@ -24,6 +27,12 @@ export interface DebugApi {
   takeEvents(): SimEvent[];
   /** Сколько тиков симуляции и кадров отрисовки прошло с загрузки. */
   counters(): { ticks: number; frames: number };
+  /**
+   * Отсчёт после паузы: цифра на экране — сколько долей мир ещё стоит (2, 1); 0 — отсчёта
+   * нет. Пока он идёт, screen() === 'playing' и ввод включён (цель руления меняется), но
+   * counters().ticks и sim.state.tick стоят. Отсчёт обрывают пауза, «Заново» и выход в меню.
+   */
+  resumeCount(): number;
 }
 
 declare global {

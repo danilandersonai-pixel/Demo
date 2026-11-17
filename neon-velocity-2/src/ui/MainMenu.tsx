@@ -117,11 +117,18 @@ const fromBottom: Variants = {
 
 // ─── Плашки рекорда и кошелька ──────────────────────────────────────────────
 
+/**
+ * Значки плашек прячутся там, где обе плашки и кнопка звука иначе не встают в одну
+ * строку: на 320px и на узком «боку». Вторая строка плашек сдвигала бы снаряжение
+ * под ними вниз, на дорогу.
+ */
+const PLAQUE_ICON_HIDE = 'max-[359px]:hidden [@media(max-height:559.98px)_and_(max-width:699px)]:hidden';
+
 function BestPlaque({ value }: { value: number }) {
   const { lead, digits } = padScore(value);
   return (
     <div className="flex items-center gap-2 rounded-[3px] border border-neon-yellow/35 bg-void/75 py-1.5 pl-2 pr-2.5 shadow-[0_0_14px_rgba(255,233,74,0.12)] sm:gap-2.5 sm:pr-3">
-      <Trophy size={17} strokeWidth={2.3} className="shrink-0 text-neon-yellow drop-shadow-[0_0_6px_#ffe94a] max-[359px]:hidden" aria-hidden />
+      <Trophy size={17} strokeWidth={2.3} className={`shrink-0 text-neon-yellow drop-shadow-[0_0_6px_#ffe94a] ${PLAQUE_ICON_HIDE}`} aria-hidden />
       <div className="flex flex-col leading-none">
         <span className="text-[9px] font-bold tracking-[0.32em] text-neon-yellow/70">BEST</span>
         <span className="nvm-digits mt-1 font-mono text-[15px] font-extrabold tracking-wider sm:text-lg [@media(max-height:559.98px)]:text-[15px]">
@@ -141,7 +148,7 @@ function BestPlaque({ value }: { value: number }) {
 function WalletPlaque({ value }: { value: number }) {
   return (
     <div className="flex items-center gap-2 rounded-[3px] border border-neon-cyan/35 bg-void/75 py-1.5 pl-2 pr-2.5 shadow-[0_0_14px_rgba(34,240,255,0.12)] sm:gap-2.5 sm:pr-3">
-      <Gem size={17} strokeWidth={2.3} className="shrink-0 text-neon-cyan drop-shadow-[0_0_6px_#22f0ff] max-[359px]:hidden" aria-hidden />
+      <Gem size={17} strokeWidth={2.3} className={`shrink-0 text-neon-cyan drop-shadow-[0_0_6px_#22f0ff] ${PLAQUE_ICON_HIDE}`} aria-hidden />
       <div className="flex flex-col leading-none">
         <span className="text-[9px] font-bold tracking-[0.32em] text-neon-cyan/70">КРИСТАЛЛЫ</span>
         <span className="mt-1 font-mono text-[15px] font-extrabold tracking-wider text-neon-cyan text-glow-cyan sm:text-lg [@media(max-height:559.98px)]:text-[15px]">

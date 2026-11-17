@@ -1,4 +1,4 @@
-import { motion } from 'framer-motion';
+import { motion, useIsPresent } from 'framer-motion';
 import type { ReactNode } from 'react';
 
 export interface OverlayProps {
@@ -9,7 +9,8 @@ export interface OverlayProps {
    * Размытие заднего плана (backdrop-blur). Без пропа подложка только затемняет:
    * панели меню лежат над живой демо-сценой, и полноэкранный backdrop-filter
    * пересчитывался бы там каждый кадр. Пауза и Game Over размывают фон — под
-   * ними холст заморожен или перерисовывается реже (см. GameCanvas).
+   * ними холст заморожен или замирает через долю секунды (см. GameHost). Уходящая
+   * подложка размытие снимает сразу: под ней уже живой холст нового забега.
    */
   blur?: 'sm' | 'md' | 'lg';
   /** Слой: 30 — экраны (пауза, game over, меню), 40 — панели поверх меню. */
@@ -43,8 +44,13 @@ const BLUR = { sm: 'backdrop-blur-sm', md: 'backdrop-blur-md', lg: 'backdrop-blu
  * Полноэкранная затемняющая подложка с плавным появлением и, по запросу,
  * размытием заднего плана. Оборачивайте в <AnimatePresence>, чтобы работала
  * анимация выхода.
+ *
+ * Размытие стоит, пока экран на месте. С первого кадра ухода его нет — подложка
+ * гаснет одной прозрачностью: под ней в этот момент уже идёт забег (или сцена
+ * меню), и размытие пересчитывалось бы на каждом кадре все 0.28 с ухода.
  */
 export function Overlay({ children, onBackdropClick, blur, layer = 30, className = '', label, inert = false }: OverlayProps) {
+  const isPresent = useIsPresent();
   return (
     <motion.div
       role="presentation"
@@ -61,7 +67,7 @@ export function Overlay({ children, onBackdropClick, blur, layer = 30, className
       className={[
         'fixed inset-0 flex items-center justify-center overflow-y-auto bg-void/78',
         OUTER_PADDING,
-        blur ? BLUR[blur] : '',
+        blur && isPresent ? BLUR[blur] : '',
         layer === 40 ? 'z-40' : 'z-30',
         className,
       ].join(' ')}

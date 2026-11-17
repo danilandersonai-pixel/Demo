@@ -9,7 +9,7 @@ import { BARS_PER_LEVEL, BEATS_PER_BAR, TICK_DT, TICKS_PER_BEAT, TICKS_PER_LEVEL
 import { addedNotes, COMBO_LAYERS, LAYER, layerOn, planBeat, type BeatInput, type Note } from './arrangement';
 import { audio, AudioEngine } from './audio';
 import { BeatGrid, LATENCY, LOCK_WINDOW, MAX_SLEW, measuredTime } from './clock';
-import { chordAtTick, chordFor, ladderNote, levelRootChord, melodyNote, PROGRESSIONS, sparkleNotes } from './harmony';
+import { chordAtTick, chordFor, ladderNote, levelRootChord, melodyNote, PROGRESSIONS, SPARKLE_TOP, sparkleNotes } from './harmony';
 
 const BEAT = TICKS_PER_BEAT * TICK_DT;
 const PENTATONIC = new Set([9, 0, 2, 4, 7]);
@@ -180,17 +180,52 @@ describe('мелодия сфер', () => {
     expect(ladderNote(5)).toBe(81);
   });
 
-  it('редкая сфера: пять нот вверх, от ноты мелодии по звукам аккорда', () => {
-    for (let n = 0; n < 40; n++) {
-      const c = chordFor(1 + (n % PROGRESSIONS.length), n % BARS_PER_LEVEL);
-      const notes = sparkleNotes(n, c);
-      expect(notes.length).toBe(5);
-      expect(notes[0]).toBe(melodyNote(n, c));
-      for (let i = 1; i < notes.length; i++) {
-        expect(notes[i]).toBeGreaterThan(notes[i - 1]);
-        expect(c.tones.includes(notes[i] % 12)).toBe(true);
+  it('редкая сфера: пять нот строго вверх, от ноты мелодии по трезвучию аккорда', () => {
+    for (let level = 1; level <= PROGRESSIONS.length; level++) {
+      for (let b = 0; b < BARS_PER_LEVEL; b++) {
+        const c = chordFor(level, b);
+        const triad = c.pad.map((p) => p % 12);
+        for (let n = 0; n < 128; n++) {
+          const notes = sparkleNotes(n, c);
+          const melody = melodyNote(n, c);
+          expect(notes.length).toBe(5);
+          // Первая нота — нота мелодии; если арпеджио опущено под потолок, то она же октавой ниже.
+          expect([melody, melody - 12]).toContain(notes[0]);
+          for (let i = 1; i < notes.length; i++) {
+            expect(notes[i]).toBeGreaterThan(notes[i - 1]);
+            expect(triad.includes(notes[i] % 12)).toBe(true);
+          }
+        }
       }
     }
+  });
+
+  it('редкая сфера: регистр и размах одинаковы на всех аккордах, выше E7 арпеджио не забирается', () => {
+    const spans = new Map<string, number[]>();
+    for (let level = 1; level <= PROGRESSIONS.length; level++) {
+      for (let b = 0; b < BARS_PER_LEVEL; b++) {
+        const c = chordFor(level, b);
+        for (let n = 0; n < 128; n++) {
+          const notes = sparkleNotes(n, c);
+          expect(notes[4]).toBeLessThanOrEqual(SPARKLE_TOP);
+          expect(notes[0]).toBeGreaterThanOrEqual(69);
+          const span = notes[4] - notes[0];
+          // Три звука трезвучия на октаву: пять нот — октава с третью, а не две октавы.
+          expect(span).toBeGreaterThanOrEqual(13);
+          expect(span).toBeLessThanOrEqual(17);
+          const list = spans.get(c.name) ?? [];
+          list.push(span);
+          spans.set(c.name, list);
+        }
+      }
+    }
+    expect([...spans.keys()].sort()).toEqual(['Am', 'C', 'Dm', 'Em', 'F', 'G']);
+    // Худшие случаи из ревью: F и G на 11-й сфере забирались до C8 и D8.
+    expect(sparkleNotes(10, chordFor(1, 1))).toEqual([84, 89, 93, 96, 101].map((m) => m - 12));
+    expect(Math.max(...sparkleNotes(10, chordFor(1, 3)))).toBeLessThanOrEqual(SPARKLE_TOP);
+    // Am и C, которые и раньше были в порядке, звучат как прежде.
+    expect(sparkleNotes(0, chordFor(1, 0))).toEqual([76, 81, 84, 88, 93]);
+    expect(sparkleNotes(10, chordFor(1, 2))).toEqual([84, 88, 91, 96, 100]);
   });
 });
 
@@ -591,6 +626,38 @@ describe('разблокировка звука жестом (правило Web
     const before = engine.stats().started;
     engine.ui('back');
     expect(engine.stats().started).toBe(before + 1);
+  });
+
+  it('отсчёт после паузы: по сигналу на цифру, на паузе и до жеста — тишина', () => {
+    const { engine, env } = setup({ hasBeenActive: true });
+    // До жеста — безопасная пустышка.
+    engine.countIn(2);
+    expect(FakeContext.made.length).toBe(0);
+
+    engine.setMusicActive(true);
+    gesture(() => engine.unlock());
+    env.runTasks();
+    env.runIdle();
+    engine.onEvent(READY, 0);
+    engine.onEvent(COUNT_IN, 0);
+
+    engine.setPaused(true);
+    const paused = engine.stats().started;
+    engine.countIn(2);
+    expect(engine.stats().started).toBe(paused);
+
+    // Пауза снята: мир ещё стоит, доли не идут — звучат только два сигнала отсчёта.
+    engine.setPaused(false);
+    expect(engine.stats().started).toBe(paused);
+    expect(engine.stats().gridLocked).toBe(false);
+    engine.countIn(2);
+    expect(engine.stats().started).toBe(paused + 1);
+    engine.countIn(1);
+    expect(engine.stats().started).toBe(paused + 2);
+    // Сетку долей сигналы не трогают: её привяжет первая доля симуляции после отсчёта.
+    expect(engine.stats().gridLocked).toBe(false);
+    engine.onEvent({ type: 'beat', tick: -180, beat: -3, bar: -1, beatInBar: 1, level: 1 }, 0);
+    expect(engine.stats().gridLocked).toBe(true);
   });
 
   it('жест пойман слушателем окна: контекст запущен, слушатели сняты', () => {

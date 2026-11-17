@@ -88,7 +88,8 @@ function sanitizeEntry(v: unknown): LeaderboardEntry | null {
   const date = typeof v.date === 'string' && !Number.isNaN(Date.parse(v.date)) ? v.date : null;
   if (!date) return null;
   // Запись без положительного счёта в таблицу не попадает (recordRun такие и не добавляет).
-  const score = typeof v.score === 'number' && Number.isFinite(v.score) ? Math.floor(v.score) : 0;
+  // Сверху счёт ограничен, как и все целые сохранения: таблица рассчитана на числа конечной длины.
+  const score = int(v.score, 0);
   if (score <= 0) return null;
   return {
     id: typeof v.id === 'string' && v.id.length > 0 && v.id.length < 64 ? v.id : makeEntryId(),

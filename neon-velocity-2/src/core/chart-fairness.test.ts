@@ -11,11 +11,12 @@ import { MAX_OBSTACLES_PER_BAR } from './chart-patterns';
 import { CELL, CELLS, cellOf, cellX } from './chart-probe';
 import { createChart, createInspectableChart } from './chartgen';
 import { contactAt, dangerWindow } from './collision';
-import { GAME, multiplierForChain, OBSTACLES, swayAmp, WORLD } from './config';
+import { BASE_SIM_LOADOUT, GAME, multiplierForChain, OBSTACLES, swayAmp, WORLD } from './config';
 import { isObstacleSpec, makeObstacle } from './entities';
 import { obstacleX, pickupReach, swayOffset } from './motion';
+import { Simulation } from './sim';
 import { barInLevel, isOnGrid, levelAtTick, TICK_RATE, TICKS_PER_BAR, TICKS_PER_EIGHTH, TICKS_PER_LEVEL } from './timing';
-import type { ChartItem, ChartOptions, CrystalSpec, Obstacle, ObstacleSpec } from './types';
+import type { ChartItem, ChartOptions, ChartSource, CrystalSpec, InputFrame, Obstacle, ObstacleSpec, SimState } from './types';
 
 const OPTIONS: ChartOptions = { rareChance: GAME.crystal.rareChance };
 /** 20 уровней скорости. */
@@ -430,6 +431,101 @@ describe('плотность и драматургия уровня', () => {
 });
 
 // ─── Детерминизм ────────────────────────────────────────────────────────────
+
+describe('виляющие ворота', () => {
+  /** Полуширина корабля, с которой его считает лазер. */
+  const ship = GAME.player.radius * GAME.hitbox.laserPlayer;
+  /** 22 уровня: предел скорости достигается на 17-м. */
+  const bars = 22 * 8;
+
+  it('последние полсекунды проход на экране накрывает проход прилёта: его центр — безопасная точка', () => {
+    let swaying = 0;
+    let late = 0;
+    for (const seed of range(301, 24)) {
+      for (const spec of obstaclesOf(barsOf(seed, bars).flat())) {
+        if (spec.kind !== 'laser' || !spec.sway) continue;
+        swaying += 1;
+        if (levelAtTick(spec.arriveTick) >= 6) late += 1;
+        const o = makeObstacle(spec, 1);
+        for (let t = o.arriveTick - GAME.sway.gateCalmTicks; t <= o.arriveTick; t++) {
+          const off = Math.abs(obstacleX(o, t) - o.x);
+          // Корабль в центре видимого прохода проходит ворота с запасом…
+          expect(off, `зерно ${seed}, ворота ${o.arriveTick}`).toBeLessThanOrEqual(o.halfW - ship - GAME.sway.gateMargin + 1e-9);
+          // …а сам проход перекрывает проход прилёта шире, чем на корпус корабля с тем же запасом.
+          expect(2 * o.halfW - off).toBeGreaterThanOrEqual(2 * ship + GAME.sway.gateMargin);
+        }
+        // Зигзаг при этом остаётся зигзагом.
+        expect(spec.sway.amp).toBeGreaterThanOrEqual(3);
+      }
+    }
+    expect(swaying).toBeGreaterThan(80);
+    expect(late).toBeGreaterThan(50);
+  });
+
+  /** Трек из одних ворот: читатель прохода не отвлекается на остальное. */
+  function gatesOnly(seed: number): ChartSource {
+    const chart = createChart(seed, OPTIONS);
+    return { bar: (index) => chart.bar(index).filter((item) => isObstacleSpec(item) && item.kind === 'laser') };
+  }
+
+  /**
+   * Игрок с реакцией 250 мс: ведёт корабль туда, где видел проход ближайших
+   * ворот четверть секунды назад, не быстрее speed. На метку прилёта не смотрит.
+   */
+  function gapReader(speed: number): (state: SimState) => InputFrame {
+    const reaction = Math.round(0.25 * TICK_RATE);
+    return (state) => {
+      let next: Obstacle | null = null;
+      for (const o of state.obstacles) {
+        if (o.resolved || o.destroyed || o.arriveTick < state.tick || state.tick - o.spawnTick < reaction) continue;
+        if (!next || o.arriveTick < next.arriveTick) next = o;
+      }
+      if (!next) return { axis: 0, pointerX: state.player.x, source: 'pointer' };
+      const step = speed / GAME.player.pointerFollow;
+      const dx = Math.max(-step, Math.min(step, obstacleX(next, state.tick - reaction) - state.player.x));
+      return { axis: 0, pointerX: state.player.x + dx, source: 'pointer' };
+    };
+  }
+
+  it('кто едет в проход, который видит, проходит и виляющие ворота — на любом уровне', () => {
+    let swaying = 0;
+    let swayingHit = 0;
+    let still = 0;
+    let stillHit = 0;
+    for (const seed of [5000, 12919, 20838, 28757, 36676, 44595]) {
+      const sim = new Simulation();
+      // Щит считает удары, не обрывая забег: каждые ворота проверяются отдельно.
+      sim.startRun(seed, { ...BASE_SIM_LOADOUT, shieldCharges: 1_000_000 }, gatesOnly(seed));
+      const state = sim.state;
+      const pilot = gapReader(120);
+      const seen = new Set<number>();
+      const hit = new Set<number>();
+      while (state.tick < bars * TICKS_PER_BAR) {
+        sim.step(pilot(state));
+        sim.drainEvents();
+        state.player.invulnTicks = 0;
+        for (const o of state.obstacles) {
+          if (levelAtTick(o.arriveTick) < 6) continue;
+          if (!seen.has(o.id)) {
+            seen.add(o.id);
+            if (o.sway) swaying += 1;
+            else still += 1;
+          }
+          if (o.destroyed && !hit.has(o.id)) {
+            hit.add(o.id);
+            if (o.sway) swayingHit += 1;
+            else stillHit += 1;
+          }
+        }
+      }
+    }
+    expect(swaying).toBeGreaterThan(20);
+    expect(still).toBeGreaterThan(100);
+    expect(stillHit).toBe(0);
+    // До правки такой игрок разбивался о 54–86 % виляющих ворот с 6-го уровня.
+    expect(swayingHit / swaying).toBeLessThanOrEqual(0.05);
+  });
+});
 
 describe('детерминизм', () => {
   it('такты, запрошенные по порядку по одному разу, одинаковы от запуска к запуску', () => {

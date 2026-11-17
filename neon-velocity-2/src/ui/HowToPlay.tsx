@@ -34,7 +34,7 @@ import { Panel } from './kit/Panel';
 import { useDialogFocus } from './kit/useDialogFocus';
 import { GameIcon } from './menu/GameIcon';
 import './menu/menu.css';
-import { formatBonus, stagger, staggerItem } from './menu/shared';
+import { formatBonus, levelRulesText, stagger, staggerItem } from './menu/shared';
 
 export interface HowToPlayProps {
   onClose(): void;
@@ -221,8 +221,9 @@ export function HowToPlay({ onClose }: HowToPlayProps) {
               <span className="min-w-0">
                 <b className="block text-xs font-bold uppercase tracking-wider text-neon-cyan">Метки прилёта</b>
                 <span className="mt-1 block text-[11px] leading-snug text-ink-dim">
-                  На линии корабля заранее загорается метка — там препятствие окажется в момент прилёта. У лазерных ворот подсвечен
-                  проход. Смотрите на метку, а не на зигзаг.
+                  На линии корабля заранее загорается метка — там препятствие окажется в момент прилёта. Кубы и пилы виляют до
+                  последнего: смотрите на метку, а не на зигзаг. Лазерные ворота перед прилётом успокаиваются — их проход отмечен
+                  белыми скобами и в самих воротах, и на линии корабля.
                 </span>
               </span>
             </div>
@@ -273,10 +274,7 @@ export function HowToPlay({ onClose }: HowToPlayProps) {
                 {plural(BARS_PER_LEVEL, ['такт', 'такта', 'тактов'])} музыки) — новый уровень: скорость {formatBonus(GAME.approach.perLevel)}, сетка
                 дороги меняет цвет, экран встряхивает.
               </Text>
-              <Text>
-                Со {GAME.sway.startLevel}-го уровня препятствия идут зигзагом, с {OBSTACLES.laser.minLevel}-го появляются лазерные ворота —
-                и чем дальше, тем у́же проход.
-              </Text>
+              <Text>{levelRulesText(GAME.sway.startLevel, OBSTACLES.laser.minLevel)}</Text>
             </Card>
           </div>
 

@@ -37,6 +37,48 @@ export function formatPlayTime(seconds: number): string {
   return `${h}${NBSP}ч ${String(m % 60).padStart(2, '0')}${NBSP}мин`;
 }
 
+/**
+ * Номер уровня с предлогом: «со 2-го», «с 3-го». «Со» — перед «второго» и перед
+ * «сто …» (101–199); все остальные порядковые начинаются со звука, перед которым «с».
+ */
+export function sinceOrdinal(n: number): string {
+  const whole = Math.max(0, Math.floor(n));
+  const so = whole === 2 || (whole > 100 && whole < 200);
+  return `${so ? 'со' : 'с'}${NBSP}${whole}-го`;
+}
+
+function capitalize(text: string): string {
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+/**
+ * Абзац справки: с какого уровня препятствия идут зигзагом и с какого появляются
+ * лазерные ворота. Оба числа приходят из конфига: при равных уровень называется
+ * один раз, при разных — два предложения по возрастанию уровня.
+ */
+export function levelRulesText(swayLevel: number, laserLevel: number): string {
+  const narrowing = 'чем дальше, тем у́же проход';
+  if (swayLevel === laserLevel) {
+    return `${capitalize(sinceOrdinal(swayLevel))} уровня препятствия идут зигзагом и появляются лазерные ворота — ${narrowing}.`;
+  }
+  const sway = `${capitalize(sinceOrdinal(swayLevel))} уровня препятствия идут зигзагом.`;
+  const laser = `${capitalize(sinceOrdinal(laserLevel))} уровня появляются лазерные ворота — и ${narrowing}.`;
+  return swayLevel < laserLevel ? `${sway} ${laser}` : `${laser} ${sway}`;
+}
+
+/** Ширина знака моноширинного шрифта интерфейса (JetBrains Mono), em. */
+const MONO_ADVANCE = 0.6;
+
+/**
+ * Кегль строки из моноширинных знаков, которая обязана целиком встать в свой
+ * контейнер (.nvm-fit): не больше maxRem, а длинной строке — ровно столько,
+ * чтобы все знаки уместились по ширине. tracking — разрядка строки в em.
+ */
+export function fitFontSize(chars: number, maxRem: number, tracking = 0): string {
+  const widthEm = Math.max(1, chars) * (MONO_ADVANCE + tracking);
+  return `min(${maxRem}rem, calc((100cqi - 1px) / ${Number(widthEm.toFixed(3))}))`;
+}
+
 export const CRYSTAL_FORMS: [string, string, string] = ['кристалл', 'кристалла', 'кристаллов'];
 
 /** id вкладки и её панели — для связки aria-controls / aria-labelledby. */

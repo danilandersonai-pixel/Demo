@@ -7,7 +7,10 @@
  * Раскладки главного меню:
  *   портрет (по умолчанию) — логотип в небе, «Играть» и док разделов у нижнего края;
  *   wide — ширина ≥ 900px и высота ≥ 560px: колонки по бокам дороги;
- *   low  — высота < 560px и ширина ≥ 560px (телефон боком): компактные колонки.
+ *   low  — высота < 560px и ширина ≥ 560px (телефон боком): блоки по углам, низ — одна строка.
+ * Корабль фоновой сцены летит по линии на 0.8 высоты экрана (0.82 на экране шире высоты,
+ * см. render/camera.ts) — блоки меню в его полосу не заходят: на телефоне нижний блок
+ * сжимается под эту линию (--nvm-squeeze), а «бок» держит кнопки в строке под ней.
  * Доля ритма — 0.46875 с (128 BPM): в этом темпе «дышат» логотип и кнопка.
  */
 
@@ -16,6 +19,8 @@
 .nvm-menu {
   --nvm-pad-x: 1rem;
   --nvm-pad-y: 1rem;
+  /* На сколько сжат нижний блок портрета (поле + док + зазор + «Играть»): 0 — полные 8.5rem. */
+  --nvm-squeeze: 0rem;
   display: grid;
   /* Портрет: снаряжение — под плашками, внизу только «Играть» и док. Так нижний блок
    * ниже линии корабля, и на высоком телефоне корабль фоновой сцены остаётся виден. */
@@ -29,7 +34,32 @@
     'nav';
   row-gap: 0.5rem;
   padding: max(var(--nvm-pad-y), env(safe-area-inset-top, 0px)) max(var(--nvm-pad-x), env(safe-area-inset-right, 0px))
-    max(var(--nvm-pad-y), env(safe-area-inset-bottom, 0px)) max(var(--nvm-pad-x), env(safe-area-inset-left, 0px));
+    max(calc(var(--nvm-pad-y) - var(--nvm-squeeze) * 2 / 9), env(safe-area-inset-bottom, 0px))
+    max(var(--nvm-pad-x), env(safe-area-inset-left, 0px));
+}
+
+/*
+ * Телефон в портрете: нижний блок обязан уместиться под кораблём. Корпус опускается ниже
+ * линии 0.8·h не больше чем на 3.24 единицы дороги (самый длинный корабль с учётом парения
+ * и наклона), единица = min(0.47·w, 0.31·h) / 50 — отсюда высота свободной полосы. Всё, чего
+ * блоку не хватает до полных 8.5rem (плюс зазор 0.25rem), уходит в --nvm-squeeze и делится
+ * между полем, доком, зазором и «Играть»; предел 2.25rem — это кнопки по 2.75rem (44px).
+ */
+@media (max-width: 639.98px) {
+  .nvm-menu {
+    --nvm-below-ship: calc(20dvh - min(3.05vw, 2.01dvh));
+    --nvm-squeeze: clamp(
+      0rem,
+      calc(8.75rem + max(0px, env(safe-area-inset-bottom, 0px) - 1rem) - var(--nvm-below-ship)),
+      2.25rem
+    );
+  }
+}
+/* Тот же телефон, но экран шире высоты: линия корабля — 0.82·h, корпус наклонён сильнее. */
+@media (max-width: 639.98px) and (orientation: landscape) {
+  .nvm-menu {
+    --nvm-below-ship: 16dvh;
+  }
 }
 
 .nvm-menu-top {
@@ -52,7 +82,7 @@
   width: min(100%, 26rem);
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: calc(0.5rem - var(--nvm-squeeze) / 9);
 }
 /* Подсказка управления: на телефоне в портрете её нет — место нужнее сцене,
  * а управление пальцем подсказывает сам забег. */
@@ -98,9 +128,9 @@
 .nvm-tile {
   flex-direction: column;
   justify-content: center;
-  gap: 0.25rem;
-  min-height: 3.5rem;
-  padding: 0.375rem 0.125rem;
+  gap: calc(0.25rem - var(--nvm-squeeze) / 36);
+  min-height: calc(3.5rem - var(--nvm-squeeze) / 3);
+  padding: calc(0.375rem - var(--nvm-squeeze) / 18) 0.125rem;
 }
 .nvm-tile-label {
   font-size: 0.625rem;
@@ -113,11 +143,17 @@
 }
 
 /* Локальные затемнения вместо сплошной подложки: центр сцены остаётся чистым.
- * Высоты — в rem, по размеру самих блоков: тень не дотягивается до корабля над «Играть». */
+ * Высоты — в rem, по размеру самих блоков (нижняя сжимается вместе с блоком): тень не
+ * дотягивается до корабля над «Играть». */
 .nvm-menu-scrim {
   background:
     linear-gradient(180deg, rgba(5, 5, 10, 0.8) 0, rgba(5, 5, 10, 0.4) 7.5rem, transparent 14rem),
-    linear-gradient(0deg, rgba(5, 5, 10, 0.88) 0, rgba(5, 5, 10, 0.55) 6rem, transparent 9.5rem);
+    linear-gradient(
+      0deg,
+      rgba(5, 5, 10, 0.88) 0,
+      rgba(5, 5, 10, 0.55) calc(6rem - var(--nvm-squeeze) * 0.63),
+      transparent calc(9.5rem - var(--nvm-squeeze))
+    );
 }
 
 /* Невысокий телефон: логотип меньше, чтобы не спускаться далеко за горизонт. */
@@ -191,6 +227,10 @@
 @media (max-height: 559.98px) and (min-width: 560px) {
   .nvm-menu {
     --nvm-pad-y: 0.5rem;
+    --nvm-squeeze: 0rem;
+    /* Высота кнопок нижней строки: корпус корабля кончается на 0.84 высоты экрана, строка
+     * (с полем и зазором 0.25rem) встаёт под ним; меньше 2.75rem (44px) кнопки не бывают. */
+    --nvm-low-h: clamp(2.75rem, calc(16dvh - 0.25rem - max(var(--nvm-pad-y), env(safe-area-inset-bottom, 0px))), 3rem);
     grid-template-columns: minmax(0, 15rem) minmax(0, 1fr) minmax(0, 20rem);
     grid-template-rows: auto minmax(0, 1fr) auto;
     grid-template-areas:
@@ -211,11 +251,13 @@
     align-self: start;
     align-items: flex-start;
   }
+  /* Снаряжение — под плашками в правом верхнем углу, в небе: ниже него летит корабль. */
   .nvm-menu-hangar {
-    align-self: end;
+    align-self: start;
     width: 100%;
   }
-  /* Нижний ряд на всю ширину: «Играть» слева, плитки справа, середина — кораблю. */
+  /* Нижний ряд на всю ширину: «Играть» слева, док из четырёх плиток справа — оба ниже
+   * корабля, так что дорога и полоса корабля свободны от края до края. */
   .nvm-menu-nav {
     width: 100%;
     display: grid;
@@ -225,24 +267,19 @@
   }
   .nvm-tiles {
     grid-column: 3;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 0.375rem;
   }
   .nvm-tile {
-    flex-direction: row;
-    justify-content: flex-start;
-    gap: 0.5rem;
-    min-height: 2.5rem;
-    padding: 0.25rem 0.375rem;
+    gap: 0.1875rem;
+    min-height: var(--nvm-low-h);
+    padding: 0.25rem 0.125rem;
   }
-  .nvm-tile-label {
-    font-size: 0.6875rem;
-    letter-spacing: 0.06em;
-  }
+  /* Затемнения — только по верхним углам, под логотипом с подсказкой и под плашками:
+   * у кнопок нижней строки свой фон, а полоса корабля остаётся чистой. */
   .nvm-menu-scrim {
     background:
-      linear-gradient(90deg, rgba(5, 5, 10, 0.86) 0%, rgba(5, 5, 10, 0.5) 22%, transparent 38%),
-      linear-gradient(270deg, rgba(5, 5, 10, 0.86) 0%, rgba(5, 5, 10, 0.5) 24%, transparent 42%);
+      radial-gradient(ellipse 46% 70% at 0% 0%, rgba(5, 5, 10, 0.88) 0%, rgba(5, 5, 10, 0.55) 55%, transparent 100%),
+      radial-gradient(ellipse 52% 62% at 100% 0%, rgba(5, 5, 10, 0.88) 0%, rgba(5, 5, 10, 0.55) 55%, transparent 100%);
   }
 }
 
@@ -295,7 +332,7 @@
   position: relative;
   display: flex;
   width: 100%;
-  height: 3.5rem;
+  height: calc(3.5rem - var(--nvm-squeeze, 0rem) / 3);
   align-items: center;
   justify-content: center;
   gap: 0.75rem;
@@ -365,7 +402,7 @@
 }
 @media (max-height: 559.98px) and (min-width: 560px) {
   .nvm-play {
-    height: 3rem;
+    height: var(--nvm-low-h, 3rem);
   }
 }
 
@@ -550,6 +587,16 @@
   font-feature-settings: 'zero' 0;
 }
 
+/*
+ * Число, которое обязано целиком остаться в своей ячейке (счёт в рекордах, числа
+ * статистики): ячейка — контейнер, а кегль строки внутри считается от её ширины
+ * и числа знаков (fitFontSize в shared.ts). Обрезки и наезда на соседей нет при любой длине.
+ */
+.nvm-fit {
+  min-width: 0;
+  container-type: inline-size;
+}
+
 /* Полоса до автоматической отмены подтверждения сброса. */
 .nvm-countdown {
   transform-origin: 0 50%;
@@ -588,8 +635,8 @@
 /* ─── Плитки разделов: значок и подпись по раскладкам ──────────────────── */
 
 .nvm-tile-icon {
-  width: 1.375rem;
-  height: 1.375rem;
+  width: calc(1.375rem - var(--nvm-squeeze) / 9);
+  height: calc(1.375rem - var(--nvm-squeeze) / 9);
 }
 .nvm-tile-text {
   align-items: center;
@@ -612,11 +659,8 @@
 
 @media (max-height: 559.98px) and (min-width: 560px) {
   .nvm-tile-icon {
-    width: 1.5rem;
-    height: 1.5rem;
-  }
-  .nvm-tile-text {
-    align-items: flex-start;
+    width: 1.125rem;
+    height: 1.125rem;
   }
 }
 

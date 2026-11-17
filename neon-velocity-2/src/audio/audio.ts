@@ -281,6 +281,18 @@ export class AudioEngine {
     sfxUi(mix, now + 0.003, sound);
   }
 
+  /**
+   * Сигнал отсчёта после паузы — тот же, что на долях вступления. left — сколько долей
+   * осталось до возврата в игру: последний сигнал громче и длиннее.
+   */
+  countIn(left: number): void {
+    if (this.defer(() => this.countIn(left))) return;
+    const mix = this.mix;
+    const ctx = this.ctx;
+    if (!mix || !ctx || this.paused || !this.canPlay(ctx)) return;
+    sfxCount(mix, ctx.currentTime + SFX_LEAD, -Math.max(1, Math.floor(left)));
+  }
+
   /** Диагностика: состояние контекста, сетки и голосов. */
   stats(): AudioStats {
     const mixer: MixerStats = this.mix?.stats() ?? { voices: 0, fading: 0, nodes: 0, peakVoices: 0, started: 0, stolen: 0, warmed: false };

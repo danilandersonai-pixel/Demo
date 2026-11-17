@@ -4,7 +4,8 @@
  * косметику и вызывает слои по порядку от дальних к ближним:
  *
  *   небо → ближний план горизонта → земля → дорога → блики и метки прилёта →
- *   объекты перед кораблём → корабль → объекты за кораблём → частицы → вспышка
+ *   объекты перед кораблём → корабль → объекты за кораблём → частицы →
+ *   скобы проходов ворот → вспышка
  *
  * Мир рисуется в момент t = state.tick − 1 + alpha: положения объектов берутся
  * из чистых функций motion.ts, корабль — интерполяцией prevX → x, поэтому
@@ -21,6 +22,7 @@ import { Objects } from './objects';
 import { Particles } from './particles';
 import { Road } from './road';
 import { Scenery } from './scenery';
+import { shakeOffset, type ShakeOffset } from './shake';
 import { SHIP_HOVER, Ship } from './ship';
 import { BLEED, CANVAS_FONT, lineScale, Sprites, type View } from './view';
 
@@ -99,6 +101,7 @@ export class Renderer {
   private gridFade = 1;
 
   private trauma = 0;
+  private readonly shake: ShakeOffset = { x: 0, y: 0 };
   private punch = 0;
   private roll = 0;
   private overdrive = 0;
@@ -326,22 +329,15 @@ export class Renderer {
     this.flash = Math.max(0, this.flash - 2.6 * realDt);
     this.roll = damp(this.roll, motion && alive ? state.player.bank * ROLL_MAX : 0, 9, realDt);
 
-    let shakeX = 0;
-    let shakeY = 0;
-    if (motion && frame.shake && this.trauma > 0.002) {
-      // На телефоне та же тряска в пикселях была бы вдвое «громче».
-      const amp = this.trauma * this.trauma * GAME.shake.maxOffset * clamp(Math.min(cam.cssW, cam.cssH) / 720, 0.5, 1);
-      const n = frame.now;
-      shakeX = amp * 0.5 * (Math.sin(n * 91.7) + Math.sin(n * 57.3 + 1.3));
-      shakeY = amp * 0.5 * (Math.sin(n * 83.1 + 2.1) + Math.sin(n * 49.9 + 0.7));
-    }
+    // Тряска выключается настройкой и просьбой «меньше движения».
+    const shake = shakeOffset(motion && frame.shake ? this.trauma : 0, cam, frame.now, this.shake);
     // Слои-кэши сдвигаются на целые пиксели устройства и не шире своего запаса;
     // часть запаса по горизонтали уже занята креном.
     const lean = ROLL_MAX * (cam.cssH + BLEED - cam.horizonY);
     const limitX = Math.max(0, Math.floor((BLEED - lean) * this.kx) - 1);
     const limitY = Math.floor(BLEED * this.ky) - 1;
-    const ox = clamp(Math.round(shakeX * this.kx), -limitX, limitX);
-    const oy = clamp(Math.round(shakeY * this.ky), -limitY, limitY);
+    const ox = clamp(Math.round(shake.x * this.kx), -limitX, limitX);
+    const oy = clamp(Math.round(shake.y * this.ky), -limitY, limitY);
 
     // ── Общие данные кадра ──
     const view = this.viewFor(state);
@@ -398,6 +394,7 @@ export class Renderer {
     this.ship.draw(view, realDt);
     this.objects.drawRange(view, -Infinity, 0);
     this.particles.draw(view);
+    this.objects.drawPassages(view);
     this.particles.drawSpeedLines(view);
 
     ctx.setTransform(1, 0, 0, 1, 0, 0);

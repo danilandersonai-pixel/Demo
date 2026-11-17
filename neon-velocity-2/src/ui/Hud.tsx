@@ -5,10 +5,11 @@
  * палец ведут корабль прямо сквозь HUD.
  */
 import { AnimatePresence, motion } from 'framer-motion';
-import { useEffect, useRef } from 'react';
+import { useEffect, useLayoutEffect, useRef } from 'react';
 import { Banners } from './hud/Banners';
 import { ComboMeter } from './hud/ComboMeter';
 import { ControlHint } from './hud/ControlHint';
+import { freezeAnimations } from './hud/freeze';
 import './hud/hud.css';
 import { LevelStrip, ScoreBlock } from './hud/ScoreBlock';
 import { StatusCluster } from './hud/StatusCluster';
@@ -26,8 +27,11 @@ export interface HudProps {
   /** Пауза доступна (идёт забег и корабль цел). */
   canPause: boolean;
   /**
-   * HUD лежит под паузой: он инертен (один диалог для Tab и скринридера), а его
-   * бесконечные анимации стоят — под размытым экраном ничто не должно двигаться.
+   * HUD лежит под паузой: он инертен (один диалог для Tab и скринридера), а всё,
+   * что в нём движется, стоит — под размытым экраном ничто не должно двигаться.
+   * CSS-анимации держит правило [data-frozen] (hud.css), вспышки в долю, анимации
+   * Framer Motion и переходы — freezeAnimations, баннеры не уходят (Banners).
+   * После паузы всё продолжается с того же места.
    */
   frozen: boolean;
 }
@@ -48,6 +52,7 @@ function fpsTone(fps: number): string {
 
 export function Hud({ runId, showFps, showHint, onHintDone, onPause, canPause, frozen }: HudProps) {
   const hud = useHudSnapshot();
+  const root = useRef<HTMLDivElement>(null);
   const hintReported = useRef(false);
   const hintTimeUp = hud.elapsed >= HINT_SECONDS;
   const hintVisible = showHint && !hintTimeUp;
@@ -59,8 +64,15 @@ export function Hud({ runId, showFps, showHint, onHintDone, onPause, canPause, f
     }
   }, [showHint, hintTimeUp, onHintDone]);
 
+  // До отрисовки кадра паузы: идущие вспышки и переходы замирают, очистка эффекта их продолжает.
+  useLayoutEffect(() => {
+    if (!frozen || !root.current) return;
+    return freezeAnimations(root.current);
+  }, [frozen]);
+
   return (
     <motion.div
+      ref={root}
       className="pointer-events-none fixed inset-0 z-10 select-none font-mono"
       // React 19 снимает атрибут при false.
       inert={frozen}
@@ -90,7 +102,7 @@ export function Hud({ runId, showFps, showHint, onHintDone, onPause, canPause, f
             onPause={onPause}
           />
         </div>
-        <Banners />
+        <Banners frozen={frozen} />
       </div>
 
       <AnimatePresence>{hintVisible && <ControlHint key="hint" />}</AnimatePresence>

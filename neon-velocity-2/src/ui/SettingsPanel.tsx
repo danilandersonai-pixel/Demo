@@ -209,7 +209,7 @@ export function SettingsPanel({ save, actions, storageOk, onClose }: SettingsPan
             <SwitchRow
               icon={Vibrate}
               label="Тряска экрана"
-              description="При столкновении и на новом уровне скорости"
+              description="При столкновении, на новом уровне скорости и лёгкий толчок при пролёте впритирку"
               checked={settings.screenShake}
               onChange={(screenShake) => actions.updateSettings({ screenShake })}
             />
