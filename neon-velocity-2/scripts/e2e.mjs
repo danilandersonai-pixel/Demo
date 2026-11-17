@@ -4,7 +4,8 @@
  *
  * USAGE
  *   npm run build && npm run preview            # terminal 1 → http://localhost:4173
- *   npm run e2e                                 # terminal 2
+ *   npm run e2e                                 # terminal 2 (about 8 minutes)
+ *   npm run e2e -- http://localhost:5173/       # the same against `npm run dev`
  *   node scripts/e2e.mjs [url] [options]
  *
  *   url                 default http://localhost:4173/?debug. A production build exposes the debug API
@@ -21,10 +22,11 @@
  *
  * The game is driven ONLY through its UI (keys, mouse, touch, window size) and through window.__NV__
  * (src/debug.ts): the sim state is read, the pilot is replaced with the game's own autopilot or a
- * «kamikaze» that steers into the nearest obstacle, and three Simulation methods are wrapped to COUNT
- * calls (startRun, abandon) — the wrappers change nothing.
+ * «kamikaze» that steers into the nearest obstacle, and two Simulation methods (startRun, abandon) are
+ * wrapped to COUNT calls — the wrappers change nothing.
  *
- * WHAT IS CHECKED (every line of the output is PASS / FAIL; the exit code is 1 on any FAIL)
+ * WHAT IS CHECKED (every line of the output is PASS / FAIL / SKIP; exit code 0 — no FAIL, 1 — at least
+ * one FAIL, 2 — the check could not start: no Playwright or no Chromium)
  *   desktop  1280×800: menu renders · start by Enter · autopilot reaches level 3 · one rAF loop
  *            (ticks ≈ 128/s, frames ≈ display rate) · pause / resume by key, button, blur, hidden tab ·
  *            0 ticks while paused · resize and rotation mid-run · forced death → Game Over ·
@@ -32,13 +34,17 @@
  *   phone    390×844 touch: the same flow with taps and finger steering
  *   progress seeded highscore: NEW RECORD! banner · «Заново» / «В меню» from pause recorded exactly once ·
  *            the next run starts with the new highscore · an empty run is not recorded · reload mid-run
- *   shop     buys a ship, a theme and an upgrade; the live theme changes; no purchase without crystals
+ *   shop     buys a ship, a theme and an upgrade; the live theme changes; no purchase without crystals;
+ *            the bought shield forgives exactly one hit in the next run
  *   panels   every panel opens and closes with Esc, the close button and a click on the backdrop
- *   edge     double click on «Играть» · double tap on «В меню» · corrupted save · storage that throws ·
+ *   edge     double click on «Играть», «Ещё раз», «Заново» · double tap on «В меню» · Enter and an arrow
+ *            held while screens change · reload while exploding · corrupted save · storage that throws ·
  *            two tabs with one save
- *   fuzz     seeded random walk over keys, taps, resizes, visibility changes and forced deaths; after
- *            every step: screen and sim mode agree, at most one non-inert dialog, wallet ≥ 0,
- *            gamesPlayed grows exactly once per finished or abandoned non-empty run
+ *   fuzz     seeded random walk over keys, held keys, taps, double taps, resizes, visibility changes,
+ *            forced deaths and reloads, weighted by the screen it is on (the choices are seeded; the
+ *            game's own tracks are random, so two walks of one seed differ in detail); after every
+ *            step: screen and sim mode agree, at most one non-inert dialog, wallet ≥ 0, gamesPlayed
+ *            grows exactly once per finished or abandoned non-empty run
  *   …and no console errors, page errors, failed requests or native alert / confirm / prompt anywhere.
  *
  * Timing checks repeat a measurement before they fail; on a machine that cannot hold the display rate
@@ -132,6 +138,45 @@ function installProbe(saveKey) {
   const tally = { runs: 0, gameOver: 0, death: 0, shieldBreak: 0, ready: 0, go: 0, results: [], newRecord: [], levelUp: [], abandons: [] };
   const e2e = { raf: 0, tally, hooked: null };
 
+  // Счётчики живут в странице и гибнут вместе с ней. Сценарий, который перезагружает игру
+  // посреди забега (e2e.keep(true)), просит хранить их в sessionStorage: тогда видно и то,
+  // что игра сдала в pagehide. Хранилище игры (localStorage) зонд не трогает.
+  const TALLY_KEY = '__nv_e2e_tally__';
+  let keep = false;
+  try {
+    const text = window.sessionStorage.getItem(TALLY_KEY);
+    if (text) {
+      Object.assign(tally, JSON.parse(text));
+      keep = true;
+    }
+  } catch {
+    /* хранилище закрыто — счётчики просто не переживут перезагрузку */
+  }
+  const persist = () => {
+    if (!keep) return;
+    try {
+      window.sessionStorage.setItem(TALLY_KEY, JSON.stringify(tally));
+    } catch {
+      /* см. выше */
+    }
+  };
+  e2e.keep = (on) => {
+    keep = Boolean(on);
+    try {
+      if (keep) persist();
+      else window.sessionStorage.removeItem(TALLY_KEY);
+    } catch {
+      /* см. выше */
+    }
+  };
+  // Этот слушатель встаёт раньше слушателя игры: сначала забрать события, которые игра уже
+  // обработала (gameOver в последнем кадре), потом игра сдаст брошенный забег через abandon().
+  window.addEventListener('pagehide', () => {
+    if (!keep) return;
+    e2e.pull();
+    persist();
+  });
+
   const loop = () => {
     e2e.raf++;
     requestAnimationFrame(loop);
@@ -147,6 +192,7 @@ function installProbe(saveKey) {
     const startRun = sim.startRun;
     sim.startRun = function (...args) {
       tally.runs++;
+      persist();
       return startRun.apply(sim, args);
     };
     const abandon = sim.abandon;
@@ -155,7 +201,10 @@ function installProbe(saveKey) {
       const before = { mode: s.mode, tick: s.tick, score: s.score, collected: s.crystalsCollected };
       const result = abandon.call(sim);
       const live = before.mode === 'ready' || before.mode === 'playing' || before.mode === 'dying';
-      if (live) tally.abandons.push({ before, result: result ? { score: result.score, crystals: result.crystals } : null });
+      if (live) {
+        tally.abandons.push({ before, result: result ? { score: result.score, crystals: result.crystals } : null });
+        persist();
+      }
       return result;
     };
     return true;
@@ -176,6 +225,7 @@ function installProbe(saveKey) {
       else if (e.type === 'newRecord') tally.newRecord.push({ tick: e.tick, score: e.score });
       else if (e.type === 'levelUp') tally.levelUp.push({ tick: e.tick, level: e.level, speedMult: e.speedMult });
     }
+    persist();
   };
 
   e2e.snap = () => {
@@ -286,7 +336,7 @@ function installProbe(saveKey) {
       const x = r.left + r.width / 2;
       const y = r.top + r.height / 2;
       if (x < 1 || y < 1 || x > window.innerWidth - 1 || y > window.innerHeight - 1) continue;
-      out.push({ x, y, label: (el.getAttribute('aria-label') || el.textContent || '').trim().slice(0, 40) });
+      out.push({ x, y, label: (el.getAttribute('aria-label') || el.textContent || '').trim().slice(0, 40), live: !el.closest('[inert]') });
     }
     return out;
   };
@@ -700,8 +750,11 @@ async function pauseChecks(game, check) {
     await sleep(500);
     const c = await snap(page);
     const gained = c.tick - pausedSnap.tick;
-    // Полсекунды после паузы — около 64 тиков; «догонять» простой нельзя.
-    check(`${label}: ticks restart and do not catch up the pause`, ok && gained > 20 && gained < 140 && c.alive, `+${gained} ticks in the first 0.5 s, alive ${c.alive}`);
+    // Полсекунды после паузы — около 64 тиков. «Догонять» простой нельзя: тиков не больше, чем
+    // прошло настоящего времени со снимка на паузе (часы страницы — машина может быть занята).
+    const elapsed = (c.now - pausedSnap.now) / 1000;
+    const limit = Math.ceil(elapsed * TICK_RATE * 1.1) + 8;
+    check(`${label}: ticks restart and do not catch up the pause`, ok && gained > 20 && gained <= limit && c.alive, `+${gained} ticks in ${fmt(elapsed, 2)} s since the paused snapshot (limit ${limit}), alive ${c.alive}`);
   };
 
   // Клавиша (на телефоне — кнопка HUD).
@@ -875,7 +928,12 @@ async function scenarioProgress(browser) {
     s = await snap(page);
     check('Game Over → L: the leaderboard is the only live dialog, Game Over under it is inert', s.screen === 'gameover' && s.dialogs.length === 1 && /Рекорды/.test(s.dialogs[0]), json(s.dialogs));
     await page.keyboard.press('Escape');
-    await sleep(600);
+    // Панель уходит с анимацией (~0.3 с, на загруженной машине дольше) — ждём, пока останется одна карточка.
+    await until(page, () => {
+      const d = window.__e2e.snap().dialogs;
+      return d.length === 1 && /GAME OVER/.test(d[0]);
+    }, null, 3000);
+    await sleep(150);
     s = await snap(page);
     check('Esc closes the panel only — Game Over stays', s.screen === 'gameover' && s.dialogs.length === 1 && /GAME OVER/.test(s.dialogs[0]), `screen ${s.screen}, ${json(s.dialogs)}`);
     await page.keyboard.press('KeyS');
@@ -896,7 +954,7 @@ async function scenarioProgress(browser) {
 
 async function scenarioShop(browser) {
   const check = scope('shop');
-  const game = await openGame(browser, 'desktop', { save: makeSave({ crystals: 900 }) });
+  const game = await openGame(browser, 'desktop', { save: makeSave({ crystals: 1600 }) });
   const { page } = game;
   const css = () => page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--theme-a').trim());
   const distance = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
@@ -916,7 +974,7 @@ async function scenarioShop(browser) {
     await press(game, button(page, /^Купить: Неоновый шлейф/));
     await sleep(400);
     s = await snap(page);
-    check('buys a ship: owned, equipped, 300 crystals spent', s.save.ownedSkins.includes('trail') && s.save.equippedSkin === 'trail' && s.save.crystals === 600, `wallet ${s.save.crystals}, skin ${s.save.equippedSkin}`);
+    check('buys a ship: owned, equipped, 300 crystals spent', s.save.ownedSkins.includes('trail') && s.save.equippedSkin === 'trail' && s.save.crystals === 1300, `wallet ${s.save.crystals}, skin ${s.save.equippedSkin}`);
 
     // Тема.
     await press(game, page.getByRole('tab', { name: /Темы/ }).first());
@@ -924,7 +982,7 @@ async function scenarioShop(browser) {
     await sleep(900);
     s = await snap(page);
     const themeAfter = await css();
-    check('buys a theme: owned, equipped, 400 crystals spent', s.save.ownedThemes.length === 2 && s.save.equippedTheme !== 'cyberpunk' && s.save.crystals === 200, `wallet ${s.save.crystals}, theme ${s.save.equippedTheme}`);
+    check('buys a theme: owned, equipped, 400 crystals spent', s.save.ownedThemes.length === 2 && s.save.equippedTheme !== 'cyberpunk' && s.save.crystals === 900, `wallet ${s.save.crystals}, theme ${s.save.equippedTheme}`);
     check('the live theme changes: interface accent', themeAfter !== themeBefore && themeAfter !== '', `--theme-a ${themeBefore} → ${themeAfter}`);
     const canvasAfter = await page.evaluate(() => window.__e2e.canvasStats());
     const drift = distance(canvasBefore.mean, canvasDrift.mean);
@@ -936,13 +994,13 @@ async function scenarioShop(browser) {
     await press(game, button(page, /^Улучшить: Призма удачи/));
     await sleep(400);
     s = await snap(page);
-    check('buys an upgrade: level 1, 150 crystals spent', s.save.upgrades.lucky === 1 && s.save.crystals === 50, `wallet ${s.save.crystals}, upgrades ${json(s.save.upgrades)}`);
+    check('buys an upgrade: level 1, 150 crystals spent', s.save.upgrades.lucky === 1 && s.save.crystals === 750, `wallet ${s.save.crystals}, upgrades ${json(s.save.upgrades)}`);
     const walletText = await dialog.innerText();
-    check('the shop wallet shows what is left', /(^|\D)50(\D|$)/.test(walletText.replace(/\s+/g, ' ')), 'expected 50');
+    check('the shop wallet shows what is left', /(^|\D)750(\D|$)/.test(walletText.replace(/\s+/g, ' ')), 'expected 750');
 
     // Не хватает кристаллов — покупки нет.
     await press(game, page.getByRole('tab', { name: /Корабли/ }).first());
-    const locked = button(page, /^Магнит: не хватает/);
+    const locked = button(page, /^Сингулярность: не хватает/);
     const lockedThere = await locked.waitFor({ state: 'visible', timeout: 2000 }).then(() => true, () => false);
     if (lockedThere) {
       // Кнопка помечена aria-disabled, но остаётся нажимаемой — жмём по координатам, как игрок.
@@ -951,13 +1009,19 @@ async function scenarioShop(browser) {
     }
     await sleep(300);
     s = await snap(page);
-    check('no purchase without crystals', lockedThere && s.save.crystals === 50 && !s.save.ownedSkins.includes('magnet') && s.save.equippedSkin === 'trail', `wallet ${s.save.crystals}, owned ${json(s.save.ownedSkins)}`);
+    check('no purchase without crystals', lockedThere && s.save.crystals === 750 && !s.save.ownedSkins.includes('singularity') && s.save.equippedSkin === 'trail', `wallet ${s.save.crystals}, owned ${json(s.save.ownedSkins)}`);
 
     // Надеть прежний корабль и вернуть.
     await press(game, button(page, /^Надеть: Неоновое ядро/));
     await sleep(300);
     s = await snap(page);
-    check('equips an owned ship for free', s.save.equippedSkin === 'core' && s.save.crystals === 50, `skin ${s.save.equippedSkin}`);
+    check('equips an owned ship for free', s.save.equippedSkin === 'core' && s.save.crystals === 750, `skin ${s.save.equippedSkin}`);
+
+    // «Щит-призрак»: его перк проверяется ниже, в забеге.
+    await press(game, button(page, /^Купить: Щит-призрак/));
+    await sleep(400);
+    s = await snap(page);
+    check('buys «Щит-призрак»: equipped, 650 crystals spent', s.save.equippedSkin === 'ghost' && s.save.crystals === 100, `wallet ${s.save.crystals}, skin ${s.save.equippedSkin}`);
 
     await page.keyboard.press('Escape');
     await until(page, () => window.__e2e.snap().dialogs.length === 0, null, 2000);
@@ -974,6 +1038,23 @@ async function scenarioShop(browser) {
     await untilScreen(page, 'playing', 3000);
     await sleep(500);
     check('the bought theme is live in a run', (await css()) === themeAfter);
+
+    // Купленный корабль действует в забеге: щит прощает ровно одно столкновение.
+    await autopilot(page, true);
+    await until(page, () => window.__NV__.sim.state.mode === 'playing' && window.__NV__.sim.state.score > 0, null, 20_000);
+    const armed = await snap(page);
+    await page.evaluate(() => window.__NV__.setInput(window.__e2e.kamikaze));
+    const hit = await until(page, () => window.__e2e.snap().tally.shieldBreak > 0, null, 30_000);
+    const shieldBanner = await page.getByRole('status').filter({ hasText: 'SHIELD DOWN' }).first().waitFor({ state: 'visible', timeout: 1500 }).then(() => true, () => false);
+    const afterHit = await snap(page);
+    const over = await untilScreen(page, 'gameover', 30_000);
+    await page.evaluate(() => window.__NV__.setInput(null));
+    s = await snap(page);
+    check(
+      'the bought ship works in a run: shield 1, the first hit is forgiven (SHIELD DOWN), the second one kills',
+      armed.shield === 1 && hit && shieldBanner && afterHit.alive && afterHit.shield === 0 && over && s.tally.shieldBreak === 1 && s.tally.death === 1,
+      `shield ${armed.shield} → ${afterHit.shield}, banner ${shieldBanner}, shield breaks ${s.tally.shieldBreak}, deaths ${s.tally.death}`,
+    );
 
     consoleCheck(game, check);
   } catch (err) {
@@ -1108,6 +1189,9 @@ async function scenarioEdge(browser) {
       await untilScreen(page, 'paused', 2000);
       await page.keyboard.press('KeyM');
       await untilScreen(page, 'menu', 2000);
+      // Уходящая пауза ещё доигрывает выход (и первые кадры держит фокус на «Продолжить»):
+      // клавишу зажимаем, когда меню осталось на экране одно.
+      await until(page, () => document.querySelectorAll('[role="dialog"]').length === 0, null, 2000);
       const runs = (await snap(page)).tally.runs;
       await page.keyboard.down('Enter');
       for (let i = 0; i < 25; i++) {
@@ -1118,6 +1202,29 @@ async function scenarioEdge(browser) {
       await sleep(300);
       s = await snap(page);
       check('Enter held down (auto-repeat) starts one run and nothing else', s.screen === 'playing' && s.tally.runs === runs + 1 && s.dialogs.length === 0, `runs ${runs} → ${s.tally.runs}, screen ${s.screen}`);
+
+      // Стрелку держат через паузу, «Заново» и новый забег: корабль рулится, экраны не путаются.
+      await until(page, () => window.__NV__.sim.state.mode === 'playing', null, 5000);
+      await page.evaluate(() => window.__NV__.setInput(null));
+      const from = (await snap(page)).x;
+      await page.keyboard.down('ArrowRight');
+      await sleep(350);
+      const steered = (await snap(page)).x;
+      await page.keyboard.press('Escape');
+      await untilScreen(page, 'paused', 2000);
+      await page.keyboard.press('KeyR');
+      await until(page, () => window.__NV__.screen() === 'playing' && window.__NV__.sim.state.mode === 'ready', null, 3000);
+      const restarted = await snap(page);
+      await page.keyboard.up('ArrowRight');
+      await sleep(500);
+      const released = await snap(page);
+      await sleep(400);
+      s = await snap(page);
+      check(
+        'an arrow held through pause and «Заново»: the ship steers, the new run starts centred and does not drift after the key is released',
+        steered > from + 3 && restarted.screen === 'playing' && Math.abs(restarted.x - 50) < 8 && Math.abs(s.x - released.x) < 0.5 && s.screen === 'playing',
+        `x ${fmt(from)} → ${fmt(steered)} while held → ${fmt(restarted.x)} at restart → ${fmt(released.x)} → ${fmt(s.x)} after release`,
+      );
 
       // Enter после клика мышью по кнопке звука запускает забег, а не переключает звук.
       await page.keyboard.press('Escape');
@@ -1132,6 +1239,62 @@ async function scenarioEdge(browser) {
       await untilScreen(page, 'playing', 2000);
       s = await snap(page);
       check('Enter after a mouse click on the sound button starts the run and leaves the sound alone', off === false && s.screen === 'playing' && s.save.settings.sound === false, `sound ${off} → ${s.save.settings.sound}, screen ${s.screen}`);
+
+      const flying = () => until(page, () => window.__NV__.sim.state.mode === 'playing' && window.__NV__.sim.state.score > 0, null, 20_000);
+      const centre = async (locator) => {
+        const b = await locator.boundingBox();
+        return [b.x + b.width / 2, b.y + b.height / 2];
+      };
+
+      // Enter зажат с момента гибели: автоповтор не проскакивает Game Over.
+      await autopilot(page, true);
+      await flying();
+      await page.evaluate(() => window.__NV__.setInput(window.__e2e.kamikaze));
+      await until(page, () => window.__NV__.sim.state.mode === 'dying', null, 40_000);
+      const atDeath = await snap(page);
+      await page.keyboard.down('Enter');
+      for (let i = 0, after = 0; i < 260 && after < 40; i++) {
+        await page.keyboard.down('Enter');
+        await sleep(30);
+        if (after > 0 || (i % 5 === 0 && (await page.evaluate(() => window.__NV__.screen())) === 'gameover')) after++;
+      }
+      s = await snap(page);
+      check('Enter held from the moment of death (auto-repeat): Game Over stays, no run starts', s.screen === 'gameover' && s.tally.runs === atDeath.tally.runs, `screen ${s.screen}, runs ${atDeath.tally.runs} → ${s.tally.runs}`);
+      await page.keyboard.up('Enter');
+      await page.evaluate(() => window.__NV__.setInput(null));
+
+      // Двойной клик по «Ещё раз» — один забег; по «Заново» — один забег и одна запись брошенного.
+      let [cx, cy] = await centre(button(page, /Ещё раз/));
+      await page.mouse.dblclick(cx, cy);
+      await sleep(800);
+      const retried = await snap(page);
+      check('double click on «Ещё раз» starts exactly one run', retried.screen === 'playing' && retried.tally.runs === s.tally.runs + 1 && retried.save.stats.gamesPlayed === s.save.stats.gamesPlayed, `runs ${s.tally.runs} → ${retried.tally.runs}, gamesPlayed ${s.save.stats.gamesPlayed} → ${retried.save.stats.gamesPlayed}`);
+      await autopilot(page, true);
+      await flying();
+      await page.keyboard.press('Escape');
+      await untilScreen(page, 'paused', 2000);
+      await sleep(500);
+      const paused = await snap(page);
+      [cx, cy] = await centre(button(page, /Заново/));
+      await page.mouse.dblclick(cx, cy);
+      await sleep(800);
+      s = await snap(page);
+      check(
+        'double click on «Заново» restarts once and banks the paused run once',
+        s.screen === 'playing' && s.tally.runs === paused.tally.runs + 1 && s.save.stats.gamesPlayed === paused.save.stats.gamesPlayed + 1 && s.highscore === s.save.highscore,
+        `runs ${paused.tally.runs} → ${s.tally.runs}, gamesPlayed ${paused.save.stats.gamesPlayed} → ${s.save.stats.gamesPlayed}, sim highscore ${s.highscore}, saved ${s.save.highscore}`,
+      );
+
+      // Перезагрузка, пока корабль взрывается: забег записан ровно один раз.
+      await autopilot(page, true);
+      await flying();
+      await page.evaluate(() => window.__NV__.setInput(window.__e2e.kamikaze));
+      await until(page, () => window.__NV__.sim.state.mode === 'dying', null, 40_000);
+      const exploding = await snap(page);
+      await page.reload({ waitUntil: 'load' });
+      await gameReady(page);
+      s = await snap(page);
+      check('reload while the ship is exploding: the run is recorded exactly once', exploding.mode === 'dying' && s.save.stats.gamesPlayed === exploding.save.stats.gamesPlayed + 1 && s.screen === 'menu', `sim ${exploding.mode} at reload, gamesPlayed ${exploding.save.stats.gamesPlayed} → ${s.save.stats.gamesPlayed}`);
       consoleCheck(game, check, 'double click / held keys: no errors');
     } catch (err) {
       check('double click scenario finished', false, String(err?.message ?? err).split('\n')[0]);
@@ -1285,6 +1448,30 @@ async function scenarioEdge(browser) {
       const sa2 = await snap(a.page);
       const shownA = await a.page.getByRole('dialog').first().innerText().catch(() => '');
       check('two tabs: the first tab (on Game Over) follows the shared wallet', digits(shownA).includes(String(sb.save.crystals)) && sa2.screen === 'gameover', `wallet ${sb.save.crystals}`);
+
+      // Забег, начатый до чужого рекорда: NEW RECORD! не вспыхивает, пока счёт не обогнал рекорд из общего сохранения.
+      await sleep(700);
+      await b.page.keyboard.press('Enter');
+      await untilScreen(b.page, 'playing', 3000);
+      await b.page.keyboard.press('Escape');
+      await untilScreen(b.page, 'paused', 3000);
+      const stale = (await snap(b.page)).highscore;
+      await a.page.keyboard.press('Enter');
+      await untilScreen(a.page, 'playing', 3000);
+      await autopilot(a.page, true);
+      await until(a.page, (best) => window.__NV__.sim.state.score > best + 6000, stale, 60_000);
+      await forceDeath(a.page);
+      const record = (await snap(a.page)).save.highscore;
+      await b.page.keyboard.press('Escape');
+      await untilScreen(b.page, 'playing', 3000);
+      await autopilot(b.page, true);
+      const passedStale = await until(b.page, (best) => window.__NV__.sim.state.score > best + 100, stale, 30_000);
+      const falseBanner = await b.page.getByRole('status').filter({ hasText: 'NEW RECORD!' }).first().waitFor({ state: 'visible', timeout: 1200 }).then(() => true, () => false);
+      const now = await snap(b.page);
+      if (passedStale && now.score < record && record > stale) {
+        check('two tabs: a run started before the other tab\'s record does not flash a false NEW RECORD!', !falseBanner, `score ${Math.floor(now.score)}, record in the shared save ${record}, the run started with ${stale}; banner ${falseBanner ? 'shown' : 'not shown'}`);
+      } else check.skip('two tabs: no false NEW RECORD! in a run started before the other tab\'s record', `could not set the scene: score ${Math.floor(now.score)}, record ${record}, stale ${stale}`);
+      await forceDeath(b.page);
       check('two tabs: no errors', a.errors.length === 0 && b.errors.length === 0, [...a.errors, ...b.errors].slice(0, 3).join(' ¦ '));
     } catch (err) {
       check('two tabs: scenario finished', false, String(err?.message ?? err).split('\n')[0]);
@@ -1319,8 +1506,43 @@ const FUZZ_SIZES = {
   phone: [[390, 844], [844, 390], [360, 640], [640, 360], [320, 568], [414, 896]],
 };
 
+/** Что увидели все прогулки вместе. */
+const FUZZ_SEEN = { screens: new Set(), finished: 0, abandoned: 0, empty: 0, runs: 0, panels: 0, reloads: 0, unloads: 0, walks: 0 };
+
 const FUZZ_KEYS = ['Enter', 'Space', 'Escape', 'Escape', 'KeyP', 'KeyR', 'KeyM', 'KeyS', 'KeyL', 'Tab', 'ArrowLeft', 'ArrowRight', 'KeyA', 'KeyD'];
 const HOLD_KEYS = ['Enter', 'Space', 'Escape', 'KeyR', 'KeyP', 'ArrowLeft', 'ArrowRight'];
+
+/**
+ * Веса действий по тому, что сейчас на экране. Прогулка остаётся случайной, но не топчется
+ * в панелях меню и на вступлении READY: забеги успевают набрать очки, закончиться гибелью и
+ * быть брошенными непустыми. Каждый пятый шаг берётся из общего списка `any` — клавиши и
+ * нажатия «не того» экрана.
+ */
+const FUZZ_WEIGHTS = {
+  menu: { start: 26, panel: 16, target: 10, key: 8, hold: 3, point: 5, resize: 8, hide: 4, blur: 2, wait: 5, pilot: 3, release: 2, reload: 3 },
+  panel: { close: 20, target: 38, key: 9, hold: 3, point: 6, resize: 8, hide: 4, blur: 2, wait: 4, release: 2, reload: 2 },
+  // Вступление и первые секунды, пока счёт нулевой: чаще просто лететь, иначе почти все забеги бросаются пустыми.
+  ready: { fly: 46, death: 6, pause: 10, key: 8, hold: 5, point: 5, target: 3, resize: 7, hide: 3, blur: 2, release: 2, reload: 3 },
+  playing: { fly: 28, death: 12, pause: 14, key: 8, hold: 6, point: 6, target: 4, resize: 8, hide: 4, blur: 3, pilot: 2, release: 3, reload: 4 },
+  paused: { resume: 22, restart: 18, menu: 18, key: 9, hold: 4, target: 7, point: 3, resize: 8, hide: 4, blur: 2, wait: 3, reload: 3 },
+  gameover: { retry: 22, toMenu: 12, shop: 8, board: 10, key: 9, hold: 4, target: 7, point: 4, resize: 8, hide: 4, wait: 10, reload: 3 },
+  any: { start: 4, close: 4, pause: 4, resume: 4, restart: 6, menu: 6, retry: 6, toMenu: 4, shop: 4, board: 4, key: 16, hold: 8, release: 4, target: 12, point: 6, resize: 6, hide: 6, blur: 4, pilot: 4, death: 3, fly: 3, wait: 4 },
+};
+
+/** Намерение игрока: клавиша или кнопка с такой подписью (что выпадет). */
+const FUZZ_INTENTS = {
+  start: { keys: ['Enter', 'Space'], label: /Играть/ },
+  panel: { keys: [], label: /^(Магазин|Рекорды|Настройки|Как играть)/ },
+  close: { keys: ['Escape'], label: /^Закрыть/ },
+  pause: { keys: ['Escape', 'KeyP'], label: /^Пауза/ },
+  resume: { keys: ['Escape', 'KeyP'], label: /Продолжить/ },
+  restart: { keys: ['KeyR'], label: /Заново/ },
+  menu: { keys: ['KeyM'], label: /В меню/ },
+  retry: { keys: ['Enter', 'Space', 'KeyR'], label: /Ещё раз/ },
+  toMenu: { keys: ['Escape'], label: /^Меню/ },
+  shop: { keys: ['KeyS'], label: /^Магазин/ },
+  board: { keys: ['KeyL'], label: /^Рекорды/ },
+};
 
 async function scenarioFuzz(browser, seed) {
   const profile = seed % 2 === 0 ? 'phone' : 'desktop';
@@ -1330,6 +1552,15 @@ async function scenarioFuzz(browser, seed) {
   const rnd = mulberry32(seed * 7919 + 17);
   const pick = (list) => list[Math.floor(rnd() * list.length)];
   const between = (a, b) => a + Math.floor(rnd() * (b - a + 1));
+  const weighted = (table) => {
+    const names = Object.keys(table);
+    let roll = rnd() * names.reduce((n, k) => n + table[k], 0);
+    for (const name of names) {
+      roll -= table[name];
+      if (roll < 0) return name;
+    }
+    return names[names.length - 1];
+  };
   const point = async (x, y, twice = false) => {
     if (game.touch) {
       await page.touchscreen.tap(x, y);
@@ -1340,29 +1571,56 @@ async function scenarioFuzz(browser, seed) {
     } else if (twice) await page.mouse.dblclick(x, y);
     else await page.mouse.click(x, y);
   };
+  const targets = async () => (await page.evaluate(() => window.__e2e.targets())).filter((t) => !/Да, сбросить/.test(t.label));
+  const word = game.touch ? 'tap' : 'click';
 
   const history = [];
   const broken = {};
   const flag = (invariant, step, detail) => {
     if (!broken[invariant]) broken[invariant] = `step ${step}: ${detail} ¦ last actions: ${history.slice(-7).join(' → ')}`;
   };
-  const seen = { screens: new Set(), finished: 0, abandoned: 0, empty: 0, runs: 0, panels: 0 };
+  const seen = { screens: new Set(), finished: 0, abandoned: 0, empty: 0, runs: 0, panels: 0, reloads: 0, unloads: 0 };
   let held = null;
   let base = null;
 
   try {
+    await page.evaluate(() => window.__e2e.keep(true));
     await autopilot(page, true);
     base = await snap(page);
+    let s = base;
+    let pilot = 'autopilot';
+    const setPilot = async (name) => {
+      pilot = name;
+      if (name === 'autopilot') await autopilot(page, true);
+      else if (name === 'kamikaze') await page.evaluate(() => window.__NV__.setInput(window.__e2e.kamikaze));
+      else await page.evaluate(() => window.__NV__.setInput(null));
+    };
 
     for (let step = 1; step <= FUZZ_STEPS; step++) {
       // ── действие ──
-      const roll = rnd() * 100;
-      let action;
-      if (roll < 24) {
+      const top = s.dialogs[0] ?? '';
+      const context = s.dialogs.length > 0 && !/GAME OVER|PAUSE/.test(top) ? 'panel' : s.screen === 'playing' && s.score === 0 && s.collected === 0 ? 'ready' : s.screen;
+      const name = weighted(rnd() < 0.2 ? FUZZ_WEIGHTS.any : (FUZZ_WEIGHTS[context] ?? FUZZ_WEIGHTS.any));
+      let action = name;
+
+      if (FUZZ_INTENTS[name]) {
+        const intent = FUZZ_INTENTS[name];
+        const byButton = intent.keys.length === 0 || rnd() < 0.45 ? (await targets()).filter((t) => intent.label.test(t.label)) : [];
+        if (byButton.length > 0) {
+          const t = pick(byButton);
+          const twice = rnd() < 0.25;
+          action = `${name}: ${twice ? 'double ' : ''}${word} «${t.label.replace(/\s+/g, ' ')}»`;
+          await point(t.x, t.y, twice);
+        } else if (intent.keys.length > 0) {
+          const key = pick(intent.keys);
+          action = `${name}: key ${key}`;
+          await page.keyboard.press(key);
+        } else action = `${name}: no such button`;
+      } else if (name === 'key') {
         const key = pick(FUZZ_KEYS);
         action = `key ${key}`;
         await page.keyboard.press(key);
-      } else if (roll < 30) {
+      } else if (name === 'hold') {
         const key = pick(HOLD_KEYS);
         action = `hold ${key}`;
         if (held) await page.keyboard.up(held);
@@ -1373,46 +1631,63 @@ async function scenarioFuzz(browser, seed) {
           await page.keyboard.down(key);
           await sleep(25);
         }
-      } else if (roll < 34) {
+      } else if (name === 'release') {
         action = `release ${held ?? '—'}`;
         if (held) await page.keyboard.up(held);
         held = null;
-      } else if (roll < 58) {
-        const targets = (await page.evaluate(() => window.__e2e.targets())).filter((t) => !/Да, сбросить/.test(t.label));
-        if (targets.length > 0) {
-          const t = pick(targets);
+      } else if (name === 'target') {
+        const list = await targets();
+        if (list.length > 0) {
+          const t = pick(list);
           const twice = rnd() < 0.2;
-          action = `${twice ? 'double ' : ''}${game.touch ? 'tap' : 'click'} «${t.label.replace(/\s+/g, ' ')}»`;
+          action = `${twice ? 'double ' : ''}${word} «${t.label.replace(/\s+/g, ' ')}»`;
           await point(t.x, t.y, twice);
         } else action = 'no buttons';
-      } else if (roll < 64) {
+      } else if (name === 'point') {
         const size = page.viewportSize();
         const x = between(2, size.width - 3);
         const y = between(2, size.height - 3);
-        action = `${game.touch ? 'tap' : 'click'} at ${x},${y}`;
+        action = `${word} at ${x},${y}`;
         await point(x, y);
-      } else if (roll < 72) {
+      } else if (name === 'resize') {
         const [w, h] = pick(FUZZ_SIZES[profile]);
         action = `resize ${w}×${h}`;
         await page.setViewportSize({ width: w, height: h });
-      } else if (roll < 77) {
+      } else if (name === 'hide') {
         action = 'hide tab, show tab';
         await page.evaluate(() => window.__e2e.setHidden(true));
         await sleep(between(20, 250));
         await page.evaluate(() => window.__e2e.setHidden(false));
-      } else if (roll < 80) {
+      } else if (name === 'blur') {
         action = 'window blur';
         await page.evaluate(() => window.__e2e.blur());
-      } else if (roll < 88) {
-        action = 'pilot: kamikaze';
-        await page.evaluate(() => window.__NV__.setInput(window.__e2e.kamikaze));
-        await sleep(between(300, 1500));
-      } else if (roll < 93) {
-        action = 'pilot: autopilot';
-        await autopilot(page, true);
-      } else if (roll < 95) {
-        action = 'pilot: player';
-        await page.evaluate(() => window.__NV__.setInput(null));
+      } else if (name === 'pilot') {
+        await setPilot(pick(['autopilot', 'autopilot', 'kamikaze', 'player']));
+        action = `pilot: ${pilot}`;
+      } else if (name === 'fly') {
+        await setPilot('autopilot');
+        const ms = between(300, 2200);
+        action = `fly ${ms}`;
+        await sleep(ms);
+      } else if (name === 'death') {
+        // Вынужденная гибель: таран и ожидание, пока забег не кончится (или не сменится экран).
+        await setPilot('kamikaze');
+        const died = await until(page, () => window.__NV__.screen() !== 'playing', null, 9000);
+        action = `forced death${died ? '' : ' (still flying)'}`;
+        if (rnd() < 0.5) await setPilot('autopilot');
+      } else if (name === 'reload') {
+        // Перезагрузка в случайный момент: идущий забег сдаётся из pagehide — ровно один раз.
+        if (held) await page.keyboard.up(held);
+        held = null;
+        const abandonsBefore = s.tally.abandons.length;
+        await page.reload({ waitUntil: 'load' });
+        await gameReady(page);
+        await setPilot(pilot);
+        seen.reloads++;
+        const after = await snap(page);
+        if (after.tally.abandons.length > abandonsBefore) seen.unloads++;
+        action = `reload (from «${s.screen}»/${s.mode})`;
+        if (after.screen !== 'menu' || after.mode !== 'attract') flag('agree', step, `after a reload: screen «${after.screen}», sim «${after.mode}»`);
       } else {
         const ms = rnd() < 0.3 ? between(900, 2200) : between(40, 600);
         action = `wait ${ms}`;
@@ -1422,11 +1697,12 @@ async function scenarioFuzz(browser, seed) {
       if (rnd() < 0.5) await sleep(between(0, 140));
 
       // ── инварианты ──
-      let s = await snap(page);
+      s = await snap(page);
       const transient = (x) => !(AGREE[x.screen] ?? []).includes(x.mode) || x.dialogs.length > 1;
-      // Смена экрана — один коммит React, уходящая панель доигрывает анимацию: даём переходу улечься.
-      for (let i = 0; i < 10 && transient(s); i++) {
-        await sleep(70);
+      // Смена экрана — один коммит React, уходящая панель доигрывает анимацию (~0.3 с, на загруженной
+      // машине дольше): даём переходу улечься. Застрявшее состояние за две секунды никуда не денется.
+      for (let i = 0; i < 20 && transient(s); i++) {
+        await sleep(100);
         s = await snap(page);
       }
       seen.screens.add(s.screen);
@@ -1471,7 +1747,7 @@ async function scenarioFuzz(browser, seed) {
     }
     if (held) await page.keyboard.up(held);
 
-    const walk = `${FUZZ_STEPS} steps: ${seen.runs} runs started, ${seen.finished} finished, ${seen.abandoned} abandoned, ${seen.empty} empty; screens ${[...seen.screens].join('/')}`;
+    const walk = `${FUZZ_STEPS} steps: ${seen.runs} runs started, ${seen.finished} finished, ${seen.abandoned} abandoned, ${seen.empty} empty, ${seen.reloads} reloads (${seen.unloads} mid-run); screens ${[...seen.screens].join('/')}`;
     check('screen and sim mode agree after every step', !broken.agree, broken.agree ?? walk);
     check('at most one non-inert dialog after every step', !broken.dialogs, broken.dialogs ?? `${seen.panels} steps ended on a menu panel`);
     check('wallet ≥ 0 and never more than earned', !broken.wallet, broken.wallet ?? '');
@@ -1479,7 +1755,11 @@ async function scenarioFuzz(browser, seed) {
     check('totals, highscore and leaderboard match the recorded runs', !broken.totals, broken.totals ?? '');
     check('every run starts with the saved highscore', !broken.record, broken.record ?? '');
     check('0 ticks whenever the game is paused', !broken.paused, broken.paused ?? '');
-    check('the walk reached every screen', ['menu', 'playing', 'paused', 'gameover'].every((x) => seen.screens.has(x)) && seen.finished > 0 && seen.abandoned > 0, walk);
+    // Что прогулка успела увидеть — сверяется по всем зёрнам сразу (см. fuzzCoverage): одна
+    // случайная прогулка вправе не застать, например, ни одного брошенного забега с очками.
+    for (const x of seen.screens) FUZZ_SEEN.screens.add(x);
+    for (const k of ['finished', 'abandoned', 'empty', 'runs', 'panels', 'reloads', 'unloads']) FUZZ_SEEN[k] += seen[k];
+    FUZZ_SEEN.walks++;
 
     // После всего этого — по-прежнему один цикл и рабочая игра.
     await page.evaluate(() => window.__e2e.setHidden(false));
@@ -1487,7 +1767,9 @@ async function scenarioFuzz(browser, seed) {
     await page.reload({ waitUntil: 'load' });
     await gameReady(page);
     const reloaded = await snap(page);
-    check('the save survives a reload after the walk', reloaded.save.stats.gamesPlayed >= base.save.stats.gamesPlayed + seen.finished + seen.abandoned && reloaded.screen === 'menu', `gamesPlayed ${reloaded.save.stats.gamesPlayed}`);
+    const kept = reloaded.tally.abandons.filter((a) => a.result !== null).length;
+    const total = base.save.stats.gamesPlayed + reloaded.tally.gameOver + kept;
+    check('the save survives a reload after the walk (a run alive at that moment is banked once)', reloaded.save.stats.gamesPlayed === total && reloaded.screen === 'menu' && reloaded.mode === 'attract', `gamesPlayed ${reloaded.save.stats.gamesPlayed}, expected ${total}`);
     check('no console errors, page errors, failed requests or native dialogs', !broken.errors && game.errors.length === 0, broken.errors ?? game.errors.slice(0, 3).join(' ¦ '));
   } catch (err) {
     check('scenario finished', false, `${String(err?.message ?? err).split('\n')[0]} ¦ last actions: ${history.slice(-7).join(' → ')}`);
@@ -1495,6 +1777,23 @@ async function scenarioFuzz(browser, seed) {
   } finally {
     await game.context.close();
   }
+}
+
+/** Прогулки вместе дошли до всего, ради чего затевались: иначе «зелёный» фаззер ничего не значит. */
+function fuzzCoverage() {
+  const check = scope('fuzz');
+  const c = FUZZ_SEEN;
+  if (c.walks === 0) return;
+  const missing = [];
+  for (const x of ['menu', 'playing', 'paused', 'gameover']) if (!c.screens.has(x)) missing.push(`screen «${x}»`);
+  if (c.finished === 0) missing.push('a run finished by death');
+  if (c.abandoned === 0) missing.push('a non-empty run abandoned');
+  if (c.empty === 0) missing.push('an empty run abandoned');
+  if (c.panels === 0) missing.push('a menu panel');
+  const summary = `${c.walks} walks: ${c.runs} runs started, ${c.finished} finished, ${c.abandoned} abandoned with a score, ${c.empty} abandoned empty, ${c.reloads} reloads (${c.unloads} mid-run), ${c.panels} steps on a menu panel`;
+  // Мало шагов (--steps) — не вина игры: отмечаем пропуском, а не провалом.
+  if (missing.length > 0 && FUZZ_STEPS * c.walks < 300) check.skip('the walks together covered every screen and every way a run ends', `not reached: ${missing.join(', ')} — ${summary}`);
+  else check('the walks together covered every screen and every way a run ends', missing.length === 0, missing.length ? `not reached: ${missing.join(', ')} — ${summary}` : summary);
 }
 
 /** После случайной прогулки (без перезагрузки) цикл по-прежнему один. */
@@ -1570,6 +1869,7 @@ const scenarios = [
   ['edge', () => scenarioEdge(browser)],
   ['fuzz', async () => {
     for (const seed of FUZZ_SEEDS) await scenarioFuzz(browser, seed);
+    fuzzCoverage();
     await scenarioFuzzLoop(browser);
   }],
 ];

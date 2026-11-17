@@ -11,7 +11,8 @@
     "build": "tsc -p tsconfig.json && vite build",
     "build:single": "tsc -p tsconfig.json && vite build --mode single",
     "build:play": "npm run build:single && node -e \"require('fs').mkdirSync('play',{recursive:true});require('fs').copyFileSync('dist-single/index.html','play/index.html')\"",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "e2e": "node scripts/e2e.mjs"
   },
   "dependencies": {
     "@fontsource-variable/jetbrains-mono": "^5.3.0",
