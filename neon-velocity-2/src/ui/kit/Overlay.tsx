@@ -1,5 +1,5 @@
 import { motion, useIsPresent } from 'framer-motion';
-import type { ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 
 export interface OverlayProps {
   children: ReactNode;
@@ -13,6 +13,14 @@ export interface OverlayProps {
    * подложка размытие снимает сразу: под ней уже живой холст нового забега.
    */
   blur?: 'sm' | 'md' | 'lg';
+  /**
+   * Через сколько миллисекунд после появления экран размывает фон; до того подложка
+   * только затемняет. Размытие пересчитывается на весь экран при любом изменении на
+   * нём — под подложкой, внутри неё или над ней. Экран, который въезжает дольше доли
+   * секунды или лежит над ещё живым холстом (Game Over), включает размытие, когда всё
+   * замерло: оно приходит коротким «уводом в расфокус» и дальше не пересчитывается.
+   */
+  blurDelayMs?: number;
   /** Слой: 30 — экраны (пауза, game over, меню), 40 — панели поверх меню. */
   layer?: 30 | 40;
   className?: string;
@@ -40,17 +48,30 @@ const OUTER_PADDING = [
 
 const BLUR = { sm: 'backdrop-blur-sm', md: 'backdrop-blur-md', lg: 'backdrop-blur-lg' } as const;
 
+/** Отложенное размытие приходит плавно; при «меньше движения» — сразу. Уходящая подложка перехода не имеет. */
+const BLUR_IN = 'transition-[backdrop-filter,-webkit-backdrop-filter] duration-200 ease-out motion-reduce:transition-none';
+
 /**
  * Полноэкранная затемняющая подложка с плавным появлением и, по запросу,
  * размытием заднего плана. Оборачивайте в <AnimatePresence>, чтобы работала
  * анимация выхода.
  *
- * Размытие стоит, пока экран на месте. С первого кадра ухода его нет — подложка
- * гаснет одной прозрачностью: под ней в этот момент уже идёт забег (или сцена
- * меню), и размытие пересчитывалось бы на каждом кадре все 0.28 с ухода.
+ * Размытие стоит, пока экран на месте (с blurDelayMs — с момента, когда он замер).
+ * С первого кадра ухода его нет — подложка гаснет одной прозрачностью: под ней в
+ * этот момент уже идёт забег (или сцена меню), и размытие пересчитывалось бы на
+ * каждом кадре все 0.28 с ухода.
  */
-export function Overlay({ children, onBackdropClick, blur, layer = 30, className = '', label, inert = false }: OverlayProps) {
+export function Overlay({ children, onBackdropClick, blur, blurDelayMs = 0, layer = 30, className = '', label, inert = false }: OverlayProps) {
   const isPresent = useIsPresent();
+  const [settled, setSettled] = useState(blurDelayMs <= 0);
+
+  useEffect(() => {
+    if (blurDelayMs <= 0) return;
+    const timer = window.setTimeout(() => setSettled(true), blurDelayMs);
+    return () => window.clearTimeout(timer);
+  }, [blurDelayMs]);
+
+  const blurNow = isPresent && (settled || blurDelayMs <= 0);
   return (
     <motion.div
       role="presentation"
@@ -67,7 +88,8 @@ export function Overlay({ children, onBackdropClick, blur, layer = 30, className
       className={[
         'fixed inset-0 flex items-center justify-center overflow-y-auto bg-void/78',
         OUTER_PADDING,
-        blur && isPresent ? BLUR[blur] : '',
+        blur && blurNow ? BLUR[blur] : '',
+        blur && blurDelayMs > 0 && isPresent ? BLUR_IN : '',
         layer === 40 ? 'z-40' : 'z-30',
         className,
       ].join(' ')}

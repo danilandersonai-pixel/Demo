@@ -5,7 +5,7 @@
  * палец ведут корабль прямо сквозь HUD.
  */
 import { AnimatePresence, motion } from 'framer-motion';
-import { useEffect, useLayoutEffect, useRef } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Banners } from './hud/Banners';
 import { ComboMeter } from './hud/ComboMeter';
 import { ControlHint } from './hud/ControlHint';
@@ -13,7 +13,7 @@ import { freezeAnimations } from './hud/freeze';
 import './hud/hud.css';
 import { LevelStrip, ScoreBlock } from './hud/ScoreBlock';
 import { StatusCluster } from './hud/StatusCluster';
-import { useHudSnapshot } from './hudStore';
+import { hudStore, useHudSnapshot, useResumeCount } from './hudStore';
 
 export interface HudProps {
   /** Номер забега: счётчик комбо начинает его с чистого листа (без «срыва» с прошлого множителя). */
@@ -31,9 +31,27 @@ export interface HudProps {
    * что в нём движется, стоит — под размытым экраном ничто не должно двигаться.
    * CSS-анимации держит правило [data-frozen] (hud.css), вспышки в долю, анимации
    * Framer Motion и переходы — freezeAnimations, баннеры не уходят (Banners).
-   * После паузы всё продолжается с того же места.
+   * Стоит HUD и весь отсчёт после паузы (useHeld) — ровно пока стоят тики; инертен
+   * он только под самой паузой: кнопка паузы во время отсчёта работает. Дальше всё
+   * продолжается с того же места.
    */
   frozen: boolean;
+}
+
+/**
+ * HUD стоит под паузой и весь отсчёт после неё. Цифру отсчёта GameHost ставит в
+ * layout-эффекте того же коммита, что снимает паузу, и его эффекты идут раньше
+ * эффектов HUD (холст раньше в дереве). Поэтому «оттаять» решает эффект, а не
+ * рендер: иначе HUD ожил бы на один рендер между паузой и отсчётом — баннеры,
+ * истёкшие за паузу, ушли бы, а READY въехал бы заново посреди отсчёта.
+ */
+function useHeld(frozen: boolean): boolean {
+  const counting = useResumeCount() > 0;
+  const [held, setHeld] = useState(frozen);
+  useLayoutEffect(() => {
+    setHeld(frozen || hudStore.getResumeCount() > 0);
+  }, [frozen, counting]);
+  return frozen || held;
 }
 
 /** Сколько секунд после GO висит подсказка управления. */
@@ -52,6 +70,7 @@ function fpsTone(fps: number): string {
 
 export function Hud({ runId, showFps, showHint, onHintDone, onPause, canPause, frozen }: HudProps) {
   const hud = useHudSnapshot();
+  const held = useHeld(frozen);
   const root = useRef<HTMLDivElement>(null);
   const hintReported = useRef(false);
   const hintTimeUp = hud.elapsed >= HINT_SECONDS;
@@ -65,10 +84,13 @@ export function Hud({ runId, showFps, showHint, onHintDone, onPause, canPause, f
   }, [showHint, hintTimeUp, onHintDone]);
 
   // До отрисовки кадра паузы: идущие вспышки и переходы замирают, очистка эффекта их продолжает.
+  // Снимок, пришедший уже под заморозкой (первый кадр отсчёта публикует состояние на момент
+  // паузы — прежняя публикация могла отстать на 1/30 с), может запустить переход, например
+  // полоски уровня: после такого рендера заморозка повторяется и останавливает и его.
   useLayoutEffect(() => {
-    if (!frozen || !root.current) return;
+    if (!held || !root.current) return;
     return freezeAnimations(root.current);
-  }, [frozen]);
+  }, [held, hud]);
 
   return (
     <motion.div
@@ -76,7 +98,7 @@ export function Hud({ runId, showFps, showHint, onHintDone, onPause, canPause, f
       className="pointer-events-none fixed inset-0 z-10 select-none font-mono"
       // React 19 снимает атрибут при false.
       inert={frozen}
-      data-frozen={frozen || undefined}
+      data-frozen={held || undefined}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
@@ -102,7 +124,7 @@ export function Hud({ runId, showFps, showHint, onHintDone, onPause, canPause, f
             onPause={onPause}
           />
         </div>
-        <Banners frozen={frozen} />
+        <Banners frozen={held} runId={runId} />
       </div>
 
       <AnimatePresence>{hintVisible && <ControlHint key="hint" />}</AnimatePresence>

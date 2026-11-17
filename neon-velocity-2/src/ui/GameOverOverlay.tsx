@@ -1,10 +1,11 @@
 /**
- * Экран Game Over: размытый фон (холст под ним замирает через долю секунды) и
- * неоновая карточка с итогом забега. Первые GAME_OVER_ARM_MS экран не ловит
- * указатель — игрок ещё жмёт клавиши и тапает по инерции забега; хоткеи на это
- * же время глушит App. Все анимации конечны и затихают вместе с карточкой, за
- * ~1.5 с (набор счёта, глитч, вывеска рекорда — см. hud.css): пока на экране
- * что-то движется, размытие фона пересчитывается на каждом кадре.
+ * Экран Game Over: затемнённый, а когда всё замерло — размытый фон (холст под ним
+ * останавливается через долю секунды) и неоновая карточка с итогом забега. Первые
+ * GAME_OVER_ARM_MS экран не ловит указатель — игрок ещё жмёт клавиши и тапает по
+ * инерции забега; хоткеи на это же время глушит App. Все анимации конечны и
+ * затихают вместе с карточкой, за ~1.5 с (набор счёта, глитч, вывеска рекорда —
+ * см. hud.css). Размытие фона приходит следом, через GAME_OVER_SETTLE_MS: пока на
+ * экране что-то движется, оно пересчитывалось бы на каждом кадре.
  */
 import { motion, useIsPresent, type Variants } from 'framer-motion';
 import { Crown, Flame, Gauge, Gem, Orbit, RotateCcw, Timer, Trophy, Wallet, Zap, type LucideIcon } from 'lucide-react';
@@ -12,7 +13,7 @@ import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import type { RunResult } from '../core/types';
 import type { RecordOutcome } from '../state/progress';
 import { LEADERBOARD_SIZE } from '../state/storage';
-import { EASE_OUT, GAME_OVER_ARM_MS, POINT_FORMS } from './hud/constants';
+import { EASE_OUT, GAME_OVER_ARM_MS, GAME_OVER_COUNT, GAME_OVER_SETTLE_MS, POINT_FORMS } from './hud/constants';
 import { CountUp } from './hud/CountUp';
 import './hud/hud.css';
 import { CrystalCount } from './kit/CrystalCount';
@@ -129,6 +130,7 @@ export function GameOverOverlay({ result, outcome, wallet, onRetry, onShop, onLe
   return (
     <Overlay
       blur="md"
+      blurDelayMs={GAME_OVER_SETTLE_MS}
       label="Игра окончена"
       inert={covered || !isPresent}
       className={armed && isPresent ? '' : 'pointer-events-none'}
@@ -167,7 +169,8 @@ export function GameOverOverlay({ result, outcome, wallet, onRetry, onShop, onLe
               <span className="nvh-label -mr-[0.3em] text-ink-dim">Score</span>
               <CountUp
                 value={score}
-                delay={0.3}
+                delay={GAME_OVER_COUNT.delay}
+                duration={GAME_OVER_COUNT.duration}
                 className={`nvh-over-score nvh-digits font-extrabold leading-none ${record ? 'text-neon-yellow text-glow-yellow' : 'text-ink text-glow-soft'}`}
               />
               <span className="sr-only">

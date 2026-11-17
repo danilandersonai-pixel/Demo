@@ -27,6 +27,17 @@ export const BANNER_SHELF: Record<BannerKind, BannerShelf> = {
  */
 export const GAME_OVER_ARM_MS = 650;
 
+/**
+ * Когда экран Game Over замер: карточка въехала, счёт набрался (GAME_OVER_COUNT), глитч и
+ * вывеска рекорда отыграли (hud.css, до 1.5 с), холст под экраном уже стоит (GameHost,
+ * OVER_LIVE). С этого момента экран размывает фон: раньше размытие пересчитывалось бы на
+ * весь экран в каждом кадре въезда. Всё, что движется на Game Over, обязано кончиться раньше.
+ */
+export const GAME_OVER_SETTLE_MS = 1550;
+
+/** Набор счёта на Game Over, сек: ждёт въезда карточки и кончается вместе с глитчем. */
+export const GAME_OVER_COUNT = { delay: 0.3, duration: 1.1 } as const;
+
 /** Мягкий «экспо»-выход: быстро стартует, долго дотягивает. */
 export const EASE_OUT: [number, number, number, number] = [0.16, 1, 0.3, 1];
 

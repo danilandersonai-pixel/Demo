@@ -11,7 +11,7 @@ import { Crown, ShieldOff, Zap } from 'lucide-react';
 import { memo, useLayoutEffect, useRef, useState } from 'react';
 import { TICK_DT, TICKS_PER_BEAT } from '../../core/timing';
 import type { Banner } from '../../core/types';
-import { useBanners } from '../hudStore';
+import { hudStore, useBanners } from '../hudStore';
 import { BANNER_SHELF, EASE_OUT, SHELVES } from './constants';
 import { useBeat } from './pulse';
 
@@ -24,29 +24,43 @@ function exitTo(normal: TargetAndTransition): Variants {
 }
 
 export interface BannersProps {
-  /** HUD под паузой: баннеры стоят на месте, см. Banners. */
+  /** HUD стоит (пауза и отсчёт после неё): баннеры стоят на месте, см. Banners. */
   frozen: boolean;
+  /** Номер забега: READY одного забега — одна вывеска, см. bannerKey. */
+  runId: number;
+}
+
+/**
+ * READY одного забега — одна вывеска. После паузы во вступлении GameHost ставит баннер
+ * заново (новый id, срок до нового момента GO), а надпись на экране остаётся прежней:
+ * она не въезжает второй раз, только пересчитывает огоньки. Новый забег — новая вывеска.
+ */
+function bannerKey(banner: Banner, runId: number): string | number {
+  return banner.kind === 'ready' ? `ready-${runId}` : banner.id;
 }
 
 /**
  * Баннер живёт по настоящим часам и под паузой истёк бы — а его уход это анимация
- * под размытым экраном. Пока HUD заморожен, на полках остаётся список на момент
- * паузы; истёкшие за это время баннеры уходят уже после неё.
+ * под размытым экраном. Пока HUD заморожен (пауза и отсчёт после неё), на полках
+ * остаётся список на момент паузы; истёкшие за это время баннеры уходят, когда
+ * мир трогается с места.
  */
-export function Banners({ frozen }: BannersProps) {
+export function Banners({ frozen, runId }: BannersProps) {
   const live = useBanners();
-  const [held, setHeld] = useState(live);
-  if (!frozen && held !== live) setHeld(live);
-  const banners = frozen ? held : live;
+  // Список держится вместе с номером своего забега: «Заново» из паузы меняет номер на рендер
+  // раньше, чем HUD оттает, и ключ прежнего READY не должен смениться у него на глазах.
+  const [held, setHeld] = useState({ list: live, runId });
+  if (!frozen && (held.list !== live || held.runId !== runId)) setHeld({ list: live, runId });
+  const shown = frozen ? held : { list: live, runId };
   return (
     <div role="status" aria-live="polite" className="nvh-band">
       {SHELVES.map((shelf) => {
-        const list = banners.filter((b) => BANNER_SHELF[b.kind] === shelf);
+        const list = shown.list.filter((b) => BANNER_SHELF[b.kind] === shelf);
         return (
           <div key={shelf} className="nvh-shelf">
             <AnimatePresence custom={list.length > 0}>
               {list.map((b) => (
-                <BannerView key={b.id} banner={b} />
+                <BannerView key={bannerKey(b, shown.runId)} banner={b} />
               ))}
             </AnimatePresence>
           </div>
@@ -91,7 +105,9 @@ const READY_EXIT = exitTo({ opacity: 0, scale: 1.1, transition: { duration: 0.2 
  * READY с отсчётом: четыре огонька загораются на долях вступления (−4…−1), на
  * пятую приходит GO!. Огоньки переключаются атрибутом прямо в DOM. Первая доля
  * уже прошла к моменту появления баннера (и к возврату из паузы — не одна),
- * поэтому стартовое число огоньков считается из остатка жизни баннера.
+ * поэтому стартовое число огоньков считается из остатка жизни баннера. После
+ * паузы в этот остаток входят доли отсчёта «2», «1», которые мир ещё простоит:
+ * вступление за них не продвинется, и огоньки за них не зажигаются.
  */
 function ReadyBanner({ banner }: { banner: Banner }) {
   const pips = useRef<HTMLSpanElement>(null);
@@ -102,7 +118,8 @@ function ReadyBanner({ banner }: { banner: Banner }) {
   };
 
   useLayoutEffect(() => {
-    const left = banner.createdAt + banner.duration - READY_TAIL_MS - performance.now();
+    const frozenMs = hudStore.getResumeCount() * BEAT_MS;
+    const left = banner.createdAt + banner.duration - READY_TAIL_MS - performance.now() - frozenMs;
     light(Math.min(Math.max(Math.floor(COUNT_BEATS - left / BEAT_MS + 0.05) + 1, 1), COUNT_BEATS));
   });
   useBeat((beat) => {
