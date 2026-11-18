@@ -19,6 +19,11 @@ code in this repository.
 `.claude/` (скилл `repo-map` и список разрешённых вызовов). Это отдельный
 слой: правки сайта его не касаются и наоборот.
 
+Ещё один самостоятельный проект — аркада `neon-velocity/` (см. раздел
+«Игра Neon Velocity» ниже). Правило «без сборки и npm» относится только к
+сайту; у игры своя Vite-сборка, и к сайту с деплоем она отношения не имеет —
+как и у её второй редакции `neon-velocity-2/` (раздел «Игра Neon Velocity II»).
+
 ## Структура
 
 ```
@@ -35,6 +40,8 @@ code in this repository.
 │       ├── reference/collect.md    — сбор данных (репозитории, ветки, PR)
 │       ├── reference/render.md     — отрисовка вывода
 │       └── assets/template.html    — HTML-шаблон карты
+├── neon-velocity/                  — отдельный проект: аркада на React + Canvas (Vite, npm)
+├── neon-velocity-2/                — отдельный проект: вторая редакция аркады, с нуля (Vite, npm, Vitest; контракт — SPEC.md)
 └── yegor-diana-wedding/            — САМ САЙТ (публикуется в корень Pages)
     ├── index.html                  — вся разметка, одна страница (~670 строк)
     ├── favicon.svg                 — монограмма «Е&Д»
@@ -189,3 +196,50 @@ reduced-motion** (всегда в конце файла). Дизайн-сист�
 нужны (`git status/log/branch/…`, `mcp__github__*`, `list_repos`), уже
 разрешены в `.claude/settings.json` — держи этот список в актуальном состоянии
 при правках скилла.
+
+## Игра Neon Velocity
+
+`neon-velocity/` — неоновая аркада «Neon Velocity: Rhythm & Dodge»: React 19 +
+TypeScript + Tailwind CSS 4 + Framer Motion + Lucide, игровой цикл и отрисовка
+на Canvas 2D, звук синтезируется Web Audio. Это обычный Vite-проект со своими
+зависимостями; на сайт и workflow деплоя он не влияет.
+
+```bash
+cd neon-velocity
+npm install
+npm run dev            # разработка → http://localhost:5173
+npm run typecheck      # проверка типов (обязательно перед коммитом)
+npm run build          # сборка в dist/
+npm run build:single   # вся игра одним HTML-файлом в dist-single/
+```
+
+Устройство игры, владельцы модулей и контракты описаны в
+`neon-velocity/ARCHITECTURE.md`, а инструкция для игрока лежит в
+`neon-velocity/README.md`. Общие типы (`src/game/types.ts`) и баланс
+(`src/game/config.ts`) — точка правды: числа баланса живут только в конфиге.
+
+## Игра Neon Velocity II
+
+`neon-velocity-2/` — вторая редакция той же аркады, «Neon Velocity II: Rhythm &
+Dodge», написанная с нуля: React 19 + TypeScript + Tailwind CSS 4 + Framer
+Motion + Lucide, дорога в перспективе на Canvas 2D, детерминированная симуляция
+на тике 1/128 с в темпе 128 BPM, звук синтезируется Web Audio, автотесты на
+Vitest. Это отдельный Vite-проект со своими зависимостями; на сайт, на первую
+редакцию и на workflow деплоя он не влияет.
+
+```bash
+cd neon-velocity-2
+npm install
+npm run dev            # разработка → http://localhost:5173
+npm run typecheck      # проверка типов (обязательно перед коммитом)
+npm test               # автотесты Vitest (обязательно перед коммитом)
+npm run build          # сборка в dist/
+npm run build:single   # вся игра одним HTML-файлом в dist-single/
+npm run e2e            # сквозная проверка в Chromium: нужны запущенный npm run preview и Playwright
+```
+
+Контракт проекта — `neon-velocity-2/SPEC.md`: схема слоёв, файлы и их владельцы,
+симуляция, генератор трека, рендер, звук и ввод, оболочка, меню и правила кода.
+Инструкция для игрока и разработчика лежит в `neon-velocity-2/README.md`. Общие
+типы (`src/core/types.ts`) и баланс (`src/core/config.ts`) — точка правды: числа
+баланса живут только в конфиге.

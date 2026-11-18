@@ -1,0 +1,74 @@
+/*
+ * Отсчёт после паузы: две одинаковые цифры по обе стороны дороги, как стартовые огни.
+ * На самой дороге стоит замерший мир — препятствия и сферы, которые игроку нужно успеть
+ * рассмотреть, — поэтому цифры её не закрывают: ни корабль, ни то, что к нему летит.
+ *
+ * Геометрия повторяет камеру (render/camera.ts): горизонт на 30 % высоты и линия корабля
+ * на 80 % в портрете, 34 % и 82 % в альбоме; полуширина дороги на линии корабля —
+ * min(47 % ширины, 0.62 или 1.05 высоты дороги на экране). --nvr-road — полуширина дороги
+ * у нижнего края полосы с цифрами; выше дорога только уже. Небо с баннерами HUD кончается
+ * на 42 % и 44 % высоты — полоса начинается под ним.
+ */
+
+.nvr-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 35;
+  pointer-events: none;
+  user-select: none;
+  container-type: size;
+  /* Портрет: полоса 44–56 % высоты, глубина её низа (56 − 30) / 50 = 0.52. */
+  --nvr-top: 44cqh;
+  --nvr-height: 12cqh;
+  --nvr-road: min(24.5cqw, 16.2cqh);
+  --nvr-size: min(11cqh, 20cqw);
+}
+
+@media (orientation: landscape) {
+  .nvr-layer {
+    /* Альбом: полоса 47–60 % высоты, глубина её низа (60 − 34) / 48 = 0.54. */
+    --nvr-top: 47cqh;
+    --nvr-height: 13cqh;
+    --nvr-road: min(25.5cqw, 27.3cqh);
+    --nvr-size: min(12cqh, 7rem);
+  }
+}
+
+.nvr-digit {
+  position: absolute;
+  top: var(--nvr-top);
+  height: var(--nvr-height);
+  isolation: isolate;
+  display: flex;
+  align-items: center;
+  font-size: var(--nvr-size);
+  font-weight: 900;
+  line-height: 1;
+  color: color-mix(in srgb, var(--theme-c) 26%, #fff);
+  text-shadow:
+    0 0 0.05em #fff,
+    0 0 0.18em var(--theme-c),
+    0 0 0.45em var(--theme-c),
+    0 0 0.9em color-mix(in srgb, var(--theme-c) 55%, transparent);
+}
+
+/* Зазор до бортика дороги — четверть цифры: столбики вдоль трассы остаются видны. */
+.nvr-digit[data-side='left'] {
+  right: calc(50% + var(--nvr-road) + 0.25em);
+}
+.nvr-digit[data-side='right'] {
+  left: calc(50% + var(--nvr-road) + 0.25em);
+}
+
+/* Тёмная подложка: цифра стоит на светящихся линиях земли и огнях горизонта. */
+.nvr-digit::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 2em;
+  height: 1.5em;
+  translate: -50% -50%;
+  z-index: -1;
+  background: radial-gradient(closest-side, rgba(5, 5, 10, 0.72), rgba(5, 5, 10, 0.42) 55%, transparent);
+}
