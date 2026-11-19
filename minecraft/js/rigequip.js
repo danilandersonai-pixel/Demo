@@ -152,6 +152,7 @@
       g.box(-0.35, 0, -0.35, 0.35, 0.4, 0.35, T.rgGreen);
       g.cyl('y', 0, 0.4, 0, 0.55, 0.2, T.rgBlueLt, { n: 10, capTile: T.rgFan });
       g.box(-0.9, -0.12, -0.12, 0.9, 0, 0.12, T.rgBlue);
+      this.solid(-0.35, 0, -0.35, 0.35, 0.95, 0.35, 'post');
     });
   };
   K.agitatorDyn = function (x, y, z, depth, ang) {
@@ -162,6 +163,90 @@
       g.pop();
     });
   };
+  // Шламовый насос (центробежный) с электродвигателем на раме: подаёт раствор на гидроциклоны и дегазатор
+  K.slurryPump = function (x, y, z, axis) {
+    return this.at(x, y, z, function (g) {
+      if (axis === 'z') g.rot('y', -Math.PI / 2);
+      g.box(-0.95, 0, -0.38, 0.95, 0.14, 0.38, T.rgBlue);
+      g.cyl('z', -0.55, 0.52, -0.2, 0.4, 0.36, T.rgGreen, { n: 10 });          // улитка
+      g.cyl('y', -0.55, 0.8, 0, 0.35, 0.11, T.rgGreen, { n: 6 });              // нагнетательный патрубок
+      g.cyl('z', -0.55, 0.52, -0.42, 0.22, 0.13, T.rgGreen, { n: 6 });         // всас
+      g.cyl('x', -0.4, 0.52, 0, 0.35, 0.07, T.rgSteel, { n: 6 });
+      g.box(-0.35, 0.14, -0.2, -0.05, 0.6, 0.2, T.rgDark);                      // опора подшипников
+      this.motor(0.05, 0.52, 0, 'x', 0.8, 0.24);
+      g.box(-0.1, 0.3, -0.16, 0.06, 0.78, 0.16, T.rgYellow);                    // кожух муфты
+      this.solid(-0.9, 0, -0.4, 0.9, 0.95, 0.4);
+    });
+  };
+  // Штурвальная колонка задвижки на настиле: шток уходит вниз к трубопроводу
+  K.valveStand = function (x, y, z, tile) {
+    return this.at(x, y, z, function (g) {
+      g.cyl('y', 0, -2.4, 0, 2.4, 0.035, T.rgSteel, { n: 4, caps: 0 });
+      g.cyl('y', 0, 0, 0, 0.9, 0.07, tile || T.rgGreen, { n: 6 });
+      g.box(-0.14, 0, -0.14, 0.14, 0.06, 0.14, T.rgDark);
+      g.cyl('y', 0, 0.9, 0, 0.1, 0.11, T.rgDark, { n: 6 });
+      g.disc('y', 0, 1.02, 0, 0.3, T.rgHandwheel);
+      this.solid(-0.2, 0, -0.2, 0.2, 1.05, 0.2);
+    });
+  };
+  // Глиномешалка МГ2-4: горизонтальный бак с лопастным валом, привод, загрузочный люк
+  K.mudMixer = function (x, y, z) {
+    return this.at(x, y, z, function (g) {
+      g.box(-1.6, 0, -0.9, 1.6, 0.2, 0.9, T.rgBlue);
+      [[-1.2, -0.7], [1.2, -0.7], [-1.2, 0.7], [1.2, 0.7]].forEach(function (q) { g.box(q[0] - 0.07, 0.2, q[1] - 0.07, q[0] + 0.07, 0.9, q[1] + 0.07, T.rgBlue); });
+      g.cyl('x', -1.3, 1.35, 0, 2.2, 0.75, T.rgGrey, { n: 12 });
+      g.box(-0.6, 2.05, -0.4, 0.3, 2.2, 0.4, T.rgDark); g.box(-0.5, 2.2, -0.3, 0.2, 2.26, 0.3, T.rgGrate, { skip: 'ewsn' });
+      this.motor(1.0, 1.0, 0.0, 'x', 0.55, 0.24); g.box(0.9, 0.6, -0.5, 1.02, 2.0, 0.5, T.rgYellow);
+      this.pipe([[-0.9, 0.7, 0], [-0.9, 0.3, 0], [-0.9, 0.3, 1.3]], 0.09, T.rgGreen);
+      this.valve(-0.9, 0.3, 0.8, 'z', 0.09);
+      this.solid(-1.5, 0, -0.8, 1.5, 2.1, 0.8);
+    });
+  };
+  // Котельная ПКН-2 в блоке: дымовая труба с растяжками, паровой коллектор, бак воды
+  K.boiler = function (x, y, z) {
+    return this.at(x, y, z, function (g) {
+      g.box(0, 0, -1.5, 6, 0.25, 1.5, T.rgBlue);
+      g.box(0, 0.25, -1.5, 6, 3.0, 1.5, [T.rgBoiler, T.rgBoiler, T.rgSideGrey, null, T.rgBoiler, T.rgBoiler]);
+      g.box(0.6, 0.3, -1.52, 1.5, 2.3, -1.5, T.rgDoor, { fit: true, skip: 'ewtbs' });
+      g.box(2.6, 1.5, -1.52, 3.5, 2.3, -1.5, T.rgWindow, { fit: true, skip: 'ewtbs' });
+      g.box(4.2, 1.2, -1.52, 5.4, 2.2, -1.5, T.rgLouver, { skip: 'ewtbs' });
+      g.cyl('y', 4.8, 3.0, 0.6, 7.5, 0.22, T.rgFlameStack, { n: 8 });
+      g.cyl('y', 4.8, 10.5, 0.6, 0.15, 0.3, T.rgDark, { n: 8 });
+      [[9, -3], [9, 4.5], [1, 0.6]].forEach(function (q) { g.beam([4.8, 9, 0.6], [q[0], 0.1, q[1]], 0.025, 0.025, T.rgRope); });
+      this.pipe([[1.5, 3.0, 1.0], [1.5, 3.5, 1.0], [-1.5, 3.5, 1.0], [-1.5, 0.6, 1.0]], 0.07, T.rgSteel);
+      this.valve(1.5, 3.3, 1.0, 'y', 0.07);
+      this.tankH(0.4, 0, 2.4, 3.2, 0.7, T.rgBlueLt, 'x');
+      this.solid(0, 0, -1.5, 6, 3, 1.5);
+    });
+  };
+  // Пульт управления ПВО у бурильщика: рукоятки превенторов, манометры
+  K.bopPanel = function (x, y, z) {
+    return this.at(x, y, z, function (g) {
+      g.box(-0.45, 0, -0.2, 0.45, 1.25, 0.2, T.rgRed);
+      g.box(-0.4, 0.55, -0.22, 0.4, 1.2, -0.2, T.rgPanel, { fit: true, skip: 'ewtbs' });
+      [-0.25, 0, 0.25].forEach(function (o) { g.beam([o, 1.25, 0], [o, 1.5, -0.12], 0.05, 0.05, T.rgDark); });
+      this.solid(-0.45, 0, -0.2, 0.45, 1.3, 0.2);
+    });
+  };
+  // Цементировочный агрегат на шасси (приезжает на время цементирования)
+  K.cementTruck = function (x, y, z, kind) {
+    return this.at(x, y, z, function (g) {
+      [[-2.6, 1], [-2.6, -1], [1.0, 1], [1.0, -1], [2.2, 1], [2.2, -1]].forEach(function (q) { g.cyl('z', q[0], 0.5, q[1] > 0 ? 0.85 : -1.15, 0.3, 0.5, T.rgBlack, { n: 10 }); });
+      g.box(-3.6, 0.6, -1.0, 3.2, 0.95, 1.0, T.rgDark);
+      g.box(-3.6, 0.95, -1.1, -1.9, 2.5, 1.1, T.rgOrange); g.box(-3.62, 1.6, -0.9, -3.6, 2.3, 0.9, T.rgWindow, { fit: true, skip: 'etbsn' });
+      if (kind === 'mixer') { g.tube([-1.5, 1.0, 0], [-1.5, 2.6, 0], 0.3, T.rgGrey, { r1: 1.0, n: 10 }); g.cyl('y', -1.5, 2.6, 0, 0.5, 1.0, T.rgGrey, { n: 10 }); g.cyl('x', -0.3, 1.5, 0, 3.2, 0.7, T.rgGrey, { n: 10 }); }
+      else { g.box(-1.6, 0.95, -1.0, 0.6, 2.3, 1.0, T.rgGrey); g.cyl('x', 0.9, 1.6, 0, 2.1, 0.62, T.rgGreen, { n: 10 }); g.box(0.9, 0.95, -0.9, 3.1, 1.2, 0.9, T.rgBlue); }
+    });
+  };
+  // Агрегат работает / стоит: сигнальная лампа
+  K.lampDyn = function (x, y, z, on) {
+    var g = this.g, sv = g.mat;
+    g.mat = MAT.GLOW;
+    g.box(x - 0.08, y, z - 0.08, x + 0.08, y + 0.14, z + 0.08, on ? T.rgGreenLamp : T.rgRedLamp);
+    g.mat = sv;
+    return this;
+  };
+
   // Гидроворонка для затворения реагентов и стол для мешков
   K.hopper = function (x, y, z) {
     return this.at(x, y, z, function (g) {

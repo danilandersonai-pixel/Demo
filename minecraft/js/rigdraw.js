@@ -171,19 +171,77 @@
       for (i = 0; i < nc; i++) { var cl = Math.floor(i / 28), cx = -1.6 - (i % 28) * (cr2 * 2 + 0.03) - (cl % 2) * cr2; g.tube([cx, 0.98 + cr2 + cl * cr2 * 1.8, -26.6], [cx, 0.98 + cr2 + cl * cr2 * 1.8, -14.6], cr2, T.rgDark, { n: 6, caps: 2 }); }
     }
 
-    // --- эшелон: насосы, сита, перемешиватели, компрессоры, уровень раствора ---
+    // --- эшелон: уровни в ёмкостях, сита, перемешиватели, насосы, лампы «работает / стоит», потоки ---
     if (camD < 200) {
+      var q = S.flow(st, rt), circ = !!(st.fl && st.fl.inn > 0.5), eq = st.eq, pw = st.power, ph = t * (1.2 + q / 25);
       lit('ech', 30, 5, -2);
-      var q = S.flow(st, rt), lvl = L.TANK_Y[0] + 0.1 + Math.max(0.05, Math.min(1, (st.mudV + st.kick) / 120)) * 2.7;
-      L.TANK_X.forEach(function (tx) { g.box(tx[0] + 0.1, lvl - 0.02, L.TANK_Z[0] + 0.1, tx[1] - 0.1, lvl, L.TANK_Z[1] - 0.1, T.rgMud, { skip: 'ewsnb' }); });
+      L.TANK_X.forEach(function (tx, ix) {
+        var lv = L.TANK_Y[0] + 0.1 + Math.max(0.02, Math.min(1, st.tank[ix] / 40)) * 2.7;
+        g.box(tx[0] + 0.1, lv - 0.02, L.TANK_Z[0] + 0.1, tx[1] - 0.1, lv, L.TANK_Z[1] - 0.1, T.rgMud, { skip: 'ewsnb' });
+      });
       g.box(9.4, 3.2, -3.8, 20.6, 3.22, 4.6, T.rgMud, { skip: 'ewsnb' });
-      L.SHAKER.forEach(function (sp) { k.shakerDyn(sp[0], 4, sp[1], t, q > 3 && st.power, q > 3); });
-      L.AGIT.forEach(function (ap, ix) { k.agitatorDyn(ap[0], 4, ap[1], 2.5, rt.agit + ix); });
+      L.SHAKER.forEach(function (sp, ix) {
+        var on = eq.sh[ix] && pw;
+        k.shakerDyn(sp[0], 4, sp[1], t, on, circ && on);
+        k.lampDyn(sp[0] - 0.7, 5.62, sp[1] - 1.3, on);
+        if (!circ) return;
+        g.tube([sp[0], 5.62, sp[1] - 1.3], [sp[0], 5.0, sp[1] - 1.2], 0.11, T.rgMud, { n: 6, caps: 0 });        // струя из выкидной линии
+        var wdt = on ? (st.fl.pit > 1 ? 0.28 : 0) : 0.7;                                                     // мимо сит — по жёлобу в амбар
+        if (wdt) {
+          if (!on) g.beam([sp[0], 4.98, sp[1] - 0.8], [sp[0], 4.34, sp[1] + 2.2], wdt, 0.05, T.rgMud);
+          g.beam([sp[0], 4.34, sp[1] + 2.2], [sp[0], 0.7, 13.2], wdt, 0.05, T.rgMud);
+          g.tube([sp[0], 0.7, 13.2], [sp[0], -1.3, 13.6], wdt * 0.4, T.rgMud, { n: 6, caps: 0 });
+        }
+      });
+      L.AGIT.forEach(function (ap, ix) { k.agitatorDyn(ap[0], 4, ap[1], 2.5, rt.agit + ix); k.lampDyn(ap[0], 4.98, ap[1] + 0.26, eq.ag && pw); });
+      k.lampDyn(16.2, 6.68, -2.7, eq.dg && pw); k.lampDyn(16.2, 6.58, 3.0, eq.ds && pw); k.lampDyn(19.2, 6.08, 3.0, eq.dl && pw); k.lampDyn(19.0, 5.93, -2.8, eq.cf && pw);
+      L.SLURRY.forEach(function (sp2, ix) { k.lampDyn(sp2[0] + 0.45, 4.92, sp2[1], pw && (ix ? eq.ds || eq.dl : eq.dg)); });
+      L.SUC.forEach(function (x, ix) { k.lampDyn(x, 5.16, -4.5, st.suc[ix]); });
+      L.EQZ.forEach(function (x, ix) { k.lampDyn(x, 5.42, -4.5, st.eqz[ix]); });
       lit('pumps', 48, 3, -2);
-      L.PUMP.forEach(function (pp, ix) { k.mudPumpDyn(pp[0], 1, pp[1], rt.pump[ix]); });
+      L.PUMP.forEach(function (pp, ix) { k.mudPumpDyn(pp[0], 1, pp[1], rt.pump[ix]); k.lampDyn(pp[0], 3.38, pp[1] + 1.25, st.pumps[ix] && pw); });
       L.COMPR.forEach(function (cp, ix) { k.compressorDyn(cp[0], 1, cp[1], rt.comp * (ix ? 1 : 0.93)); });
+      // потоки по трубам: белые метки бегут по ходу раствора
+      if (q > 0.5) {
+        var open = [0, 1, 2].filter(function (ix) { return st.suc[ix] && st.tank[ix] > 1.5; });
+        if (open.length) {
+          var x0 = (L.TANK_X[open[0]][0] + L.TANK_X[open[0]][1]) / 2;
+          flowMarks(g, [[x0, 1.45, -3.95], [x0, 1.45, -4.45], [53.5, 1.45, -4.45]], 0.18, ph, 3);
+        }
+        if (circ) {
+          var sx2 = D.legX(F + 17) + 0.85;
+          lit('ech', 30, 5, -2);
+          flowMarks(g, [[52.6, 2.75, -4.35], [9.2, 2.3, -4.35], [5.5, 1.9, -4.35], [5.5, 1.9, -1.2], [5.5, F + 1.2, -1.2], [5.5, F + 1.2, -0.95], [sx2, F + 17, -0.95]], 0.1, ph, 3);
+          flowMarks(g, [[0.45, 6.05, 0], [9.6, 5.85, 0], [9.6, 5.85, 0.6], [14.4, 5.75, 0.6]], 0.2, ph * 0.7, 2.2);
+        }
+      }
+      // цементировочные агрегаты на время цементирования
+      if (st.cementing) {
+        lit('cem', -9, 2, 18);
+        k.cementTruck(-9, 0, 17); k.cementTruck(-9, 0, 21, 'mixer');
+        g.rope([-6, 1.3, 17], [-0.6, 1.2, 0.9], 0.06, T.rgHose, 0.9, 7);
+        g.rope([-7, 1.6, 20.2], [-7.5, 1.6, 17.8], 0.06, T.rgHose, 0.5, 4);
+      }
     }
     g.pop();
+    // шламовый амбар: уровень растёт, когда раствор уходит мимо ёмкостей
+    if (camD < 220) {
+      env.lit('pit', 36, 0.5, 20);
+      var py = -1.5 + Math.min(1.3, (st.pit || 0) / 700 * 1.3);
+      g.box(L.PIT[0], py - 0.02, L.PIT[1], L.PIT[2], py, L.PIT[3], T.rgMud, { skip: 'ewsnb' });
+    }
+  }
+
+  // Метки потока вдоль трубы: короткие кольца, бегущие по ломаной
+  function flowMarks(g, pts, r, phase, step) {
+    var off = ((phase % step) + step) % step, c = 0, i;
+    for (i = 0; i < pts.length - 1; i++) {
+      var a = pts[i], b = pts[i + 1], l = Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2]);
+      if (l < 0.01) continue;
+      var d = [(b[0] - a[0]) / l, (b[1] - a[1]) / l, (b[2] - a[2]) / l];
+      for (var s = off + Math.ceil((c - off) / step) * step - c; s < l - 0.3; s += step) g.tube(along(a, d, s), along(a, d, s + 0.3), r * 1.3, T.rgWhite, { n: 6, caps: 0 });
+      c += l;
+    }
   }
 
   S.draw = draw;

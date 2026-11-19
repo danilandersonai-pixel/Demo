@@ -2121,6 +2121,8 @@
       px(x, y, seam ? [84, 62, 40] : jit(mul([150, 114, 72], 0.9 + 0.1 * Math.sin(x * 0.9 + (y >> 3) * 2)), 0.06));
     }
   });
+  tile('rgGreenLamp', function () { for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) px(x, y, jit([70, 255, 110], 0.04)); });
+  tile('rgBoiler', function () { siding([150, 70, 52]); });
   tile('rgSkin', function () { paint([222, 172, 136], 0.04); });
   tile('rgCoverall', function () {           // спецовка со светоотражающей полосой
     paint([36, 62, 110], 0.06);

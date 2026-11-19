@@ -55,10 +55,43 @@
       mode: 'idle', rpm: 0, rpmSet: 70, rotary: false, wob: 0, wobSet: 14, rop: 0, pumps: [false, false], spm: 55,
       mudV: 96, mudRho: 1.14, kick: 0, loss: 0, bopClosed: false, alarm: '', circ: false,
       bit: 0, bitNo: 1, power: true, des: false, flare: false,
+      eq: { sh: [true, true], dg: true, ds: true, dl: true, cf: false, ag: true }, tank: [32, 32, 32], suc: [true, true, true], eqz: [true, true],
+      solids: 0, pit: 0, hoist: 0, feedAuto: true, noSuc: false, fl: { inn: 0, out: 0, pit: 0 },
       clock: 0, wellT0: 0, speed: 5, auto: true, q: [], opName: '', label: 'Буровая готова к забуриванию', log: [], wells: []
     };
   }
+  // старые сохранения: недостающие поля
+  function mudDefaults(st) {
+    if (!st.eq) st.eq = { sh: [true, true], dg: true, ds: true, dl: true, cf: false, ag: true };
+    if (!st.tank) { var v = (st.mudV || 96) / 3; st.tank = [v, v, v]; }
+    if (!st.suc) st.suc = [true, true, true];
+    if (!st.eqz) st.eqz = [true, true];
+    if (st.solids === undefined) st.solids = 0;
+    if (st.pit === undefined) st.pit = 0;
+    if (st.feedAuto === undefined) st.feedAuto = true;
+    if (!st.fl) st.fl = { inn: 0, out: 0, pit: 0 };
+  }
+  function sumTanks(st) { return st.tank[0] + st.tank[1] + st.tank[2]; }
+  // забрать раствор: сначала из ёмкостей с открытой всасывающей задвижкой
+  function takeMud(st, v) {
+    var open = [0, 1, 2].filter(function (i) { return st.suc[i] && st.tank[i] > 1.5; }), i;
+    if (!open.length) open = [0, 1, 2].filter(function (i) { return st.tank[i] > 0.2; });
+    var got = 0;
+    for (i = 0; i < open.length; i++) { var a = Math.min(st.tank[open[i]], v / open.length); st.tank[open[i]] -= a; got += a; }
+    return got;
+  }
+  function addMud(st, v) {
+    for (var k = 0; k < 3 && v > 0.001; k++) {
+      var room = [0, 1, 2].filter(function (i) { return st.tank[i] < 39.9; });
+      if (!room.length) break;
+      var part = v / room.length;
+      room.forEach(function (i) { var a = Math.min(part, 40 - st.tank[i]); st.tank[i] += a; v -= a; });
+    }
+  }
+  function scaleMud(st, total) { var cur = sumTanks(st) || 1; for (var i = 0; i < 3; i++) st.tank[i] = Math.min(40, st.tank[i] * total / cur); st.mudV = sumTanks(st); }
+  function rhoEff(st) { return st.mudRho + 0.1 * (st.solids || 0); }
   function rtOf(p) {
+    if (!p._rt) { mudDefaults(p.st); p.st.hoist = 0; }
     if (!p._rt) p._rt = { rot: 0, drum: 0, sheave: 0, pump: [0, 1.3], agit: 0, comp: 0, compOn: 0, snd: 0, fx: 0, lastHook: p.st.hookY, pumpK: [0, 0] };
     return p._rt;
   }
@@ -77,10 +110,10 @@
     return (dc * 0.156 + dp * 0.031) * buoy(st);
   }
   function casingWeight(st) { return st.casLen * (st.casD > 200 ? 0.058 : 0.027) * buoy(st); }
-  function flow(st, rt) { return (rt.pumpK[0] + rt.pumpK[1]) * st.spm * 0.45; }                  // л/с
+  function flow(st, rt) { return st.noSuc ? 0 : (rt.pumpK[0] + rt.pumpK[1]) * st.spm * 0.45; }                  // л/с
   function spp(st, rt) {                                                                        // давление на стояке, атм
     var q = flow(st, rt), d = st.kelly === 'string' ? st.strLen : 0;
-    return Math.min(260, (0.05 + d * 0.00005) * q * q * st.mudRho / 1.1);
+    return Math.min(260, (0.05 + d * 0.00005) * q * q * rhoEff(st) / 1.1);
   }
   function bitDepth(st) {
     if (st.strLen <= 0) return 0;
@@ -99,7 +132,8 @@
     return {
       stage: sg.name, stageId: sg.id, label: st.label, op: st.opName, depth: st.hole, bit: bitDepth(st), hook: hookLoad(st), wob: st.wob, rpm: st.rpm,
       torque: st.rpm > 1 ? 2 + st.wob * 0.42 + st.strLen * 0.0025 : 0, spp: spp(st, rt), flow: flow(st, rt), rop: st.rop,
-      mudV: st.mudV + st.kick, mudRho: st.mudRho, gain: st.kick, gtn: rhoPlan(st), form: fm[1], wear: st.bit, bitNo: st.bitNo,
+      mudV: st.mudV + st.kick, mudRho: rhoEff(st), gain: st.kick, tank: st.tank, suc: st.suc, eqz: st.eqz, eq: st.eq, solids: st.solids, pit: st.pit, fl: st.fl,
+      noSuc: st.noSuc, feedAuto: st.feedAuto, kelly: st.kelly, slips: st.slips, bopClosed: st.bopClosed, pumps: st.pumps, rotary: st.rotary, power: st.power, gtn: rhoPlan(st), form: fm[1], wear: st.bit, bitNo: st.bitNo,
       stands: st.stands, rack: st.rack, cas: st.casLen, casRack: st.casRack, clock: st.clock, days: (st.clock - st.wellT0) / 86400,
       well: st.slot + 1, wells: L.WELLS, alarm: st.alarm, hookY: st.hookY, td: st.td, next: nextName(p)
     };
@@ -151,7 +185,7 @@
       case 'circ': s.push(['rot', 0], ['hookBy', 2], ['wait', 7, 'Промывка скважины перед подъёмом', 2], ['do', 'circDone']); break;
       case 'bit': s.push(['wait', 6, 'Смена долота', 1], ['do', 'newBit']); break;
       case 'cement':
-        s.push(['pump', 1], ['wait', 12, 'Цементирование: закачка тампонажного раствора и продавка', 3], ['pump', 0],
+        s.push(['do', 'cemOn'], ['pump', 1], ['wait', 12, 'Цементирование: закачка тампонажного раствора и продавка', 3], ['pump', 0],
           ['wait', 10, 'ОЗЦ — ожидание затвердевания цемента', 16], ['do', 'cemented']);
         break;
       case 'bopUp': s.push(['wait', 9, 'Монтаж колонной головки и противовыбросового оборудования', 12], ['do', 'bopOn'], ['wait', 5, 'Опрессовка ПВО и колонны', 2], ['do', 'bopTested']); break;
@@ -176,7 +210,7 @@
   function decide(st) {
     var sg = stageOf(st);
     if (st.kick > 0.8 && st.bop >= 2 && !st.killing) return 'kill';
-    if (st.mudV < 52 && (sg.id === 'drill1' || sg.id === 'drill2')) return 'mix';
+    if (st.mudV < 52 && (sg.id === 'drill1' || sg.id === 'drill2')) return st.spill ? null : 'mix';   // пока раствор льётся в амбар, новый не готовим
     switch (sg.id) {
       case 'drill1': case 'drill2':
         var out = st.hole >= sg.to - 0.01 || st.bit >= 1;
@@ -240,7 +274,7 @@
       st.feed = 0.001;
     },
     addSingle: function (p) { var st = p.st; st.kSingle = false; st.strLen += D.SINGLE; st.kelly = 'string'; },
-    resume: function (p) { p.st.mode = 'drill'; },
+    resume: function (p) { p.st.mode = 'drill'; p.st.rotary = true; },
     rackStand: function (p) { p.st.rackT = 0.001; p.st.rackDir = 1; },
     laySingle: function (p) { var st = p.st; st.strLen = 0; st.rack++; st.onEl = false; say(p, 'Долото на поверхности'); },
     unrackStand: function (p) { var st = p.st; st.stands--; st.rackT = 1; st.rackDir = -1; st.hang = 'stand'; },
@@ -249,7 +283,8 @@
     addCasing: function (p) { var st = p.st; st.casLen += D.SINGLE; st.onEl = true; st.hang = ''; },
     circDone: function (p) { p.st.circ = true; },
     newBit: function (p) { var st = p.st; st.bit = 0; st.bitNo++; say(p, 'Навёрнуто новое долото № ' + st.bitNo); },
-    cemented: function (p) { var st = p.st; st.cemDone = true; st.casDone = st.casLen; st.casLen = 0; say(p, 'Колонна зацементирована, цемент поднят до устья'); },
+    cemOn: function (p) { p.st.cementing = true; },
+    cemented: function (p) { var st = p.st; st.cementing = false; st.cemDone = true; st.casDone = st.casLen; st.casLen = 0; say(p, 'Колонна зацементирована, цемент поднят до устья'); },
     bopOn: function (p) { p.st.bop = 2; KC.Props.changed(p, false); },
     bopTested: function (p) { p.st.bopOk = true; say(p, 'ПВО опрессовано, герметично'); },
     bopOff: function (p) { p.st.bop = 1; p.st.bopOk = false; KC.Props.changed(p, false); },
@@ -273,13 +308,13 @@
     killDone: function (p) { var st = p.st; st.kick = 0; st.bopClosed = false; st.killing = false; st.alarm = ''; say(p, 'Скважина заглушена, превентор открыт. Продолжаем бурение', true); },
     mixed: function (p) {
       var st = p.st, target = st.rhoSet || rhoPlan(st), add = Math.max(0, Math.min(34, 104 - st.mudV));
-      st.mudV += add; st.mudRho = Math.round(target * 100) / 100; st.rhoSet = 0;
+      addMud(st, add); st.mudV = sumTanks(st); st.solids *= 0.6; st.mudRho = Math.round(target * 100) / 100; st.rhoSet = 0;
       say(p, 'Приготовлено ' + Math.round(add) + ' м³ раствора, плотность ' + st.mudRho.toFixed(2) + ' г/см³');
     },
     moved: function (p) {
       var st = p.st, pl = p._hooks && p._hooks.player ? p._hooks.player() : null, lp = pl ? KC.Props.local(p, pl.e.x, pl.e.y, pl.e.z) : null;
       st.slot++; st.stage = 0; st.hole = 30; st.wellDone = false; st.wellHead = false; st.bop = 0; st.bopOk = false; st.casLen = 0; st.casDone = 0; st.cemDone = false;
-      st.bit = 0; st.bitNo = 1; st.wellT0 = st.clock; st.mudV = Math.max(st.mudV, 90); st.mudRho = 1.14; st.rhoHold = 0; st.circ = false; st.mode = 'idle';
+      st.bit = 0; st.bitNo = 1; st.wellT0 = st.clock; if (st.mudV < 90) scaleMud(st, 90); st.solids = 0; st.mudRho = 1.14; st.rhoHold = 0; st.circ = false; st.mode = 'idle';
       KC.Props.changed(p, true);
       if (lp && lp[0] > (st.slot - 1) * L.STEP - 16 && lp[0] < (st.slot - 1) * L.STEP + 80 && Math.abs(lp[2]) < 32 && lp[1] > 0.5) pl.e.x += KC.Props.rotPt(L.STEP, 0, p.r)[0];
       say(p, 'Буровая передвинута на скважину № ' + (st.slot + 1) + '. Можно забуриваться', true);
@@ -349,7 +384,11 @@
     if (!st.q.length && st.mode === 'idle') st.label = stageOf(st).id === 'done' ? (st.slot < L.WELLS - 1 ? 'Скважина закончена. Буровая готова к передвижке' : 'Куст разбурен: все скважины закончены') : 'Ожидание команды бурильщика';
 
     // приводы: насосы и ротор набирают обороты
+    mudDefaults(st);
     for (i = 0; i < 2; i++) rt.pumpK[i] = approach(rt.pumpK[i], st.pumps[i] && st.power ? 1 : 0, dt * 0.8);
+    var anyPump = rt.pumpK[0] + rt.pumpK[1] > 0.05, canSuck = (st.suc[0] && st.tank[0] > 1.5) || (st.suc[1] && st.tank[1] > 1.5) || (st.suc[2] && st.tank[2] > 1.5);
+    if (anyPump && !canSuck && !st.noSuc) say(p, 'Насосы не берут раствор: закрыты всасывающие задвижки или пусты ёмкости', true);
+    st.noSuc = anyPump && !canSuck;
     var q = flow(st, rt);
     if (spp(st, rt) >= 250 && (st.pumps[0] || st.pumps[1])) {
       st.pumps[0] = st.pumps[1] = false;
@@ -358,6 +397,21 @@
     }
     st.rpm = approach(st.rpm, st.rotary && st.power && st.kelly === 'string' ? st.rpmSet : 0, dt * 45);
 
+    // ручное управление лебёдкой: рукоятка «подъём / спуск»
+    rt.fill = 0; rt.dh = 0;
+    if (st.hoist && !st.q.length) {
+      if (!st.power) st.label = 'Нет напряжения 6 кВ — лебёдка стоит';
+      else if (st.slips && (st.kelly === 'string' || st.onEl)) st.label = 'Колонна в клиньях: снимите её с клиньев операцией';
+      else if (st.hoist > 0) {
+        if (st.wob > 0.3) st.wob = approach(st.wob, 0, dt * 14);
+        else st.hookY = Math.min(37, st.hookY + d * 0.9);
+      } else {
+        var bh = st.kelly === 'string' ? Math.max(st.strLen - st.hole + SWL, KD) : (st.kelly === 'hook' ? SWL + 0.6 : EL);
+        if (st.hookY > bh + 0.01) st.hookY = Math.max(bh, st.hookY - d * 0.9);
+        else if (st.kelly === 'string' && st.hookY > KD + 0.02) { st.mode = 'drill'; st.wob = Math.min(28, st.wob + dt * 7); }
+      }
+    }
+
     // бурение: колонна на ведущей трубе
     st.rop = 0;
     if (st.mode === 'drill' && st.kelly === 'string' && !st.q.length) {
@@ -365,25 +419,28 @@
       var bottom = st.strLen - st.hole + SWL;          // высота крюка, когда долото на забое
       if (st.bopClosed) { st.label = 'Превентор закрыт'; }
       else if (st.hookY > Math.max(bottom, KD) + 0.02) {
-        st.rotary = true; st.pumps[0] = st.pumps[1] = true;
-        st.hookY = approach(st.hookY, Math.max(bottom, KD), d * 1.0);
-        st.wob = 0; st.label = 'Проработка: допуск инструмента до забоя';
+        if (st.auto) { st.rotary = true; st.pumps[0] = st.pumps[1] = true; }
+        if (st.auto || (st.feedAuto && !st.hoist)) { st.hookY = approach(st.hookY, Math.max(bottom, KD), d * 1.0); st.label = 'Проработка: допуск инструмента до забоя'; }
+        else st.label = 'Долото над забоем: спускайте инструмент лебёдкой';
+        st.wob = 0;
       } else if (st.hookY <= KD + 0.02 && st.hole < sg.to - 0.01 || (st.hookY <= KD + 0.02 && bottom < KD - 0.02)) {
         st.wob = approach(st.wob, 0, dt * 20); st.label = 'Ведущая труба на роторе — нужно наращивание';
         if (st.auto) start(p, 'conn');
       } else if (drilling && st.hole < sg.to && st.bit < 1.2) {
-        st.rotary = true;
-        st.wob = approach(st.wob, st.rpm > 5 && q > 5 ? st.wobSet : 0, dt * 6);
+        if (st.auto) st.rotary = true;
+        if (st.auto || st.feedAuto) st.wob = approach(st.wob, st.rpm > 5 && q > 5 ? st.wobSet : 0, dt * 6);
+        else if (st.rpm < 5) st.wob = approach(st.wob, 0, dt * 4);
         var fm = formAt(st.hole), need = sg.bit > 250 ? 45 : 30;
-        var over = Math.max(0, st.mudRho - fm[3] - 0.05);
-        st.rop = fm[2] * Math.pow(st.wob / 15, 0.9) * Math.pow(st.rpm / 70, 0.6) * Math.max(0.25, Math.min(1.1, q / need)) * (1 - 0.8 * Math.min(1, st.bit * st.bit)) * (1 - Math.min(0.5, over * 1.6));
+        var over = Math.max(0, rhoEff(st) - fm[3] - 0.05);
+        st.rop = fm[2] * Math.pow(st.wob / 15, 0.9) * Math.pow(st.rpm / 70, 0.6) * Math.max(0.25, Math.min(1.1, q / need)) * (1 - 0.8 * Math.min(1, st.bit * st.bit)) * (1 - Math.min(0.5, over * 1.6)) * (1 - 0.5 * st.solids);
         var dh = Math.min(st.rop / 3600 * rig, sg.to - st.hole, st.hookY - KD);
         if (dh > 0) {
           st.hole += dh; st.hookY -= dh;
-          st.mudV -= dh * (sg.bit > 250 ? 0.068 : 0.037) * 1.15;
+          rt.fill = dh * (sg.bit > 250 ? 0.068 : 0.037) * 1.15; rt.dh = dh;
+          if (!st.auto && !st.feedAuto) st.wob = Math.max(0, st.wob - dt * st.rop / 40 * 1.5);      // без подачи нагрузка «срабатывается»
           st.bit += dh / (sg.bit > 250 ? 620 : 1250) * (0.6 + st.wob / 30) * (1 + (fm[2] < 14 ? 0.5 : 0));
         }
-        st.label = st.bit >= 1 ? 'Долото сработано — нужен подъём' : 'Бурение: ' + fm[1];
+        st.label = st.bit >= 1 ? 'Долото сработано — нужен подъём' : st.rpm < 5 ? 'Ротор стоит — бурения нет' : q < 5 ? 'Нет циркуляции — бурения нет' : st.wob < 1 ? 'Нет нагрузки на долото: подайте инструмент' : 'Бурение: ' + fm[1];
         if (st.hole >= sg.to - 0.01) { st.label = 'Проектный забой достигнут'; if (!st.tdSaid) { st.tdSaid = st.stage + 1; say(p, 'Достигнут забой ' + Math.round(st.hole) + ' м', true); } }
       } else st.wob = approach(st.wob, 0, dt * 20);
     } else st.wob = approach(st.wob, 0, dt * 20);
@@ -391,11 +448,11 @@
 
     // газонефтеводопроявление: пластовое давление выше давления столба раствора
     var open = (sg.id === 'drill2') && st.hole > 450, fm2 = formAt(st.hole);
-    if (open && !st.bopClosed && st.mudRho < fm2[3] + 0.01) {
-      st.kick += rig / 3600 * 6 * (fm2[3] + 0.03 - st.mudRho) / 0.05;
+    if (open && !st.bopClosed && rhoEff(st) < fm2[3] + 0.01) {
+      st.kick += rig / 3600 * 6 * (fm2[3] + 0.03 - rhoEff(st)) / 0.05;
       if (st.kick > 0.8 && st.alarm !== 'kick') { st.alarm = 'kick'; say(p, 'Рост объёма в ёмкостях! Признаки ГНВП — закрыть превентор и глушить скважину', true); if (hooks.sound) hooks.sound('alarm'); }
       if (st.kick > 9) {                                 // выброс: превентор закрывается аварийно
-        st.kick = 2; st.mudV = Math.max(40, st.mudV - 18); st.clock += 86400 * 1.5; st.q = []; st.rotary = false; st.pumps[0] = st.pumps[1] = false;
+        st.kick = 2; scaleMud(st, Math.max(40, st.mudV - 18)); st.pit += 18; st.clock += 86400 * 1.5; st.q = []; st.rotary = false; st.pumps[0] = st.pumps[1] = false;
         rt.blow = 6; start(p, 'kill');
         say(p, 'Выброс! Превентор закрыт аварийно, потеряно 18 м³ раствора и полторы суток', true);
       }
@@ -403,12 +460,14 @@
     if (st.alarm === 'kick' && st.kick <= 0) st.alarm = '';
     if (st.mudV < 42 && st.alarm !== 'kick') st.alarm = 'mud'; else if (st.alarm === 'mud' && st.mudV >= 42) st.alarm = '';
 
+    mudCircuit(p, rig, q, rt);
+
     // вращение и ходы механизмов
     rt.rot += st.rpm / 60 * Math.PI * 2 * dt;
     var dh2 = st.hookY - rt.lastHook; rt.lastHook = st.hookY;
     rt.drum += dh2 * 10 / 0.55; rt.sheave += dh2 * 1.6;
     for (i = 0; i < 2; i++) rt.pump[i] += rt.pumpK[i] * st.spm / 60 * Math.PI * 2 * dt;
-    if (st.power) rt.agit += dt * 2.2;
+    if (st.power && st.eq.ag) rt.agit += dt * 2.2;
     rt.compT = (rt.compT || 0) + dt;
     rt.compOn = st.power && (rt.compT % 26) < 9 ? 1 : 0;
     rt.comp += rt.compOn * dt * 14;
@@ -416,6 +475,43 @@
     if (st.feed > 0) { st.feed += d * 0.16; if (st.feed >= 1) { st.feed = 0; st.mouse = true; st.rack = Math.max(0, st.rack - 1); } }
 
     effects(p, dt, rt, q);
+  }
+
+  // Контур раствора: всас из ёмкостей → насосы → скважина → выкидная линия → сита → ёмкости (или амбар)
+  function mudCircuit(p, rig, q, rt) {
+    var st = p.st, i, circ = q > 0.5 && (st.kelly === 'string' || st.cementing);
+    var nSh = st.power ? (st.eq.sh[0] ? 1 : 0) + (st.eq.sh[1] ? 1 : 0) : 0;
+    st.fl.inn = st.fl.out = st.fl.pit = 0;
+    if (circ) {
+      var dV = q * rig / 1000, frac = nSh ? Math.min(1, nSh * 30 / q) : 0.35;
+      dV = takeMud(st, dV);
+      var ret = Math.max(0, dV - (rt.fill || 0));
+      st.tank[0] += ret * frac; st.pit += ret * (1 - frac);
+      st.fl.inn = q; st.fl.out = q * frac; st.fl.pit = q * (1 - frac); st.spill = frac < 0.99;
+      if (frac < 0.99 && !rt.spillSaid) { rt.spillSaid = 1; say(p, nSh ? 'Одно вибросито не справляется с расходом: часть раствора уходит в амбар' : 'Вибросита остановлены: раствор с выкидной линии уходит в амбар!', true); }
+      if (frac >= 0.99) rt.spillSaid = 0;
+    } else if (rt.fill) takeMud(st, rt.fill);
+    // шлам: что не сняли сита и гидроциклоны, остаётся в растворе
+    if (rt.dh > 0) {
+      var eff = Math.min(1, (st.power ? nSh * 0.3 + (st.eq.ds ? 0.2 : 0) + (st.eq.dl ? 0.14 : 0) + (st.eq.cf ? 0.1 : 0) : 0));
+      st.solids = Math.min(1, st.solids + rt.dh * 0.004 * (1 - eff));
+    }
+    st.solids = Math.max(0, st.solids - rig / 3600 * (st.eq.cf && st.power ? 0.03 : 0.01));
+    if (st.solids > 0.35 && !rt.solSaid) { rt.solSaid = 1; say(p, 'Раствор зашламован: плотность растёт, скорость бурения падает. Проверьте сита и гидроциклоны', true); }
+    if (st.solids < 0.2) rt.solSaid = 0;
+    // без перемешивания утяжелитель оседает
+    if ((!st.eq.ag || !st.power) && st.mudRho > 1.1) {
+      st.mudRho = Math.max(1.1, st.mudRho - rig / 3600 * 0.004);
+      if (!rt.agSaid) { rt.agSaid = 1; say(p, 'Перемешиватели стоят: утяжелитель оседает, плотность раствора падает', true); }
+    } else rt.agSaid = 0;
+    // перепуск между ёмкостями и перелив
+    for (i = 0; i < 2; i++) if (st.eqz[i]) { var mv = (st.tank[i] - st.tank[i + 1]) / 2 * Math.min(1, rig / 90); st.tank[i] -= mv; st.tank[i + 1] += mv; }
+    for (i = 0; i < 3; i++) if (st.tank[i] > 40) {
+      st.pit += st.tank[i] - 40; st.tank[i] = 40;
+      if (!rt.ovSaid) { rt.ovSaid = 1; say(p, 'Перелив ёмкости № ' + (i + 1) + ': раствор уходит в амбар. Откройте перепускную задвижку', true); }
+    }
+    if (st.tank[0] < 39 && st.tank[1] < 39 && st.tank[2] < 39) rt.ovSaid = 0;
+    st.mudV = sumTanks(st);
   }
 
   // звук и частицы
@@ -478,18 +574,76 @@
       case 'next': var n = decide(st); if (n && !st.q.length) { if (n === 'drill' && st.hookY <= KD + 0.05) start(p, 'conn'); else start(p, n); } break;
       case 'pullOut': if (!st.q.length && st.strLen > 0) { st.bit = Math.max(st.bit, 1); say(p, 'Подъём инструмента для смены долота'); } break;
       case 'td': if (st.stage === 0 && st.hole <= 31) st.td = v; break;
+      case 'hoist': st.hoist = v > 0 ? 1 : v < 0 ? -1 : 0; break;
+      case 'feedAuto': st.feedAuto = !st.feedAuto; say(p, st.feedAuto ? 'Регулятор подачи долота включён' : 'Подача вручную: нагрузку держит бурильщик тормозом'); break;
+      case 'sh': st.eq.sh[v] = !st.eq.sh[v]; say(p, 'Вибросито № ' + (v + 1) + (st.eq.sh[v] ? ' включено' : ' остановлено')); break;
+      case 'eq': st.eq[v] = !st.eq[v]; say(p, EQ_NAMES[v] + (st.eq[v] ? ': включено' : ': остановлено')); break;
+      case 'suc': st.suc[v] = !st.suc[v]; say(p, 'Всасывающая задвижка ёмкости № ' + (v + 1) + (st.suc[v] ? ' открыта' : ' закрыта')); break;
+      case 'eqz': st.eqz[v] = !st.eqz[v]; say(p, 'Перепуск между ёмкостями ' + (v + 1) + ' и ' + (v + 2) + (st.eqz[v] ? ' открыт' : ' закрыт')); break;
       case 'stop': st.q = []; st.mode = 'idle'; st.rotary = false; st.akb = 0; st.kx = 0; st.rackT = 0; st.rackDir = 0; say(p, 'Стоп: операция прервана'); break;
     }
   }
 
+  var EQ_NAMES = { dg: 'Дегазатор', ds: 'Пескоотделитель', dl: 'Илоотделитель', cf: 'Центрифуга', ag: 'Перемешиватели' };
+
+  // Агрегат под прицелом: что это, в каком состоянии и что сделает нажатие
+  function zoneInfo(p, z) {
+    var st = p.st, on, name;
+    function r(n, state, act, c, v) { return { name: n, state: state, act: act, c: c, v: v }; }
+    switch (z.t) {
+      case 'pump': on = st.pumps[z.i]; return r('Буровой насос УНБ-600 № ' + (z.i + 1), on ? 'работает, ' + st.spm + ' ход/мин' : 'остановлен', on ? 'остановить' : 'пустить', 'pump', z.i);
+      case 'sh': on = st.eq.sh[z.i]; return r('Вибросито № ' + (z.i + 1), on ? 'работает' : 'остановлено', on ? 'остановить' : 'включить', 'sh', z.i);
+      case 'eq': on = st.eq[z.i]; name = z.i === 'ag' ? 'Перемешиватель' : EQ_NAMES[z.i]; return r(name, on ? 'работает' : 'остановлен', on ? 'остановить' : 'включить', 'eq', z.i);
+      case 'suc': on = st.suc[z.i]; return r('Всасывающая задвижка ёмкости № ' + (z.i + 1), on ? 'открыта' : 'закрыта', on ? 'закрыть' : 'открыть', 'suc', z.i);
+      case 'eqz': on = st.eqz[z.i]; return r('Перепускная задвижка ёмкостей ' + (z.i + 1) + '–' + (z.i + 2), on ? 'открыта' : 'закрыта', on ? 'закрыть' : 'открыть', 'eqz', z.i);
+      case 'tank': return r('Ёмкость раствора № ' + (z.i + 1), st.tank[z.i].toFixed(1) + ' из 40 м³, ' + rhoEff(st).toFixed(2) + ' г/см³', 'пост бурильщика', 'panel');
+      case 'rotary': return r('Ротор Р-560', st.rpm > 1 ? Math.round(st.rpm) + ' об/мин' : 'стоит', st.rotary ? 'остановить' : 'включить', 'rotary');
+      case 'draw': return r('Лебёдка ЛБУ-1200К', 'крюк на ' + st.hookY.toFixed(1) + ' м, ' + hookLoad(st).toFixed(0) + ' тс', 'пост бурильщика', 'panel');
+      case 'post': return r('Пост бурильщика', st.label, 'открыть пульт', 'panel');
+      case 'akb': return r('Ключ АКБ-3М2', st.akb > 0.5 ? 'на замке' : 'отведён', 'пост бурильщика', 'panel');
+      case 'bop': return r(st.bop >= 2 ? 'Противовыбросовое оборудование' : 'Устье скважины', st.bop < 2 ? 'ПВО не смонтировано' : st.bopClosed ? 'превентор закрыт' : 'превентор открыт', st.bop < 2 ? 'пост бурильщика' : st.bopClosed ? 'открыть' : 'закрыть', st.bop < 2 ? 'panel' : 'bop');
+      case 'acc': return r('Станция гидроуправления ПВО', st.bop < 2 ? 'ПВО не смонтировано' : st.bopClosed ? 'превентор закрыт' : 'превентор открыт', st.bop < 2 ? 'пост бурильщика' : st.bopClosed ? 'открыть превентор' : 'закрыть превентор', st.bop < 2 ? 'panel' : 'bop');
+      case 'choke': return r('Блок дросселирования', st.kick > 0.8 ? 'приток +' + st.kick.toFixed(1) + ' м³' : 'задвижки закрыты', st.kick > 0.8 ? 'глушить скважину' : 'пост бурильщика', st.kick > 0.8 ? 'kill' : 'panel');
+      case 'kru': return r('КРУ 6 кВ', st.power ? 'ввод включён' : 'ввод отключён', st.power ? 'отключить' : 'включить', 'power');
+      case 'des': return r('Аварийная ДЭС', st.des ? 'работает' : 'стоит', st.des ? 'остановить' : 'запустить', 'des');
+      case 'hopper': return r('Гидроворонка', 'плотность ' + st.mudRho.toFixed(2) + ' г/см³', 'приготовить раствор', 'mix');
+      case 'comp': return r('Компрессор 4ВУ1-5/9', 'автоматический режим, 8 атм', 'пост бурильщика', 'panel');
+      case 'trip': return r('Доливная ёмкость', '6 м³', 'пост бурильщика', 'panel');
+    }
+    return null;
+  }
+  function zoneAt(p, pos) {
+    var zs = L.ZONES || [], RX = p.st.slot * L.STEP, x = pos[0], y = pos[1], z = pos[2], best = null, bd = 1e9;
+    for (var i = 0; i < zs.length; i++) {
+      var q = zs[i], ox = q.fixed ? 0 : RX, b = q.b;
+      var dx = Math.max(b[0] + ox - x, 0, x - b[3] - ox), dy = Math.max(b[1] - y, 0, y - b[4]), dz = Math.max(b[2] - z, 0, z - b[5]), dd = dx * dx + dy * dy + dz * dz;
+      if (dd < bd) { bd = dd; best = q; }
+    }
+    return bd <= 0.6 ? best : null;
+  }
+  function hint(p, pos) {
+    var z = zoneAt(p, pos), zi = z ? zoneInfo(p, z) : null;
+    return zi ? zi.name + ' — ' + zi.state + ' · ' + zi.act : 'Буровая БУ-3000 · пост бурильщика';
+  }
   function use(p, pos, ctx) {
+    var rt = rtOf(p), now = Date.now();
+    if (now - (rt.useAt || 0) < 450) return true;          // удержание кнопки не должно щёлкать агрегатом туда-сюда
+    rt.useAt = now;
+    var z = zoneAt(p, pos), zi = z ? zoneInfo(p, z) : null;
+    if (zi && zi.c !== 'panel') {
+      cmd(p, zi.c, zi.v);
+      var after = zoneInfo(p, z);
+      if (p._hooks && p._hooks.toast && after) p._hooks.toast(after.name + ': ' + after.state);
+      if (p._hooks && p._hooks.sound) snd(p, 'door-car', pos[0] - p.st.slot * L.STEP, pos[1], pos[2]);
+      return true;
+    }
     if (KC.RigUI) { KC.RigUI.open(p); return true; }
     return false;
   }
 
   KC.RigSim = {
     newState: newState, update: update, info: info, cmd: cmd, use: use, rtOf: rtOf, stageOf: stageOf, stages: stages,
-    save: function (p) { return p.st; }, formAt: formAt, gtnRho: gtnRho, bitDepth: bitDepth, decide: decide, start: start,
+    save: function (p) { return p.st; }, hint: hint, zoneAt: zoneAt, zoneInfo: zoneInfo, rhoEff: rhoEff, formAt: formAt, gtnRho: gtnRho, bitDepth: bitDepth, decide: decide, start: start,
     C: { UP: UP, KD: KD, EL: EL, SWL: SWL }, draw: function () {}, hookLoad: hookLoad, flow: flow
   };
 })();

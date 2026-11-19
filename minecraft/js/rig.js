@@ -18,6 +18,30 @@
     COMPR: [[58.3, -2.9], [58.3, 0.3]],
     PIT: [10, 13, 62, 27], FLARE: [-24, 28], DES: [84, 0]
   };
+  L.SUC = [23.5, 29.5, 35.5];        // штурвальные колонки всасывающих задвижек (x), z = −4.5
+  L.EQZ = [27.5, 33.5];              // перепускные задвижки между ёмкостями
+  L.SLURRY = [[14.3, -3.7], [19.5, 0.7]];
+  // Зоны управления: агрегат под прицелом (b — коробка в координатах буровой; fixed — стоит на площадке)
+  L.ZONES = (function () {
+    var z = [
+      { t: 'rotary', b: [-1.1, 6, -1.1, 1.1, 7.7, 1.2] }, { t: 'draw', b: [-3.3, 7, 5, 3.3, 9.2, 7.7] }, { t: 'post', b: [-4.2, 7, 3.2, -2.4, 9.2, 4.2] },
+      { t: 'akb', b: [2.0, 7, 1.3, 2.8, 8.9, 2.1] }, { t: 'acc', b: [-6.1, 7, 0.7, -5.1, 8.5, 1.3] }, { t: 'bop', b: [-0.8, 0, -0.8, 0.8, 4.6, 0.8] },
+      { t: 'acc', b: [-14.5, 0, 13.2, -11.5, 1.7, 14.8] }, { t: 'choke', b: [-5.6, 0, 9.8, -2.4, 1.4, 11] }, { t: 'choke', b: [2.6, 0, 9.8, 5.8, 1.4, 11] },
+      { t: 'trip', b: [-10.5, 0, 8.5, -8.1, 2.7, 10.9] },
+      { t: 'eq', i: 'dg', b: [15.5, 4, -3.4, 17.2, 6.8, -2.0] }, { t: 'eq', i: 'ds', b: [15.1, 4, 2.4, 17.3, 6.8, 3.6] },
+      { t: 'eq', i: 'dl', b: [18.1, 4, 2.4, 20.3, 6.2, 3.6] }, { t: 'eq', i: 'cf', b: [17.6, 4, -3.4, 20.5, 6, -2.2] },
+      { t: 'kru', b: [65.5, 1, 3.8, 72.1, 3.3, 4.9] }, { t: 'kru', b: [65.5, 1, -0.5, 69.7, 3.3, 0.6] }, { t: 'hopper', b: [33.5, 0, -11.2, 36, 1.4, -9.8] },
+      { t: 'des', b: [96.9, 0, -11.4, 103.1, 2.9, -8.6], fixed: true }
+    ];
+    L.PUMP.forEach(function (p, i) { z.push({ t: 'pump', i: i, b: [p[0] - 1.2, 1, p[1] - 2.6, p[0] + 1.7, 4.2, p[1] + 4.4] }); });
+    L.SHAKER.forEach(function (p, i) { z.push({ t: 'sh', i: i, b: [p[0] - 1, 4, p[1] - 1.7, p[0] + 1, 5.7, p[1] + 2.3] }); });
+    L.AGIT.forEach(function (p) { z.push({ t: 'eq', i: 'ag', b: [p[0] - 0.45, 4, p[1] - 0.45, p[0] + 0.45, 5.1, p[1] + 0.45] }); });
+    L.TANK_X.forEach(function (t, i) { z.push({ t: 'tank', i: i, b: [t[0], 1, L.TANK_Z[0], t[1], 3.4, L.TANK_Z[1]] }); });
+    L.SUC.forEach(function (x, i) { z.push({ t: 'suc', i: i, b: [x - 0.3, 4, -4.8, x + 0.3, 5.2, -4.2] }); });
+    L.EQZ.forEach(function (x, i) { z.push({ t: 'eqz', i: i, b: [x - 0.3, 4, -4.8, x + 0.3, 5.2, -4.2] }); });
+    L.COMPR.forEach(function (p) { z.push({ t: 'comp', b: [p[0] - 1.3, 1, p[1] - 0.7, p[0] + 1.3, 2.8, p[1] + 0.7] }); });
+    return z;
+  })();
   KC.RigLayout = L;
 
   // Эшелон: блоки на рельсовом ходу, x — относительно устья текущей скважины
@@ -54,6 +78,12 @@
     k.rails(22, -5, 40, 5, 4, 'nz pz nx px', [{ side: 'nx', a: -1, b: 1 }, { side: 'px', a: -1, b: 1 }, { side: 'nz', a: 37, b: 38 }]);
     k.rail(21, -1, 22, -1, 4, 'nz'); k.rail(21, 1, 22, 1, 4, 'pz');
     L.AGIT.forEach(function (p) { k.agitator(p[0], 4, p[1]); });
+    L.SUC.forEach(function (x) { k.valveStand(x, 4, -4.5, T.rgGreen); });
+    L.EQZ.forEach(function (x) { k.valveStand(x, 4, -4.5, T.rgBlueLt); g.box(x - 0.2, 5.15, -4.52, x + 0.2, 5.4, -4.48, T.rgWhite); });
+    // шламовые насосы: подача на дегазатор и гидроциклоны
+    L.SLURRY.forEach(function (p) { k.slurryPump(p[0], 4, p[1]); });
+    k.pipe([[13.75, 4.9, -3.7], [13.75, 5.6, -3.7], [16.2, 5.6, -3.7], [16.2, 5.6, -3.3]], 0.08, T.rgGreen);
+    k.pipe([[18.95, 4.9, 0.7], [18.95, 5.9, 0.7], [18.95, 5.9, 2.58]], 0.08, T.rgGreen);
     for (i = 0; i < 3; i++) {                                           // гидромониторы и уровнемеры
       var tx = L.TANK_X[i][0] + 0.8;
       g.cyl('y', tx, 4, 4.2, 1.0, 0.06, T.rgGreen, { n: 6 }); g.beam([tx, 4.9, 4.2], [tx + 0.5, 4.75, 3.9], 0.07, 0.07, T.rgGreen);
@@ -118,6 +148,8 @@
     k.pipe([[27, 2.0, -10.5], [27, 1.3, -10.5], [33.6, 1.3, -10.5]], 0.09, T.rgGrey);
     k.pipe([[30.4, 2.0, -10.5], [30.4, 1.3, -10.5]], 0.09, T.rgGrey);
     k.hopper(34.2, 0, -10.5);
+    k.mudMixer(31, 0, -14.6);
+    k.pipe([[30.1, 0.3, -13.3], [30.1, 0.3, -12.4], [32.8, 0.4, -12.4], [32.8, 0.4, -10.5]], 0.09, T.rgGreen);
     k.pipe([[32.8, 0.4, -10.5], [32.8, 0.4, -7.2], [32.8, 2.6, -7.2], [32.8, 4.4, -4.4]], 0.1, T.rgGreen);
     // навес для реагентов
     [[36.5, -13], [41.5, -13], [36.5, -8.5], [41.5, -8.5]].forEach(function (p) { g.box(p[0] - 0.07, 0, p[1] - 0.07, p[0] + 0.07, 3, p[1] + 0.07, T.rgBlue); });
@@ -148,7 +180,6 @@
     if (!st.wellDone) S.block(RX - 1, -2, -1, RX, -1, 0, 0, 0);
     // шламовый амбар
     S.block(L.PIT[0], -2, L.PIT[1], L.PIT[2] - 1, -1, L.PIT[3] - 1, 0, 0);
-    g.box(L.PIT[0], -1.5, L.PIT[1], L.PIT[2], -1.4, L.PIT[3], T.rgMud, { skip: 'ewsnb' });
     for (i = L.PIT[0]; i < L.PIT[2]; i += 4) { g.box(i, 0, L.PIT[1] - 0.6, i + 0.08, 1.0, L.PIT[1] - 0.52, T.rgYellow); }
     g.beam([L.PIT[0], 1.0, L.PIT[1] - 0.56], [L.PIT[2], 1.0, L.PIT[1] - 0.56], 0.05, 0.05, T.rgYellow);
     g.beam([L.PIT[0], 0.55, L.PIT[1] - 0.56], [L.PIT[2], 0.55, L.PIT[1] - 0.56], 0.04, 0.04, T.rgYellow);
@@ -193,6 +224,10 @@
     });
     // вагон-городок
     k.wagon(60, 0, -29, 9, 'sign'); k.wagon(60, 0, -23, 9); k.wagon(74, 0, -29, 9); k.wagon(74, 0, -23, 9); k.wagon(88, 0, -26, 8);
+    k.wagon(-31, 0, -15, 7, 'sign');                                 // станция ГТИ у буровой
+    g.cyl('y', -25, 3.1, -15, 2.4, 0.03, T.rgSteel, { n: 4 }); g.rope([-25, 5.4, -15], [RX - 6.9, 9.5, 2.2], 0.02, T.rgBlack, 1.4, 6);
+    k.boiler(44, 0, -17);
+    k.pipe([[42.5, 0.6, -16], [42.5, 0.6, -6.5], [42.5, 3.2, -5.2]], 0.06, T.rgSteel);
     k.fireBoard(71.5, 0, -20, 'z');
     S.block(58, -1, -21, 98, -1, -19, B.ROAD_SLAB, 0);
     // прожекторные мачты по углам площадки
@@ -208,6 +243,16 @@
     padFixed(k, st);
     k.at(RX, 0, 0, function () {
       k.substructure(); k.rigFloor(); k.mast(); k.catwalk();
+      // пульт ПВО у бурильщика и машинные ключи УМК на подвесах с противовесами
+      var F = D.FLOOR, g = k.g;
+      k.bopPanel(-5.6, F, 1.0);
+      [[-1.75, 0.95, -1], [0.55, 1.75, 1]].forEach(function (q) {
+        g.box(q[0] - 0.55, F + 1.05, q[1] - 0.12, q[0] + 0.55, F + 1.3, q[1] + 0.12, T.rgRed);
+        g.box(q[0] + q[2] * 0.55 - 0.16, F + 1.0, q[1] - 0.16, q[0] + q[2] * 0.55 + 0.16, F + 1.35, q[1] + 0.16, T.rgDark);
+        g.beam([q[0], F + 1.3, q[1]], [q[2] * D.legX(F + 15), F + 15, 0.4], 0.025, 0.025, T.rgRope);
+        g.beam([q[2] * D.legX(F + 15), F + 15, 0.4], [q[2] * (D.legX(F + 6) - 0.9), F + 6, 0.75], 0.025, 0.025, T.rgRope);
+        g.box(q[2] * (D.legX(F + 6) - 0.9) - 0.14, F + 5.3, 0.61, q[2] * (D.legX(F + 6) - 0.9) + 0.14, F + 6, 0.89, T.rgDark);
+      });
       if (!st.wellDone) k.bop(0, 0, 0, st.bop | 0, 6.1);
       echelon(k); mixing(k);
     });
@@ -226,6 +271,7 @@
     dynamic: function (g, p, env) { if (KC.RigSim) KC.RigSim.draw(g, p, env); },
     update: function (p, dt, hooks) { if (KC.RigSim) KC.RigSim.update(p, dt, hooks); },
     use: function (p, pos, ctx) { return KC.RigSim ? KC.RigSim.use(p, pos, ctx) : false; },
+    hint: function (p, pos) { return KC.RigSim ? KC.RigSim.hint(p, pos) : null; },
     lights: function (p, out, cam, night) {
       var RX = p.st.slot * L.STEP, w;
       if (p.st.flare) {

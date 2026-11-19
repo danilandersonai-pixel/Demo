@@ -1141,6 +1141,7 @@
     if (locked && document.exitPointerLock) document.exitPointerLock();
   }
   // Пост бурильщика: панель поверх игры, мир продолжает жить
+  var aimT = 0;
   function openRig() {
     if (state !== 'playing') return;
     state = 'rig';
@@ -1812,6 +1813,15 @@
     Audio.setListener(cam.x, cam.y, cam.z, cam.yaw);
 
     if (placed && state === 'playing') updateTarget(); else { target = null; targetMob = null; }
+    // подсказка по агрегату буровой под прицелом
+    aimT -= dt;
+    if (aimT <= 0) {
+      aimT = 0.15;
+      var ahEl = $('aimhint'), ah = null;
+      if (state === 'playing' && target && !targetMob && KC.Props && world.getBlock(target.x, target.y, target.z) === B.RIG_HULL) ah = KC.Props.hintAt(target.x, target.y, target.z);
+      if (ah) ahEl.textContent = ah + (isTouch ? '' : ' (ПКМ)');
+      ahEl.hidden = !ah;
+    }
     var sky = skyState();
     updateLighting(sky);
     LG.time = gameTime;
@@ -2032,7 +2042,7 @@
     }
     else if (scenario === 'rig' && !tips.start) {
       tips.start = 1;
-      message('Кустовая площадка, буровая БУ-3000 ЭУК-1М. Поднимитесь по лестнице на пол буровой и нажмите ПКМ на любом агрегате — откроется пост бурильщика с приборами и камерами', 10);
+      message(isTouch ? 'Буровая БУ-3000. Наведите прицел на агрегат и нажмите «Действие»: насосы, сита, задвижки включаются на месте, пост бурильщика — на полу буровой' : 'Кустовая площадка, буровая БУ-3000 ЭУК-1М. Наведите прицел на агрегат и нажмите ПКМ: насосы, сита, задвижки и ротор включаются на месте, пост бурильщика с приборами — на полу буровой', isTouch ? 7 : 10);
     }
     else if (scenario === 'abandoned' && !tips.start) {
       tips.start = 1;

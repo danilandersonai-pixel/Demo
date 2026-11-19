@@ -672,22 +672,33 @@ body[data-state="dead"] #bars { display: none; }
   #intro-flash.is-on, #intro-cap { animation: none; transition: none; }
 }
 
-/* ---- Буровая: пост бурильщика и строка состояния ---- */
+/* ---- Буровая: пост бурильщика, строка состояния, подсказка по агрегату ---- */
 .rigpanel {
   position: fixed; top: 0; right: 0; bottom: 0; z-index: 40;
-  width: min(460px, 100vw); overflow-y: auto; overscroll-behavior: contain;
-  display: flex; flex-direction: column; gap: 8px;
-  padding: 12px 14px 18px; box-sizing: border-box;
+  width: min(470px, 100vw);
+  display: flex; flex-direction: column;
+  box-sizing: border-box;
   background: var(--panel); border-left: 2px solid var(--accent-deep); box-shadow: var(--bevel);
   font-family: var(--body); font-size: 13px; color: var(--ink);
+  touch-action: pan-y;
 }
 .rigpanel[hidden] { display: none; }
+.rg-top { flex: 0 0 auto; display: flex; flex-direction: column; gap: 5px; padding: 10px 12px 0; }
 .rg-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .rg-title { font-size: 14px; letter-spacing: 0.02em; color: var(--accent-hi); }
 .rg-stage { margin: 0; font-weight: 600; }
-.rg-label { margin: 0; min-height: 2.6em; color: var(--ink-2); }
+.rg-label { margin: 0; color: var(--ink-2); }
 .rg-alarm { margin: 0; padding: 6px 8px; background: var(--danger-deep); border: 2px solid var(--danger); color: #fff; font-weight: 600; }
-.rg-dials { width: 100%; height: auto; background: var(--panel-2); border: 1px solid var(--edge); }
+.rg-tabs { display: flex; gap: 4px; margin-top: 2px; border-bottom: 2px solid var(--accent-deep); }
+.rigpanel .rg-tab { flex: 1 1 0; min-width: 0; padding: 8px 2px; font-size: 12px; border-bottom: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rg-body {
+  flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch; touch-action: pan-y;
+  padding: 10px 12px calc(16px + env(safe-area-inset-bottom, 0px));
+}
+.rg-pane { display: flex; flex-direction: column; gap: 8px; }
+.rg-pane[hidden] { display: none; }
+.rg-dials { display: block; width: 100%; height: auto; background: var(--panel-2); border: 1px solid var(--edge); }
 .rg-nums { display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; margin: 0; }
 .rg-nums dt { color: var(--ink-3); }
 .rg-nums dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
@@ -697,12 +708,15 @@ body[data-state="dead"] #bars { display: none; }
 .rg-row__l { color: var(--ink-2); }
 .rg-row__c { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
 .rg-val { min-width: 3.2em; text-align: center; font-variant-numeric: tabular-nums; }
-.rigpanel .btn--small { padding: 5px 9px; font-size: 12px; }
+.rg-note { margin: 0; color: var(--ink-3); font-size: 12px; }
+.rigpanel .btn--small { padding: 6px 10px; font-size: 12px; }
 .rigpanel .btn.is-on { background: var(--accent); color: var(--accent-ink); border-color: var(--accent-hi); }
-.rigpanel .btn:disabled { opacity: 0.55; cursor: default; }
-.rg-cams { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding-top: 6px; border-top: 1px solid var(--edge); }
-.rg-log { margin: 0; padding: 6px 0 0 0; list-style: none; border-top: 1px solid var(--edge); color: var(--ink-2); font-size: 12px; }
-.rg-log li { padding: 2px 0; }
+.rigpanel .btn:disabled { opacity: 0.5; cursor: default; }
+.rg-hoist { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.rigpanel .rg-hold { padding: 16px 6px; font-size: 15px; font-weight: 600; touch-action: none; user-select: none; -webkit-user-select: none; }
+.rg-cams { display: flex; flex-wrap: wrap; gap: 6px; }
+.rg-log { margin: 0; padding: 0; list-style: none; color: var(--ink-2); font-size: 12px; }
+.rg-log li { padding: 3px 0; border-bottom: 1px solid var(--edge); }
 .righud {
   position: fixed; top: 8px; left: 50%; transform: translateX(-50%); z-index: 12;
   max-width: min(92vw, 760px); padding: 5px 12px;
@@ -711,6 +725,26 @@ body[data-state="dead"] #bars { display: none; }
 }
 .righud[hidden] { display: none; }
 .righud.is-alarm { border-color: var(--danger); color: #ffd9cf; }
+#aimhint {
+  position: absolute; left: 50%; top: calc(50% + 26px); transform: translateX(-50%);
+  margin: 0; padding: 5px 12px; max-width: calc(100vw - 32px);
+  font-size: 13px; text-align: center; color: var(--ink);
+  background: rgba(0, 0, 0, 0.6); border: 1px solid var(--accent-deep); pointer-events: none;
+}
+/* телефон вертикально: панель — нижний лист, сверху видна буровая */
 @media (max-width: 720px) {
-  .rigpanel { top: auto; left: 0; width: 100vw; height: 62vh; border-left: 0; border-top: 2px solid var(--accent-deep); }
+  .rigpanel { top: auto; left: 0; right: 0; width: 100vw; height: 62vh; height: 62dvh; border-left: 0; border-top: 2px solid var(--accent-deep); }
+  .rg-label { font-size: 12px; }
+  .rigpanel .btn--small { padding: 9px 12px; font-size: 13px; min-height: 38px; }
+  .rigpanel .rg-tab { padding: 10px 2px; font-size: 12px; }
+  .righud { top: 62px; font-size: 11px; padding: 4px 8px; }
+}
+/* телефон горизонтально: панель справа на половину экрана */
+@media (max-height: 520px) and (min-width: 721px) {
+  .rigpanel { width: min(470px, 52vw); font-size: 12px; }
+  .rg-top { padding-top: 6px; gap: 3px; }
+  .rigpanel .btn--small { padding: 7px 10px; min-height: 34px; }
+}
+@media (pointer: coarse) {
+  .rigpanel .btn--small { min-height: 38px; }
 }
