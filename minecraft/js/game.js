@@ -86,6 +86,7 @@
     });
     atlas = KC.makeAtlas();
     renderer.setAtlas(atlas);
+    if (KC.Labels) renderer.setLabelAtlas(KC.Labels.build());
     renderer.setMobAtlas(KC.Models.init());
     renderer.setParticleTex(KC.FX.makeTexture());
 
@@ -1142,6 +1143,15 @@
   }
   // Пост бурильщика: панель поверх игры, мир продолжает жить
   var aimT = 0;
+  // осмотр агрегата буровой под прицелом
+  function inspectTarget() {
+    if (state !== 'playing' || !target || !KC.Props || !KC.RigUI) return false;
+    if (world.getBlock(target.x, target.y, target.z) !== B.RIG_HULL) return false;
+    var p = KC.Props.at(target.x + 0.5, target.y + 0.5, target.z + 0.5);
+    if (!p) return false;
+    KC.RigUI.inspectAt(p, KC.Props.local(p, target.x + 0.5, target.y + 0.5, target.z + 0.5));
+    return true;
+  }
   function openRig() {
     if (state !== 'playing') return;
     state = 'rig';
@@ -1819,8 +1829,9 @@
       aimT = 0.15;
       var ahEl = $('aimhint'), ah = null;
       if (state === 'playing' && target && !targetMob && KC.Props && world.getBlock(target.x, target.y, target.z) === B.RIG_HULL) ah = KC.Props.hintAt(target.x, target.y, target.z);
-      if (ah) ahEl.textContent = ah + (isTouch ? '' : ' (ПКМ)');
+      if (ah) ahEl.textContent = ah + (isTouch ? '' : ' (ПКМ · V — осмотр)');
       ahEl.hidden = !ah;
+      if ($('t-look')) $('t-look').hidden = !(ah && isTouch);
     }
     var sky = skyState();
     updateLighting(sky);
@@ -1845,7 +1856,7 @@
     var ents = E.buildRender(cam, gameTime, thirdPerson && !P.dead ? function (batch) { P.drawBody(batch, pL, playerSun); } : null,
       driving && vehCam === 1 ? P.vehicle : null);
     var held = null;
-    if (!thirdPerson && !driving && state !== 'title' && state !== 'intro' && placed && !P.dead) {
+    if (!thirdPerson && !driving && state !== 'title' && state !== 'intro' && state !== 'rig' && placed && !P.dead) {
       var hL = [pL[0] + LG.sunCol[0] * 0.5 * playerSun, pL[1] + LG.sunCol[1] * 0.5 * playerSun, pL[2] + LG.sunCol[2] * 0.5 * playerSun];
       var own = heldLight();
       if (own) { hL[0] += own.col[0] * 0.5; hL[1] += own.col[1] * 0.5; hL[2] += own.col[2] * 0.5; }
@@ -1860,7 +1871,7 @@
       cam: cam, sky: sky, brightness: settings.bright,
       fog: { color: fogColor, start: inLava ? 0 : under ? 0 : R * (hazeFx ? Math.max(0.78, DIM.fogNear || 0) : DIM.fogNear || 0.55) * (1 - Wk * 0.45), end: inLava ? 3 : under ? 16 : (R - (hazeFx ? 2 : 4)) * (1 - Wk * 0.3) },
       clouds: DIM.noClouds ? null : { size: Math.max(R * 2, 220), y: DIM.cloudsY || 112, offset: cloudOffset, color: sky.cloud, alpha: 0.8 + Wk * 0.15, shadow: 0.5 * (1 - Wk) },
-      chunks: list, mobs: ents.mobs, items: ents.items, particles: fxr.solid, soft: fxr.soft, wet: Wk * (1 - KC.FX.weather.snow),
+      chunks: list, mobs: ents.mobs, items: ents.items, labels: KC.Props && state !== 'title' ? KC.Props.labels(cam, gameTime) : null, particles: fxr.solid, soft: fxr.soft, wet: Wk * (1 - KC.FX.weather.snow),
       crack: buildCrack(), highlight: hl, held: held, underwater: under,
       light: LG, lights: gatherLights(dt, cam), time: gameTime, grade: gradeFor(sky), atmos: atmosFor(sky)
     });
@@ -2391,6 +2402,7 @@
         case 'KeyM': if (P.count(I.CITY_MAP) || P.creative) openMap(); else toast('Карты района нет: её можно найти в сундуках или получить от выживших'); return;
         case 'KeyF': if (mode === 'creative') setFly(!P.e.fly); return;
         case 'KeyQ': dropHeld(e.shiftKey); return;
+        case 'KeyV': inspectTarget(); return;
         case 'F5':
           if (P.vehicle) { vehCam = P.vehicle.V.cabin ? 1 - vehCam : 0; return; }
           view = (view + 1) % 3; return;
@@ -2477,6 +2489,8 @@
     holdBtn('t-down', function () { if (P.vehicle) { exitVehicle(); return; } touchDown = true; }, function () { touchDown = false; });
     holdBtn('t-break', function () { mouse.l = true; mouse.lPress = true; }, function () { mouse.l = false; });
     holdBtn('t-place', function () { mouse.r = true; mouse.rPress = true; }, function () { mouse.r = false; });
+    $('t-look').addEventListener('click', function (e) { e.preventDefault(); inspectTarget(); });
+    $('t-look').addEventListener('pointerdown', function (e) { e.stopPropagation(); });
     holdBtn('t-fly', function () { if (mode === 'creative') setFly(!P.e.fly); });
     // Кнопки, открывающие экраны, срабатывают по щелчку: иначе «догоняющий» щелчок
     // после касания попадёт в кнопку только что открытого окна и сразу закроет его

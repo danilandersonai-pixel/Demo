@@ -243,6 +243,7 @@
     padFixed(k, st);
     k.at(RX, 0, 0, function () {
       k.substructure(); k.rigFloor(); k.mast(); k.catwalk();
+      if (KC.RigDetail) { KC.RigDetail.posts(k, st); if (KC.RigDetail.build) KC.RigDetail.build(k, st); }
       // пульт ПВО у бурильщика и машинные ключи УМК на подвесах с противовесами
       var F = D.FLOOR, g = k.g;
       k.bopPanel(-5.6, F, 1.0);
@@ -272,6 +273,8 @@
     update: function (p, dt, hooks) { if (KC.RigSim) KC.RigSim.update(p, dt, hooks); },
     use: function (p, pos, ctx) { return KC.RigSim ? KC.RigSim.use(p, pos, ctx) : false; },
     hint: function (p, pos) { return KC.RigSim ? KC.RigSim.hint(p, pos) : null; },
+    labels: function () { return KC.RigDetail ? KC.RigDetail.LABELS : null; },
+    originX: function (p) { return p.st.slot * L.STEP; },
     lights: function (p, out, cam, night) {
       var RX = p.st.slot * L.STEP, w;
       if (p.st.flare) {

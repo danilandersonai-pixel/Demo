@@ -83,8 +83,21 @@
     g.box(-0.6, hy + 3.25, -0.33, 0.6, hy + 3.35, 0.33, T.rgDark);
     g.box(-0.56, hy + 1.9, -0.29, 0.56, hy + 2.1, 0.29, T.rgHazard);
     g.disc('z', 0, hy + 2.6, -0.3, 0.48, T.rgSheave, rt.sheave * 2); g.disc('z', 0, hy + 2.6, 0.3, 0.48, T.rgSheave, rt.sheave * 2);
-    g.cyl('y', 0, hy + 0.95, 0, 0.65, 0.2, T.rgDark, { n: 8 });
-    g.box(-0.2, hy + 0.3, -0.13, 0.2, hy + 0.95, 0.13, T.rgDark); g.box(-0.2, hy, -0.13, 0.05, hy + 0.3, 0.13, T.rgDark);
+    for (i = 0; i < 4; i++) { g.box(-0.6, hy + 1.65 + i * 0.4, -0.3, -0.55, hy + 1.7 + i * 0.4, 0.3, T.rgDark); g.box(0.55, hy + 1.65 + i * 0.4, -0.3, 0.6, hy + 1.7 + i * 0.4, 0.3, T.rgDark); }
+    g.box(-0.3, hy + 1.52, -0.2, 0.3, hy + 1.6, 0.2, T.rgDark);                                        // серьга
+    // крюк: пружинный корпус, ствол, роговины для штропов, зев с защёлкой
+    g.cyl('y', 0, hy + 1.0, 0, 0.52, 0.24, T.rgYellow, { n: 10 });
+    g.cyl('y', 0, hy + 1.48, 0, 0.05, 0.27, T.rgDark, { n: 10 }); g.cyl('y', 0, hy + 0.98, 0, 0.05, 0.27, T.rgDark, { n: 10 });
+    g.box(-0.18, hy + 0.6, -0.14, 0.18, hy + 0.98, 0.14, T.rgYellow);
+    [-1, 1].forEach(function (sd) { g.beam([sd * 0.16, hy + 0.78, 0], [sd * 0.36, hy + 0.74, 0], 0.11, 0.11, T.rgYellow); g.beam([sd * 0.36, hy + 0.74, 0], [sd * 0.38, hy + 0.86, 0], 0.08, 0.08, T.rgYellow); });
+    var hp = null, HR = 0.15, hcy = hy + 0.36;
+    for (i = 0; i <= 10; i++) {
+      var ha = Math.PI * (1 + i / 10 * 1.15), hq = [0, hcy + Math.sin(ha) * HR, Math.cos(ha) * HR];
+      if (i === 0) g.beam([0, hy + 0.62, -HR], hq, 0.12, 0.1, T.rgYellow);
+      if (hp) g.beam(hp, hq, 0.12, 0.1, T.rgYellow);
+      hp = hq;
+    }
+    g.beam(hp, [0, hy + 0.62, 0.03], 0.03, 0.03, T.rgRed);                                            // защёлка зева
 
     // --- вертлюг, ведущая труба, буровой рукав или элеватор ---
     var sy = F + 17, hoseTo = [D.legX(sy) + 0.85 - 1.3, sy + 0.2, -0.95], goose = null;
@@ -103,7 +116,8 @@
     g.rope(hoseTo, goose, 0.085, T.rgHose, Math.sqrt(Math.max(4, 19 * 19 - hd * hd)) * 0.42, 9);
     if (st.el) {
       lit('hook', 0, hy, -1);
-      g.beam([-0.12, hy + 0.3, 0], [-0.24, hy - 0.9, 0], 0.06, 0.06, T.rgDark); g.beam([0.12, hy + 0.3, 0], [0.24, hy - 0.9, 0], 0.06, 0.06, T.rgDark);
+      g.beam([-0.37, hy + 0.78, 0], [-0.26, hy - 0.9, 0], 0.06, 0.06, T.rgDark); g.beam([0.37, hy + 0.78, 0], [0.26, hy - 0.9, 0], 0.06, 0.06, T.rgDark);
+      g.box(-0.42, hy + 0.72, -0.05, -0.32, hy + 0.84, 0.05, T.rgDark); g.box(0.32, hy + 0.72, -0.05, 0.42, hy + 0.84, 0.05, T.rgDark);
       g.box(-0.32, hy - 1.15, -0.2, 0.32, hy - 0.85, 0.2, T.rgDark);
     }
 
@@ -127,7 +141,14 @@
     g.push().move(0, F + 0.08, 0).rot('y', -rt.rot);
     g.cyl('y', 0, 0, 0, 0.12, 0.62, T.rgDark, { n: 10 });
     g.box(-0.34, 0.12, -0.34, 0.34, 0.16, 0.34, T.rgSteel);
-    if (st.kelly === 'string') g.box(-0.24, 0.16, -0.24, 0.24, 0.5, 0.24, T.rgGreen);
+    if (st.kelly === 'string') {
+      g.box(-0.24, 0.16, -0.24, 0.24, 0.42, 0.24, T.rgGreen);                                          // вкладыш ведущей трубы
+      g.box(-0.2, 0.42, -0.2, 0.2, 0.5, 0.2, T.rgDark);
+      [[0.11, 0, 'z'], [-0.11, 0, 'z'], [0, 0.11, 'x'], [0, -0.11, 'x']].forEach(function (q) {
+        if (q[2] === 'z') g.cyl('z', q[0], 0.47, -0.08, 0.16, 0.045, T.rgSteel, { n: 6 }); else g.cyl('x', -0.08, 0.47, q[1], 0.16, 0.045, T.rgSteel, { n: 6 });
+      });
+    }
+    for (var bi = 0; bi < 8; bi++) { var ba = bi / 8 * Math.PI * 2; g.box(Math.cos(ba) * 0.52 - 0.03, 0.12, Math.sin(ba) * 0.52 - 0.03, Math.cos(ba) * 0.52 + 0.03, 0.15, Math.sin(ba) * 0.52 + 0.03, T.rgSteel); }
     g.pop();
     // ключ АКБ-3М2: блок ключа выезжает к замку
     var ah = lerp([1.9, F + 1.0, 1.25], [0.42, F + 0.75, 0.2], st.akb);

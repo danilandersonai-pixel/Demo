@@ -26,7 +26,9 @@
     ['Мостки', [11, 5.5, -30], [0, 3.5, -14]],
     ['Общий вид', [-44, 30, -54], [18, 17, 0]]
   ];
-  var TABS = [['drill', 'Бурение'], ['hoist', 'Лебёдка'], ['mud', 'Раствор'], ['cams', 'Камеры'], ['log', 'Журнал']];
+  var TABS = [['drill', 'Бурение'], ['hoist', 'Лебёдка'], ['mud', 'Раствор'], ['look', 'Осмотр'], ['cams', 'Камеры'], ['log', 'Журнал']];
+  // осмотр: выбранный агрегат и положение камеры вокруг него
+  var look = { i: -1, yaw: 0.5, pitch: 0.32, dist: 5 }, ptrs = {}, pinch = 0;
 
   function h(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; }
   function btn(text, c, v, cls, id) {
@@ -70,7 +72,10 @@
     var head = h('div', 'rg-top');
     var hr = h('div', 'rg-head');
     hr.appendChild(h('strong', 'rg-title', 'Пост бурильщика БУ-3000'));
-    hr.appendChild(btn('Закрыть', 'close'));
+    var hb2 = h('span', 'rg-headbtns');
+    hb2.appendChild(btn('Свернуть', 'min', undefined, '', 'rg-min'));
+    hb2.appendChild(btn('Закрыть', 'close'));
+    hr.appendChild(hb2);
     head.appendChild(hr);
     var stg = h('p', 'rg-stage'); stg.id = 'rg-stage'; head.appendChild(stg);
     var lab = h('p', 'rg-label'); lab.id = 'rg-label'; head.appendChild(lab);
@@ -126,6 +131,23 @@
     c3.appendChild(row('Плотность, г/см³', [btn('−', 'rho', -0.01), val('rg-rhoset'), btn('+', 'rho', 0.01), btn('Приготовить', 'mix')]));
     p3.appendChild(c3);
 
+    // --- Осмотр ---
+    var pl = pane('look');
+    var card = h('div', 'rg-card'); card.id = 'rg-card';
+    var ct = h('strong', 'rg-card__t'); ct.id = 'rg-look-name'; card.appendChild(ct);
+    var ca = h('p', 'rg-card__a'); ca.id = 'rg-look-about'; card.appendChild(ca);
+    var lc = h('div', 'rg-lookbtns');
+    [['⟲', 'orbit', -1, 'Повернуть влево'], ['⟳', 'orbit', 1, 'Повернуть вправо'], ['▲', 'tilt', 1, 'Выше'], ['▼', 'tilt', -1, 'Ниже'], ['＋', 'zoom', -1, 'Ближе'], ['－', 'zoom', 1, 'Дальше']].forEach(function (q) {
+      var b = btn(q[0], q[1], q[2], 'rg-lb'); b.setAttribute('aria-label', q[3]); b.title = q[3]; lc.appendChild(b);
+    });
+    lc.appendChild(btn('Сбросить вид', 'lookReset'));
+    card.appendChild(lc);
+    card.appendChild(h('p', 'rg-note', 'Вращайте вид пальцем или мышью по картинке, приближайте щипком или колесом.'));
+    pl.appendChild(card);
+    var ll = h('div', 'rg-cams'); ll.id = 'rg-looklist';
+    (KC.RigDetail ? KC.RigDetail.INSPECT : []).forEach(function (u, i) { ll.appendChild(btn(u.name, 'look', i, '', 'rg-look' + i)); });
+    pl.appendChild(ll);
+
     // --- Камеры ---
     var p4 = pane('cams');
     var cams = h('div', 'rg-cams');
@@ -146,6 +168,12 @@
       var c = b.getAttribute('data-c'), v = b.getAttribute('data-v');
       if (c === 'close') { close(); return; }
       if (c === 'tab') { setTab(b.getAttribute('data-tab')); return; }
+      if (c === 'min') { el.classList.toggle('is-min'); b.textContent = el.classList.contains('is-min') ? 'Развернуть' : 'Свернуть'; return; }
+      if (c === 'look') { select(+v); return; }
+      if (c === 'orbit') { look.yaw += +v * 0.35; return; }
+      if (c === 'tilt') { look.pitch = clampP(look.pitch + +v * 0.18); return; }
+      if (c === 'zoom') { zoom(+v > 0 ? 1.25 : 0.8); return; }
+      if (c === 'lookReset') { select(look.i); return; }
       if (c === 'cam') { camIdx = +v; refresh(); return; }
       if (c === 'dismantle') {                 // второе нажатие подтверждает
         if (b.getAttribute('data-sure')) { var gone = cur; b.removeAttribute('data-sure'); b.textContent = 'Демонтировать буровую'; close(); cur = null; KC.Props.remove(gone); }
@@ -159,6 +187,7 @@
     // прокрутка панели пальцем не должна уходить в игру
     ['touchstart', 'touchmove', 'wheel'].forEach(function (n) { el.addEventListener(n, function (ev) { ev.stopPropagation(); }, { passive: true }); });
     setTab(tab);
+    bindLook();
   }
 
   function setTab(name) {
@@ -313,6 +342,12 @@
       set('rg-rhoset', (st.rhoSet || st.mudRho).toFixed(2));
       cv = document.getElementById('rg-scheme'); g = cv.getContext && cv.getContext('2d');
       if (g) scheme(g, I, st);
+    } else if (tab === 'look') {
+      var U = KC.RigDetail ? KC.RigDetail.INSPECT[look.i] : null;
+      set('rg-look-name', U ? U.name : 'Выберите агрегат');
+      set('rg-look-about', U ? U.about : 'Нажмите на агрегат в списке ниже — камера подлетит к нему. В игре наведите прицел на агрегат и нажмите V (на телефоне — кнопку «Осмотр»).');
+      document.getElementById('rg-card').classList.toggle('is-empty', !U);
+      for (i = 0; KC.RigDetail && i < KC.RigDetail.INSPECT.length; i++) on('rg-look' + i, look.i === i);
     } else if (tab === 'cams') {
       for (i = 0; i < CAMS.length; i++) on('rg-cam' + i, camIdx === i);
     } else if (tab === 'log') {
@@ -340,8 +375,83 @@
   function close() { if (cur) S.cmd(cur, 'hoist', 0); shown = false; if (UI.host && UI.host.leave) UI.host.leave(); }
 
   // камера наблюдения: null — обычный вид от игрока
+  function clampP(v) { return Math.max(-0.15, Math.min(1.45, v)); }
+  function unit() { return look.i >= 0 && KC.RigDetail ? KC.RigDetail.INSPECT[look.i] : null; }
+  function zoom(k) { var U = unit(); if (!U) return; look.dist = Math.max(Math.max(0.7, U.r * 0.22), Math.min(U.r * 2.6, look.dist * k)); }
+  function select(i) {
+    var U = KC.RigDetail ? KC.RigDetail.INSPECT[i] : null;
+    if (!U) return;
+    look.i = i; look.yaw = U.yaw || 0.5; look.pitch = U.pitch === undefined ? 0.32 : U.pitch; look.dist = U.r;
+    if (tab !== 'look') setTab('look'); else refresh();
+  }
+  // центр осматриваемого агрегата в мире
+  function lookCenter() {
+    var U = unit(), st = cur.st, c = U.c;
+    if (U.dyn === 'hook') c = [0, F + st.hookY + 0.8, 0];
+    return KC.Props.world(cur, (U.fixed ? 0 : st.slot * L.STEP) + c[0], c[1], c[2]);
+  }
+  // камера облёта: агрегат держится в центре видимой части экрана (панель закрывает край)
+  function lookCam() {
+    var C = lookCenter(), cp = Math.cos(look.pitch), yw = look.yaw + (cur.r || 0) * Math.PI / 2;
+    var pos = [C[0] - Math.sin(yw) * cp * look.dist, C[1] + Math.sin(look.pitch) * look.dist, C[2] - Math.cos(yw) * cp * look.dist];
+    var f = [C[0] - pos[0], C[1] - pos[1], C[2] - pos[2]], fl = Math.hypot(f[0], f[1], f[2]) || 1;
+    f = [f[0] / fl, f[1] / fl, f[2] / fl];
+    var r = [-f[2], 0, f[0]], rl = Math.hypot(r[0], r[2]) || 1; r = [r[0] / rl, 0, r[2] / rl];
+    var u = [r[1] * f[2] - r[2] * f[1], r[2] * f[0] - r[0] * f[2], r[0] * f[1] - r[1] * f[0]];
+    var W = window.innerWidth || 1, Hh = window.innerHeight || 1, tv = Math.tan(36 * Math.PI / 180), th = tv * W / Hh, sx = 0, sy = 0;
+    if (el && !el.hidden) {
+      var rc = el.getBoundingClientRect();
+      if (rc.width < W * 0.9) sx = rc.width / W; else sy = rc.height / Hh;
+    }
+    var A = [C[0] + r[0] * sx * th * look.dist - u[0] * sy * tv * look.dist, C[1] - u[1] * sy * tv * look.dist, C[2] + r[2] * sx * th * look.dist - u[2] * sy * tv * look.dist];
+    var dx = A[0] - pos[0], dy = A[1] - pos[1], dz = A[2] - pos[2], l = Math.hypot(dx, dy, dz) || 1;
+    return { x: pos[0], y: pos[1], z: pos[2], yaw: Math.atan2(-dx, -dz), pitch: Math.asin(dy / l) };
+  }
+  // ближайший к точке (в осях буровой) агрегат из списка осмотра
+  function inspectAt(p, lp) {
+    var list = KC.RigDetail ? KC.RigDetail.INSPECT : [], best = -1, bd = 1e9, RX = p.st.slot * L.STEP;
+    for (var i = 0; i < list.length; i++) {
+      var U = list[i], c = U.dyn === 'hook' ? [0, F + p.st.hookY + 0.8, 0] : U.c, ox = U.fixed || U.dyn ? 0 : RX;
+      var d = Math.hypot(lp[0] - c[0] - (U.dyn ? RX : ox), lp[1] - c[1], lp[2] - c[2]) / Math.max(2.5, U.r * 0.5);
+      if (d < bd) { bd = d; best = i; }
+    }
+    open(p);
+    if (best >= 0) select(best); else setTab('look');
+  }
+  function bindLook() {
+    var cv = document.getElementById('gl');
+    if (!cv) return;
+    function active() { return shown && tab === 'look' && look.i >= 0; }
+    cv.addEventListener('pointerdown', function (e) {
+      if (!active()) return;
+      ptrs[e.pointerId] = [e.clientX, e.clientY];
+      var ks = Object.keys(ptrs);
+      if (ks.length === 2) pinch = Math.hypot(ptrs[ks[0]][0] - ptrs[ks[1]][0], ptrs[ks[0]][1] - ptrs[ks[1]][1]);
+      try { cv.setPointerCapture(e.pointerId); } catch (er) { /* необязательно */ }
+      e.preventDefault();
+    });
+    cv.addEventListener('pointermove', function (e) {
+      if (!active() || !ptrs[e.pointerId]) return;
+      var o = ptrs[e.pointerId], ks = Object.keys(ptrs);
+      if (ks.length >= 2) {
+        ptrs[e.pointerId] = [e.clientX, e.clientY];
+        var dd = Math.hypot(ptrs[ks[0]][0] - ptrs[ks[1]][0], ptrs[ks[0]][1] - ptrs[ks[1]][1]);
+        if (pinch > 10 && dd > 10) zoom(pinch / dd);
+        pinch = dd;
+        return;
+      }
+      look.yaw -= (e.clientX - o[0]) * 0.007;
+      look.pitch = clampP(look.pitch + (e.clientY - o[1]) * 0.006);
+      ptrs[e.pointerId] = [e.clientX, e.clientY];
+    });
+    function end(e) { delete ptrs[e.pointerId]; pinch = 0; }
+    cv.addEventListener('pointerup', end); cv.addEventListener('pointercancel', end);
+    cv.addEventListener('wheel', function (e) { if (!active()) return; e.preventDefault(); zoom(e.deltaY > 0 ? 1.12 : 0.89); }, { passive: false });
+  }
+
   function cam() {
     if (!cur || !shown) return null;
+    if (tab === 'look' && unit()) return lookCam();
     var c = CAMS[camIdx], st = cur.st, RX = st.slot * L.STEP, from = c[1], to = c[2];
     if (!from) return null;
     if (from === 'hook') { var hy = F + st.hookY; from = [-7.5, Math.max(F + 3, hy + 1.5), -9]; to = [0, hy + 0.5, 0]; }
@@ -372,6 +482,6 @@
     hud.hidden = !show;
   }
 
-  var UI = { open: open, close: close, cam: cam, tick: tick, host: null, setTab: setTab, get shown() { return shown; } };
+  var UI = { open: open, close: close, cam: cam, tick: tick, host: null, setTab: setTab, inspectAt: inspectAt, select: select, get look() { return look; }, get shown() { return shown; } };
   KC.RigUI = UI;
 })();

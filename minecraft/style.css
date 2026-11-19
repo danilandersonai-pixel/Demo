@@ -725,6 +725,17 @@ body[data-state="dead"] #bars { display: none; }
 }
 .righud[hidden] { display: none; }
 .righud.is-alarm { border-color: var(--danger); color: #ffd9cf; }
+.rg-headbtns { display: flex; gap: 6px; }
+.rigpanel.is-min { height: auto; bottom: auto; }
+.rigpanel.is-min .rg-body, .rigpanel.is-min .rg-tabs, .rigpanel.is-min .rg-label { display: none; }
+.rigpanel.is-min .rg-top { padding-bottom: 10px; }
+.rg-card { display: flex; flex-direction: column; gap: 6px; padding: 8px 10px; background: var(--panel-2); border: 1px solid var(--edge); }
+.rg-card__t { font-size: 15px; color: var(--accent-hi); }
+.rg-card__a { margin: 0; line-height: 1.45; }
+.rg-lookbtns { display: flex; flex-wrap: wrap; gap: 6px; }
+.rigpanel .rg-lb { min-width: 40px; font-size: 16px; }
+#t-look { position: absolute; left: 50%; top: calc(50% + 70px); transform: translateX(-50%); width: auto; height: 46px; padding: 0 16px; flex-direction: row; gap: 8px; font-size: 13px; }
+#t-look[hidden] { display: none; }
 #aimhint {
   position: absolute; left: 50%; top: calc(50% + 26px); transform: translateX(-50%);
   margin: 0; padding: 5px 12px; max-width: calc(100vw - 32px);

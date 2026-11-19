@@ -1210,6 +1210,25 @@
     if (this.built) this.setupTargets();
   };
 
+  // Атлас надписей: сглаженный, с мипмапами — текст читается и под углом
+  Renderer.prototype.setLabelAtlas = function (canvas) {
+    var gl = this.gl;
+    if (!canvas) return;
+    if (this.labelTex) gl.deleteTexture(this.labelTex);
+    var t = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, t);
+    gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, canvas);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.generateMipmap(gl.TEXTURE_2D);
+    var an = gl.getExtension('EXT_texture_filter_anisotropic') || gl.getExtension('WEBKIT_EXT_texture_filter_anisotropic');
+    if (an) gl.texParameterf(gl.TEXTURE_2D, an.TEXTURE_MAX_ANISOTROPY_EXT, Math.min(8, gl.getParameter(an.MAX_TEXTURE_MAX_ANISOTROPY_EXT)));
+    this.labelTex = t;
+  };
+
   Renderer.prototype.uploadMesh = function (chunk, m) {
     var gl = this.gl;
     this.deleteMesh(chunk);
@@ -1579,6 +1598,12 @@
       this.useEnt(this.atlas, env, this.vp, camA);
       if (env.items && env.items.quads) this.drawDynamic(env.items.data, env.items.quads);
       if (env.particles && env.particles.quads) this.drawDynamic(env.particles.data, env.particles.quads);
+    }
+    if (env.labels && env.labels.quads && this.labelTex) {
+      this.useEnt(this.labelTex, env, this.vp, camA);
+      gl.enable(gl.POLYGON_OFFSET_FILL); gl.polygonOffset(-1, -2);
+      this.drawDynamic(env.labels.data, env.labels.quads);
+      gl.disable(gl.POLYGON_OFFSET_FILL);
     }
 
     // Трещины на добываемом блоке

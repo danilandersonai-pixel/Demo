@@ -241,6 +241,39 @@
       p._k.dynamic(dynGeo, p, { t: t, cam: cam, sink: dynSink, lit: function (name, lx, ly, lz) { lit(p, name, lx, ly, lz, t); } });
     }
   };
+  // Надписи: таблички в отдельный батч с атласом надписей; свет — по кешу, обновляется по очереди
+  var labelBatch = null, labCursor = 0, DIRV = { nz: [0, 0, -1], pz: [0, 0, 1], nx: [-1, 0, 0], px: [1, 0, 0], up: [0, 1, 0] };
+  function rotV(v, r) { var a = rotPt(v[0], v[2], r); return [a[0], v[1], a[1]]; }
+  Props.labels = function (cam, t) {
+    var list = world ? world.props : [], Lb = KC.Labels;
+    if (!list.length || !Lb || !KC.Models) return null;
+    if (!labelBatch) labelBatch = new KC.Models.Batch(512);
+    labelBatch.reset();
+    var budget = 10;
+    for (var i = 0; i < list.length; i++) {
+      var p = list[i], defs = p._k && p._k.labels ? p._k.labels(p) : null;
+      if (!defs) continue;
+      var RX = p._k.originX ? p._k.originX(p) : 0, cache = p._lab || (p._lab = []);
+      for (var j = 0; j < defs.length; j++) {
+        var e = defs[j], lp = e.at ? e.at(p.st) : e.p;
+        if (!lp || (e.when && !e.when(p.st))) continue;
+        var w = Props.world(p, lp[0] + (e.fixed ? 0 : RX), lp[1], lp[2]), dx = w[0] - cam.x, dy = w[1] - cam.y, dz = w[2] - cam.z;
+        if (dx * dx + dy * dy + dz * dz > 46 * 46) continue;
+        var d = Lb.get(e.k);
+        if (!d || !d.rect) continue;
+        var n = rotV(DIRV[e.n], p.r), u = e.u ? rotV(e.u, p.r) : (e.n === 'up' ? rotV([-1, 0, 0], p.r) : [n[2], 0, -n[0]]);
+        if (dx * n[0] + dy * n[1] + dz * n[2] > 0.05 && !e.u) continue;            // табличка видна только спереди
+        var c = cache[j];
+        if (!c || (budget > 0 && t - c.t > 1.2)) {
+          budget--;
+          var E = KC.Entities, sx = w[0] + n[0] * 0.3, sy = w[1] + n[1] * 0.3, sz = w[2] + n[2] * 0.3;
+          c = cache[j] = { t: t + Math.random() * 0.4, light: E.lightAt(sx, sy, sz), sunK: E.sunVis(sx, sy, sz) };
+        }
+        Lb.quad(labelBatch, d, w, n, u, e.w, c.light, c.sunK);
+      }
+    }
+    return labelBatch.quads ? labelBatch.view() : null;
+  };
   Props.lights = function (out, cam, night) {
     var list = world ? world.props : [];
     for (var i = 0; i < list.length; i++) if (list[i]._k && list[i]._k.lights) list[i]._k.lights(list[i], out, cam, night);
