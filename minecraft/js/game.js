@@ -1597,6 +1597,7 @@
       }
     }
     KC.FX.lights().forEach(function (l) { out.push(l); });
+    if (KC.Props) KC.Props.lights(out, cam, night);
     out.sort(function (a, b) { return (b.pri - a.pri) || ((a.d2 || 0) - (b.d2 || 0)); });
     return out;
   }
@@ -2488,7 +2489,7 @@
   }
 
   // Доступ из консоли для отладки и тестов
-  if (KC.RigUI) KC.RigUI.host = { enter: openRig, leave: closeRig };
+  if (KC.RigUI) KC.RigUI.host = { enter: openRig, leave: closeRig, creative: function () { return !!P.creative; } };
   KC.debug = {
     get world() { return world; }, get player() { return P.e; }, get state() { return state; }, get target() { return target; },
     get zombie() { return zombie; }, get scenario() { return scenario; }, goTo: goTo, travel: travel, zombieDawn: zombieDawn,

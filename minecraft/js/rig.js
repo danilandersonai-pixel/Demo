@@ -162,6 +162,19 @@
     k.accumulator(RX - 13, 0, 14);
     k.pipe([[RX - 11.6, 0.2, 14], [RX - 1.5, 0.2, 14], [RX - 1.5, 0.2, 2.0], [RX - 0.8, 1.8, 0.6]], 0.035, T.rgSteel);
     k.fireBoard(RX - 15.5, 0, -11, 'x');
+    // доливная ёмкость с уровнемером
+    k.at(RX, 0, 0, function () {
+      k.mudTank(-10.4, 8.6, -8.2, 10.8, 0.5, 2.6);
+      [[-10.3, 8.7], [-8.3, 8.7], [-10.3, 10.7], [-8.3, 10.7]].forEach(function (q) { g.box(q[0] - 0.07, 0, q[1] - 0.07, q[0] + 0.07, 0.5, q[1] + 0.07, T.rgBlue); });
+      g.box(-8.18, 0.6, 9.5, -8.14, 2.5, 9.7, T.rgWhite); g.box(-8.16, 1.5, 9.52, -8.12, 1.6, 9.68, T.rgRed);
+      k.pipe([[-8.3, 0.8, 9.7], [-2.2, 0.8, 9.7], [-1.2, 0.9, 1.2], [-0.4, 0.6, 0.3]], 0.06, T.rgGreen);
+      // канат аварийного спуска верхового и якорь
+      g.beam([0.9, D.MONKEY + 1.2, -6.1], [6.5, 0.4, -31.5], 0.03, 0.03, T.rgRope);
+      g.box(6.1, 0, -31.9, 6.9, 0.45, -31.1, T.rgSlab);
+    });
+    // ветроуказатель
+    g.cyl('y', 52, 0, -17, 7, 0.06, T.rgGrey, { n: 6 });
+    g.tube([52, 6.8, -17], [53.6, 6.6, -17.6], 0.24, T.rgOrange, { r1: 0.1, n: 8, caps: 0 });
     // водяная ёмкость и склад ГСМ в обваловке
     k.tankV(72, 0, 14, 4.2, 1.9, T.rgBlueLt, {});
     k.pipe([[72, 0.5, 12.1], [72, 0.5, 8], [60, 0.5, 8]], 0.08, T.rgBlueLt);
@@ -213,6 +226,22 @@
     dynamic: function (g, p, env) { if (KC.RigSim) KC.RigSim.draw(g, p, env); },
     update: function (p, dt, hooks) { if (KC.RigSim) KC.RigSim.update(p, dt, hooks); },
     use: function (p, pos, ctx) { return KC.RigSim ? KC.RigSim.use(p, pos, ctx) : false; },
+    lights: function (p, out, cam, night) {
+      var RX = p.st.slot * L.STEP, w;
+      if (p.st.flare) {
+        var f = 0.85 + Math.random() * 0.3;
+        w = Props.world(p, L.FLARE[0], 11, L.FLARE[1]);
+        out.push({ x: w[0], y: w[1], z: w[2], r: 46, col: [1.7 * f, 1.05 * f, 0.45 * f], pri: 3 });
+      }
+      if (!(night > 0.05)) return;
+      // ночью прожекторы освещают рабочие места
+      [[0, D.FLOOR + 4.3, 1.5, 26], [0, D.MONKEY + 2, -3.5, 18], [0, 4.6, -17, 22], [15, 7.4, 0, 20], [31, 7.4, 0, 20], [48, 5.7, 0, 20]].forEach(function (q) {
+        w = Props.world(p, RX + q[0], q[1], q[2]);
+        var dx = w[0] - cam.x, dz = w[2] - cam.z;
+        if (dx * dx + dz * dz > 150 * 150) return;
+        out.push({ x: w[0], y: w[1], z: w[2], r: q[3], col: [1.05 * night, 1.0 * night, 0.86 * night], pri: 1, d2: dx * dx + dz * dz });
+      });
+    },
     save: function (p) { return KC.RigSim ? KC.RigSim.save(p) : p.st; }
   };
 

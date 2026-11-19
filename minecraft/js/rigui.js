@@ -85,6 +85,10 @@
     CAMS.forEach(function (c, i) { var b = btn(c[0], 'cam', i); b.id = 'rg-cam' + i; cams.appendChild(b); });
     el.appendChild(cams);
     var log = h('ol', 'rg-log'); log.id = 'rg-log'; el.appendChild(log);
+    var foot = h('div', 'rg-row');
+    var bDis = btn('Демонтировать буровую', 'dismantle'); bDis.id = 'rg-dis';
+    foot.appendChild(h('span', 'rg-row__l', 'Творческий режим')); foot.appendChild(bDis); foot.id = 'rg-foot';
+    el.appendChild(foot);
 
     el.addEventListener('click', function (ev) {
       var b = ev.target.closest ? ev.target.closest('button[data-c]') : null;
@@ -92,6 +96,11 @@
       var c = b.getAttribute('data-c'), v = b.getAttribute('data-v');
       if (c === 'close') { close(); return; }
       if (c === 'cam') { camIdx = +v; refresh(); return; }
+      if (c === 'dismantle') {                 // второе нажатие подтверждает
+        if (b.getAttribute('data-sure')) { var gone = cur; b.removeAttribute('data-sure'); b.textContent = 'Демонтировать буровую'; close(); cur = null; KC.Props.remove(gone); }
+        else { b.setAttribute('data-sure', '1'); b.textContent = 'Точно демонтировать? Нажмите ещё раз'; }
+        return;
+      }
       S.cmd(cur, c, v === null ? undefined : +v);
       refresh();
     });
@@ -186,6 +195,9 @@
     cur = p;
     if (UI.host && UI.host.enter) UI.host.enter();
     shown = true;
+    var ft = document.getElementById('rg-foot'), pl = UI.host && UI.host.creative ? UI.host.creative() : false;
+    if (ft) ft.hidden = !pl;
+    var bd = document.getElementById('rg-dis'); if (bd) { bd.removeAttribute('data-sure'); bd.textContent = 'Демонтировать буровую'; }
     refresh();
   }
   function close() { shown = false; if (UI.host && UI.host.leave) UI.host.leave(); }

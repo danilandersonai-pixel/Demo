@@ -31,6 +31,36 @@
     return [x + 0.62, hy - 0.85, z - 0.22];
   }
 
+  // Работник буровой: спецовка, каска. pose: 0 стоит, 1 работает руками, 2 тянется вверх (верховой)
+  function man(g, x, y, z, yaw, t, pose, helm) {
+    g.push().move(x, y, z).rot('y', yaw);
+    var sw = pose === 1 ? Math.sin(t * 4.2 + x * 3) : 0, sv = g.mat;
+    g.mat = KC.MAT.SOLID;
+    g.box(-0.21, 0, -0.1, -0.02, 0.8, 0.1, T.rgBlack); g.box(0.02, 0, -0.1, 0.21, 0.8, 0.1, T.rgBlack);
+    g.box(-0.25, 0.8, -0.14, 0.25, 1.42, 0.14, T.rgCoverall);
+    g.box(-0.17, 1.42, -0.17, 0.17, 1.72, 0.17, T.rgSkin);
+    g.box(-0.2, 1.68, -0.2, 0.2, 1.84, 0.2, helm || T.rgOrange); g.box(-0.22, 1.68, 0.2, 0.22, 1.72, 0.3, helm || T.rgOrange);
+    [-1, 1].forEach(function (s) {
+      var sh = [s * 0.31, 1.36, 0], hand = pose === 2 ? [s * 0.33, 1.95 + sw * 0.05, 0.25] : pose === 1 ? [s * 0.27, 1.02 + s * sw * 0.14, 0.42] : [s * 0.33, 0.82, 0.04];
+      g.beam(sh, hand, 0.13, 0.13, T.rgCoverall, { caps: true });
+    });
+    g.mat = sv;
+    g.pop();
+  }
+  // Вахта: бурильщик у пульта, два помощника у ротора, верховой — на балконе при СПО
+  function crew(g, st, t, lit) {
+    var trip = st.kelly === 'rathole' && (st.rackDir || st.hang === 'stand' || st.opName === 'Подъём инструмента' || st.opName === 'Спуск инструмента');
+    var busy = st.akb > 0.05 || st.kx !== 0 || st.q.length > 0;
+    lit('floor', 0, F + 2, 0);
+    man(g, -3.3, F, 4.45, Math.PI, t, st.q.length || st.mode === 'drill' ? 1 : 0, T.rgWhite);
+    if (busy) { man(g, -1.05, F, -0.75, -2.2, t, 1); man(g, 1.2, F, -0.95, 2.3, t + 1, 1); }
+    else { man(g, -2.4, F, -1.3, -1.9, t, 0); man(g, 2.9, F, -0.6, 1.4, t, 0); }
+    if (trip) { lit('monkey', 0, D.MONKEY + 1, -3); man(g, 0.2, D.MONKEY, -2.6, Math.PI * 0.5 * (st.stands % 2 ? 1 : -1), t, st.rackT > 0 ? 2 : 0); }
+    else man(g, 4.4, F, 2.6, -0.6, t, 0);
+    lit('pumps', 48, 3, -2);
+    man(g, 47.6, 1, 2.9, 2.6, t, 0, T.rgYellow);
+  }
+
   function draw(g, p, env) {
     var st = p.st, rt = S.rtOf(p), RX = st.slot * L.STEP, k = new Kit(g, null), hy = F + st.hookY, i, t = env.t;
     var wc = KC.Props.world(p, RX, 0, 0), camD = Math.hypot(env.cam.x - wc[0], env.cam.z - wc[2]);
@@ -118,6 +148,8 @@
       pipe(g, tp, hp, 0.07, T.rgRust, true);
       g.beam(hp, [5.2, F + 1.0, 4.0], 0.025, 0.025, T.rgRope);
     }
+
+    if (camD < 110) crew(g, st, t, lit);
 
     // --- свечи за пальцем ---
     if (camD < 170) {
