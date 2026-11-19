@@ -15,6 +15,8 @@
 <canvas id="gl" aria-label="Игровой мир"></canvas>
 
 <!-- Игровой интерфейс -->
+<section id="rigpanel" class="rigpanel" hidden aria-label="Пост бурильщика буровой установки"></section>
+<div id="righud" class="righud" hidden aria-live="off"></div>
 <div id="hud" hidden>
   <div class="crosshair" aria-hidden="true"></div>
   <div id="water-tint" hidden></div>
@@ -124,6 +126,7 @@
         <label><input type="radio" name="nw-mode" value="creative"> <span>Творчество</span></label>
         <label><input type="radio" name="nw-mode" value="zombie"> <span>Зомби-апокалипсис</span></label>
         <label><input type="radio" name="nw-mode" value="abandoned"> <span>Заброшенный город</span></label>
+        <label><input type="radio" name="nw-mode" value="rig"> <span>Буровая БУ-3000</span></label>
       </fieldset>
       <p class="nw-note" id="nw-note" hidden>Остров-мегаполис, где бродят заражённые: днём их мало, ночью — толпы. Эвакуационный вертолёт сбит — найдите рацию в полицейском участке, узнайте, где площадка эвакуации, и встретьте вертолёт на восьмой день.</p>
       <label class="set-row" for="nw-diff">
@@ -330,6 +333,15 @@
 <script src="js/audio.js"></script>
 <script src="js/player.js"></script>
 <script src="js/ui.js"></script>
+<script src="js/geo.js"></script>
+<script src="js/props.js"></script>
+<script src="js/rigparts.js"></script>
+<script src="js/rigequip.js"></script>
+<script src="js/rigmast.js"></script>
+<script src="js/rig.js"></script>
+<script src="js/rigsim.js"></script>
+<script src="js/rigdraw.js"></script>
+<script src="js/rigui.js"></script>
 <script src="js/game.js"></script>
 </body>
 </html>

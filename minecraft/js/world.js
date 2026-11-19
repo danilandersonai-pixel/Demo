@@ -451,6 +451,8 @@
   // Правки игрока поверх генерации, пересчёт карт и регистрация чанка
   World.prototype._finish = function (c, info) {
     var b = c.blocks, m = c.meta;
+    // крупные объекты (буровая) кладут свои блоки до правок игрока
+    if (this.props && this.props.length && KC.Props) KC.Props.stampChunk(this, c);
     var ed = this.edits[c.cx + ',' + c.cz];
     if (ed) for (var key in ed) { var v = ed[key]; b[+key] = v & 255; m[+key] = v >> 8; }
     c.recalcAll();
@@ -526,6 +528,7 @@
       case 'cactus': return [1 / 16, 0, 1 / 16, 15 / 16, 1, 15 / 16];
       case 'door': return doorBox(meta);
       case 'model': return rotBox(b.model.coll, meta);
+      case 'hull': return (KC.HULLS[meta] || KC.HULLS[0])[0];
       default: return FULL;
     }
   }
@@ -548,6 +551,9 @@
       case 'portal': return portalBox(meta);
       case 'pole': return POLE;
       case 'model': return rotBox(b.model.sel || b.model.coll, meta);
+      case 'hull':
+        var hb = KC.HULLS[meta] || KC.HULLS[0], h0 = hb[0], h1 = hb[1];
+        return h1 ? [Math.min(h0[0], h1[0]), Math.min(h0[1], h1[1]), Math.min(h0[2], h1[2]), Math.max(h0[3], h1[3]), Math.max(h0[4], h1[4]), Math.max(h0[5], h1[5])] : h0;
       case 'decal': return attachedBox((meta & 7) > 5 ? 3 : meta & 7, 16, 16, 1);
       default: return collisionBox(id, meta) || FULL;
     }
@@ -562,6 +568,7 @@
     // у ступеней вторая коробка — верхняя ступенька
     var md = BLOCKS[id].model;
     if (md && md.coll2) { var b2 = rotBox(md.coll2, meta); out.push([x + b2[0], y + b2[1], z + b2[2], x + b2[3], y + b2[4], z + b2[5]]); }
+    if (BLOCKS[id].shape === 'hull') { var h2 = (KC.HULLS[meta] || KC.HULLS[0])[1]; if (h2) out.push([x + h2[0], y + h2[1], z + h2[2], x + h2[3], y + h2[4], z + h2[5]]); }
   };
 
   // ---- Мешер ----------------------------------------------------------------------
@@ -626,7 +633,7 @@
   var AO_CURVE = [0.46, 0.66, 0.83, 1.0];
   var CORNERS = [[0, 0], [1, 0], [1, 1], [0, 1]];
   var UVS = [];
-  for (var t = 0; t < 512; t++) UVS.push(KC.tileUV(t));      // атлас 16×32 плиток
+  for (var t = 0; t < (KC.ATLAS_H / 16) * 16; t++) UVS.push(KC.tileUV(t));      // атлас 16×32 плиток
   var WHEAT_TILE = [T.wheat0, T.wheat0, T.wheat1, T.wheat1, T.wheat2, T.wheat2, T.wheat3, T.wheat4];
 
   // Плитка грани с учётом состояния блока
@@ -796,6 +803,22 @@
         case 'crop': emitCrop(ob, wx, y, wz, UVS[WHEAT_TILE[meta & 7]], psky[p], pblk[p]); break;
         default: emitShape(ob, bd, id, meta, p, wx, y, wz); break;
       }
+    }
+    // статичная геометрия крупных объектов: свет берётся из клетки перед гранью
+    var pm = this.props && this.props.length && KC.Props ? KC.Props.meshFor(this, cx + ',' + cz) : null;
+    if (pm && pm.n) {
+      var pd = pm.data, pn = pm.n;
+      ob.reserve(pn / 24);
+      for (var qi = 0; qi < pn; qi += 24) {
+        var sxp = (pd[qi] + pd[qi + 6] + pd[qi + 12] + pd[qi + 18]) * 0.25, syp = (pd[qi + 1] + pd[qi + 7] + pd[qi + 13] + pd[qi + 19]) * 0.25,
+          szp = (pd[qi + 2] + pd[qi + 8] + pd[qi + 14] + pd[qi + 20]) * 0.25;
+        var nn = Math.floor(pd[qi + 5] / 256) & 7;
+        if (nn < 6) { var fn = FACES[nn].n; sxp += fn[0] * 0.4; syp += fn[1] * 0.4; szp += fn[2] * 0.4; }
+        var plx = clamp(Math.floor(sxp) - ox + 1, 0, PW - 1), ply = clamp(Math.floor(syp) + 1, 0, PH - 1), plz = clamp(Math.floor(szp) - oz + 1, 0, PW - 1);
+        var pidx2 = plx + plz * PW + ply * PA, psk = psky[pidx2], pbl = pblk[pidx2];
+        for (var qk = 0; qk < 24; qk += 6) ob.v(pd[qi + qk], pd[qi + qk + 1], pd[qi + qk + 2], pd[qi + qk + 3], pd[qi + qk + 4], pd[qi + qk + 5], psk, pbl);
+      }
+      if (pm.top > topY) topY = Math.ceil(pm.top);
     }
     return { opaque: ob.data.subarray(0, ob.n), opaqueQuads: ob.n / (4 * FLOATS),
       water: wb.data.subarray(0, wb.n), waterQuads: wb.n / (4 * FLOATS), topY: topY };

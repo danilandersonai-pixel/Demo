@@ -52,7 +52,8 @@
     // Порт, старый город, правительственный квартал, электростанция
     CONTAINER: 187, BOLLARD: 188, CRANE_BEAM: 189, SHIP_HULL: 190, SHIP_CABIN: 191, ROOF_TILE: 192, ROOF_SLOPE: 193, PLASTER: 194,
     PAVING: 195, CHIMNEY_BRICK: 196, COOLING_CONCRETE: 197, TRANSFORMER: 198, QUAY_EDGE: 199, STAINED_GLASS: 200, COPPER_ROOF: 201,
-    COPPER_SLOPE: 202, FLAG: 203, BEACON_LAMP: 204
+    COPPER_SLOPE: 202, FLAG: 203, BEACON_LAMP: 204,
+    RIG_HULL: 205, RIG_CLIMB: 206, RIG_LIGHT: 207, RIG_PLATE: 208, RIG_GRATE: 209, RIG_SIDING: 210, RIG_SIDING_W: 211, RIG_STEEL: 212, ROAD_SLAB: 213
   };
 
   // ---- Идентификаторы предметов -----------------------------------------------
@@ -423,6 +424,42 @@
   blk(B.COPPER_ROOF, 'Медная кровля', 'copperRoof', ext(metal, { hardness: 2 }));
   blk(B.COPPER_SLOPE, 'Скат медной кровли', 'copperRoof', ext(prop, { hardness: 2, model: {
     boxes: [[0, 0, 0, 16, 8, 16, 'copperRoof'], [0, 8, 0, 16, 16, 8, 'copperRoof']], coll: [0, 0, 0, 16, 8, 16], coll2: [0, 8, 0, 16, 16, 8], sel: [0, 0, 0, 16, 16, 16] } }));
+  // --- буровая установка: габариты агрегатов (невидимые коллизии), лазы, свет и стройматериалы ---
+  // Габарит: коробки коллизии по meta (в 1/16), сам блок не рисуется — деталь нарисована мешем объекта
+  var HULLS = (function () {
+    function r4(list) {              // четыре поворота набора коробок (как у моделей: 0 +Z, 1 −X, 2 −Z, 3 +X)
+      var out = [];
+      for (var m = 0; m < 4; m++) out.push(list.map(function (bx) {
+        var x0 = bx[0], z0 = bx[2], x1 = bx[3], z1 = bx[5];
+        switch (m) {
+          case 1: return [16 - z1, bx[1], x0, 16 - z0, bx[4], x1];
+          case 2: return [16 - x1, bx[1], 16 - z1, 16 - x0, bx[4], 16 - z0];
+          case 3: return [z0, bx[1], 16 - x1, z1, bx[4], 16 - x0];
+          default: return bx;
+        }
+      }));
+      return out;
+    }
+    var list = [[[0, 0, 0, 16, 16, 16]], [[0, 14, 0, 16, 16, 16]], [[0, 0, 0, 16, 2, 16]], [[0, 0, 0, 16, 8, 16]], [[0, 8, 0, 16, 16, 16]]];
+    list = list.concat(r4([[0, 0, 14, 16, 16, 16]]));                              // 5–8 тонкая стенка у грани
+    list = list.concat(r4([[0, 0, 0, 16, 8, 16], [0, 8, 0, 16, 16, 8]]));          // 9–12 ступень
+    list.push([[6, 0, 6, 10, 16, 10]]);                                            // 13 стойка
+    list = list.concat(r4([[0, 0, 8, 16, 16, 16]]));                               // 14–17 половина блока
+    list = list.concat(r4([[0, 0, 14, 16, 16, 16], [14, 0, 0, 16, 16, 14]]));      // 18–21 угол из двух стенок
+    list.push([[0, 0, 0, 16, 4, 16]], [[0, 6, 0, 16, 8, 16]]);                     // 22 низкий, 23 полка
+    return list.map(function (bs) { return bs.map(function (bx) { return bx.map(function (v) { return v / 16; }); }); });
+  })();
+  KC.HULLS = HULLS;
+  blk(B.RIG_HULL, 'Агрегат буровой', 'rgBlue', { shape: 'hull', opaque: false, solid: true, hardness: -1, mat: 'metal', use: 'prop' });
+  blk(B.RIG_CLIMB, 'Лестница-стремянка', 'rgGrey', { shape: 'none', opaque: false, solid: false, hardness: -1, climb: true });
+  blk(B.RIG_LIGHT, 'Прожектор буровой', 'rgLens', { shape: 'none', opaque: false, solid: false, hardness: -1, light: 15 });
+  blk(B.RIG_PLATE, 'Рифлёный настил', 'rgPlate', { hardness: 3, tool: 'pickaxe', mat: 'metal' });
+  blk(B.RIG_GRATE, 'Решётчатый настил', 'rgGrate', { hardness: 2, tool: 'pickaxe', mat: 'metal', opaque: false, glass: true });
+  blk(B.RIG_SIDING, 'Профлист синий', 'rgSideBlue', { hardness: 2, tool: 'pickaxe', mat: 'metal' });
+  blk(B.RIG_SIDING_W, 'Профлист белый', 'rgSideWhite', { hardness: 2, tool: 'pickaxe', mat: 'metal' });
+  blk(B.RIG_STEEL, 'Стальная балка', 'rgBlue', { hardness: 4, tool: 'pickaxe', mat: 'metal' });
+  blk(B.ROAD_SLAB, 'Дорожная плита', 'rgSlab', { hardness: 3, tool: 'pickaxe', mat: 'stone' });
+
   // плитки коробок и вариантов «наклеек» — в индексы атласа
   BLOCKS.forEach(function (b) {
     if (!b) return;
@@ -479,7 +516,7 @@
   [[B.FERN, 'fern'], [B.MUSHROOM_RED, 'mushroomRed'], [B.MUSHROOM_BROWN, 'mushroomBrown'], [B.DAISY, 'daisy'], [B.BELLFLOWER, 'bellflower'],
     [B.DEAD_BUSH, 'deadBush'], [B.LILY_PAD, 'lilyPad'], [B.PEBBLES, 'pebbles'], [B.FALLEN_LEAVES, 'fallenLeaves'], [B.POSTER, 'poster1'],
     [B.GRAFFITI, 'graffiti2'], [B.IVY, 'ivy'], [B.CRACKS, 'crackDecal'], [B.LITTER, 'litter'], [B.MOSS, 'moss1'], [B.WEEDS, 'weeds'], [B.BARBED_WIRE, 'barbedWire']].forEach(function (p) { BLOCK_SPRITES[p[0]] = p[1]; });
-  var NOT_ITEMS = [B.AIR, B.WATER, B.LAVA, B.WHEAT, B.WIRE, B.PISTON_HEAD, B.FARMLAND, B.FIRE];
+  var NOT_ITEMS = [B.AIR, B.WATER, B.LAVA, B.WHEAT, B.WIRE, B.PISTON_HEAD, B.FARMLAND, B.FIRE, B.RIG_HULL, B.RIG_CLIMB, B.RIG_LIGHT];
   BLOCKS.forEach(function (b, id) {
     if (!b || NOT_ITEMS.indexOf(id) >= 0) return;
     ITEMS[id] = { id: id, name: b.name, block: id, stack: 64, fuel: b.fuel };

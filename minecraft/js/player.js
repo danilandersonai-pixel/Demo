@@ -555,6 +555,7 @@
         case 'lever': KC.Sim.toggleLever(t.x, t.y, t.z); return true;
         case 'button': KC.Sim.pressButton(t.x, t.y, t.z); return true;
         case 'bed': sleep(t); return true;
+        case 'prop': if (KC.Props && KC.Props.useAt(t.x, t.y, t.z, { player: P, held: st })) return true; break;
         case 'teleport': if (hooks.teleport) hooks.teleport(t); return true;
         case 'generator':
           var gen = KC.Sim.getBent(t.x, t.y, t.z);
@@ -611,6 +612,7 @@
     }
     if (!begin) return false;
     if (st.id === I.CITY_MAP && hooks.openMap) { hooks.openMap(); return true; }
+    if (it.prop && hooks.placeProp) { if (hooks.placeProp(it.prop, t) && !P.creative) useOne(); return true; }
     if (it.vehicle && hooks.placeVehicle) { if (hooks.placeVehicle(it.vehicle) && !P.creative) useOne(); return true; }
     if (st.id === I.RADIO && hooks.useRadio) { hooks.useRadio(); return true; }
     if (it.heal) {

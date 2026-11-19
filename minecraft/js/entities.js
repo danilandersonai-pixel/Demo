@@ -1869,6 +1869,7 @@
       }
     }
     if (playerView) playerView(mobBatch);
+    if (KC.Props) KC.Props.draw(itemBatch, cam, t);
     return { mobs: mobBatch.view(), items: itemBatch.view() };
   }
 

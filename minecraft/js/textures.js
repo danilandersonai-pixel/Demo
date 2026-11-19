@@ -1920,6 +1920,219 @@
     }
   });
 
+  // ---- Буровая установка: краски, настилы, детали агрегатов ---------------------------
+  function paint(base, s, edge) {
+    for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) {
+      var c = jit(base, s || 0.05);
+      if (edge && (y === 0 || x === 0)) c = mul(c, 0.86);
+      if (rnd() < 0.02) c = mul(c, 0.82);
+      px(x, y, c);
+    }
+  }
+  function disc(r0, r1, c, s) {
+    for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) {
+      var dd = Math.hypot(x - 7.5, y - 7.5);
+      if (dd >= r0 && dd <= r1) px(x, y, s ? jit(c, s) : c);
+    }
+  }
+  tile('rgBlue', function () { paint([40, 78, 132], 0.06); });
+  tile('rgBlueLt', function () { paint([74, 142, 200], 0.05); });
+  tile('rgGrey', function () { paint([172, 178, 184], 0.05); });
+  tile('rgRed', function () { paint([188, 44, 36], 0.06); });
+  tile('rgWhite', function () { paint([226, 228, 224], 0.04); });
+  tile('rgYellow', function () { paint([234, 186, 30], 0.05); });
+  tile('rgGreen', function () { paint([54, 122, 80], 0.06); });
+  tile('rgOrange', function () { paint([226, 122, 32], 0.05); });
+  tile('rgBlack', function () { paint([30, 31, 34], 0.1); });
+  tile('rgDark', function () { paint([72, 76, 84], 0.08); });
+  tile('rgSteel', function () {
+    for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) px(x, y, jit(mul([138, 144, 150], 0.94 + 0.1 * Math.sin(y * 1.3)), 0.04));
+  });
+  tile('rgRust', function () {
+    for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) { var r = rnd(); px(x, y, r < 0.12 ? [92, 56, 38] : r < 0.2 ? [150, 100, 66] : jit([124, 80, 54], 0.1)); }
+  });
+  tile('rgPlate', function () {              // рифлёный лист: «чечевица» ёлочкой
+    paint([104, 110, 118], 0.04);
+    for (var y = 0; y < 16; y += 4) for (var x = 0; x < 16; x += 4) {
+      var alt = ((x + y) / 4) % 2 === 0;
+      px(x + 1, y + (alt ? 1 : 2), [124, 130, 138]); px(x + 2, y + (alt ? 2 : 1), [124, 130, 138]);
+      px(x + 2, y + (alt ? 3 : 0), [88, 93, 101]);
+    }
+  });
+  tile('rgGrate', function () {              // решётчатый настил (просечка)
+    clear();
+    for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) {
+      if (x % 4 === 0 || y % 4 === 0) px(x, y, jit(y % 8 === 0 || x % 8 === 0 ? [150, 156, 164] : [116, 122, 130], 0.05));
+    }
+  });
+  function siding(c) {
+    for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) {
+      var k = x % 4 === 0 ? 0.74 : x % 4 === 1 ? 1.08 : 1;
+      px(x, y, jit(mul(c, k * (y === 15 ? 0.9 : 1)), 0.03));
+    }
+  }
+  tile('rgSideBlue', function () { siding([48, 96, 162]); });
+  tile('rgSideWhite', function () { siding([222, 226, 228]); });
+  tile('rgSideGrey', function () { siding([150, 156, 162]); });
+  tile('rgSheave', function () {             // канатный шкив: обод, ступица, спицы
+    clear();
+    disc(5.6, 7.9, [70, 76, 86], 0.06); disc(4.6, 5.6, [200, 160, 36]); disc(0, 2.2, [60, 64, 72]);
+    for (var k = 0; k < 16; k++) { px(k, 7, [200, 160, 36]); px(k, 8, [200, 160, 36]); px(7, k, [200, 160, 36]); px(8, k, [200, 160, 36]); }
+    disc(0, 1.2, [150, 154, 160]); disc(7.2, 7.9, [48, 52, 60]);
+  });
+  tile('rgHandwheel', function () {          // штурвал задвижки
+    clear();
+    disc(5.8, 7.6, [196, 40, 34], 0.05);
+    for (var k = 1; k < 15; k++) { px(k, k, [176, 34, 30]); px(15 - k, k, [176, 34, 30]); }
+    disc(0, 1.6, [70, 72, 78]);
+  });
+  tile('rgFan', function () {                // решётка вентилятора двигателя
+    clear();
+    disc(0, 7.8, [44, 48, 54]);
+    for (var r = 2; r < 8; r += 2) disc(r, r + 0.6, [130, 136, 144]);
+    for (var k = 0; k < 16; k++) { px(k, 7, [130, 136, 144]); px(8, k, [130, 136, 144]); }
+    disc(7.2, 7.9, [150, 156, 164]);
+  });
+  function gauge(face, needle, red) {
+    clear();
+    disc(0, 7.9, [34, 36, 40]); disc(0, 6.6, face);
+    for (var a = 0; a < 12; a++) {
+      var an = Math.PI * (0.8 + a / 11 * 1.4), gx = Math.round(7.5 + Math.cos(an) * 5.5), gy = Math.round(7.5 + Math.sin(an) * 5.5);
+      px(gx, gy, a > 8 && red ? [200, 40, 30] : [40, 40, 44]);
+    }
+    for (var k = 0; k < 5; k++) px(Math.round(7.5 + needle[0] * k), Math.round(7.5 + needle[1] * k), [200, 30, 24]);
+    disc(0, 0.9, [30, 30, 34]);
+  }
+  tile('rgGauge', function () { gauge([236, 236, 228], [0.7, -0.75], true); });
+  tile('rgGiv', function () {                // гидравлический индикатор веса: большая и малая шкалы
+    gauge([24, 26, 30], [-0.5, -0.85], false);
+    for (var a = 0; a < 16; a++) { var an = a / 16 * 6.283; px(Math.round(7.5 + Math.cos(an) * 5.6), Math.round(7.5 + Math.sin(an) * 5.6), [232, 232, 220]); }
+    for (var k = 0; k < 4; k++) px(7 + k, 8 + Math.round(k * 0.6), [240, 240, 240]);
+    disc(1.5, 2.3, [226, 190, 40]);
+  });
+  tile('rgPanel', function () {              // пульт: кнопки, лампы, рукоятки
+    paint([92, 98, 106], 0.04, true);
+    rect(1, 1, 14, 14, [58, 62, 70]);
+    var cols = [[60, 200, 80], [220, 50, 40], [240, 200, 50], [70, 150, 230]];
+    for (var y = 3; y < 14; y += 4) for (var x = 3; x < 14; x += 4) { rect(x, y, x + 1, y + 1, cols[(x + y * 3) % 4]); px(x, y, [250, 250, 250]); }
+    rect(2, 13, 13, 13, [30, 32, 36]);
+  });
+  tile('rgCabinet', function () {            // электрошкаф: дверь, замок, знак «молния»
+    paint([186, 190, 194], 0.03, true);
+    rect(0, 0, 0, 15, [120, 124, 130]); rect(15, 0, 15, 15, [120, 124, 130]); rect(13, 7, 13, 9, [50, 52, 58]);
+    var tri = ['...Y...', '..YYY..', '..YBY..', '.YYBYY.', '.YBBYY.', 'YYYBYYY', 'YYYYYYY'];
+    for (var y = 0; y < 7; y++) for (var x = 0; x < 7; x++) { var ch = tri[y].charAt(x); if (ch !== '.') px(3 + x, 3 + y, ch === 'Y' ? [240, 200, 30] : [20, 20, 22]); }
+  });
+  tile('rgLouver', function () {
+    for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) px(x, y, y % 3 === 0 ? [40, 44, 50] : y % 3 === 1 ? [170, 176, 182] : [128, 134, 140]);
+  });
+  tile('rgRope', function () {               // стальной канат: витки под углом
+    for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) px(x, y, (x + y * 2) % 4 < 2 ? [118, 122, 128] : [66, 70, 76]);
+  });
+  tile('rgDrum', function () {               // барабан с навитым канатом
+    for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) px(x, y, jit(y % 2 === 0 ? [124, 128, 134] : [74, 78, 84], 0.06));
+  });
+  tile('rgMud', function () {                // буровой раствор
+    for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) {
+      var w = Math.sin(x * 0.8 + y * 0.35) * 0.06 + Math.sin(y * 1.1) * 0.04;
+      px(x, y, jit(mul([112, 92, 70], 1 + w), 0.05));
+    }
+  });
+  tile('rgSack', function () {               // мешки с реагентом в штабеле
+    for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) {
+      var row = Math.floor(y / 4), ox = row % 2 ? 4 : 0, seam = y % 4 === 3 || (x + ox) % 8 === 7;
+      px(x, y, seam ? [150, 132, 100] : jit([208, 192, 156], 0.05));
+    }
+    rect(2, 1, 4, 1, [60, 110, 180]); rect(10, 9, 12, 9, [60, 110, 180]);
+  });
+  tile('rgSign', function () {               // табличка «БУ 3000»
+    rect(0, 0, 15, 15, [30, 74, 140]); rect(0, 0, 15, 0, [232, 232, 226]); rect(0, 15, 15, 15, [232, 232, 226]);
+    rect(0, 0, 0, 15, [232, 232, 226]); rect(15, 0, 15, 15, [232, 232, 226]);
+    var rows = ['WWW.W.W', 'W...W.W', 'WWW.WWW', 'W.W...W', 'WWW.WWW'];
+    for (var y = 0; y < 5; y++) for (var x = 0; x < 7; x++) if (rows[y].charAt(x) === 'W') px(4 + x, 2 + y, [240, 240, 236]);
+    var num = ['WW.WW.WW.WW', '.W.WW.WW.WW', 'WW.WW.WW.WW'];
+    for (y = 0; y < 3; y++) for (x = 0; x < 11; x++) if (num[y].charAt(x) === 'W') px(2 + x, 9 + y * 2, [240, 210, 60]);
+  });
+  tile('rgHazard', function () {
+    for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) px(x, y, Math.floor((x + y) / 4) % 2 === 0 ? [236, 190, 30] : [26, 26, 28]);
+  });
+  tile('rgHose', function () {               // буровой рукав: оплётка
+    for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) px(x, y, x % 3 === 0 ? [58, 58, 62] : jit([28, 28, 31], 0.1));
+  });
+  tile('rgLens', function () {
+    for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) {
+      var e = x === 0 || y === 0 || x === 15 || y === 15;
+      px(x, y, e ? [70, 74, 80] : (x % 5 === 0 || y % 5 === 0) ? [226, 232, 220] : [255, 252, 232]);
+    }
+  });
+  tile('rgRedLamp', function () { for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) px(x, y, jit([255, 60, 44], 0.04)); });
+  tile('rgBelt', function () {               // клиновые ремни под кожухом-сеткой
+    for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) px(x, y, y % 4 === 0 ? [70, 72, 76] : jit([24, 24, 26], 0.1));
+  });
+  tile('rgSlab', function () {               // дорожная плита: швы и монтажные петли
+    for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) {
+      var e = x === 0 || y === 0;
+      px(x, y, e ? [112, 110, 106] : jit(rnd() < 0.05 ? [150, 148, 142] : [178, 176, 170], 0.04));
+    }
+    px(3, 3, [70, 70, 72]); px(12, 3, [70, 70, 72]); px(3, 12, [70, 70, 72]); px(12, 12, [70, 70, 72]);
+  });
+  tile('rgScreen', function () {             // сетка вибросита с раствором
+    for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) {
+      var m = (x + y) % 2 === 0;
+      px(x, y, y < 9 ? (m ? [120, 100, 78] : [98, 82, 64]) : (m ? [168, 172, 176] : [96, 100, 106]));
+    }
+  });
+  tile('rgWindow', function () {
+    for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) {
+      var e = x <= 1 || y <= 1 || x >= 14 || y >= 14;
+      px(x, y, e ? [60, 66, 74] : (x + y > 12 && x + y < 16) ? [190, 222, 240] : [120, 170, 204]);
+    }
+  });
+  tile('rgDoor', function () {
+    paint([64, 104, 160], 0.03);
+    rect(0, 0, 0, 15, [34, 60, 100]); rect(15, 0, 15, 15, [34, 60, 100]); rect(0, 0, 15, 0, [34, 60, 100]);
+    rect(3, 3, 12, 7, [48, 84, 136]); rect(12, 9, 13, 10, [210, 210, 200]);
+  });
+  tile('rgRadiator', function () {
+    for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) px(x, y, x % 2 === 0 ? [150, 156, 160] : [84, 88, 94]);
+    rect(0, 0, 15, 0, [120, 124, 130]); rect(0, 15, 15, 15, [120, 124, 130]);
+  });
+  tile('rgWagon', function () {              // вагон-дом: светлая обшивка с зелёной полосой
+    siding([226, 222, 206]);
+    for (var x = 0; x < 16; x++) { px(x, 9, [46, 120, 84]); px(x, 10, [46, 120, 84]); px(x, 11, [38, 104, 72]); }
+  });
+  tile('rgFireBoard', function () {          // пожарный щит: багор, лопата, ведро
+    paint([200, 40, 32], 0.03, true);
+    rect(2, 2, 2, 13, [210, 190, 150]); rect(1, 2, 3, 3, [70, 72, 78]);
+    rect(6, 2, 6, 11, [210, 190, 150]); rect(5, 11, 7, 13, [70, 72, 78]);
+    rect(10, 7, 13, 12, [220, 60, 50]); rect(10, 6, 13, 6, [60, 60, 64]); rect(11, 9, 12, 10, [250, 240, 230]);
+  });
+  tile('rgInsul', function () {              // изолятор: рёбра
+    for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) px(x, y, y % 4 < 2 ? [150, 84, 50] : [96, 52, 32]);
+  });
+  tile('rgFlameStack', function () { paint([56, 50, 46], 0.12); });
+  tile('rgHelm', function () {               // знак «работать в каске»
+    rect(0, 0, 15, 15, [236, 236, 230]); disc(0, 7.2, [30, 96, 180]);
+    rect(4, 6, 11, 9, [240, 240, 240]); rect(5, 4, 10, 5, [240, 240, 240]); rect(3, 10, 12, 10, [240, 240, 240]);
+  });
+  tile('rgTimber', function () {             // брус подсвечника и мостков
+    for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) {
+      var seam = y % 8 === 7;
+      px(x, y, seam ? [84, 62, 40] : jit(mul([150, 114, 72], 0.9 + 0.1 * Math.sin(x * 0.9 + (y >> 3) * 2)), 0.06));
+    }
+  });
+  tile('rgItemRig', function () {            // иконка комплекта буровой
+    sprite(['.......R........', '......RWR.......', '......R.R.......', '.....G...G......', '.....GX.XG......', '....G..X..G.....',
+      '....G.X.X.G.....', '...G.X...X.G....', '...GX.....XG....', '..G.X.....X.G...', '..GX...K...XG...', '.BBBBBBKBBBBBB..',
+      '.B..B..K..B..B..', '.B..B..K..B..B..', 'SSSSSSSSSSSSSSSS', '................'],
+      { R: [200, 44, 36], W: [236, 236, 230], G: [176, 182, 188], X: [140, 146, 152], B: [44, 84, 140], K: [90, 60, 44], S: [214, 196, 140] });
+  });
+  tile('rgItemPart', function () {           // иконка агрегата
+    sprite(['................', '................', '....YYYYYY......', '...GGGGGGGG.....', '..GGGGGGGGGGDD..', '..GGWGGGGGGGDD..', '..GGGGGGGGGGDD..',
+      '..GGGGGGGGGGDD..', '...GGGGGGGG.DD..', '..BBBBBBBBBBBB..', '..B..B....B..B..', '................'],
+      { Y: [234, 186, 30], G: [54, 122, 80], D: [72, 76, 84], W: [236, 236, 228], B: [40, 78, 132] });
+  });
+
   // ---- Сборка атласа ---------------------------------------------------------------
   function makeAtlas() {
     var cv = document.createElement('canvas');

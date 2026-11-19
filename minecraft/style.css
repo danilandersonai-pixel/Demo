@@ -671,3 +671,46 @@ body[data-state="dead"] #bars { display: none; }
   #fade.is-on { animation: none; }
   #intro-flash.is-on, #intro-cap { animation: none; transition: none; }
 }
+
+/* ---- Буровая: пост бурильщика и строка состояния ---- */
+.rigpanel {
+  position: fixed; top: 0; right: 0; bottom: 0; z-index: 40;
+  width: min(460px, 100vw); overflow-y: auto; overscroll-behavior: contain;
+  display: flex; flex-direction: column; gap: 8px;
+  padding: 12px 14px 18px; box-sizing: border-box;
+  background: var(--panel); border-left: 2px solid var(--accent-deep); box-shadow: var(--bevel);
+  font-family: var(--body); font-size: 13px; color: var(--ink);
+}
+.rigpanel[hidden] { display: none; }
+.rg-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.rg-title { font-size: 14px; letter-spacing: 0.02em; color: var(--accent-hi); }
+.rg-stage { margin: 0; font-weight: 600; }
+.rg-label { margin: 0; min-height: 2.6em; color: var(--ink-2); }
+.rg-alarm { margin: 0; padding: 6px 8px; background: var(--danger-deep); border: 2px solid var(--danger); color: #fff; font-weight: 600; }
+.rg-dials { width: 100%; height: auto; background: var(--panel-2); border: 1px solid var(--edge); }
+.rg-nums { display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; margin: 0; }
+.rg-nums dt { color: var(--ink-3); }
+.rg-nums dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
+.rg-ctl { display: flex; flex-direction: column; gap: 6px; padding-top: 6px; border-top: 1px solid var(--edge); }
+.rg-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.rg-row[hidden] { display: none; }
+.rg-row__l { color: var(--ink-2); }
+.rg-row__c { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.rg-val { min-width: 3.2em; text-align: center; font-variant-numeric: tabular-nums; }
+.rigpanel .btn--small { padding: 5px 9px; font-size: 12px; }
+.rigpanel .btn.is-on { background: var(--accent); color: var(--accent-ink); border-color: var(--accent-hi); }
+.rigpanel .btn:disabled { opacity: 0.55; cursor: default; }
+.rg-cams { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding-top: 6px; border-top: 1px solid var(--edge); }
+.rg-log { margin: 0; padding: 6px 0 0 0; list-style: none; border-top: 1px solid var(--edge); color: var(--ink-2); font-size: 12px; }
+.rg-log li { padding: 2px 0; }
+.righud {
+  position: fixed; top: 8px; left: 50%; transform: translateX(-50%); z-index: 12;
+  max-width: min(92vw, 760px); padding: 5px 12px;
+  background: var(--panel); border: 1px solid var(--edge); color: var(--ink);
+  font-family: var(--body); font-size: 13px; text-align: center; pointer-events: none;
+}
+.righud[hidden] { display: none; }
+.righud.is-alarm { border-color: var(--danger); color: #ffd9cf; }
+@media (max-width: 720px) {
+  .rigpanel { top: auto; left: 0; width: 100vw; height: 62vh; border-left: 0; border-top: 2px solid var(--accent-deep); }
+}

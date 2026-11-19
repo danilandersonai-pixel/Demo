@@ -211,6 +211,7 @@
       }
     };
     hp.placeVehicle = placeVehicle;
+    hp.placeProp = placeProp;
     hp.leaveVehicle = exitVehicle;
     hp.hitVehicle = function (v, dmg) { E.damageVehicle(v, dmg); };
     hp.blockBroken = function (x, y, z, id) {
@@ -221,12 +222,22 @@
   }
 
   // Мир измерения dim из сохранённых данных; подключает к нему сущности, симуляцию и игрока
+  // что объекты мира (буровая) могут просить у игры
+  function propHooks() {
+    return {
+      toast: toast, message: message,
+      sound: function (name, x, y, z, vol) { Audio.play(name, x, y, z, vol); },
+      player: function () { return P; }
+    };
+  }
   function makeWorld(seed, dim, data) {
     data = data || {};
     world = new KC.World(seed, data.edits || {}, dim, dim === 'over' ? worldType : 'normal');
     world.animalChunks = data.animalChunks || {};
     world.storedMobs = data.storedMobs || {};
     world.cityPop = data.cityPop || {};
+    world.props = data.props || [];
+    if (KC.Props) KC.Props.init(world, propHooks());
     heli = null; alarms.length = 0;
     KC.FX.setWorld(world, fxHooks);
     E.init(world, hooksE);
@@ -239,7 +250,8 @@
     spawn = overSpawn || world.findSpawn();
   }
   function snapshotWorld() {
-    return { edits: world.edits, bents: Sim.serialize(), entities: E.serialize(), animalChunks: world.animalChunks, storedMobs: world.storedMobs, cityPop: world.cityPop };
+    return { edits: world.edits, bents: Sim.serialize(), entities: E.serialize(), animalChunks: world.animalChunks, storedMobs: world.storedMobs, cityPop: world.cityPop,
+      props: KC.Props ? KC.Props.serialize() : [] };
   }
 
   function startWorld(save, opts) {
@@ -292,7 +304,14 @@
       }
       placedSaved = true;
     } else {
+      // сценарий «Буровая»: площадка разворачивается на ровном месте, игрок — у лестницы на пол буровой
+      if (scenario === 'rig' && dim === 'over' && KC.Rig && !KC.Props.find('bu3000')) {
+        var site = KC.Rig.findSite(world, spawn.x, spawn.z);
+        KC.Props.add('bu3000', site.x, site.y, site.z, 0);
+        spawn = overSpawn = { x: site.x - 17.5, z: site.z - 14.5, h: site.y - 1 };
+      }
       e.x = spawn.x; e.y = spawn.h + 1; e.z = spawn.z; e.yaw = 0.8; e.pitch = -0.1; e.fly = false;
+      if (scenario === 'rig') { e.yaw = -2.2; e.pitch = 0.3; }
       placedSaved = false;
       tips = {};
       if (scenario === 'zombie') {
@@ -475,6 +494,22 @@
     for (var up = 0; up < 3 && E.vHits(v, v.x, v.y, v.z, v.yaw); up++) v.y += 1;
     if (E.vHits(v, v.x, v.y, v.z, v.yaw)) { v.dead = true; toast('Здесь не хватает места'); return false; }
     v.fuel = 100;
+    return true;
+  }
+  // Крупный объект из предмета (комплект буровой): ставится перед игроком
+  function placeProp(kind) {
+    var K = KC.Props && KC.Props.KINDS[kind], e = P.e;
+    if (!K) return false;
+    if (world.dim !== 'over') { toast('Здесь буровую не развернуть'); return false; }
+    if (kind === 'bu3000') {
+      if (KC.Props.find('bu3000')) { toast('Буровая в этом мире уже стоит'); return false; }
+      var site = KC.Rig.siteFor(world, e.x, e.z, e.yaw);
+      KC.Props.add(kind, site.x, site.y, site.z, 0);
+      message('Буровая БУ-3000 ЭУК-1М смонтирована. Поднимитесь на пол буровой к посту бурильщика.', 6);
+      return true;
+    }
+    if (!target) return false;
+    KC.Props.add(kind, target.x + target.nx, target.y + target.ny, target.z + target.nz, Math.round(e.yaw / (Math.PI / 2)) & 3);
     return true;
   }
   function updateVehHud(dt) {
@@ -1105,6 +1140,21 @@
     drawMap();
     if (locked && document.exitPointerLock) document.exitPointerLock();
   }
+  // Пост бурильщика: панель поверх игры, мир продолжает жить
+  function openRig() {
+    if (state !== 'playing') return;
+    state = 'rig';
+    releaseInput();
+    showScreen('rig');
+    if (locked && document.exitPointerLock) document.exitPointerLock();
+  }
+  function closeRig() {
+    if (state !== 'rig') return;
+    state = 'playing';
+    showScreen(null);
+    saveGame();
+    if (!isTouch) lockPointer();
+  }
   function closeMap() {
     if (state !== 'map') return;
     state = 'playing';
@@ -1703,7 +1753,7 @@
     fpsT += dt; fpsN++;
     if (fpsT >= 0.5) { fps = Math.round(fpsN / fpsT); fpsT = 0; fpsN = 0; }
 
-    var simulate = placed && (state === 'playing' || state === 'container' || state === 'dead' || state === 'map');
+    var simulate = placed && (state === 'playing' || state === 'container' || state === 'dead' || state === 'map' || state === 'rig');
     var e = P.e;
     if (simulate) {
       var inp = state === 'playing' && !sleeping ? input() : { f: 0, s: 0, jump: false, down: false, sprint: false };
@@ -1718,6 +1768,8 @@
       while (tickAcc >= TICK && n < 5) { Sim.tick(); tickAcc -= TICK; n++; }
       if (n === 5) tickAcc = 0;
       E.update(dt);
+      if (KC.Props) KC.Props.update(dt);
+      if (KC.RigUI) KC.RigUI.tick(dt, state, P.e);
       if (P.vehicle && !P.vehicle.dead) seatPlayer(P.vehicle);
       zombieTick(dt);
       exploreTick(dt);
@@ -1854,6 +1906,7 @@
   // Камера: от первого лица, сзади или спереди
   function cameraBase(dt) {
     if (state === 'intro' && intro) return intro.cam;
+    if (state === 'rig' && KC.RigUI) { var rc = KC.RigUI.cam(); if (rc) return rc; }
     if (state === 'title') {
       if (!reduceMotion) titleCam.yaw += dt * 0.045;
       return titleCam;
@@ -1945,6 +1998,8 @@
     $('death').hidden = name !== 'death';
     $('victory').hidden = name !== 'victory';
     $('citymap').hidden = name !== 'map';
+    $('rigpanel').hidden = name !== 'rig';
+    if (name !== null && name !== 'rig') $('righud').hidden = true;
     if (name !== 'container') $('container').hidden = true;
     $('hud').hidden = name === 'title';
     $('touch').hidden = !(isTouch && state === 'playing');
@@ -1973,6 +2028,10 @@
     if (scenario === 'zombie' && !tips.start) {
       tips.start = 1;
       message('Цель — эвакуация. Сначала найдите рацию в полицейском участке: стрелка вверху покажет дорогу. Припасы — в сундуках домов и магазинов', 9);
+    }
+    else if (scenario === 'rig' && !tips.start) {
+      tips.start = 1;
+      message('Кустовая площадка, буровая БУ-3000 ЭУК-1М. Поднимитесь по лестнице на пол буровой и нажмите ПКМ на любом агрегате — откроется пост бурильщика с приборами и камерами', 10);
     }
     else if (scenario === 'abandoned' && !tips.start) {
       tips.start = 1;
@@ -2060,6 +2119,7 @@
 
   var NW_NOTES = {
     zombie: 'Остров-мегаполис, где бродят заражённые: днём их мало, ночью — толпы. Эвакуационный вертолёт сбит — найдите рацию в полицейском участке, узнайте, где площадка эвакуации, и встретьте вертолёт на восьмой день.',
+    rig: 'Кустовая площадка с буровой установкой БУ-3000 ЭУК-1М: вышка 45 м, лебёдка, ротор, насосы, очистка и ёмкости раствора, ПВО. Буровая бурит сама — наблюдайте с любой точки или встаньте за пост бурильщика и ведите скважину вручную. Режим творческий: можно летать.',
     abandoned: 'Тот же остров, но заражённые ушли: пустые улицы, зелень, море вокруг. Исследуйте двенадцать мест — от собора до маяка, собирайте припасы, стройте. В тёмном метро по-прежнему опасно.'
   };
   function newWorld(opts) {
@@ -2173,8 +2233,8 @@
       var m = document.querySelector('[name="nw-mode"]:checked').value;
       var seedTxt = $('nw-seed').value.trim(), seed = 0;
       if (seedTxt) { seed = parseInt(seedTxt, 10); if (!isFinite(seed) || String(seed) !== seedTxt) seed = Math.abs(hashStr(seedTxt)) % 999999 + 1; }
-      var zm = m === 'zombie', ab = m === 'abandoned';
-      newWorld({ mode: zm || ab ? 'survival' : m, scenario: zm ? 'zombie' : ab ? 'abandoned' : null, diff: Math.max(zm ? 1 : 0, +$('nw-diff').value), seed: seed || 0 });
+      var zm = m === 'zombie', ab = m === 'abandoned', rg = m === 'rig';
+      newWorld({ mode: zm || ab ? 'survival' : rg ? 'creative' : m, scenario: zm ? 'zombie' : ab ? 'abandoned' : rg ? 'rig' : null, diff: Math.max(zm ? 1 : 0, +$('nw-diff').value), seed: seed || 0 });
       $('newworld').hidden = true;
       updateTitle();
       play();
@@ -2309,6 +2369,7 @@
       }
       if (state === 'paused') { if (code === 'Escape') { e.preventDefault(); resume(); } return; }
       if (state === 'map') { if (code === 'Escape' || code === 'KeyM' || code === 'KeyE') { e.preventDefault(); closeMap(); } return; }
+      if (state === 'rig') { if (code === 'Escape' || code === 'KeyE') { e.preventDefault(); closeRig(); } return; }
       if (state !== 'playing') return;
       if (/^Digit[1-9]$/.test(code)) { selectSlot(+code.charAt(5) - 1); return; }
       if (code === 'Space' || code.indexOf('Arrow') === 0 || code === 'F3' || code === 'F5') e.preventDefault();
@@ -2427,6 +2488,7 @@
   }
 
   // Доступ из консоли для отладки и тестов
+  if (KC.RigUI) KC.RigUI.host = { enter: openRig, leave: closeRig };
   KC.debug = {
     get world() { return world; }, get player() { return P.e; }, get state() { return state; }, get target() { return target; },
     get zombie() { return zombie; }, get scenario() { return scenario; }, goTo: goTo, travel: travel, zombieDawn: zombieDawn,
@@ -2434,7 +2496,7 @@
     P: P, play: play, pause: pause, setTime: function (t) { timeOfDay = t; lastTod = t; }, save: saveGame,
     setGfx: function (g) { settings.gfx = g; settings.gfxAuto = false; applyQuality(); }, get renderer() { return renderer; },
     weather: function (k, instant) { KC.FX.setWeather(k); if (instant) KC.FX.weather.k = k === 'clear' ? 0 : k === 'rain' ? 0.75 : 1; },
-    open: openContainer, close: closeContainer, setMode: function (m) { mode = m; P.setCreative(m === 'creative'); }
+    placeProp: placeProp, open: openContainer, close: closeContainer, setMode: function (m) { mode = m; P.setCreative(m === 'creative'); }
   };
 
   var hot = window.claude && window.claude.hot;
